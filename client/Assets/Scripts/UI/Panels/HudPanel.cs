@@ -188,8 +188,15 @@ namespace CR.UI.Panels
         /// </summary>
         private const float ElixirEndW = ElixirBarH * 10f / 59f;
 
-        /// <summary>卡内文字（卡名）字号。出处：现状（本项目自定；§1.3 只量了几何、未量字号）。</summary>
-        private const int CardFontSize = 22;
+        /// <summary>
+        /// 卡内文字（**费用数字**）字号 <b>32</b>。
+        /// <para>
+        /// <b>★ CR-V2 重标定</b>：旧值 22 是"本项目自定"（未量）。18 图手牌第 2 张的**白色费用数字**
+        /// near_white 包围盒 = (344,1752)-(390,1777) ⇒ 字面高 ≈ 25px；本项目字体字面高/字号 ≈ 0.78
+        /// ⇒ 字号 ≈ 25/0.78 ≈ 32。量法：`tools/probes/cr-v2-hud-measure.py` §3。
+        /// </para>
+        /// </summary>
+        private const int CardFontSize = 32;
 
         // ── 卡面在卡槽里的贴合（★ CR-T2 改：⛔ 不再是 ArtFill = 1.0/1.0 + 0.06×卡高 的向上偏移） ──
         //
@@ -237,8 +244,27 @@ namespace CR.UI.Panels
         /// <summary>卡面中心相对卡槽中心的纵向偏移比例 =（下内缩 − 上内缩）/2（负 = 卡面偏下）。</summary>
         private const float ArtOffsetYFrac = (ArtInsetBottomFrac - ArtInsetTopFrac) * 0.5f;
 
-        /// <summary>圣水费用泡直径 = 基线量取的卡角圣水泡 58 px × 0.8696 ≈ 50（出处：07_卡组编辑 卡角泡）。</summary>
-        private const float CostIconW = 50f;
+        /// <summary>
+        /// 手牌费用泡宽 = <b>40</b>。
+        /// <para>
+        /// <b>★ CR-V2 改（位置 + 尺寸都按 18 量取）</b>：旧值 50 出自 `07_卡组编辑` 的"卡角泡"，
+        /// 位置也放在**卡左上角**。18 图对局手牌第 2 张实测：泡（=`IconElixirDrop` 水滴）宽 ≈ 38~40
+        /// （= 卡宽 140 的 0.286），且**挂在卡底中央**（不是卡角）⇒ 泡宽取 40、位置见
+        /// <see cref="CostIconBottom"/>。量法：`tools/probes/cr-v2-hud-measure.py` §3
+        /// （原版白色数字 bbox 中心 x=367 ≈ 卡中心 357；泡下沿 y≈1783 ≈ 卡底 1785）。
+        /// </para>
+        /// </summary>
+        private const float CostIconW = 40f;
+
+        /// <summary>
+        /// 费用泡**中心**距卡底 = <b>25</b>（泡心在卡内、水平居中）。
+        /// <para>
+        /// 出处：18 图手牌第 2 张 —— 泡内白色数字 near_white bbox (344,1752)-(390,1777) 中心 y = 1764.5、
+        /// 卡底 y = 1785 ⇒ 泡心距卡底 ≈ 20；泡的下沿 y ≈ 1783（贴住卡底）⇒ 泡心 = 卡底 + 泡高/2
+        /// ≈ 25（泡高 = 40 × 69/57 ≈ 48.4 ⇒ 半高 24.2）。取 25。
+        /// </para>
+        /// </summary>
+        private const float CostIconBottom = 25f;
 
         private const float GhostW = CardW;
         private const float GhostH = CardH * 0.5f;
@@ -266,6 +292,46 @@ namespace CR.UI.Panels
         /// 「摆放尺寸要等坐标解出或按原版截图量」⇒ 不编绝对值，按板高比例给；见几何量取.md §2）。</summary>
         private const float ClockIconW = TimerBoxH * 0.30f;
 
+        /// <summary>
+        /// 计时板**板面**底色（半透明冷灰紫）。★ CR-V2 改。
+        /// <para>
+        /// <b>旧口径的两个错</b>：① 板面用 `ui_out/177`（1×1 **不透明黑**）+ `NineSlice` 铺 —— 实机板面是"近黑"，
+        /// 与原版"透出场景的半透明板"不同；② 原版同窗口板面在 y=50 的逐点采样是
+        /// (63,61,75)/(81,77,91)/(40,38,43)/(49,46,65)/(46,37,54) ⇒ 均值 ≈ <b>(56,52,66)</b>，
+        /// 而我方同一行是 (21,33,16)/(20,32,16) ⇒ 板面明显更黑（`cr-v2-hud-measure.py` §4）。
+        /// </para>
+        /// <para>
+        /// <b>取值口径</b>：板面件换成**原版浅色实心件** <see cref="ResPaths.SlotCardPlain"/>（`ui_out/531`）
+        /// + tint（`CrUiStyle.Skin` 的 `tint` 参数，AV1 起的既有机制）。反解 tint 使实机合成值 ≈ 原版 (56,52,66)：
+        /// tint × 531 的中心色 (216,228,255) ≈ (35,34,77)，在 α=0.80 下压在本机背景上
+        /// ⇒ 0.80×(35,34,77) + 0.20×背景 ≈ (56,52,66)。⛔ 不改任何几何（`TimerBoxW/H/Top` 仍是 D16 的冻结值）。
+        /// </para>
+        /// <para>
+        /// ⚠️ **归因分离**：18 图右上板底是**石塔**、本项目该处是**草地/金路**
+        /// （8 图实测：我方 (900,50) = (251,199,64) 金光路面）⇒ 板面合成色**不可能**逐像素相等，
+        /// 本项只负责"板自身的色/透明度"，残余差归**竞技场美术**（CR-T6 域），已在回报里分开写。
+        /// </para>
+        /// </summary>
+        private static readonly Color TimerPlateTint = new Color(0.16f, 0.15f, 0.30f, 0.80f);
+
+        /// <summary>
+        /// 计时板**外框**（`ResPaths.HudTopRightPlate` = `ui_out/193`）的不透明倍乘 = <b>(1,1,1,0.35)</b>。
+        /// <para>
+        /// **为什么**：193 的环是**纯黑 (0,0,0,255)**（本片逐点实测 row y=2 / col x=2 / mid row 全为
+        /// (0,0,0,255)）⇒ 它对任何 rgb 乘算都还是黑 ⇒ 只能压 **alpha**。板面换亮之后这圈黑环会显出来
+        /// （3× 实机放大 `CR-V2-mine-topright-3x.png` 是一圈粗黑框），而原版 18 该处只有一条暗边
+        /// （y=20 行采样 (74,70,97)/(82,79,90) 无黑、y=95 行才是 (2,0,8) 的暗底）。
+        /// ⇒ 0.35 让环变成"一条压暗的边"。⛔ 不改几何、⛔ 不换素材（那是自造）。
+        /// </para>
+        /// </summary>
+        private static readonly Color TimerFrameTint = new Color(1f, 1f, 1f, 0.35f);
+
+        /// <summary>计时板标题「剩余时间」字号 = <b>20</b>。★ CR-V2 改（旧值 = `CrUiStyle.FontSmall` 24）。
+        /// 出处：18 图板内标题的 near_white 命中仅 15px、bbox (925,10)-(990,28) ⇒ **字面高 ≈ 18**；
+        /// 我方旧值实测 bbox (948,10)-(1043,33) = 95×23 ⇒ 字面高 ≈ 23，比原版大 5px。
+        /// 20 × 0.78 ≈ 15.6，加 2px 描边 ⇒ ≈ 18 ✔。</summary>
+        private const int TimerLabelFontSize = 20;
+
         // ── 顶部左：冠数（★ 未量到 ⇒ 位置/尺寸保持现状，只把图元换成原版三件） ──
         //
         // 出处：几何量取.md §2 C4 —— 冠数在 02/09 + 18/19/20/21/23 七张图顶部各扫一遍，**均未见冠数控件**
@@ -275,26 +341,48 @@ namespace CR.UI.Panels
         //   `HudStarPlayer`（`ui_out/187`，原版 `starPlayer`/`star1..3`，原生 120×98）
         //   `HudStarEnemy`（`ui_out/188`，原版 `starEnemy`，同尺寸）。
 
-        /// <summary>顶部左块离屏左 = 现状 <b>21</b>（09 图左上「Blue King」块 24×0.8696 ≈ 21）。未量到（见几何量取.md §2 C4）。</summary>
-        private const float TopLeftX = 21f;
+        // ★ CR-V2 改（2026-09-23）：**整块重定位 + 重定形**。
+        //   旧口径 = 左上角一块 260×59 的"名条 + 左右两枚冠徽 + 『0 : 0』"，位置/尺寸都是"未量到（几何量取.md §2 C4）"
+        //   的本项目自定值。18 图**量到**了冠数控件（`cr-v2-hud-measure.py` §5/§6）：
+        //     · 顶部**中央**：purple 命中 bbox = (477,0,571,36) px=838（窗口 455..585 × 0..46）；
+        //       窗口内 gold bbox = (455,0,564,26) px=560、white bbox = (455,0,567,33) px=530；
+        //     · 左上窗口 (10,10)-(300,92)：near_white 命中的是**场景石塔/金饰**（原版该处无冠数板）。
+        //   ⇒ 冠数 = **顶部中央的徽章**，不是左上名条。本项目按原版位置重建（图元全部取原版）。
+        //
+        //   ⚠️ 18 与 2.1.5 的徽章**底色不同**（18 = 紫底 (164,34,160)/(221,44,222) 圆徽；
+        //   2.1.5 的权威冠徽 = `ui_out/187` 蓝底 / `188` 红底，见 `策划/战斗HUD素材索引.md` §3.3）
+        //   ⇒ 我方**紫底**那一枚 = 原版 `SlotCorner`（`ui_out/11`，24×24 圆角件）染成 **18 量取的紫**；
+        //   对方那一枚 = 直接用原版 `HudStarEnemy`（`ui_out/188`，`starEnemy`）原色，⛔ 不给它编颜色。
 
-        /// <summary>顶部左块离屏顶 = 现状 <b>18</b>（09 图左上块）。未量到（见几何量取.md §2 C4）。</summary>
-        private const float TopLeftY = 18f;
+        /// <summary>徽章直径 = <b>40</b>。出处：18 图顶部中央紫徽的 5× 放大圈定 = x 476..516
+        /// （`CR-V2-base-crownbadge-8x.png`，crop (450,0,600,50)）⇒ 圆径 ≈ 40；
+        /// 它的可见高度只有 36 是因为**上沿被屏顶裁掉**（圆心上移出屏）⇒ 圆径取 40、上沿取 -4。</summary>
+        private const float CrownMedalD = 40f;
 
-        /// <summary>名条宽 = 现状 <b>260</b>（原冠数文本宽）。未量到（见几何量取.md §2 C4）。</summary>
-        private const float ScorePlateW = 260f;
+        /// <summary>我方徽章**中心离画布中线** = <b>-44</b>（= 紫徽圆心 x 496 − 画布中线 540）。
+        /// 出处：18 图紫徽 x 476..516 ⇒ 圆心 496；画布宽 1080 ⇒ 中线 540。</summary>
+        private const float CrownMedalMineDx = -44f;
 
-        /// <summary>名条显示高 = 名条宽 260 × 素材原生 56/247 ≈ <b>59</b>
-        /// （`HudScoreNamePlate` 原生 247×56，出处 索引 §3.3；由素材自身比例定，⛔ 不另编高度）。</summary>
-        private const float ScorePlateH = ScorePlateW * 56f / 247f;
+        /// <summary>两枚徽章间距 = <b>6</b>（本项目自定：原版该处只出现一枚徽，18 图给不出两枚并排的量值；
+        /// 取 6 使两枚 (36+6+36=78) 仍落在原版量到的 94px 窗口内）。</summary>
+        private const float CrownMedalGap = 6f;
 
-        /// <summary>单枚冠徽宽 = 名条高 59 × 素材原生 120/98 ≈ <b>72.2</b>
-        /// （`HudStarPlayer`/`HudStarEnemy` 原生 120×98，出处 索引 §3.3）⇒ 冠徽高 = 名条高。
-        /// ⚠️ 冠数的原版位置/尺寸**未量到**（几何量取.md §2 C4）⇒ 本项是"素材比例 × 现状名条宽"的推导，已登记。</summary>
-        private const float CrownIconW = ScorePlateH * 120f / 98f;
+        /// <summary>徽章上沿相对屏顶 = <b>-4</b>。出处：18 图紫徽的**可见** bbox y 起点 = 0、
+        /// 但圆径量到 40 而可见高只有 36 ⇒ 上沿在 y = -4（徽章有一小截被屏顶裁掉，原版就是这样）。</summary>
+        private const float CrownMedalTop = -4f;
+
+        /// <summary>徽章内金色冠徽宽 = 徽章径 × 0.62 ≈ <b>22</b>（本项目自定：18 图紫徽内的金冠被白数字压住、
+        /// 逐像素分不出边界；按"金冠占徽章内约六成宽"给，且金冠件取原版 <see cref="ResPaths.IconCrownGold"/>）。
+        /// </summary>
+        private const float CrownInnerCrownW = CrownMedalD * 0.62f;
+
+        /// <summary>我方徽章底色 = 18 图量取的紫。实测紫核像素 (164,34,160)/(171,35,161)/(221,44,222)
+        /// （`cr-v2-hud-measure.py` §5 + `cr-v2-explore2.py` 的 col x=480/500/520 采样）⇒ 取 (0.671,0.137,0.631)。
+        /// 用法 = 原版 `SlotCorner` 的 tint（原素材是白色件 ⇒ tint 即最终色，⛔ 不是"给素材加滤镜"）。</summary>
+        private static readonly Color CrownMineTint = new Color(0.671f, 0.137f, 0.631f, 1f);
 
         /// <summary>冠数数字字号 = <see cref="CrUiStyle.FontBody"/>（32）。
-        /// 现状用的是 FontTitle(56)，装不进高 ≈59 的名条 ⇒ 降一档；字号本身未量到（见几何量取.md §2 C4）。</summary>
+        /// 出处：18 图白色数字 near_white bbox (455,0,567,33) 在 36px 徽章内 ⇒ 字面高 ≈ 24 ⇒ 字号 ≈ 30~32。</summary>
         private const int CrownFontSize = CrUiStyle.FontBody;
 
         // ── 原版 HUD 图元的切边 ──
@@ -369,7 +457,21 @@ namespace CR.UI.Panels
         /// <summary>手牌卡体（`ResPaths.SlotCard` = `ui_out` 43，原生 107×159）的九宫格切边 = **20**（四边同值）。
         /// 出处：与 `DeckEditPanel.BorderCard` 同一量取值（G3-量取：该帧圆角半径 ≈20px；
         /// 本片复核：顶行 alpha 宽度 82 → 第 15 行才到 103 ⇒ 半径确实 ≈20）。</summary>
+        /// <h1>⛔ 已作废（CR-V2）：卡体改走 <see cref="HudCardBodyCorner"/> 的 `Skin(corner: 20)` 路径，
+        /// 本 `border` 常量不再被任何调用点使用（保留仅为留档 CR-T2g 的量取值）。</h1>
         private static readonly Vector4 HudCardBodyBorder = new Vector4(20f, 20f, 20f, 20f);
+
+        /// <summary>
+        /// 卡体（`ResPaths.SlotCard` = `ui_out` 43）的**四角镜像边长** = <b>20</b>（= 该帧的圆角半径）。
+        /// <para>
+        /// <b>★ CR-V2 新增</b>：卡体改走 `CrUiStyle.Skin(..., corner: 20, ...)`（`MakeRounded`：取该帧左上
+        /// 20×20 的四角/四边镜像拼成对称九宫格）而不是 `NineSlice` —— 因为实测 43 的**右边没有深色边**
+        /// （mid-row 剖面 x0..5 黑、x6..106 白），`NineSlice` 会把白块画到卡的右边
+        /// （实机读数 `x 421..427 = (248,248,248)`，见 `.ai-tmp/test/CR-V2-measure-before.txt` §1）。
+        /// 量与法：`tools/probes/cr-v2-hud-measure.py`。
+        /// </para>
+        /// </summary>
+        private const int HudCardBodyCorner = 20;
 
         /// <summary>状态行文字保留时长（秒）。本项目自定：只为不让上一条提示永远留在屏幕上。</summary>
         private const float StatusHoldSeconds = 4f;
@@ -441,7 +543,10 @@ namespace CR.UI.Panels
         private RectTransform _root;                                // 面板根（屏幕 → 世界 换算要用它）
 
         // ── 顶部信息 ──
-        private Text _crownsText;
+        // ★ CR-V2：冠数从"左上角一块 0 : 0 名条"改成**顶部中央两枚徽章**（原版位置，见常量段）
+        //   ⇒ 一个 Text 拆成两枚徽章各自的数字（⛔ 不是把 "0 : 0" 塞进 36px 的徽章里）。
+        private Text _crownsMineText;
+        private Text _crownsEnemyText;
         private Text _timerText;
         private Text _phaseText;
         private Text _statusText;
@@ -524,51 +629,71 @@ namespace CR.UI.Panels
 
         private void BuildTopLabels()
         {
-            // ── 左上：冠数（原版名条 + 我/对方冠徽 + 数字）──
-            // ⚠️ 冠数的**位置/尺寸未量到**（几何量取.md §2 C4：七张对局图顶部都扫过，未见冠数控件）
-            // ⇒ 落点沿用现状（原版顶部左块位置，本项目自定），只把图元换成原版的三件（索引 §3.3）：
-            //    名条 `HudScoreNamePlate`(196) / 我方冠 `HudStarPlayer`(187) / 对方冠 `HudStarEnemy`(188)。
-            // 冠徽**固定**为 左=我方(187 `starPlayer` 蓝底) / 右=对方(188 `starEnemy` 红底)：HUD 是玩家视角，
-            // 原版 `printScore_player` / `printScore_enemy` 也是固定这两件 ⇒ 不随 `_myTeam` 翻转。
-            var plate = CrUiStyle.AspectImage("ScorePlate", _root, ResPaths.HudScoreNamePlate, ScorePlateW,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(TopLeftX, -TopLeftY), CrUiStyle.ButtonBg);
+            // ── 顶部**中央**：冠数徽章（★ CR-V2 改：整块从"左上名条"搬到这里 + 重定形）──
+            // 位置出处：18 图 purple 命中 bbox = (477,0,571,36)（窗口 455..585 × 0..46），
+            //   即紫徽中心 x≈495 / y 起点 0；原版**左上**窗口 (10,10)-(300,92) 的 near_white 是场景石塔，
+            //   ⇒ 冠数控件在顶部中央，不在左上。量法：`tools/probes/cr-v2-hud-measure.py` §5/§6。
+            // 结构：左 = 我方（原版 `SlotCorner`(11) 染成 18 量取的紫 + 原版金冠 `IconCrownGold`(50) + 白数字）
+            //       右 = 对方（原版 `HudStarEnemy`(188) 原色 + 白数字）
+            // 左右 = 我方/对方 的固定口径与旧注释一致（HUD 是玩家视角，`printScore_player/_enemy` 同理），
+            //   ⛔ 不随 `_myTeam` 翻转。
+            var mineMedal = CrUiStyle.Skin("CrownMedalMine", _root, ResPaths.SlotCorner, 0, BorderNone,
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(CrownMedalMineDx, -CrownMedalTop), new Vector2(CrownMedalD, CrownMedalD),
+                CrownMineTint, false, CrownMineTint);
 
-            // 两枚冠徽贴在名条两端、等高（`AspectImage` 按素材比例：宽 72.2 ⇒ 高 = 名条高 59）。
-            CrUiStyle.AspectImage("StarPlayer", plate.rectTransform, ResPaths.HudStarPlayer, CrownIconW,
-                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, CrUiStyle.Accent);
-            CrUiStyle.AspectImage("StarEnemy", plate.rectTransform, ResPaths.HudStarEnemy, CrownIconW,
-                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, CrUiStyle.Accent);
+            // 徽章内的原版金冠（`ui_out/50`，106×85，原版 `IconCrownGold`）：按素材比例缩到 22 宽、居中。
+            CrUiStyle.AspectImage("CrownIconMine", mineMedal.rectTransform, ResPaths.IconCrownGold, CrownInnerCrownW,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, CrUiStyle.Accent);
 
-            _crownsText = UIFactory.CreateText("Crowns", plate.rectTransform, "0 : 0", CrownFontSize,
+            _crownsMineText = UIFactory.CreateText("CrownsMine", mineMedal.rectTransform, "0", CrownFontSize,
                 TextAnchor.MiddleCenter, CrUiStyle.TextColor);
-            UIFactory.Place(_crownsText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(ScorePlateW - CrownIconW * 2f, ScorePlateH));
+            UIFactory.Stretch(_crownsMineText.rectTransform);
+
+            var enemyBox = UIFactory.CreatePanel("CrownMedalEnemy", _root, Color.clear, false);
+            UIFactory.Place(enemyBox.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(CrownMedalMineDx + CrownMedalD + CrownMedalGap, -CrownMedalTop),
+                new Vector2(CrownMedalD, CrownMedalD));
+
+            CrUiStyle.AspectImage("StarEnemy", enemyBox.rectTransform, ResPaths.HudStarEnemy, CrownMedalD,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, CrUiStyle.Accent);
+
+            _crownsEnemyText = UIFactory.CreateText("CrownsEnemy", enemyBox.rectTransform, "0", CrownFontSize,
+                TextAnchor.MiddleCenter, CrUiStyle.TextColor);
+            UIFactory.Stretch(_crownsEnemyText.rectTransform);
 
             // ── 右上：倒计时（★ 原版位置就是右上角，且**贴顶贴右**：出处 几何量取.md §1.3 D16  x 882..1080 / y 0..100）──
             // 板素材 = `HudTopRightPlate`（原版 `HUD_topRight` 的底板 `ui_out/193`，原生 212×124，索引 §3.4）；
-            // ★ AV2：193 实测是**空心圆角框**（内部全透明）⇒ 先用原版同容器的 1×1 **实心件 177** 铺底，再压 193 外框。
-            CrUiStyle.NineSlice("TimerPlateFill", _root, TimerPlateFill, BorderNone,
+            // ★ AV2：193 实测是**空心圆角框**（内部全透明）⇒ 先用实心件铺底，再压 193 外框。
+            // ★ CR-V2 改两处：
+            //   ① 板面件从 `ui_out/177`（不透明黑）换成**原版浅色实心件 531 + 量取 tint**
+            //      （反解使实机板面 ≈ 原版 18 图同一处的采样值，推导见 `TimerPlateTint` 注释）；
+            //   ② `193` 的环是**纯黑 (0,0,0,255)**（逐点实测：`cr-v2-explore2` 之外本片再测 row/col/mid，
+            //      见回报）—— 板面变亮后这条黑环会从"看不见"变成**一圈粗黑框**（实机 3× 放大
+            //      `CR-V2-mine-topright-3x.png` 可见），而原版 18 该处只有**一条暗边**。
+            //      ⇒ 用 `Skin(..., tint)` 把环的 alpha 降到 0.35（⛔ 不改几何、⛔ 不换素材，只调不透明度）。
+            CrUiStyle.Skin("TimerPlateFill", _root, ResPaths.SlotCardPlain, 0, BorderNone,
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -TimerBoxTop),
-                new Vector2(TimerBoxW, TimerBoxH), CrUiStyle.FieldBg, false);
+                new Vector2(TimerBoxW, TimerBoxH), TimerPlateTint, false, TimerPlateTint);
 
-            var timerBox = CrUiStyle.NineSlice("TimerBox", _root, ResPaths.HudTopRightPlate, BorderNone,
+            var timerBox = CrUiStyle.Skin("TimerBox", _root, ResPaths.HudTopRightPlate, 0, BorderNone,
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -TimerBoxTop),
-                new Vector2(TimerBoxW, TimerBoxH), CrUiStyle.FieldBg, false);
+                new Vector2(TimerBoxW, TimerBoxH), TimerFrameTint, false, TimerFrameTint);
 
-            // 时钟图标（原版元件 `Clock_middle`，`ui_out/042`，索引 §3.4）：贴板左缘、纵向居中。
-            CrUiStyle.AspectImage("ClockIcon", timerBox.rectTransform, ResPaths.HudClockIcon, ClockIconW,
-                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, CrUiStyle.Accent);
-
-            // 余下区域（板宽 − 图标宽）居中放开场标签与数字，⛔ 不与图标重叠。
-            var textW = TimerBoxW - ClockIconW;
-            var textX = ClockIconW * 0.5f; // 区域中心相对板中心的偏移
+            // ★ CR-V2 删：`ClockIcon`（原版 `Clock_middle`/`ui_out/042`）**不在** 18 图的计时板里
+            //   （18 图板内只有「剩余时间:」+ 大字，见 `CR-V2-base-timer-5x.png`）；
+            //   ⛔ 原版没有的东西不加 ⇒ 整条节点删除，文字区改为**整板居中**（旧代码为避开图标把文字右移了
+            //   `ClockIconW*0.5`，实测把标题中心推到 x≈995，而原版是 957）。
+            //   ⛔ 不动 `TimerBoxW/H/Top`（D16 冻结几何）。
+            var textW = TimerBoxW - 12f;
+            const float textX = 0f;
 
             // ★ AV2 改：原版 18 图这两行都是**白字 + 黑描边**（`AV2-base-topright.png` 实测「1:51」是
             //   白字黑描边、「剩余时间：」同为白字黑描边），实机原来是 `Accent`(金) + `TextDim`(灰蓝) 无描边
             //   ⇒ 压在深色板/竞技场上都读不出原版那种"白字压深底"的观感。描边件走 `CrUiStyle.Outlined`
             //   （全项目唯一的描边文字件，⛔ 不在这里自造 Outline）。
             var timerLabel = CrUiStyle.Outlined("TimerLabel", timerBox.rectTransform, "剩余时间",
-                CrUiStyle.FontSmall,
+                TimerLabelFontSize,
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(textX, -6f), new Vector2(textW, 30f), TextAnchor.MiddleCenter);
             if (timerLabel != null) timerLabel.color = CrUiStyle.TextColor;
@@ -670,11 +795,15 @@ namespace CR.UI.Panels
             {
                 var index = i; // 闭包捕获：槽位下标只用于建节点，卡 id 在刷新时按下标取
 
-                // 卡槽底 = 原版 `slots` 子元件（`ui_out/200`，原生 96×137，出处 `策划/战斗HUD素材索引.md` §3.2；
-                // 原版自己把同一 shape 在 clip 内放了 **4 次** ⇒ 与我们的 4 个槽位一一对应）。
-                // ★ AV2：切边**已量到** = `HudSlotBorder` (10,8,10,8)（逐行/逐列 alpha 剖面，见该常量注释）
-                // ⇒ `Image.type = Sliced`，四角保留原像素；⛔ 不再是 96×137 → 140×171 的整幅非等比拉伸。
-                var card = CrUiStyle.NineSlice($"Hand{index}", bar, ResPaths.SlotCard, HudCardBodyBorder,
+                // 卡体 = 原版 `ui_out/43`（CR-T2g 裁定：18 图未灰化卡体 ≈ 247 与 43 的主色 248 一致，
+                // 且 43 自带 6px 深色描边 + 圆角半径 ≈20 ⇒ 它就是"卡体 + 深色卡框"那一件）。
+                // ★ CR-V2 改：`NineSlice` → `Skin(corner: 20)`。原因（实测，见 `CR-V2-measure-before.txt` §1）：
+                //   43 的**右边没有深色边**（mid-row 剖面 = x0..5 黑、x6..106 全白），
+                //   单用 `NineSlice` 时右带画出来的是白块 ⇒ 实机在第 2 张卡上量到
+                //   `x 421..427 = (248,248,248)` 的 **6px 白条**（卡面盖不住它）。
+                //   `Skin(corner=20)` 走引擎既有的"取左上 20×20 四角镜像拼"路径（`CrUiStyle.MakeRounded`，
+                //   014/019/165 等件同一条路）⇒ 四边都是 6px 深色边，实机不再是"三边有框、一边白条"。
+                var card = CrUiStyle.Skin($"Hand{index}", bar, ResPaths.SlotCard, HudCardBodyCorner, BorderNone,
                     new Vector2(0f, 1f), new Vector2(0f, 1f),
                     new Vector2(index * (CardW + CardGap), 0f), new Vector2(CardW, CardH),
                     CrUiStyle.ButtonBg, false);
@@ -695,10 +824,13 @@ namespace CR.UI.Panels
                 //   `本局手牌帧号表`（key → 帧号）与 `卡面就绪[...]` 行，⛔ 不靠屏幕上留字。
                 //   ⛔ 这里**删掉节点本身**（不是置空文本）：留一个空 Text 仍会参与布局与 overdraw。
 
-                // 圣水费用：原版圣水水滴图元贴在卡左上角，数字压在水滴上（出处：07 基线图卡角泡）。
+                // 圣水费用：★ CR-V2 改 —— 从「卡**左上角**」移到「**卡底中央**」（原版位置）。
+                //   出处：18 图手牌第 2 张的费用水滴挂在卡底中央（白色数字 near_white bbox 中心 x=367
+                //   ≈ 卡中心 357；泡下沿 y≈1783 ≈ 卡底 1785）⇒ 泡心 = 卡底上方 `CostIconBottom`(25)。
+                //   锚点 (0.5,0) + 轴心 (0.5,0.5) ⇒ pos 的 y 就是"泡心距卡底"。
                 var costIcon = CrUiStyle.AspectImage($"HandCost{index}", card.rectTransform,
-                    ResPaths.IconElixirDrop, CostIconW, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                    new Vector2(2f, -2f), CrUiStyle.Accent);
+                    ResPaths.IconElixirDrop, CostIconW, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, CostIconBottom), CrUiStyle.Accent);
                 var costText = UIFactory.CreateText($"HandCostText{index}", costIcon.rectTransform, string.Empty,
                     CardFontSize, TextAnchor.MiddleCenter, CrUiStyle.TextColor);
                 UIFactory.Stretch(costText.rectTransform);
@@ -712,7 +844,8 @@ namespace CR.UI.Panels
             //（出处 几何量取.md §1.3 D14：x 33..97 / y 1634..1716 ⇒ 64×83），标签在它下方（D15）。
             // 上一版把它放在右端是错的 —— 那一版做的时候基线图底部被宣传字压住、该项未量到；§1.3 已用 18 图补量。
             // 卡槽底沿用同一件原版槽底 `HudHandSlot`（原版 `slots`，索引 §3.2）。
-            _nextCard = CrUiStyle.NineSlice("NextCard", _root, ResPaths.SlotCard, HudCardBodyBorder,
+            // ★ CR-V2：与手牌同一条口径 —— `Skin(corner: 20)`（四边都有深色卡框，见手牌处注释）。
+            _nextCard = CrUiStyle.Skin("NextCard", _root, ResPaths.SlotCard, HudCardBodyCorner, BorderNone,
                 new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(NextLeft, NextBottomOffset),
                 new Vector2(NextW, NextH), CrUiStyle.ButtonBg, false);
 
@@ -728,9 +861,16 @@ namespace CR.UI.Panels
                 new Vector2(0f, NextH * ArtOffsetYFrac), new Vector2(NextW * ArtFillX, NextH * ArtFillY));
             _nextArt.gameObject.SetActive(false);
 
-            _nextCost = UIFactory.CreateText("NextCost", _nextCard.rectTransform, string.Empty, CardFontSize,
-                TextAnchor.UpperLeft, CrUiStyle.TextColor);
-            UIFactory.AnchoredTopLeft(_nextCost.rectTransform, new Vector2(4f, -2f), new Vector2(60f, 30f));
+            // ★ CR-V2：费用数字从"卡左上角裸字"改成"压在**原版圣水水滴**上、贴卡底中央"
+            //   —— 与手牌同一口径（原版手牌的费用泡都在卡底中央）。泡径按「下一张」卡宽等比缩到
+            //   `NextW/CardW × CostIconW`，⛔ 不另编一个数。
+            var nextCostIcon = CrUiStyle.AspectImage("NextCostIcon", _nextCard.rectTransform,
+                ResPaths.IconElixirDrop, CostIconW * NextW / CardW,
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, CostIconBottom * NextW / CardW), CrUiStyle.Accent);
+            _nextCost = UIFactory.CreateText("NextCost", nextCostIcon.rectTransform, string.Empty, CardFontSize,
+                TextAnchor.MiddleCenter, CrUiStyle.TextColor);
+            UIFactory.Stretch(_nextCost.rectTransform);
 
             _nextText = UIFactory.CreateText("NextText", _nextCard.rectTransform, "—", CardFontSize,
                 TextAnchor.LowerCenter, CrUiStyle.TextDim);
@@ -1298,9 +1438,13 @@ namespace CR.UI.Panels
 
             // 结算面板（agent-08 的 `ResultPanel`）负责展示详情；HUD 只把冠数定格在服务端给的结算值上
             //（快照停了，不再依赖它）并把阶段写成"已结束"。
-            if (_crownsText != null)
+            // ★ CR-V2：两枚徽章各写一个数字（左=我方 / 右=对方，口径与 `RefreshAll` 同）。
+            //   平局不塞进 36px 的徽章里（会溢出）⇒ 只在日志里说，屏幕上由 `ResultPanel` 的结算文案承担。
+            if (_crownsMineText != null) _crownsMineText.text = result.crowns_a.ToString();
+            if (_crownsEnemyText != null) _crownsEnemyText.text = result.crowns_b.ToString();
+            if (result.draw)
             {
-                _crownsText.text = $"{result.crowns_a} : {result.crowns_b}" + (result.draw ? "（平局）" : string.Empty);
+                Game.Logger.Info(Tag, $"结算为平局：冠数 {result.crowns_a} : {result.crowns_b}（冠数徽章按原版只显示数字）");
             }
             if (_phaseText != null)
             {
@@ -1391,14 +1535,14 @@ namespace CR.UI.Panels
         {
             var snap = _snapshot;
 
-            if (_crownsText != null)
+            // ★ CR-V2：每枚徽章只写**一个数字**（原版 18 图的顶中徽章就是一个数字；
+            //   两枚徽章的直径都是 36 ⇒ 塞 "0 : 0" 必然溢出）。左=我方 / 右=对方（固定口径，不随 `_myTeam` 翻转）。
+            if (_crownsMineText != null || _crownsEnemyText != null)
             {
                 var mine = snap != null ? (_myTeam == 0 ? snap.crowns_a : snap.crowns_b) : 0;
                 var theirs = snap != null ? (_myTeam == 0 ? snap.crowns_b : snap.crowns_a) : 0;
-                // 只写数字：两侧的冠徽已经是原版图元（左 187 `starPlayer` = 我方 / 右 188 `starEnemy` = 对方），
-                // 再写「我方冠…对方冠…」会把名条中间那块（宽 ≈116）撑爆。
-                _crownsText.text = $"{mine} : {theirs}";
-                _crownsText.color = mine >= theirs ? CrUiStyle.Accent : CrUiStyle.TextColor;
+                if (_crownsMineText != null) _crownsMineText.text = mine.ToString();
+                if (_crownsEnemyText != null) _crownsEnemyText.text = theirs.ToString();
             }
 
             if (_timerText != null) _timerText.text = RemainingText(snap);

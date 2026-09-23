@@ -1,0 +1,19 @@
+# CR-V1 arena zone comparison
+# ours = .ai-tmp/screenshots/CR-V1-arena-nohud.png  1080x1920  shot @12:06:30  sha256_16=0159E8FDFA75C58D
+# ref  = 策划/参考图/20_对局_1080x1920.jpg        1080x1920  (same resolution: NO rescaling in this comparison)
+# as-of 2026-09-23T12:10+08:00   CR.dll sha256_16=0F4D2C8A75D5D318   ArenaView.cs mtime=2026-09-23 11:12:46
+# both images are measured with the SAME function; no per-image tuning
+# SAME RESOLUTION != SAME WORLD SCALE. The two frames are 57.6 vs 60.0 px/tile (only +4%, so they
+#   are comparable), but the thickness claim is stated SCALE-FREE -- as thickness / in-frame lane
+#   spacing (the two lane crossings are 11 tiles apart: GameConst.BridgeCxATile=3.5, BridgeCxBTile=14.5).
+zone	original	ours	delta	method
+river band y (row mean over x430..700)	y865..906 (42px)	y901..1019 (119px)	y0 +36 / y1 +113 / thickness x2.83	longest contiguous run of rows whose mean over x430..700 is blue (b>r and b>g and b>100); raw px, see the normalised rows below
+water mean RGB	(132, 191, 202)	(0, 155, 188)	(-132,-36,-14)	mean of x430..700 over the band inset 3px
+grass above river mean RGB	(206, 196, 91)	(160, 183, 75)	(-46,-13,-16)	mean of x40..420, rows band_y0-80..band_y0-40
+grass below river mean RGB	(185, 190, 70)	(161, 183, 75)	(-24,-7,+5)	mean of x40..420, rows band_y1+40..band_y1+80
+water thickness / lane spacing (dimensionless)	0.0662	0.1803	x2.72	river px / (right-left crossing centre), both from the SAME frame
+water thickness in TILES (11 tiles between lanes)	0.73 tile	1.98 tile	+1.25 tile	11 * thickness / lane spacing; GameConst.BridgeCxATile=3.5 BridgeCxBTile=14.5
+px per tile (derived)	57.6 px	60.0 px	+2.4 px	lane spacing / 11
+lane crossing 1 x / width / centre / deck RGB	x163..288 w=126 c=225 (208, 150, 117)	x150..269 w=120 c=209 (202, 143, 112)	width -6 / centre -16 / (-6,-7,-5)	>55% of the band column is non-water; paired as the two lane crossings (centre 80..1000, width>=60), NOT by raw index
+lane crossing 2 x / width / centre / deck RGB	x781..937 w=157 c=859 (175, 152, 82)	x810..929 w=120 c=869 (202, 143, 112)	width -37 / centre +10 / (+27,-9,+30)	>55% of the band column is non-water; paired as the two lane crossings (centre 80..1000, width>=60), NOT by raw index
+unpaired/extra non-water runs	ORIGINAL ['x24..64 c=44', 'x390..397 c=393', 'x1004..1079 c=1041']	OURS []	-	tan scenery, units or frame edges inside the band -- NOT bridges

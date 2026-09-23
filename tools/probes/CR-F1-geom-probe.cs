@@ -1,6 +1,12 @@
 // CR-F1 geom probe (eval_file; ASCII only; Play mode required for the "shipped build" claim).
 // Mode:  geom  -> call the SHIPPED CR.View.PlacementIndicator.IsLegalDeploy over the A/B witness set
 //                 and compare it against an inline transliteration of server/game/core/arena.go CanDeploy.
+// Mode:  guardprobe -> recreate the OLD DEFECT STATE on purpose (station=Pause but the pause menu is
+//                 gone from the screen) so that the station guard added in HudPanel.PollDrag becomes
+//                 FALSIFIABLE: close the PausePanel via the engine's public UI.Close<T>() and do NOT
+//                 touch the station.  The chain then injects a real press and asserts _dragging stays
+//                 false and the guard's dedup log line appears.  Product code is not touched here
+//                 (only engine public API: UI.Close<T>() / UI.IsOpen<T>(), engine UI.cs:183/250).
 // Why this exists (and why it is not a duplicate of the offline grid check):
 //   .ai-tmp/hosts/CR-U2-geom-check.py  §4c judges a *python model* of the fix over the whole 0.25-tile
 //   grid (that is where "diverge count == 0" is proven, exhaustively).  A model can drift from the
@@ -22,6 +28,27 @@ N("=== CR-F1 geom probe arg='" + arg + "' at " + System.DateTime.Now.ToString("H
 N("PLAY=" + (UnityEngine.Application.isPlaying ? 1 : 0));
 try
 {
+    if (arg == "guardprobe")
+    {
+        // ★ 复现**旧缺陷态**（station=Pause + 屏幕上无菜单）—— 这正是 D12 缺陷当晚的实测态
+        //   （CR-U5 evidence [D12-a]：关闭设置后 station=Pause panels pause=False hud=True）。
+        //   为什么必须复现：光验"改好后不再出现该态"只能证明**那条路**没被走到；复现它才能证明
+        //   **万一**它被走到（例如以后又有人在别处收掉这个面板），"无菜单时手牌不可交互"这条纵深防御真的起作用。
+        //   ⛔ 只调引擎公开 API，⛔ 不改产品代码、⛔ 不切站点。
+        var uig = CloverEngine.Game.UI;
+        var fsmg = CloverEngine.Game.Fsm;
+        N("GUARD arg=guardprobe");
+        N("GUARD before      : station=" + (fsmg == null ? "NULL" : fsmg.Current.ToString())
+          + " pause=" + (uig == null ? "?" : uig.IsOpen<CR.UI.Panels.PausePanel>().ToString())
+          + " settings=" + (uig == null ? "?" : uig.IsOpen<CR.UI.Panels.SettingsPanel>().ToString()));
+        if (uig != null && uig.IsOpen<CR.UI.Panels.PausePanel>()) uig.Close<CR.UI.Panels.PausePanel>();
+        N("GUARD after-close : station=" + (fsmg == null ? "NULL" : fsmg.Current.ToString())
+          + " pause=" + (uig == null ? "?" : uig.IsOpen<CR.UI.Panels.PausePanel>().ToString())
+          + " hud=" + (uig == null ? "?" : uig.IsOpen<CR.UI.Panels.HudPanel>().ToString()));
+        N("GUARD prepared=OK : 期望 station 仍为 Pause 且 pause=False（旧缺陷态已复现）⇒ 接下来注入真实按下");
+        try { System.IO.File.AppendAllText(OutFile, sb.ToString()); } catch { }
+        return sb.ToString();
+    }
     // ---- inline server rule (transliteration of server/game/core/arena.go CanDeploy, milli-tiles) ----
     // enL / enR = "enemy left / right princess ALIVE" (the DeployInput flags); the pocket opens on the
     // lane whose enemy princess is dead. Tower y: enemy princess is at 25500 for BLUE, 6500 for RED.

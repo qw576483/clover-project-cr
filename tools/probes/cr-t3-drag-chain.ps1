@@ -1,4 +1,6 @@
-﻿# CR-T3 judgement asset: rerunnable assertion chain for "press a hand card -> drag -> release -> the unit
+﻿# log-label fix by CR-V1 / 2026-09-23 / reason: the shared scene opener CR-T3-scene.cs now opens
+#   Main.unity (Boot stalls before any panel); the old label said "open Boot" and would mislead a log reader. Logic untouched.
+# CR-T3 judgement asset: rerunnable assertion chain for "press a hand card -> drag -> release -> the unit
 # really lands on the battlefield (confirmed by the server snapshot)".
 #
 # Why each assertion below is a reading and not a narration:
@@ -53,9 +55,11 @@ function Inject([string]$a) { Set-Content -Path $injf -Value $a -Encoding ascii;
 function EnterBattle() {
     Log ("editor_stop: " + (RunUnity 'command editor_stop' 180))
     Start-Sleep -Seconds 4
-    # Bootstrap lives in Assets/Scenes/Boot.unity: entering Play from Battle01/Main gives a play session
+    # Bootstrap lives in Assets/Scenes/Boot.unity:
+    # !! CR-V1 2026-09-23: the bootstrap scene is now Main.unity (Boot stalls before any panel -- see
+    #    CR-T3-scene.cs head for the chain#1 evidence). The paragraph below is the ORIGINAL rationale. entering Play from Battle01/Main gives a play session
     # with NO engine (Game.Fsm/Game.UI == null) - the same trap.
-    Log ("open Boot: " + (EvalFile $scene))
+    Log ("open bootstrap scene: " + (EvalFile $scene))
     Start-Sleep -Seconds 3
     Set-Content -Path $step -Value '0' -Encoding ascii
     Log ("editor_play: " + (RunUnity 'command editor_play' 300))

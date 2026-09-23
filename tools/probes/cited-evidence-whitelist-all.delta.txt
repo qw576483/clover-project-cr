@@ -1,0 +1,19 @@
+# DELTA for cited-evidence-whitelist-all.txt | previous sha256_16=3E9917FB66925871 (436 entries) -> new 452 entries | at 2026-09-23 13:59:00 | Machine-generated, do NOT hand-edit
+# added 16
++ .ai-tmp/hosts/check_def.py
++ .ai-tmp/test/A10-visual.py
++ .ai-tmp/test/A2-websearch.py
++ .ai-tmp/test/A3-fetch.py
++ .ai-tmp/test/A4-search2.py
++ .ai-tmp/test/A6-apk.py
++ .ai-tmp/test/A8-apksearch.py
++ .ai-tmp/test/aa2-land.py
++ .ai-tmp/test/ai1-fold.py
++ .ai-tmp/test/AM2-measure.py
++ .ai-tmp/test/AU1-live2.ps1
++ .ai-tmp/test/cr-v1-waterprof.py
++ .ai-tmp/test/p1-measure.py
++ .ai-tmp/test/r5/dumpsc.py
++ .ai-tmp/test/r5/parse.py
++ .ai-tmp/web/sc_decode.py
+# removed 0 (none)

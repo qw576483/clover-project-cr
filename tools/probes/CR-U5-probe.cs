@@ -609,6 +609,53 @@ else if (arg == "state" || arg == "dragstate")
         N("activeScene=" + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
     }
 }
+// ── CR-V2 2026-09-23 追加（team-lead 批的"端点法"实验用；⛔ 不动任何既有分支）────────────
+// 设计口径（team-lead 约束：改节点状态**必须可恢复 + 断言还原**；CR-U5R 的建议：**无状态**）：
+//   · `alphadump:<A>[,<B>...]` 把每个 Graphic 的**当前** alpha 打出来 ⇒ "原值是多少"有证据（⛔ 不猜、不缓存）
+//   · `alpha:<v>:<A>[,<B>...]` 把 alpha 设成 v（v 用 InvariantCulture 解析）
+//   ⇒ 还原 = 按 `alphadump` 打印的值回写 `alpha:<打印值>:<名字>`；再用一次 `alphadump` **断言还原**
+//   ⛔ 刻意不用 `SetActive(false)`：那样 `GameObject.Find` 就找不到、同一条命令无法复原。
+//   ⛔ 只作用于**该节点自身**的 Graphic（不带 children）——本实验只需要 Image 本身。
+else if (arg.StartsWith("alphadump"))
+{
+    var nm = arg.Contains(":") ? arg.Split(':')[1] : "";
+    foreach (var one in nm.Split(','))
+    {
+        var go = UnityEngine.GameObject.Find(one);
+        if (go == null) { N("alphadump NOTFOUND " + one); continue; }
+        var gs = go.GetComponents<UnityEngine.UI.Graphic>();
+        var s = "alphadump '" + one + "' graphics=" + gs.Length;
+        for (int i = 0; i < gs.Length; i++)
+        {
+            var c = gs[i].color;
+            s += " [" + i + "]=" + gs[i].GetType().Name + ":a=" + c.a.ToString("F3")
+               + " rgb=" + c.r.ToString("F3") + "/" + c.g.ToString("F3") + "/" + c.b.ToString("F3");
+        }
+        N(s);
+    }
+}
+else if (arg.StartsWith("alpha"))
+{
+    var sp = arg.Split(':');
+    float v;
+    if (!float.TryParse(sp[1], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out v)) v = -1f;
+    foreach (var one in sp[2].Split(','))
+    {
+        var go = UnityEngine.GameObject.Find(one);
+        if (go == null) { N("alpha NOTFOUND " + one); continue; }
+        var gs = go.GetComponents<UnityEngine.UI.Graphic>();
+        var s = "alpha '" + one + "' -> " + v.ToString("F3") + " graphics=" + gs.Length;
+        for (int i = 0; i < gs.Length; i++)
+        {
+            var c = gs[i].color;
+            c.a = v;
+            gs[i].color = c;
+            s += " [" + i + "]now=" + gs[i].color.a.ToString("F3");
+        }
+        N(s);
+    }
+}
 else N("unknown arg '" + arg + "'");
 }
 catch (System.Exception ex)

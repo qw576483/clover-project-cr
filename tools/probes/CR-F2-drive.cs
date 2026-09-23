@@ -1,4 +1,4 @@
-// CR-F2 driver -- REUSES the skeleton of .ai-tmp/drivers/CR-T6-drive.cs (Cap / Flag / SetFlag /
+﻿// CR-F2 driver -- REUSES the skeleton of .ai-tmp/drivers/CR-T6-drive.cs (Cap / Flag / SetFlag /
 // ClickGo / one-action-per-eval state machine); only the states and the probes change
 // (reuse the driver, do not rewrite).
 //

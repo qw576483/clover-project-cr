@@ -1,0 +1,12 @@
+﻿==============================================================================
+[read] 03_对局_1320x2868.jpg          bytes=828118    sha256_16=7D86D1F0569BC17F
+[read] CR-V1-arena-nohud.png        bytes=2511802   sha256_16=A6FA27A602999482
+[lanes] ref03 runs=[] -> pxPerTile=-1.000  tile0x=-1.0
+[lanes] ours  runs=[(213.0, 59), (291.5, 26), (548.0, 235), (879.0, 59)] -> pxPerTile=60.545  tile0x=1.1
+[lanes] ref03 auto-detect FAILED -> using DOCUMENTED 91.5 px/tile (cr-t1i-fit.py); NOT measured here
+[water] ref03 y1336..1437 thick=102 mean=(47, 124, 150)
+[water] ours  y900..1019 thick=120 mean=(0, 152, 183)
+[scale] ref03 -> (866, 1881) (pxPerTile 91.50 -> 60)
+[scale] ours  -> (1070, 1903) (pxPerTile 60.55 -> 60)
+saved C:\Work\Server\f-v2\clover-project-cr\.ai-tmp\screenshots\CR-V1-cmp-full.png (1947, 1903)
+saved C:\Work\Server\f-v2\clover-project-cr\.ai-tmp\screenshots\CR-V1-cmp-river.png (3882, 978)

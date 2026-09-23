@@ -1,0 +1,75 @@
+# CR-V1 same-basename census  --  MACHINE-GENERATED DERIVATIVE, NOT evidence; regenerate:
+#   python tools/probes/cr-v1-samename-pairs.py
+# tool    = tools/probes/cr-v1-samename-pairs.py  sha256_16=5300800FF778F927  bytes=9603  mtime=2026-09-23 13:39:18
+# AS-OF   = 2026-09-23 13:39:27
+# roots   = tools/probes,.ai-tmp/test,.ai-tmp/drivers,.ai-tmp/hosts
+# ext     = .cs,.py,.ps1,.txt,.tsv,.json,.md,.dll
+# subject = scanned=1846  multi_member_groups=32  DIFFERENT=13  SAME=19
+# READING RULE: 'DIFFERENT' = same basename, >1 distinct sha256 -> a reader may pick the
+#   wrong copy.  'SAME' = duplicates that are byte-identical (harmless, still listed).
+#   A pair that appeared AFTER a previous run will NOT be in that run's output -> re-run.
+# name	sha16	bytes	mtime	path
+AS1-anim-index.json	A4D896D71B2E77C3	2695127	2026-09-22 12:49:51	.ai-tmp/test/BC1-backup-prefetch/AS1-anim-index.json
+AS1-anim-index.json	607A203014AFA13B	3116532	2026-09-22 13:53:35	.ai-tmp/test/AS1-anim-index.json
+CR-R1-gen-list.ps1	2B5AA8AD01251173	7348	2026-09-23 09:40:29	.ai-tmp/test/_bak-CR-R1/CR-R1-gen-list.ps1
+CR-R1-gen-list.ps1	83C3019C9D3B7112	7348	2026-09-23 09:45:00	.ai-tmp/test/CR-R1-gen-list.ps1
+cr-r1-impact.ps1	C16B2568F9F2B3B4	7118	2026-09-23 09:40:26	.ai-tmp/test/_bak-CR-R1/cr-r1-impact.ps1
+cr-r1-impact.ps1	6B2975C34F124AB9	7118	2026-09-23 09:45:00	.ai-tmp/test/cr-r1-impact.ps1
+cr-r1-independent-reconcile.py	4F6B804E4F7B2041	3864	2026-09-23 09:19:44	.ai-tmp/test/_bak-CR-R1/cr-r1-independent-reconcile.py
+cr-r1-independent-reconcile.py	E632031CED597777	3916	2026-09-23 09:45:00	.ai-tmp/test/cr-r1-independent-reconcile.py
+cr-r1-oldnew.ps1	9CE6B5AE67BF347B	11300	2026-09-23 09:14:08	.ai-tmp/test/_bak-CR-R1/cr-r1-oldnew.ps1
+cr-r1-oldnew.ps1	283421D8F554A0BF	11300	2026-09-23 09:45:00	.ai-tmp/test/cr-r1-oldnew.ps1
+cr-t6-recollect.ps1	649131297E965327	3313	2026-09-23 11:38:41	tools/probes/cr-t6-recollect.ps1
+cr-t6-recollect.ps1	08C31BA06F14409B	3572	2026-09-23 11:56:36	.ai-tmp/test/cr-t6-recollect.ps1
+cr-v1-calib-tex_.py	08F99F68566DFC89	2904	2026-09-23 10:52:37	.ai-tmp/test/cr-v1-calib-tex_.py
+cr-v1-calib-tex_.py	3DE7F65C8130BB04	14936	2026-09-23 13:25:23	tools/probes/cr-v1-calib-tex_.py
+evidence-selfcheck.ps1	7091F59DF021FE8F	21872	2026-09-23 09:41:57	.ai-tmp/test/_bak-CR-R1/evidence-selfcheck.ps1
+evidence-selfcheck.ps1	46BB0D1493822EB5	22983	2026-09-23 09:46:40	tools/probes/evidence-selfcheck.ps1
+index.tsv	E3B0C44298FC1C14	0	2026-09-20 18:56:54	.ai-tmp/test/t5-cand/index.tsv
+index.tsv	D26A12EE684E5EAD	76854	2026-09-23 12:20:30	tools/probes/assemblies/index.tsv
+对照表.md	93CF5D59A77B8AE8	63927	2026-09-21 22:13:23	.ai-tmp/test/AL2-backup/对照表.md
+对照表.md	522ACBD2E31E16D9	69487	2026-09-22 10:08:46	.ai-tmp/test/AO2-backup/对照表.md
+差异登记.tsv	B2F752B8AF92A3C3	32378	2026-09-21 22:13:23	.ai-tmp/test/AL2-backup/差异登记.tsv
+差异登记.tsv	7D775DB81EA20CDE	37645	2026-09-22 10:08:46	.ai-tmp/test/AO2-backup/差异登记.tsv
+状态矩阵.tsv	BA342602D1AD885F	617238	2026-09-21 22:13:23	.ai-tmp/test/AL2-backup/状态矩阵.tsv
+状态矩阵.tsv	3C76DE78ACAD9C1D	643075	2026-09-22 10:10:45	.ai-tmp/test/AO2-backup/状态矩阵.tsv
+验收表.md	81BCF425C09B9593	400331	2026-09-21 22:13:26	.ai-tmp/test/AL2-backup/验收表.md
+验收表.md	D795C7F5EBC9F807	432312	2026-09-22 10:10:45	.ai-tmp/test/AO2-backup/验收表.md
+AS1-档位可用性.tsv	815E72728B2060FA	3153	2026-09-22 11:06:16	.ai-tmp/test/AS1-档位可用性.tsv
+AS1-档位可用性.tsv	815E72728B2060FA	3153	2026-09-22 11:06:16	.ai-tmp/test/BC1-backup-prefetch/AS1-档位可用性.tsv
+CR-F2-drive.cs	DF5B128E6DB3DBC1	19829	2026-09-23 12:18:57	tools/probes/CR-F2-drive.cs
+CR-F2-drive.cs	DF5B128E6DB3DBC1	19829	2026-09-23 12:19:29	.ai-tmp/drivers/CR-F2-drive.cs
+CR-F2-parsecheck.ps1	A58AC100F56F0EF0	778	2026-09-23 12:19:39	tools/probes/CR-F2-parsecheck.ps1
+CR-F2-parsecheck.ps1	A58AC100F56F0EF0	778	2026-09-23 12:59:12	.ai-tmp/test/CR-F2-parsecheck.ps1
+CR-T6-drive.cs	CA9C094B4441F9F0	11587	2026-09-23 00:57:30	tools/probes/CR-T6-drive.cs
+CR-T6-drive.cs	CA9C094B4441F9F0	11587	2026-09-23 00:57:30	.ai-tmp/drivers/CR-T6-drive.cs
+CR-V1-calib-tex_.txt	C6B476AE993EC0F4	3161	2026-09-23 10:53:13	tools/probes/CR-V1-calib-tex_.txt
+CR-V1-calib-tex_.txt	C6B476AE993EC0F4	3161	2026-09-23 10:53:13	.ai-tmp/test/CR-V1-calib-tex_.txt
+CR-V1-calib.txt	1D495D8F051F9B5F	5650	2026-09-23 10:45:36	tools/probes/CR-V1-calib.txt
+CR-V1-calib.txt	1D495D8F051F9B5F	5650	2026-09-23 10:45:36	.ai-tmp/test/CR-V1-calib.txt
+CR-V1-cmp.txt	A2A166E30E15345A	9320	2026-09-23 11:11:29	tools/probes/CR-V1-cmp.txt
+CR-V1-cmp.txt	A2A166E30E15345A	9320	2026-09-23 11:11:29	.ai-tmp/test/CR-V1-cmp.txt
+CR-V1-ref18.txt	0FA0758654226137	4168	2026-09-23 10:36:55	tools/probes/CR-V1-ref18.txt
+CR-V1-ref18.txt	0FA0758654226137	4168	2026-09-23 10:36:55	.ai-tmp/test/CR-V1-ref18.txt
+CR-V1-waterprof.txt	811674908E4D8C45	6471	2026-09-23 10:55:45	tools/probes/CR-V1-waterprof.txt
+CR-V1-waterprof.txt	811674908E4D8C45	6471	2026-09-23 10:55:45	.ai-tmp/test/CR-V1-waterprof.txt
+cr-t6-river-check.py	38E3549542784D33	6054	2026-09-23 00:43:59	tools/probes/cr-t6-river-check.py
+cr-t6-river-check.py	38E3549542784D33	6054	2026-09-23 00:43:59	.ai-tmp/hosts/cr-t6-river-check.py
+cr-v1-arena-sheet.py	5A151C44AA101960	1727	2026-09-23 10:49:42	tools/probes/cr-v1-arena-sheet.py
+cr-v1-arena-sheet.py	5A151C44AA101960	1727	2026-09-23 10:49:42	.ai-tmp/test/cr-v1-arena-sheet.py
+cr-v1-blue-list.py	C4BA3AFC8A14F288	628	2026-09-23 10:36:25	tools/probes/cr-v1-blue-list.py
+cr-v1-blue-list.py	C4BA3AFC8A14F288	628	2026-09-23 10:36:25	.ai-tmp/test/cr-v1-blue-list.py
+cr-v1-crop.py	0C18745B27705242	1449	2026-09-23 10:37:11	tools/probes/cr-v1-crop.py
+cr-v1-crop.py	0C18745B27705242	1449	2026-09-23 10:37:11	.ai-tmp/test/cr-v1-crop.py
+cr-v1-dump-arena-exports.py	0DFB10D038099846	1161	2026-09-23 10:37:48	tools/probes/cr-v1-dump-arena-exports.py
+cr-v1-dump-arena-exports.py	0DFB10D038099846	1161	2026-09-23 10:37:48	.ai-tmp/test/cr-v1-dump-arena-exports.py
+cr-v1-f022-calib.py	7031276A5065D6B6	2435	2026-09-23 10:45:22	tools/probes/cr-v1-f022-calib.py
+cr-v1-f022-calib.py	7031276A5065D6B6	2435	2026-09-23 10:45:22	.ai-tmp/test/cr-v1-f022-calib.py
+cr-v1-measure2.py	9D51F595F580D281	5013	2026-09-23 11:11:17	tools/probes/cr-v1-measure2.py
+cr-v1-measure2.py	9D51F595F580D281	5013	2026-09-23 11:11:17	.ai-tmp/test/cr-v1-measure2.py
+cr-v1-ref-measure.py	DE5E91675562DB3F	4854	2026-09-23 10:36:50	tools/probes/cr-v1-ref-measure.py
+cr-v1-ref-measure.py	DE5E91675562DB3F	4854	2026-09-23 10:36:50	.ai-tmp/test/cr-v1-ref-measure.py
+cr-v1-view.py	F9484FB7A95D26C4	1196	2026-09-23 10:42:19	tools/probes/cr-v1-view.py
+cr-v1-view.py	F9484FB7A95D26C4	1196	2026-09-23 10:42:19	.ai-tmp/test/cr-v1-view.py
+cr-v1-waterprof.py	EE29D089F2FF8CF0	1509	2026-09-23 10:55:07	tools/probes/cr-v1-waterprof.py
+cr-v1-waterprof.py	EE29D089F2FF8CF0	1509	2026-09-23 10:55:07	.ai-tmp/test/cr-v1-waterprof.py

@@ -1,4 +1,4 @@
-# cr-f2-count.ps1 -- CR-F2 evidence counter (ASCII only; no CJK literals -> no BOM trap).
+﻿# cr-f2-count.ps1 -- CR-F2 evidence counter (ASCII only; no CJK literals -> no BOM trap).
 #
 # WHAT IT JUDGES (process, not outcome): the client log of ONE Play session, counted by
 # ASCII markers that only the CR-F2 build emits. Each marker sits on a *send* or *drop*

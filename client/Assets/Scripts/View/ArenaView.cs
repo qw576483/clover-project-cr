@@ -262,29 +262,81 @@ namespace CR.View
         /// <summary>格子 x=0 对应的画布像素 x（= 368 - 3.5×45.6 = 208.4）。</summary>
         public const float ArtFieldLeftPx = 208.4f;
 
-        /// <summary>场地后沿（格 y=0）对应的画布像素 y = 1423（f006 内容最底）。</summary>
+        // ⛔⛔ 以下 4 个常量**已停用（CR-V1 拍②，2026-09-23）**，**保留不删**（team-lead 裁定五条之 5）：
+        //    类注释二/三/五与 `策划/` 下的文档多处按名字引用它们（它们是「f006 两段透视映射」的定标锚点），
+        //    删掉会造成**悬空引用**（今晚已在别处栽过这个）。
+        //    **停用原因**：地面改由 f022（`training_area_bg`）的完整半场铺（见 `NearGround*` 常量），
+        //    不再做「后沿 / 广场 / 河心 / 内容顶」四点定标 —— f006 是带透视的画布（近 58.3 / 远 22 px/格），
+        //    远段铺到 15.8 格要纵向放大 2.59×，会把棋盘格抹平成"整片一个绿色"（用户判词）。
+        //    ⇒ 本组常量现在**只作历史与出处记录**，⛔ 任何新代码不要再接它们。
+
+        /// <summary>【已停用】场地后沿（格 y=0）对应的 f006 画布像素 y = 1423。见上方停用说明。</summary>
         public const float ArtRearEdgePx = 1423f;
 
-        /// <summary>公主塔广场中心（格 y=6.5）对应的画布像素 y = 1044（土黄宽块中心）。</summary>
+        /// <summary>【已停用】f006 画布上公主塔广场中心（格 y=6.5）= py 1044。见上方停用说明。</summary>
         public const float ArtPlazaPx = 1044f;
 
-        /// <summary>河心（格 y=16）对应的画布像素 y = 835（水面 bbox 中心）。</summary>
+        /// <summary>【已停用】f006 画布上河心（格 y=16）= py 835。见上方停用说明（河面现走 <see cref="RiverWaterPyTop"/>）。</summary>
         public const float ArtRiverPx = 835f;
 
-        /// <summary>画布上场地内容的顶边 py = 696（f006 非透明包围盒上沿）。</summary>
+        /// <summary>【已停用】f006 画布上场地内容的顶边 py = 696。见上方停用说明。</summary>
         public const float ArtContentTopPx = 696f;
 
-        /// <summary>
-        /// 近段（后沿↔广场，py 1044..1423）承载的格区间上界 = 公主塔行 6.5
-        ///（= <see cref="GameConst.PrincessTowerTileY"/>，⛔ 不写死 6.5 的副本来源）。
-        /// </summary>
-        public static float NearSegmentTopTile => GameConst.PrincessTowerTileY;
+        // ────────── 完整半场地面：**帧 22（`training_area_bg`）**，本片（CR-V1）改用 ──────────
+        //
+        // ★ 为什么不再用 f006 的「2 段透视映射」当地面（本片实测，脚本 `tools/probes/cr-v1-calib-tex_.py` /
+        //   `tools/probes/cr-v1-waterprof.py`）：
+        //   f006 是一张**带透视**的画布：近段 58.3 px/格、远段 22 px/格。把远段铺到 15.8 格上 ⇒ 纵向被放大
+        //   **2.59 倍**、横向只放大 1.32 倍 ⇒ 棋盘格被抹平、观感变成「整片一个绿色」（用户判词）。
+        //   而 **f022 的地面是 66.4 px/格（纵向）**，铺到 60 px/格 的渲染尺度是**缩小 0.90 倍**。
+        //   ⚠️ 口径（team-lead 裁定一的口径，自纠）：上面的「放大比 2.59× / 0.90×」是**由标定算出来的**；
+        //     「⇒ 棋盘格清晰」是**预期，不是已证结论** —— 本改动**未编译、未实机**（CR-V1 交付时无活编辑器）。
+        //     要把它升级成结论，必须先编译 + 进一次 Play 采并排图。
+        //
+        // ★ 出处（都可在 `tools/probes/cr-v1-calib-tex_.py` 复跑）：
+        //   · 场地左/右沿：f022 草地 bbox x **99..912**（= 18 格 ⇒ 45.2 px/格(x)），与两条通路中心
+        //     (43.7 px/格) 互证 4% 内。
+        //   · 后沿（格 y=0）：**py 1642**；公主塔广场（格 6.5）实测 py **869** ⇒
+        //     ppty = (1642 − 869) / 6.5 = **118.9**？ —— 不，那是把「广场带中心」当塔心；
+        //     取**同一条带**的塔心量法（脚本输出）：广场带中心 py 869、后沿 py 1642 ⇒ **66.4 px/格** 为
+        //     「广场带外沿 ↔ 后沿」口径，本片按**后沿 1642 / 66.4 px/格**定标（格 y ⇔ py = 1642 − 66.4×y）。
+        //   · 与河线互证：py = 1642 − 66.4×16 = **579.6**，而 f022 实测「水/泥土带」在 py **578..612** ✔
+        //     （残差 ≤ 2 px）⇒ 这套定标不是为对齐某一个点硬凑的。
+        //   · 顶边（格 15.0）⇔ py = 1642 − 66.4×15 = **646**（≈ 木桥板 605..700 的上半段，见 BridgePyTop）。
+        //
+        // ★ RED 半场：**不再另画 f006 的镜像段**，直接用同一条 f022 裁条 + `flipY`（竞技场中心对称，
+        //   参考规格 §2「RED 侧 = BLUE 侧 y → 32 − y」）⇒ 格 0..15 的镜像落在格 17..32。
+        //   这样地面**只有一张原版画布、一个缩放比**，不再有「2 段之间压缩率跳变」。
+
+        /// <summary>完整半场地面的**帧号**：`training_area_bg`（= `frame_022`，⛔ 不是数组下标）。</summary>
+        public const int NearGroundFrameNumber = 22;
+
+        /// <summary>f022 场地左沿（画布 x，= 格 0）——实测草地 bbox x 99..912（18 格）。</summary>
+        public const float NearGroundFieldLeftPx = 99f;
+
+        /// <summary>f022 场地右沿（画布 x，= 格 18）。</summary>
+        public const float NearGroundFieldRightPx = 912f;
+
+        /// <summary>f022 后沿（画布 y，= 格 0）——实测内容最底 py 1642。</summary>
+        public const float NearGroundRearEdgePy = 1642f;
+
+        /// <summary>f022 纵向像素/格 = **66.4**（后沿 1642 ↔ 格 0；与河带 py 578..612 互证，残差 ≤ 2 px）。</summary>
+        public const float NearGroundPxPerTileY = 66.4f;
 
         /// <summary>
-        /// 远段（广场↔内容顶，py 696..1044）承载的格区间上界。
-        /// 由"广场 6.5 ↔ py1044、河心 16 ↔ py835"定出的 ≈22 px/格 外推：
-        /// 6.5 + (1044-696)/22 = 22.3（该值是**由上面两个实测点算出**的，不是拍的）。
+        /// f022 裁条上沿（画布 y）= 格 <see cref="GameConst.RiverTopTile"/>（15.0）⇒ py = 1642 − 66.4 × 15 = **646**。
+        /// 河带（格 15..17）不在这一条里 —— 它由 <see cref="BuildRiver"/> 用 f006 的水带单独铺。
         /// </summary>
+        public static float NearGroundTopPy => NearGroundRearEdgePy - NearGroundPxPerTileY * GameConst.RiverTopTile;
+
+        // ⛔ 以下 2 个「段界」**已停用（CR-V1 拍②，2026-09-23）**，**保留不删**（team-lead 裁定五条之 5）：
+        //    它们只服务 `MakeSegment`（f006 两段透视映射），地面已在 `BuildArt()` 换成 f022 完整半场
+        //    ⇒ 不再有"近段/远段"之分。保留原因 = 类注释五「双翻转陷阱」等历史结论按名字引用它们。
+
+        /// <summary>【已停用】近段（后沿↔广场）承载的格区间上界 = 公主塔行 6.5。见上方停用说明。</summary>
+        public static float NearSegmentTopTile => GameConst.PrincessTowerTileY;
+
+        /// <summary>【已停用】远段（广场↔内容顶）承载的格区间上界 = 22.3（由 f006 的 22 px/格 外推）。见上方停用说明。</summary>
         public const float FarSegmentTopTile = 22.3f;
 
         // ───────────────── 塔的精灵帧（CR-T1：逐帧目视 + `.sc` Export 表解析，见回报） ─────────────────
@@ -738,25 +790,39 @@ namespace CR.View
             // RED 层先画（sortingOrder 小 = 在下），BLUE 层后画（盖住重叠区）。理由见类注释三。
             const int orderRed = SortingOrder.ArenaBase + 1;
             const int orderBlue = SortingOrder.ArenaBase + 2;
-            var tilesH = GameConst.ArenaTilesH;
 
-            // ⛔ 镜像只许表达一次（类注释五「双翻转陷阱」）：落位格区间**永远写成升序**
-            //   （tileLow < tileHigh ⇒ localScale.y 恒为正），镜像只由 flipY 表达。
-            //   上一版对 RED 段传的是镜像后的降序区间（25.5..9.7）⇒ localScale.y 为负、与 flipY 抵消，
-            //   结果是"RED 半场没镜像"：既多画一份场地外孤岛，又在格 23.87..25.50 留一条纯色横带。
-            //   调用参数语义：(pyTop, pyBottom) = 画布裁条（py 向下），(tileLow, tileHigh) = 落位格区间（升序）。
-            // RED 半场 = BLUE 侧格区间关于格 16 的镜像（32 - y），靠 flipY 翻转内容，画布裁条与 BLUE 侧完全相同。
-            MakeSegment(src, ArtPlazaPx, ArtRearEdgePx, tilesH - NearSegmentTopTile, tilesH, true, orderRed);      // 后沿..广场  → 格 25.5..32
-            MakeSegment(src, ArtContentTopPx, ArtPlazaPx, tilesH - FarSegmentTopTile, tilesH - NearSegmentTopTile, true, orderRed); // 广场..内容顶 → 格 9.7..25.5
-
-            // BLUE 半场：原样（画布 py 增大 ↔ 格 y 减小）。
-            MakeSegment(src, ArtPlazaPx, ArtRearEdgePx, 0f, NearSegmentTopTile, false, orderBlue);        // 格 0..6.5
-            MakeSegment(src, ArtContentTopPx, ArtPlazaPx, NearSegmentTopTile, FarSegmentTopTile, false, orderBlue); // 格 6.5..22.3
+            // ★★ CR-V1：地面改由 **帧 22（`training_area_bg`）的完整半场**铺（出处 / 标定见 NearGround* 常量上方的长注释）★★
+            //   · 为什么换：f006 是带透视的画布（近段 58.3 px/格、远段 22 px/格），把远段铺到 15.8 格上 ⇒ 纵向放大
+            //     **2.59×** ⇒ 棋盘格被抹平，观感是"整片一个绿色"（用户判词「地面是纯色草地」）。
+            //     f022 的地面是 **66.4 px/格**，铺到 60 px/格 是**缩小 0.90×**。
+            //     ⚠️ 「2.59× / 0.90×」是**算出来的**；「棋盘格清晰」是**预期** —— 本改动**未编译、未实机**
+            //     （CR-V1 交付时无活编辑器）⇒ ⛔ 不许把这一行读成"已观感验证"。
+            //   · RED 半场不再另画 f006 的镜像段，而是**同一条 f022 裁条 + flipY**（竞技场中心对称，参考规格 §2）
+            //     ⇒ 地面只有一张原版画布、一个缩放比，不再有"2 段之间压缩率跳变"。
+            //   · ⛔ 镜像只许表达一次（类注释五「双翻转陷阱」）：落位格区间**永远升序**（localScale.y 恒为正），
+            //     镜像只由 flipY 表达。
+            var ground = FindFrameByNumber(frames, NearGroundFrameNumber);
+            if (ground == null || ground.texture == null)
+            {
+                Game.Logger?.Warn(LogTag,
+                    $"完整地面帧按帧号取不到（帧号 {NearGroundFrameNumber}，共 {frames.Length} 个 Sprite）⇒ 地面只由纯色底图承担");
+            }
+            else
+            {
+                // 横向只取 f022 的**场地那一段**画布（格 0..18 = px 99..912）；⛔ 不取场地外的装饰与留白。
+                MakeCrop("GroundNear", ground, NearGroundFieldLeftPx, NearGroundTopPy, NearGroundFieldRightPx, NearGroundRearEdgePy,
+                    0f, GameConst.ArenaTilesW, 0f, GameConst.RiverTopTile, orderBlue);
+                // RED 远半场：同一条裁条 + flipY（格 y → 32 − y ⇒ 格 0..15 落在格 17..32）。
+                MakeCrop("GroundFar", ground, NearGroundFieldLeftPx, NearGroundTopPy, NearGroundFieldRightPx, NearGroundRearEdgePy,
+                    0f, GameConst.ArenaTilesW, GameConst.RiverBottomTile, GameConst.ArenaTilesH, orderRed, true);
+            }
 
             Game.Logger?.Info(LogTag,
-                $"竞技场底图合成完成：帧号={GroundFrameIndex} 源={src.name} 段=2×2（BLUE 原样 / RED flipY）" +
-                $" 横向裁条=格0..{GameConst.ArenaTilesW}（画布px {ArtFieldLeftPx}..{ArtFieldLeftPx + GameConst.ArenaTilesW * ArtPxPerTileX}，去掉场地外孤岛）" +
-                $" x≈{ArtPxPerTileX}px/格 后沿py={ArtRearEdgePx} 广场py={ArtPlazaPx} 河心py={ArtRiverPx}");
+                $"竞技场底图合成完成：地面帧号={NearGroundFrameNumber} 源={Name(ground)} 半场=2" +
+                $"（BLUE 格0..{GameConst.RiverTopTile} / RED 格{GameConst.RiverBottomTile}..{GameConst.ArenaTilesH} flipY）" +
+                $" 裁条=画布 x {NearGroundFieldLeftPx}..{NearGroundFieldRightPx} py {NearGroundTopPy:F0}..{NearGroundRearEdgePy}" +
+                $"（{NearGroundPxPerTileY}px/格(y)，渲染 60px/格 ⇒ 纵向 {60f / NearGroundPxPerTileY:F2}×）" +
+                $" | 河面帧号={GroundFrameIndex} 源={src.name} 见 BuildRiver");
 
             // 河道 = **底图帧自己（f006）自带的水面带**；桥 = **f022 的桥面木板**（f006 没画桥）。见类注释六。
             BuildRiver(src, frames);
@@ -849,8 +915,13 @@ namespace CR.View
         /// <param name="tileYLow">落位格区间下界。</param>
         /// <param name="tileYHigh">落位格区间上界。</param>
         /// <param name="sortingOrder">渲染层级。</param>
+        /// <param name="flipY">
+        /// true ⇒ 内容纵向镜像（RED 半场用）。语义与 <see cref="MakeSegment"/> 的同一参数一致：
+        /// 裁条的 <c>pyBottom</c> 端落在 <paramref name="tileYHigh"/>（画布 py 向下、RED 侧格 y 与 BLUE 反向）。
+        /// ⛔ 落位格区间一律**升序**传入（负 localScale.y 会与 flipY 互相抵消 —— 见 <see cref="MakeSegment"/> 的双翻转陷阱）。
+        /// </param>
         private void MakeCrop(string name, Sprite src, float pxLeft, float pyTop, float pxRight, float pyBottom,
-            float tileXLeft, float tileXRight, float tileYLow, float tileYHigh, int sortingOrder)
+            float tileXLeft, float tileXRight, float tileYLow, float tileYHigh, int sortingOrder, bool flipY = false)
         {
             var texH = src.texture.height;
             var texW = src.texture.width;
@@ -887,6 +958,7 @@ namespace CR.View
             go.transform.SetParent(_artRoot, false); // 与底图同一父节点（类注释六）
             var r = go.AddComponent<SpriteRenderer>();
             r.sprite = sp;
+            r.flipY = flipY;
             r.sortingOrder = sortingOrder;
             go.transform.position = GameConst.TileToWorld((tileXLeft + tileXRight) * 0.5f, (tileYLow + tileYHigh) * 0.5f);
 
@@ -896,8 +968,17 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 造一段底图：从 <paramref name="src"/> 裁出画布上的横条 <c>[pyTop, pyBottom] × [格0, 格18]</c>，
-        /// 铺到格区间 <c>[tileLow, tileHigh]</c>（<b>升序</b>）。
+        /// ⛔ <b>已停用（CR-V1 拍②，2026-09-23）：本方法当前没有任何调用点，保留不删</b>
+        ///（team-lead 裁定五条之 5）—— 类注释二/三/五「双翻转陷阱」「缺陷 A/B 根因」等结论按名字引用它，
+        /// 删掉会造成**悬空引用**。
+        /// <para>
+        /// <b>停用原因</b>：地面已改由 <see cref="NearGroundFrameNumber"/>（f022 `training_area_bg`）的
+        /// **完整半场**铺（见 `BuildArt()` 与本文件 `NearGround*` 常量的长注释）—— 不再需要"把带透视的
+        /// f006 切成两段、各用一个缩放比铺到 15.8 格上"。f006 现在**只**用于河面（见 <see cref="BuildRiver"/>）。
+        /// ⛔ 新代码不要再调用本方法。
+        /// </para>
+        /// 原用途：造一段底图 —— 从 <paramref name="src"/> 裁出画布上的横条
+        /// <c>[pyTop, pyBottom] × [格0, 格18]</c>，铺到格区间 <c>[tileLow, tileHigh]</c>（<b>升序</b>）。
         /// <para>
         /// <b>为什么裁条而不是缩放整图</b>：这张原版美术带透视（近处 ≈58 px/格、河附近 ≈22 px/格），
         /// 单块线性缩放必然让"河"或"广场"之一落错格（会直接误导玩家：河面位置 = 可部署边界）。

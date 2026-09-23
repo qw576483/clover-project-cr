@@ -1,3 +1,5 @@
+# log-label fix by CR-V1 / 2026-09-23 / reason: the shared scene opener CR-T3-scene.cs now opens
+#   Main.unity (Boot stalls before any panel); the old label said "open Boot" and would mislead a log reader. Logic untouched.
 # CR-T6 re-collection chain (ONE Play session, <= 3 min): drive login -> main menu -> AI battle and
 # capture (a) the runtime arena-art node tree + (b) the same-camera shot, both AFTER the river fix.
 # ASCII only. Every unity call has an explicit timeout; heartbeat + play-log are appended here.
@@ -7,7 +9,7 @@ $proj = "$root\client"
 $dev = "$root\.ai-tmp\drivers"
 $tmp = "$root\.ai-tmp\test"
 $drive = "$dev\CR-T6-drive.cs"
-$scene = "$root\tools\probes\CR-T3-scene.cs"   # reuse: opens Assets/Scenes/Boot.unity in edit mode
+$scene = "$root\tools\probes\CR-T3-scene.cs"   # reuse: opens the shared bootstrap-scene opener (its target was changed Boot -> Main by CR-V1 2026-09-23)
 $step = "$tmp\CR-T6-step.txt"
 $evidence = "$tmp\CR-T6-evidence.txt"
 $flags = "$tmp\CR-T6-flags.txt"
@@ -38,7 +40,7 @@ foreach ($f in @($flags, $evidence, $step)) { if (Test-Path $f) { Remove-Item $f
 
 Log ("editor_stop: " + (RunUnity 'command editor_stop' 180))
 Start-Sleep -Seconds 4
-Log ("open Boot: " + (EvalFile $scene))
+Log ("open bootstrap scene: " + (EvalFile $scene))
 Start-Sleep -Seconds 3
 Set-Content -Path $step -Value '0' -Encoding ascii
 Log ("editor_play: " + (RunUnity 'command editor_play' 300))

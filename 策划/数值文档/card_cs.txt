@@ -1,0 +1,64 @@
+id	key	name_cn	name_en	type	rarity	elixir	arena	icon	sprite_dir	deploy_fx
+int	string	string	string	int	int	int	int	string	string	string
+cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs
+本表主键（26010001 起）	官方 cards.json 的 key（逐字）	中文名（cards_i18n）	英文名（cards_i18n）	0=部队 1=法术 2=建筑	0=普通 1=稀有 2=史诗 3=传说	圣水消耗	官方 arena（解锁竞技场）	客户端卡面图名（约定 card_<key>，由客户端片确定）	素材目录名（参考规格 §6；多目录以 ; 连接）	部署特效名（官方数据无此字段 ⇒ 留空，待客户端片确定）
+26010001	knight	骑士	Knight	0	0	3	0	card_knight	chr_knight_out	
+26010002	archers	弓箭手	Archers	0	0	3	0	card_archers	chr_archer_out	
+26010003	goblins	哥布林	Goblins	0	0	2	1	card_goblins	chr_goblin_out	
+26010004	spear-goblins	哥布林投矛手	Spear Goblins	0	0	2	1	card_spear-goblins	chr_goblin_out	
+26010005	giant	巨人	Giant	0	1	5	0	card_giant	chr_giant_out	
+26010006	pekka	皮卡超人	P.E.K.K.A	0	2	7	6	card_pekka	chr_pekka_out	
+26010007	minions	亡灵	Minions	0	0	3	0	card_minions	chr_minion_out	
+26010008	minion-horde	亡灵大军	Minion Horde	0	0	5	10	card_minion-horde	chr_minion_out	
+26010009	balloon	气球兵	Balloon	0	2	5	7	card_balloon	chr_balloon_out	
+26010010	witch	女巫	Witch	0	2	5	6	card_witch	chr_witch_out	
+26010011	barbarians	野蛮人	Barbarians	0	0	5	3	card_barbarians	chr_barbarian_out	
+26010012	skeletons	骷髅兵	Skeletons	0	0	1	2	card_skeletons	chr_skeleton_out	
+26010013	skeleton-army	骷髅军团	Skeleton Army	0	2	3	6	card_skeleton-army	chr_skeleton_out	
+26010014	valkyrie	瓦基丽武神	Valkyrie	0	1	4	2	card_valkyrie	chr_valkyrie_out	
+26010015	bomber	炸弹兵	Bomber	0	0	2	2	card_bomber	chr_bomber_out	
+26010016	musketeer	火枪手	Musketeer	0	1	4	0	card_musketeer	chr_musketeer_out	
+26010017	baby-dragon	飞龙宝宝	Baby Dragon	0	2	4	6	card_baby-dragon	chr_baby_dragon_out	
+26010018	prince	王子	Prince	0	2	5	7	card_prince	chr_prince_out	
+26010019	wizard	法师	Wizard	0	1	5	4	card_wizard	chr_wizard_out	
+26010020	mini-pekka	迷你皮卡	Mini P.E.K.K.A	0	1	4	0	card_mini-pekka	chr_mini_pekka_out	
+26010021	giant-skeleton	骷髅巨人	Giant Skeleton	0	2	6	8	card_giant-skeleton	chr_giant_skeleton_out	
+26010022	hog-rider	野猪骑士	Hog Rider	0	1	4	5	card_hog-rider	chr_hog_rider_out	
+26010023	ice-wizard	寒冰法师	Ice Wizard	0	3	3	12	card_ice-wizard	chr_ice_wizard_out	
+26010024	royal-giant	皇家巨人	Royal Giant	0	0	6	7	card_royal-giant	chr_royal_giant_out	
+26010025	princess	公主	Princess	0	3	3	11	card_princess	chr_princess_out	
+26010026	dark-prince	黑暗王子	Dark Prince	0	2	4	7	card_dark-prince	chr_prince_out	
+26010027	lava-hound	熔岩猎犬	Lava Hound	0	3	7	13	card_lava-hound	chr_lava_hound_out;chr_lava_pups_out	
+26010028	ice-spirit	冰雪精灵	Ice Spirit	0	0	1	8	card_ice-spirit	chr_ice_spirits_out	
+26010029	fire-spirit	烈焰精灵	Fire Spirit	0	0	1	4	card_fire-spirit	chr_fire_firespirit_out	
+26010030	miner	掘地矿工	Miner	0	3	3	11	card_miner	chr_miner_out	
+26010031	bowler	巨石投手	Bowler	0	2	5	13	card_bowler	chr_bowler_out	
+26010032	battle-ram	野蛮人攻城槌	Battle Ram	0	1	4	3	card_battle-ram	chr_battle_ram_out	
+26010033	mega-minion	重甲亡灵	Mega Minion	0	1	3	3	card_mega-minion	chr_mega_minion_out	
+26010034	dart-goblin	吹箭哥布林	Dart Goblin	0	1	3	9	card_dart-goblin	chr_goblin_blowdart_out	
+26010035	electro-wizard	闪电法师	Electro Wizard	0	3	4	11	card_electro-wizard	chr_electro_wizard_out	
+26010036	executioner	飞斧屠夫	Executioner	0	2	5	14	card_executioner	chr_axe_man_out	
+26010037	bandit	幻影刺客	Bandit	0	3	3	13	card_bandit	chr_bandit_out	
+26010038	bats	蝙蝠	Bats	0	0	2	5	card_bats	chr_bats_out	
+26010039	mega-knight	超级骑士	Mega Knight	0	3	7	11	card_mega-knight	chr_mega_knight_out	
+26010040	cannon-cart	加农炮战车	Cannon Cart	0	2	5	15	card_cannon-cart	chr_movingcannon_out	
+26010041	cannon	加农炮	Cannon	2	0	3	3	card_cannon	building_basic_cannon_out	
+26010042	goblin-hut	哥布林小屋	Goblin Hut	2	1	5	1	card_goblin-hut	building_goblin_hut_out	
+26010043	mortar	迫击炮	Mortar	2	0	4	5	card_mortar	building_mortar_out	
+26010044	inferno-tower	地狱之塔	Inferno Tower	2	1	5	4	card_inferno-tower	building_inferno_tower_out	
+26010045	bomb-tower	炸弹塔	Bomb Tower	2	1	4	4	card_bomb-tower	building_bomb_tower_out	
+26010046	barbarian-hut	野蛮人小屋	Barbarian Hut	2	1	6	9	card_barbarian-hut	building_barbarian_hut_out	
+26010047	tesla	特斯拉电磁塔	Tesla	2	0	4	10	card_tesla	building_tesla_out	
+26010048	elixir-collector	圣水收集器	Elixir Collector	2	1	6	15	card_elixir-collector	building_elixir_collector_out	
+26010049	x-bow	十字连弩	X-Bow	2	2	6	10	card_x-bow	building_xbow_out	
+26010050	tombstone	骷髅墓碑	Tombstone	2	1	3	2	card_tombstone	building_tombstone_out	
+26010051	fireball	火球	Fireball	1	1	4	0	card_fireball	ui_spells_out	
+26010052	arrows	万箭齐发	Arrows	1	0	3	0	card_arrows	ui_spells_out	
+26010053	rage	狂暴法术	Rage	1	2	2	14	card_rage	ui_spells_out	
+26010054	rocket	火箭	Rocket	1	1	6	5	card_rocket	ui_spells_out	
+26010055	goblin-barrel	哥布林飞桶	Goblin Barrel	1	2	3	6	card_goblin-barrel	ui_spells_out;spell_goblin_barrel_out	
+26010056	freeze	冰冻法术	Freeze	1	2	4	8	card_freeze	ui_spells_out	
+26010057	lightning	雷电法术	Lightning	1	2	6	8	card_lightning	ui_spells_out	
+26010058	zap	电击法术	Zap	1	0	2	5	card_zap	ui_spells_out	
+26010059	poison	伤害药水法术	Poison	1	2	4	9	card_poison	ui_spells_out	
+26010060	the-log	滚木	The Log	1	3	2	11	card_the-log	ui_spells_out	

@@ -1,0 +1,1075 @@
+维度	实体	载体/路径	出处	状态数	判据类型	归属片
+D10	亡语(death payload)	cover_offline_test.go:253(TestCoverDeathPayload 实测行 :277)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	冠数	cover_offline_test.go:498(TestCoverCrownCounts 实测行 :542)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	加时结束判定	battle_test.go:337(TestOvertimeThenHpRate)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	加时触发条件	cover_offline_test.go:550(TestCoverVictoryCrownsAt180Differs 实测行 :587)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	召唤(建筑周期)	cover_offline_test.go:280(TestCoverSpawnerBuilding 实测行 :311)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	圣水(elixirBar)	cover_offline_test.go:317(TestCoverElixirBoundaries 实测行 :370)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	圣水三阶段速率	core_test.go:196(TestElixirThreePhases)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	塔 HP	cover_offline_test.go:393(TestCoverTowerHpBoundaries 实测行 :441)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	塔血×三冠判定	rules.go:410(resolveDeath) / cover TestCoverCrownCounts	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	手牌轮转(hand)	cover_offline_test.go:350(TestCoverHandFullCycle 实测行 :414)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	手牌轮转: 未持牌出牌被拒	core_test.go:336 / fixtures	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	攻击	cover_offline_test.go:590(TestCoverAttackWindupAndProjectile 实测行 :616)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	攻击: 命中数算术	battle_test.go:81(TestMeleeKillsInExpectedHits)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	时间轴	cover_offline_test.go:417(TestCoverTimeBoundaries 实测行 :488)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	法术	core_test.go:409 / cover TestCoverKnockbackPushback	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	确定性	battle_test.go:399(TestDeterminism)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	索敌: 只打建筑	cover_offline_test.go:520(TestCoverOnlyBuildingsCannotSeeTroops 实测行 :566)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	索敌: 塔只打最近目标	battle_test.go:140(TestTowerShellsNearestTarget)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	索敌: 惰性王塔	battle_test.go:177(TestKingTowerInertUntilProvoked)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	胜负: 投降	battle_test.go:385(TestSurrender)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	胜负: 王塔被毁	battle_test.go:269(TestVictoryByKingDestroyed)	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D10	部署延迟	entity.go:141 / targeting.go:29	状态矩阵.tsv D10	1	脚本断言	AJ1-D10
+D11	Game.Input(鼠标左键按下)	HudPanel.cs:718-732	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	Game.Input(鼠标抬起)	HudPanel.cs:738-741	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	Game.Input(鼠标拖动)	HudPanel.cs:736	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	快捷键(全局)	HudPanel.cs:670	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	拖放-弹窗开启(暂停/结算/设置)	HudPanel.cs:701-714	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	拖放-按键状态丢失	HudPanel.cs:744-749	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	拖放出牌-合法落点	PlacementIndicator.cs:178-194	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	拖放出牌-非法落点	缺：非法落点并排图	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	按钮点击-主菜单	AppFlow.cs:323	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	按钮点击-卡组编辑	DeckEditPanel.cs:591-614	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	按钮点击-弹窗	各面板	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	按钮点击-设置滑块	SettingsManager.cs:160-205	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	暂停按钮点击	HudPanel.cs:672-676	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	暂停时能否出牌	HudPanel.cs:707-714	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	滚轮-列表滚动	缺：滚轮滚动并排图	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	菜单内屏蔽(点HUD下层)	HudPanel.cs:701-714	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	触屏/多点	缺：目标平台输入方式定义	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	输入框聚焦时快捷键误触	step3 无 Input.GetKey	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	输入框输入-房间	缺：超长输入并排图	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	输入框输入-昵称	NicknamePanel.cs	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	输入框输入-登录	LoginPanel.cs	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	连点防重入-回主菜单	AppFlow.cs:224-228	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	连点防重入-登录	AppFlow.cs:543-547	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D11	连点防重入-进图	AppFlow.cs:177-189	状态矩阵.tsv D11	1	注入断言	AG1-D11
+D12	Battle→Battle(重连)	AppFlow.cs:200-207	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Battle→Pause	AppFlow.cs:528-533	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Battle→Result	缺：Module/Battle 结算实现	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Boot→Login(开发态)	AppFlow.cs:464-471	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Boot→Login(经Main场景)	AppFlow.cs:419-489	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Boot→Login(非预期)	AppFlow.cs:449-457	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Boot计时器竞争	AppFlow.cs:421-427	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	D11×上下文 拖放仅在 Battle	HudPanel.cs:696-714	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	D4×D12 暂停时 HUD	AppFlow.cs:528-533	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	D4×D12 结算时 HUD	缺：结算态并排图	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	D7×D12 音乐随场景转移	缺：BGM 随站点日志(BgmView.cs)	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Login→MainMenu	AppFlow.cs:606	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Login→Nickname	AppFlow.cs:606	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Login→注册	AppFlow.cs:374-378	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	MainMenu→Battle	AppFlow.cs:779-828	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	MainMenu→Room	AppFlow.cs:145-149/512-518	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	MainMenu→卡组编辑	AppFlow.cs:135-139	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Nickname→MainMenu	AppFlow.cs:682-692	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Pause→Battle(继续)	缺：Module/Battle 返回路径确认	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Pause→MainMenu(投降/退出)	AppFlow.cs:222-242	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Result→MainMenu	AppFlow.cs:222-242	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	Room→Battle	AppFlow.cs:168-216	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	任意→Login(被踢)	AppFlow.cs:715-723	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	启动→Boot	AppFlow.cs:246-256	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	回主菜单后表现层残留	缺：回菜单后截图(AppFlow.cs:506-510)	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	回主菜单幂等	AppFlow.cs:224-228	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	暂停态服务端tick是否继续	缺：服务端 tick 运行日志	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	注册→返回登录	AppFlow.cs:297	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	登录失败→Login站点	AppFlow.cs:700-707/492-498	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	连做两次回主菜单→再进图 计数一致	缺：运行时两次往返计数日志	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D12	退出	AppFlow.cs:871-880	状态矩阵.tsv D12	1	状态机断言	AG1-D12
+D1资源	2min_loop_battle_01	client/Assets/Resources/Sound/BGM/Battle/2min_loop_battle_01.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	ArenaRoot	Assets/Resources/Sprites/Arenas/arena_training_out	ResPaths.cs	1	脚本断言	AE1-D1
+D1资源	Arrow	client/Assets/Resources/Sprites/Effects/Arrow	参考规格.md §6 / ResPaths.cs	20	脚本断言	AE1-D1
+D1资源	BarWhite	Sprites/Ui/Bars/ui_battle_end_out/frame_222	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	Blast	client/Assets/Resources/Sprites/Effects/Blast	参考规格.md §6 / ResPaths.cs	10	脚本断言	AE1-D1
+D1资源	BootBackground	Assets/Resources/Sprites/Ui/loading_bg	ResPaths.cs	1	脚本断言	AE1-D1
+D1资源	BuildingsRoot	Assets/Resources/Sprites/Buildings	ResPaths.cs	1	脚本断言	AE1-D1
+D1资源	ButtonBlueCorner	Sprites/Ui/Buttons/ui_out/frame_165	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonBlueCornerAlt	Sprites/Ui/Buttons/ui_out/frame_166	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonCapsule	Sprites/Ui/Buttons/ui_out/frame_002	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonDarkGrey	Sprites/Ui/Buttons/ui_out/frame_014	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonDarkGreyAlt	Sprites/Ui/Buttons/ui_out/frame_015	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonGold	Sprites/Ui/Buttons/ui_out/frame_300	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonGreenCorner	Sprites/Ui/Buttons/ui_out/frame_005	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonGreenCornerTl	Sprites/Ui/Buttons/ui_out/frame_004	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonOrange	Sprites/Ui/Buttons/ui_out/frame_357	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonOrangeAlt	Sprites/Ui/Buttons/ui_out/frame_359	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonOrangeWide	Sprites/Ui/Buttons/ui_out/frame_551	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ButtonWhite	Sprites/Ui/Buttons/ui_out/frame_476	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	CardFrameGlowLegendary	Sprites/Ui/Panels/ui_out/frame_532	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	CardsRoot	Assets/Resources/Sprites/Cards	ResPaths.cs	1	脚本断言	AE1-D1
+D1资源	ChatBubble	Sprites/Ui/Slots/ui_out/frame_054	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ElixirBarFill	Sprites/Ui/Bars/ui_out/frame_157	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ElixirBarFrame	Sprites/Ui/Bars/ui_out/frame_158	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ElixirBarTick	Sprites/Ui/Bars/ui_out/frame_160	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ElixirBarTrack	Sprites/Ui/Bars/ui_out/frame_155	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ElixirBarTrackAlt	Sprites/Ui/Bars/ui_out/frame_156	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ElixirRequirementEnd	Sprites/Ui/Bars/ui_out/frame_162	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	ElixirRequirementTrack	Sprites/Ui/Bars/ui_out/frame_161	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	GoldSquarePlate	Sprites/Ui/Bars/ui_battle_end_out/frame_201	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	Hit	client/Assets/Resources/Sprites/Effects/Hit	参考规格.md §6 / ResPaths.cs	7	脚本断言	AE1-D1
+D1资源	HudClockIcon	Sprites/Ui/Icons/ui_out/frame_042	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudHandSlot	Sprites/Ui/Slots/ui_out/frame_200	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudHandSlotDraft	Sprites/Ui/Slots/ui_out/frame_201	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudPauseButtonPlate	Sprites/Ui/Buttons/ui_out/frame_163	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudPauseIconPause	Sprites/Ui/Icons/ui_out/frame_171	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudPauseIconPlay	Sprites/Ui/Icons/ui_out/frame_170	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudScoreNamePlate	Sprites/Ui/Panels/ui_out/frame_196	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudStarEnemy	Sprites/Ui/Icons/ui_out/frame_188	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudStarEnemyAlt	Sprites/Ui/Icons/ui_out/frame_198	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudStarPlayer	Sprites/Ui/Icons/ui_out/frame_187	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudStarPlayerAlt	Sprites/Ui/Icons/ui_out/frame_197	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	HudTopRightPlate	Sprites/Ui/Panels/ui_out/frame_193	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconArrowUp	Sprites/Ui/Icons/ui_out/frame_519	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconAttackGear	Sprites/Ui/Icons/ui_out/frame_280	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconBanner	Sprites/Ui/Icons/ui_battle_end_out/frame_226	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconBattle	Sprites/Ui/Icons/ui_out/frame_226	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconCastle	Sprites/Ui/Icons/ui_battle_end_out/frame_223	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconChat	Sprites/Ui/Icons/ui_out/frame_572	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconChestGoldOpen	Sprites/Ui/Icons/ui_out/frame_526	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconChestHalfOpen	Sprites/Ui/Icons/ui_out/frame_555	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconChestWoodClosed	Sprites/Ui/Icons/ui_out/frame_527	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconCoin	Sprites/Ui/Icons/ui_battle_end_out/frame_215	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconCoinPile	Sprites/Ui/Icons/ui_battle_end_out/frame_216	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconCrownBig	Sprites/Ui/Icons/ui_out/frame_883	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconCrownBlack	Sprites/Ui/Icons/ui_out/frame_075	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconCrownBlueGem	Sprites/Ui/Icons/ui_out/frame_187	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconCrownFivePoint	Sprites/Ui/Icons/ui_out/frame_878	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconCrownGold	Sprites/Ui/Icons/ui_out/frame_050	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconCrownRedGem	Sprites/Ui/Icons/ui_out/frame_188	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconElixirBarLeft	Sprites/Ui/Icons/ui_out/frame_159	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconElixirDrop	Sprites/Ui/Icons/ui_out/frame_099	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconGamepad	Sprites/Ui/Icons/ui_out/frame_570	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconGear	Sprites/Ui/Icons/ui_out/frame_563	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconGemBlue	Sprites/Ui/Icons/ui_out/frame_597	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconGemGreen	Sprites/Ui/Icons/ui_battle_end_out/frame_214	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconMedal	Sprites/Ui/Icons/ui_battle_end_out/frame_213	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconPlus	Sprites/Ui/Icons/ui_out/frame_521	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconQuestion	Sprites/Ui/Icons/ui_out/frame_292	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconQuitCross	Sprites/Ui/Icons/ui_out/frame_164	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconSearch	Sprites/Ui/Icons/ui_out/frame_279	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconShieldBlue	Sprites/Ui/Icons/ui_battle_end_out/frame_225	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconSpellBook	Sprites/Ui/Icons/ui_battle_end_out/frame_205	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconTournamentCreate	Sprites/Ui/Icons/ui_out/frame_281	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconTrophy	Sprites/Ui/Icons/ui_battle_end_out/frame_109	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	IconTrophyLaurel	Sprites/Ui/Icons/ui_battle_end_out/frame_195	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelCornerBlueGold	Sprites/Ui/Panels/ui_out/frame_505	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelEdgeBlueGold	Sprites/Ui/Panels/ui_out/frame_506	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelFrameDark	Sprites/Ui/Panels/ui_battle_end_out/frame_108	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelFrameGrey	Sprites/Ui/Panels/ui_out/frame_592	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelFrameOutline	Sprites/Ui/Panels/ui_out/frame_802	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelPaper	Sprites/Ui/Panels/ui_out/frame_806	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelPaperCornerBig	Sprites/Ui/Panels/ui_out/frame_812	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelPaperCornerBl	Sprites/Ui/Panels/ui_out/frame_811	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelPaperCornerTl	Sprites/Ui/Panels/ui_out/frame_808	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	PanelPaperCornerTr	Sprites/Ui/Panels/ui_out/frame_807	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	SlotCard	Sprites/Ui/Slots/ui_out/frame_043	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	SlotCardPlain	Sprites/Ui/Slots/ui_out/frame_531	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	SlotCorner	Sprites/Ui/Slots/ui_out/frame_011	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	SpellArtRoot	Assets/Resources/Sprites/Cards/ui_spells_out	ResPaths.cs	1	脚本断言	AE1-D1
+D1资源	SpritesRoot	Assets/Resources/Sprites	ResPaths.cs	1	脚本断言	AE1-D1
+D1资源	TitleBarGold	Sprites/Ui/Bars/ui_out/frame_069	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	TitleBarWood	Sprites/Ui/Bars/ui_out/frame_070	ResPaths.cs:UiFrame	2	脚本断言	AE1-D1
+D1资源	TowersRoot	Assets/Resources/Sprites/Towers/building_tower_out	ResPaths.cs	1	脚本断言	AE1-D1
+D1资源	UiRoot	Assets/Resources/Sprites/Ui	ResPaths.cs	1	脚本断言	AE1-D1
+D1资源	UnitsRoot	Assets/Resources/Sprites/Units	ResPaths.cs	1	脚本断言	AE1-D1
+D1资源	arena_training_out	client/Assets/Resources/Sprites/Arenas/arena_training_out	参考规格.md §6 / ResPaths.cs	23	脚本断言	AE1-D1
+D1资源	arena_training_out	cr-assets-png/assets/sc/arena_training_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	bad_drop_03	client/Assets/Resources/Sound/SFX/BadDrop/bad_drop_03.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	boulder_impact_01	client/Assets/Resources/Sound/SFX/Hit/boulder_impact_01.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	building_barbarian_hut_out	client/Assets/Resources/Sprites/Buildings/building_barbarian_hut_out	参考规格.md §6 / ResPaths.cs	2	脚本断言	AE1-D1
+D1资源	building_barbarian_hut_out	client/Assets/Resources/Sprites/Buildings/building_barbarian_hut_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_barbarian_hut_out	cr-assets-png/assets/sc/building_barbarian_hut_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_basic_cannon_out	client/Assets/Resources/Sprites/Buildings/building_basic_cannon_out	参考规格.md §6 / ResPaths.cs	39	脚本断言	AE1-D1
+D1资源	building_basic_cannon_out	client/Assets/Resources/Sprites/Buildings/building_basic_cannon_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_basic_cannon_out	cr-assets-png/assets/sc/building_basic_cannon_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_bomb_tower_out	client/Assets/Resources/Sprites/Buildings/building_bomb_tower_out	参考规格.md §6 / ResPaths.cs	3	脚本断言	AE1-D1
+D1资源	building_bomb_tower_out	client/Assets/Resources/Sprites/Buildings/building_bomb_tower_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_bomb_tower_out	cr-assets-png/assets/sc/building_bomb_tower_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_elixir_collector_out	client/Assets/Resources/Sprites/Buildings/building_elixir_collector_out	参考规格.md §6 / ResPaths.cs	5	脚本断言	AE1-D1
+D1资源	building_elixir_collector_out	client/Assets/Resources/Sprites/Buildings/building_elixir_collector_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_elixir_collector_out	cr-assets-png/assets/sc/building_elixir_collector_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_explode_01	client/Assets/Resources/Sound/SFX/TowerDown/building_explode_01.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	building_firespirit_hut_out	cr-assets-png/assets/sc/building_firespirit_hut_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_goblin_hut_out	client/Assets/Resources/Sprites/Buildings/building_goblin_hut_out	参考规格.md §6 / ResPaths.cs	5	脚本断言	AE1-D1
+D1资源	building_goblin_hut_out	client/Assets/Resources/Sprites/Buildings/building_goblin_hut_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_goblin_hut_out	cr-assets-png/assets/sc/building_goblin_hut_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_inferno_tower_out	client/Assets/Resources/Sprites/Buildings/building_inferno_tower_out	参考规格.md §6 / ResPaths.cs	3	脚本断言	AE1-D1
+D1资源	building_inferno_tower_out	client/Assets/Resources/Sprites/Buildings/building_inferno_tower_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_inferno_tower_out	cr-assets-png/assets/sc/building_inferno_tower_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_mega_bomb_out	cr-assets-png/assets/sc/building_mega_bomb_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_mortar_out	client/Assets/Resources/Sprites/Buildings/building_mortar_out	参考规格.md §6 / ResPaths.cs	10	脚本断言	AE1-D1
+D1资源	building_mortar_out	client/Assets/Resources/Sprites/Buildings/building_mortar_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_mortar_out	cr-assets-png/assets/sc/building_mortar_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_rage_bottle_out	cr-assets-png/assets/sc/building_rage_bottle_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_tesla_out	client/Assets/Resources/Sprites/Buildings/building_tesla_out	参考规格.md §6 / ResPaths.cs	41	脚本断言	AE1-D1
+D1资源	building_tesla_out	client/Assets/Resources/Sprites/Buildings/building_tesla_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_tesla_out	cr-assets-png/assets/sc/building_tesla_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_tombstone_out	client/Assets/Resources/Sprites/Buildings/building_tombstone_out	参考规格.md §6 / ResPaths.cs	18	脚本断言	AE1-D1
+D1资源	building_tombstone_out	client/Assets/Resources/Sprites/Buildings/building_tombstone_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_tombstone_out	cr-assets-png/assets/sc/building_tombstone_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_tower_out	client/Assets/Resources/Sprites/Towers/building_tower_out	参考规格.md §6 / ResPaths.cs	214	脚本断言	AE1-D1
+D1资源	building_tower_out	client/Assets/Resources/Sprites/Towers/building_tower_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_tower_out	cr-assets-png/assets/sc/building_tower_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	building_xbow_out	client/Assets/Resources/Sprites/Buildings/building_xbow_out	参考规格.md §6 / ResPaths.cs	21	脚本断言	AE1-D1
+D1资源	building_xbow_out	client/Assets/Resources/Sprites/Buildings/building_xbow_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	building_xbow_out	cr-assets-png/assets/sc/building_xbow_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	button_click_02	client/Assets/Resources/Sound/SFX/Ui/button_click_02.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	chr_archer_out	client/Assets/Resources/Sprites/Units/chr_archer_out	参考规格.md §6 / ResPaths.cs	252	脚本断言	AE1-D1
+D1资源	chr_archer_out	client/Assets/Resources/Sprites/Units/chr_archer_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_archer_out	cr-assets-png/assets/sc/chr_archer_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_axe_man_out	client/Assets/Resources/Sprites/Units/chr_axe_man_out	参考规格.md §6 / ResPaths.cs	360	脚本断言	AE1-D1
+D1资源	chr_axe_man_out	client/Assets/Resources/Sprites/Units/chr_axe_man_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_axe_man_out	cr-assets-png/assets/sc/chr_axe_man_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_baby_dragon_out	client/Assets/Resources/Sprites/Units/chr_baby_dragon_out	参考规格.md §6 / ResPaths.cs	651	脚本断言	AE1-D1
+D1资源	chr_baby_dragon_out	client/Assets/Resources/Sprites/Units/chr_baby_dragon_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_baby_dragon_out	cr-assets-png/assets/sc/chr_baby_dragon_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_balloon_out	client/Assets/Resources/Sprites/Units/chr_balloon_out	参考规格.md §6 / ResPaths.cs	10	脚本断言	AE1-D1
+D1资源	chr_balloon_out	client/Assets/Resources/Sprites/Units/chr_balloon_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_balloon_out	cr-assets-png/assets/sc/chr_balloon_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_bandit_out	client/Assets/Resources/Sprites/Units/chr_bandit_out	参考规格.md §6 / ResPaths.cs	325	脚本断言	AE1-D1
+D1资源	chr_bandit_out	client/Assets/Resources/Sprites/Units/chr_bandit_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_bandit_out	cr-assets-png/assets/sc/chr_bandit_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_barbarian_out	client/Assets/Resources/Sprites/Units/chr_barbarian_out	参考规格.md §6 / ResPaths.cs	1029	脚本断言	AE1-D1
+D1资源	chr_barbarian_out	client/Assets/Resources/Sprites/Units/chr_barbarian_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_barbarian_out	cr-assets-png/assets/sc/chr_barbarian_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_bats_out	client/Assets/Resources/Sprites/Units/chr_bats_out	参考规格.md §6 / ResPaths.cs	90	脚本断言	AE1-D1
+D1资源	chr_bats_out	client/Assets/Resources/Sprites/Units/chr_bats_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_bats_out	cr-assets-png/assets/sc/chr_bats_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_battle_ram_out	client/Assets/Resources/Sprites/Units/chr_battle_ram_out	参考规格.md §6 / ResPaths.cs	243	脚本断言	AE1-D1
+D1资源	chr_battle_ram_out	client/Assets/Resources/Sprites/Units/chr_battle_ram_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_battle_ram_out	cr-assets-png/assets/sc/chr_battle_ram_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_black_knight_out	cr-assets-png/assets/sc/chr_black_knight_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_bomber_out	client/Assets/Resources/Sprites/Units/chr_bomber_out	参考规格.md §6 / ResPaths.cs	432	脚本断言	AE1-D1
+D1资源	chr_bomber_out	client/Assets/Resources/Sprites/Units/chr_bomber_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_bomber_out	cr-assets-png/assets/sc/chr_bomber_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_bowler_out	client/Assets/Resources/Sprites/Units/chr_bowler_out	参考规格.md §6 / ResPaths.cs	486	脚本断言	AE1-D1
+D1资源	chr_bowler_out	client/Assets/Resources/Sprites/Units/chr_bowler_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_bowler_out	cr-assets-png/assets/sc/chr_bowler_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_dark_witch_out	cr-assets-png/assets/sc/chr_dark_witch_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_electro_wizard_out	client/Assets/Resources/Sprites/Units/chr_electro_wizard_out	参考规格.md §6 / ResPaths.cs	301	脚本断言	AE1-D1
+D1资源	chr_electro_wizard_out	client/Assets/Resources/Sprites/Units/chr_electro_wizard_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_electro_wizard_out	cr-assets-png/assets/sc/chr_electro_wizard_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_fire_firespirit_out	client/Assets/Resources/Sprites/Units/chr_fire_firespirit_out	参考规格.md §6 / ResPaths.cs	82	脚本断言	AE1-D1
+D1资源	chr_fire_firespirit_out	client/Assets/Resources/Sprites/Units/chr_fire_firespirit_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_fire_firespirit_out	cr-assets-png/assets/sc/chr_fire_firespirit_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_flying_machine_out	cr-assets-png/assets/sc/chr_flying_machine_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_giant_out	client/Assets/Resources/Sprites/Units/chr_giant_out	参考规格.md §6 / ResPaths.cs	468	脚本断言	AE1-D1
+D1资源	chr_giant_out	client/Assets/Resources/Sprites/Units/chr_giant_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_giant_out	cr-assets-png/assets/sc/chr_giant_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_giant_skeleton_out	client/Assets/Resources/Sprites/Units/chr_giant_skeleton_out	参考规格.md §6 / ResPaths.cs	450	脚本断言	AE1-D1
+D1资源	chr_giant_skeleton_out	client/Assets/Resources/Sprites/Units/chr_giant_skeleton_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_giant_skeleton_out	cr-assets-png/assets/sc/chr_giant_skeleton_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_goblin_archer_out	client/Assets/Resources/Sprites/Units/chr_goblin_archer_out	参考规格.md §6 / ResPaths.cs	342	脚本断言	AE1-D1
+D1资源	chr_goblin_archer_out	client/Assets/Resources/Sprites/Units/chr_goblin_archer_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_goblin_archer_out	cr-assets-png/assets/sc/chr_goblin_archer_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_goblin_blowdart_out	client/Assets/Resources/Sprites/Units/chr_goblin_blowdart_out	参考规格.md §6 / ResPaths.cs	252	脚本断言	AE1-D1
+D1资源	chr_goblin_blowdart_out	client/Assets/Resources/Sprites/Units/chr_goblin_blowdart_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_goblin_blowdart_out	cr-assets-png/assets/sc/chr_goblin_blowdart_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_goblin_out	client/Assets/Resources/Sprites/Units/chr_goblin_out	参考规格.md §6 / ResPaths.cs	288	脚本断言	AE1-D1
+D1资源	chr_goblin_out	client/Assets/Resources/Sprites/Units/chr_goblin_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_goblin_out	cr-assets-png/assets/sc/chr_goblin_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_goblin_referee_out	cr-assets-png/assets/sc/chr_goblin_referee_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_golem_out	cr-assets-png/assets/sc/chr_golem_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_golemite_out	cr-assets-png/assets/sc/chr_golemite_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_hog_rider_out	client/Assets/Resources/Sprites/Units/chr_hog_rider_out	参考规格.md §6 / ResPaths.cs	342	脚本断言	AE1-D1
+D1资源	chr_hog_rider_out	client/Assets/Resources/Sprites/Units/chr_hog_rider_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_hog_rider_out	cr-assets-png/assets/sc/chr_hog_rider_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_ice_spirits_out	client/Assets/Resources/Sprites/Units/chr_ice_spirits_out	参考规格.md §6 / ResPaths.cs	82	脚本断言	AE1-D1
+D1资源	chr_ice_spirits_out	client/Assets/Resources/Sprites/Units/chr_ice_spirits_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_ice_spirits_out	cr-assets-png/assets/sc/chr_ice_spirits_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_ice_wizard_out	client/Assets/Resources/Sprites/Units/chr_ice_wizard_out	参考规格.md §6 / ResPaths.cs	335	脚本断言	AE1-D1
+D1资源	chr_ice_wizard_out	client/Assets/Resources/Sprites/Units/chr_ice_wizard_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_ice_wizard_out	cr-assets-png/assets/sc/chr_ice_wizard_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_knight_out	client/Assets/Resources/Sprites/Units/chr_knight_out	参考规格.md §6 / ResPaths.cs	486	脚本断言	AE1-D1
+D1资源	chr_knight_out	client/Assets/Resources/Sprites/Units/chr_knight_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_knight_out	cr-assets-png/assets/sc/chr_knight_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_lava_hound_out	client/Assets/Resources/Sprites/Units/chr_lava_hound_out	参考规格.md §6 / ResPaths.cs	306	脚本断言	AE1-D1
+D1资源	chr_lava_hound_out	client/Assets/Resources/Sprites/Units/chr_lava_hound_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_lava_hound_out	cr-assets-png/assets/sc/chr_lava_hound_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_lava_pups_out	client/Assets/Resources/Sprites/Units/chr_lava_pups_out	参考规格.md §6 / ResPaths.cs	163	脚本断言	AE1-D1
+D1资源	chr_lava_pups_out	client/Assets/Resources/Sprites/Units/chr_lava_pups_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_lava_pups_out	client/Assets/Resources/Sprites/Units/chr_lava_pups_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_lava_pups_out	cr-assets-png/assets/sc/chr_lava_pups_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_mega_knight_out	client/Assets/Resources/Sprites/Units/chr_mega_knight_out	参考规格.md §6 / ResPaths.cs	619	脚本断言	AE1-D1
+D1资源	chr_mega_knight_out	client/Assets/Resources/Sprites/Units/chr_mega_knight_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_mega_knight_out	cr-assets-png/assets/sc/chr_mega_knight_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_mega_minion_out	client/Assets/Resources/Sprites/Units/chr_mega_minion_out	参考规格.md §6 / ResPaths.cs	252	脚本断言	AE1-D1
+D1资源	chr_mega_minion_out	client/Assets/Resources/Sprites/Units/chr_mega_minion_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_mega_minion_out	cr-assets-png/assets/sc/chr_mega_minion_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_miner_out	client/Assets/Resources/Sprites/Units/chr_miner_out	参考规格.md §6 / ResPaths.cs	415	脚本断言	AE1-D1
+D1资源	chr_miner_out	client/Assets/Resources/Sprites/Units/chr_miner_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_miner_out	cr-assets-png/assets/sc/chr_miner_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_mini_pekka_out	client/Assets/Resources/Sprites/Units/chr_mini_pekka_out	参考规格.md §6 / ResPaths.cs	416	脚本断言	AE1-D1
+D1资源	chr_mini_pekka_out	client/Assets/Resources/Sprites/Units/chr_mini_pekka_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_mini_pekka_out	cr-assets-png/assets/sc/chr_mini_pekka_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_minion_out	client/Assets/Resources/Sprites/Units/chr_minion_out	参考规格.md §6 / ResPaths.cs	270	脚本断言	AE1-D1
+D1资源	chr_minion_out	client/Assets/Resources/Sprites/Units/chr_minion_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_minion_out	cr-assets-png/assets/sc/chr_minion_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_movingcannon_out	client/Assets/Resources/Sprites/Units/chr_movingcannon_out	参考规格.md §6 / ResPaths.cs	145	脚本断言	AE1-D1
+D1资源	chr_movingcannon_out	client/Assets/Resources/Sprites/Units/chr_movingcannon_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_movingcannon_out	cr-assets-png/assets/sc/chr_movingcannon_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_musketeer_out	client/Assets/Resources/Sprites/Units/chr_musketeer_out	参考规格.md §6 / ResPaths.cs	414	脚本断言	AE1-D1
+D1资源	chr_musketeer_out	client/Assets/Resources/Sprites/Units/chr_musketeer_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_musketeer_out	cr-assets-png/assets/sc/chr_musketeer_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_pekka_out	client/Assets/Resources/Sprites/Units/chr_pekka_out	参考规格.md §6 / ResPaths.cs	396	脚本断言	AE1-D1
+D1资源	chr_pekka_out	client/Assets/Resources/Sprites/Units/chr_pekka_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_pekka_out	cr-assets-png/assets/sc/chr_pekka_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_prince_out	client/Assets/Resources/Sprites/Units/chr_prince_out	参考规格.md §6 / ResPaths.cs	522	脚本断言	AE1-D1
+D1资源	chr_prince_out	client/Assets/Resources/Sprites/Units/chr_prince_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_prince_out	cr-assets-png/assets/sc/chr_prince_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_princess_out	client/Assets/Resources/Sprites/Units/chr_princess_out	参考规格.md §6 / ResPaths.cs	748	脚本断言	AE1-D1
+D1资源	chr_princess_out	client/Assets/Resources/Sprites/Units/chr_princess_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_princess_out	cr-assets-png/assets/sc/chr_princess_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_rage_barbarian_out	cr-assets-png/assets/sc/chr_rage_barbarian_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_royal_giant_out	client/Assets/Resources/Sprites/Units/chr_royal_giant_out	参考规格.md §6 / ResPaths.cs	477	脚本断言	AE1-D1
+D1资源	chr_royal_giant_out	client/Assets/Resources/Sprites/Units/chr_royal_giant_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_royal_giant_out	cr-assets-png/assets/sc/chr_royal_giant_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_skeleton_balloon_out	cr-assets-png/assets/sc/chr_skeleton_balloon_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_skeleton_out	client/Assets/Resources/Sprites/Units/chr_skeleton_out	参考规格.md §6 / ResPaths.cs	117	脚本断言	AE1-D1
+D1资源	chr_skeleton_out	client/Assets/Resources/Sprites/Units/chr_skeleton_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_skeleton_out	cr-assets-png/assets/sc/chr_skeleton_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_skeleton_warrior_out	cr-assets-png/assets/sc/chr_skeleton_warrior_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_snowman_out	cr-assets-png/assets/sc/chr_snowman_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_valkyrie_out	client/Assets/Resources/Sprites/Units/chr_valkyrie_out	参考规格.md §6 / ResPaths.cs	379	脚本断言	AE1-D1
+D1资源	chr_valkyrie_out	client/Assets/Resources/Sprites/Units/chr_valkyrie_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_valkyrie_out	cr-assets-png/assets/sc/chr_valkyrie_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_witch_out	client/Assets/Resources/Sprites/Units/chr_witch_out	参考规格.md §6 / ResPaths.cs	253	脚本断言	AE1-D1
+D1资源	chr_witch_out	client/Assets/Resources/Sprites/Units/chr_witch_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_witch_out	cr-assets-png/assets/sc/chr_witch_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_wizard_out	client/Assets/Resources/Sprites/Units/chr_wizard_out	参考规格.md §6 / ResPaths.cs	312	脚本断言	AE1-D1
+D1资源	chr_wizard_out	client/Assets/Resources/Sprites/Units/chr_wizard_out	unit_cs.txt:sprite_dir / 参考规格.md §6	1	脚本断言	AE1-D1
+D1资源	chr_wizard_out	cr-assets-png/assets/sc/chr_wizard_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	chr_zap_machine_out	cr-assets-png/assets/sc/chr_zap_machine_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	cr-api-data	原版资源/cr-api-data	参考规格.md §9	73	参考物比对	AE1-D1
+D1资源	cr-assets-png	原版资源/cr-assets-png	参考规格.md §9	21090	参考物比对	AE1-D1
+D1资源	cr-sfx	原版资源/cr-sfx	参考规格.md §9	2984	参考物比对	AE1-D1
+D1资源	cr-sim	原版资源/cr-sim	参考规格.md §9	256	参考物比对	AE1-D1
+D1资源	debug_out	cr-assets-png/assets/sc/debug_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	deploy_timer_tick_01v4	client/Assets/Resources/Sound/SFX/CountdownTick/deploy_timer_tick_01v4.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	effects_out	cr-assets-png/assets/sc/effects_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	enemy_summon_01	client/Assets/Resources/Sound/SFX/EnemySummon/enemy_summon_01.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	frame_002	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_002.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_004	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_004.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_005	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_005.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_011	client/Assets/Resources/Sprites/Ui/Slots/ui_out/frame_011.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_014	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_014.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_015	client/Assets/Resources/Sprites/Ui/Bars/loading_out/frame_015.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_015	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_015.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_028	client/Assets/Resources/Sprites/Ui/Icons/loading_out/frame_028.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_042	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_042.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_043	client/Assets/Resources/Sprites/Ui/Slots/ui_out/frame_043.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_050	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_050.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_054	client/Assets/Resources/Sprites/Ui/Slots/ui_out/frame_054.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_069	client/Assets/Resources/Sprites/Ui/Bars/ui_out/frame_069.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_070	client/Assets/Resources/Sprites/Ui/Bars/ui_out/frame_070.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_075	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_075.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_099	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_099.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_108	client/Assets/Resources/Sprites/Ui/Panels/ui_battle_end_out/frame_108.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_109	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_109.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_155	client/Assets/Resources/Sprites/Ui/Bars/ui_out/frame_155.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_156	client/Assets/Resources/Sprites/Ui/Bars/ui_out/frame_156.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_157	client/Assets/Resources/Sprites/Ui/Bars/ui_out/frame_157.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_158	client/Assets/Resources/Sprites/Ui/Bars/ui_out/frame_158.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_159	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_159.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_160	client/Assets/Resources/Sprites/Ui/Bars/ui_out/frame_160.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_161	client/Assets/Resources/Sprites/Ui/Bars/ui_out/frame_161.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_162	client/Assets/Resources/Sprites/Ui/Bars/ui_out/frame_162.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_163	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_163.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_164	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_164.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_165	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_165.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_166	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_166.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_170	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_170.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_171	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_171.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_187	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_187.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_188	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_188.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_193	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_193.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_195	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_195.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_196	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_196.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_197	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_197.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_198	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_198.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_200	client/Assets/Resources/Sprites/Ui/Slots/ui_out/frame_200.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_201	client/Assets/Resources/Sprites/Ui/Bars/ui_battle_end_out/frame_201.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_201	client/Assets/Resources/Sprites/Ui/Slots/ui_out/frame_201.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_205	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_205.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_213	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_213.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_214	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_214.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_215	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_215.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_216	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_216.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_222	client/Assets/Resources/Sprites/Ui/Bars/ui_battle_end_out/frame_222.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_223	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_223.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_225	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_225.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_226	client/Assets/Resources/Sprites/Ui/Icons/ui_battle_end_out/frame_226.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_226	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_226.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_279	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_279.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_280	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_280.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_281	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_281.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_292	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_292.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_300	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_300.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_357	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_357.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_359	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_359.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_476	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_476.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_505	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_505.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_506	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_506.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_519	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_519.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_521	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_521.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_526	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_526.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_527	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_527.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_531	client/Assets/Resources/Sprites/Ui/Slots/ui_out/frame_531.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_532	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_532.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_551	client/Assets/Resources/Sprites/Ui/Buttons/ui_out/frame_551.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_555	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_555.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_563	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_563.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_570	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_570.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_572	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_572.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_592	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_592.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_597	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_597.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_802	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_802.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_806	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_806.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_807	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_807.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_808	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_808.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_811	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_811.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_812	client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_812.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_878	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_878.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	frame_883	client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_883.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	get_elixir_02	client/Assets/Resources/Sound/SFX/ElixirFull/get_elixir_02.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	grabcard_01	client/Assets/Resources/Sound/SFX/GrabCard/grabcard_01.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	king_activate_01	client/Assets/Resources/Sound/SFX/TowerActivate/king_activate_01.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	level_barbarian_arena_out	cr-assets-png/assets/sc/level_barbarian_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_bone_arena_out	cr-assets-png/assets/sc/level_bone_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_builder_arena_out	cr-assets-png/assets/sc/level_builder_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_champion_arena_out	cr-assets-png/assets/sc/level_champion_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_dark_arena_out	cr-assets-png/assets/sc/level_dark_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_decos_out	cr-assets-png/assets/sc/level_decos_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_electric_arena_out	cr-assets-png/assets/sc/level_electric_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_goblin_arena_out	cr-assets-png/assets/sc/level_goblin_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_ice_arena_out	cr-assets-png/assets/sc/level_ice_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_jungle_arena_out	cr-assets-png/assets/sc/level_jungle_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_legendary_arena_out	cr-assets-png/assets/sc/level_legendary_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_royal_arena_out	cr-assets-png/assets/sc/level_royal_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_spell_arena_out	cr-assets-png/assets/sc/level_spell_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	level_touchdown_arena_out	cr-assets-png/assets/sc/level_touchdown_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	loading_bg	client/Assets/Resources/Sprites/Ui/loading_bg.png	ResPaths.cs (UiFrame) / copy-ui-assets.py	2	脚本断言	AE1-D1
+D1资源	loading_out	cr-assets-png/assets/sc/loading_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	music_lobby_202606	client/Assets/Resources/Sound/BGM/Menu/music_lobby_202606.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	npc_die_04	client/Assets/Resources/Sound/SFX/Death/npc_die_04.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	sc	原版资源/sc	参考规格.md §9	30	参考物比对	AE1-D1
+D1资源	scroll_draw_01	client/Assets/Resources/Sound/SFX/Draw/scroll_draw_01.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	scroll_lose_01	client/Assets/Resources/Sound/SFX/Lose/scroll_lose_01.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	scroll_preresult_loop_01	client/Assets/Resources/Sound/BGM/Result/scroll_preresult_loop_01.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	scroll_win_02	client/Assets/Resources/Sound/SFX/Win/scroll_win_02.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	spell_goblin_barrel_out	client/Assets/Resources/Sprites/Cards/spell_goblin_barrel_out	参考规格.md §6 / ResPaths.cs	13	脚本断言	AE1-D1
+D1资源	spell_goblin_barrel_out	cr-assets-png/assets/sc/spell_goblin_barrel_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	summon_own_07	client/Assets/Resources/Sound/SFX/PlayCard/summon_own_07.ogg	参考规格.md §7 S27 / AudioPaths.cs	1	脚本断言	AE1-D1
+D1资源	tutorial_out	cr-assets-png/assets/sc/tutorial_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	ui_arena_out	cr-assets-png/assets/sc/ui_arena_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	ui_battle_end_out	cr-assets-png/assets/sc/ui_battle_end_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	ui_chest_3d_out	cr-assets-png/assets/sc/ui_chest_3d_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	ui_chest_out	cr-assets-png/assets/sc/ui_chest_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	ui_out	cr-assets-png/assets/sc/ui_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D1资源	ui_spells_out	client/Assets/Resources/Sprites/Cards/ui_spells_out	参考规格.md §6 / ResPaths.cs	92	脚本断言	AE1-D1
+D1资源	ui_spells_out	cr-assets-png/assets/sc/ui_spells_out	参考规格.md §9 / cr-assets-png	2	参考物比对	AE1-D1
+D2几何	场景生成器 SceneBuilder	client/Assets/Editor/SceneBuilder.cs	参考规格.md §7	1	脚本断言	AE1-D2
+D2几何	场景：Battle01	client/Assets/Scenes/Battle01.unity	verif验收表 T2-B1 / 参考规格.md §7	1	脚本断言	AE1-D2
+D2几何	场景：Boot	client/Assets/Scenes/Boot.unity	verif验收表 T2-B1 / 参考规格.md §7	1	脚本断言	AE1-D2
+D2几何	场景：Main	client/Assets/Scenes/Main.unity	verif验收表 T2-B1 / 参考规格.md §7	1	脚本断言	AE1-D2
+D2几何	竞技场实体：中线	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：公主塔 BLUE 右	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：公主塔 BLUE 左	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：公主塔 RED 右	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：公主塔 RED 左	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：右桥	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：国王塔 BLUE	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：国王塔 RED	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：场地尺寸	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：坐标约定	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：左桥	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场实体：河道	client/Assets/Scripts/Core/GameConst.cs	参考规格.md §2	3	脚本断言	AE1-D2
+D2几何	竞技场节点：KingTower × 2 / PrincessTower × 4	client/Assets/Scripts/View/ArenaView.cs	参考规格.md §2 + ArenaView.cs	2	脚本断言+并排图	AE1-D2
+D2几何	竞技场节点：右桥 BridgeRight	client/Assets/Scripts/View/ArenaView.cs	参考规格.md §2 + ArenaView.cs	2	脚本断言+并排图	AE1-D2
+D2几何	竞技场节点：塔位来自 GameConst（不写死）	client/Assets/Scripts/View/ArenaView.cs	参考规格.md §2 + ArenaView.cs	2	脚本断言+并排图	AE1-D2
+D2几何	竞技场节点：塔根节点 Towers	client/Assets/Scripts/View/ArenaView.cs	参考规格.md §2 + ArenaView.cs	2	脚本断言+并排图	AE1-D2
+D2几何	竞技场节点：左桥 BridgeLeft	client/Assets/Scripts/View/ArenaView.cs	参考规格.md §2 + ArenaView.cs	2	脚本断言+并排图	AE1-D2
+D2几何	竞技场节点：底图分段 Seg / SegF	client/Assets/Scripts/View/ArenaView.cs	参考规格.md §2 + ArenaView.cs	2	脚本断言+并排图	AE1-D2
+D2几何	竞技场节点：河道带 RiverBand	client/Assets/Scripts/View/ArenaView.cs	参考规格.md §2 + ArenaView.cs	2	脚本断言+并排图	AE1-D2
+D2几何	竞技场节点：竞技场底图对象 Base	client/Assets/Scripts/View/ArenaView.cs	参考规格.md §2 + ArenaView.cs	2	脚本断言+并排图	AE1-D2
+D2几何	面板：BootPanel	client/Assets/Scripts/UI/Panels/BootPanel.cs	参考规格 §7 / S1 启动画面	3	并排图	AE1-D2
+D2几何	面板：DeckEditPanel	client/Assets/Scripts/UI/Panels/DeckEditPanel.cs	参考规格 §7 / S7 卡组编辑	3	并排图	AE1-D2
+D2几何	面板：HudPanel	client/Assets/Scripts/UI/Panels/HudPanel.cs	参考规格 §7 / S9/S10/S11/S12 对局 HUD	3	并排图	AE1-D2
+D2几何	面板：LoadingPanel	client/Assets/Scripts/UI/Panels/LoadingPanel.cs	参考规格 §7 / S8 读条进图	3	并排图	AE1-D2
+D2几何	面板：LoginPanel	client/Assets/Scripts/UI/Panels/LoginPanel.cs	参考规格 §7 / S3 登录	3	并排图	AE1-D2
+D2几何	面板：MainMenuPanel	client/Assets/Scripts/UI/Panels/MainMenuPanel.cs	参考规格 §7 / S2 主菜单	3	并排图	AE1-D2
+D2几何	面板：NicknamePanel	client/Assets/Scripts/UI/Panels/NicknamePanel.cs	参考规格 §7 / S4 昵称	3	并排图	AE1-D2
+D2几何	面板：PausePanel	client/Assets/Scripts/UI/Panels/PausePanel.cs	参考规格 §7 / S22 暂停菜单	3	并排图	AE1-D2
+D2几何	面板：RegisterPanel	client/Assets/Scripts/UI/Panels/RegisterPanel.cs	参考规格 §7 / S3 注册	3	并排图	AE1-D2
+D2几何	面板：ResultPanel	client/Assets/Scripts/UI/Panels/ResultPanel.cs	参考规格 §7 / S21 结算	3	并排图	AE1-D2
+D2几何	面板：RoomListPanel	client/Assets/Scripts/UI/Panels/RoomListPanel.cs	参考规格 §7 / S5 房间列表	3	并排图	AE1-D2
+D2几何	面板：RoomPanel	client/Assets/Scripts/UI/Panels/RoomPanel.cs	参考规格 §7 / S6 房间内	3	并排图	AE1-D2
+D2几何	面板：SettingsPanel	client/Assets/Scripts/UI/Panels/SettingsPanel.cs	参考规格 §7 / S23 设置	3	并排图	AE1-D2
+D3材质	可见物件：(目录) Arrow	client/Assets/Resources/Sprites/Effects/Arrow	参考规格.md §6 / ResPaths.cs	20	脚本断言	AE1-D3
+D3材质	可见物件：(目录) Blast	client/Assets/Resources/Sprites/Effects/Blast	参考规格.md §6 / ResPaths.cs	10	脚本断言	AE1-D3
+D3材质	可见物件：(目录) Hit	client/Assets/Resources/Sprites/Effects/Hit	参考规格.md §6 / ResPaths.cs	7	脚本断言	AE1-D3
+D3材质	可见物件：(目录) arena_training_out	client/Assets/Resources/Sprites/Arenas/arena_training_out	参考规格.md §6 / ResPaths.cs	23	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_barbarian_hut_out	client/Assets/Resources/Sprites/Buildings/building_barbarian_hut_out	参考规格.md §6 / ResPaths.cs	2	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_basic_cannon_out	client/Assets/Resources/Sprites/Buildings/building_basic_cannon_out	参考规格.md §6 / ResPaths.cs	39	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_bomb_tower_out	client/Assets/Resources/Sprites/Buildings/building_bomb_tower_out	参考规格.md §6 / ResPaths.cs	3	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_elixir_collector_out	client/Assets/Resources/Sprites/Buildings/building_elixir_collector_out	参考规格.md §6 / ResPaths.cs	5	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_goblin_hut_out	client/Assets/Resources/Sprites/Buildings/building_goblin_hut_out	参考规格.md §6 / ResPaths.cs	5	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_inferno_tower_out	client/Assets/Resources/Sprites/Buildings/building_inferno_tower_out	参考规格.md §6 / ResPaths.cs	3	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_mortar_out	client/Assets/Resources/Sprites/Buildings/building_mortar_out	参考规格.md §6 / ResPaths.cs	10	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_tesla_out	client/Assets/Resources/Sprites/Buildings/building_tesla_out	参考规格.md §6 / ResPaths.cs	41	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_tombstone_out	client/Assets/Resources/Sprites/Buildings/building_tombstone_out	参考规格.md §6 / ResPaths.cs	18	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_tower_out	client/Assets/Resources/Sprites/Towers/building_tower_out	参考规格.md §6 / ResPaths.cs	214	脚本断言	AE1-D3
+D3材质	可见物件：(目录) building_xbow_out	client/Assets/Resources/Sprites/Buildings/building_xbow_out	参考规格.md §6 / ResPaths.cs	21	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_archer_out	client/Assets/Resources/Sprites/Units/chr_archer_out	参考规格.md §6 / ResPaths.cs	252	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_axe_man_out	client/Assets/Resources/Sprites/Units/chr_axe_man_out	参考规格.md §6 / ResPaths.cs	360	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_baby_dragon_out	client/Assets/Resources/Sprites/Units/chr_baby_dragon_out	参考规格.md §6 / ResPaths.cs	651	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_balloon_out	client/Assets/Resources/Sprites/Units/chr_balloon_out	参考规格.md §6 / ResPaths.cs	10	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_bandit_out	client/Assets/Resources/Sprites/Units/chr_bandit_out	参考规格.md §6 / ResPaths.cs	325	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_barbarian_out	client/Assets/Resources/Sprites/Units/chr_barbarian_out	参考规格.md §6 / ResPaths.cs	1029	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_bats_out	client/Assets/Resources/Sprites/Units/chr_bats_out	参考规格.md §6 / ResPaths.cs	90	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_battle_ram_out	client/Assets/Resources/Sprites/Units/chr_battle_ram_out	参考规格.md §6 / ResPaths.cs	243	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_bomber_out	client/Assets/Resources/Sprites/Units/chr_bomber_out	参考规格.md §6 / ResPaths.cs	432	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_bowler_out	client/Assets/Resources/Sprites/Units/chr_bowler_out	参考规格.md §6 / ResPaths.cs	486	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_electro_wizard_out	client/Assets/Resources/Sprites/Units/chr_electro_wizard_out	参考规格.md §6 / ResPaths.cs	301	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_fire_firespirit_out	client/Assets/Resources/Sprites/Units/chr_fire_firespirit_out	参考规格.md §6 / ResPaths.cs	82	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_giant_out	client/Assets/Resources/Sprites/Units/chr_giant_out	参考规格.md §6 / ResPaths.cs	468	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_giant_skeleton_out	client/Assets/Resources/Sprites/Units/chr_giant_skeleton_out	参考规格.md §6 / ResPaths.cs	450	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_goblin_archer_out	client/Assets/Resources/Sprites/Units/chr_goblin_archer_out	参考规格.md §6 / ResPaths.cs	342	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_goblin_blowdart_out	client/Assets/Resources/Sprites/Units/chr_goblin_blowdart_out	参考规格.md §6 / ResPaths.cs	252	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_goblin_out	client/Assets/Resources/Sprites/Units/chr_goblin_out	参考规格.md §6 / ResPaths.cs	288	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_hog_rider_out	client/Assets/Resources/Sprites/Units/chr_hog_rider_out	参考规格.md §6 / ResPaths.cs	342	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_ice_spirits_out	client/Assets/Resources/Sprites/Units/chr_ice_spirits_out	参考规格.md §6 / ResPaths.cs	82	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_ice_wizard_out	client/Assets/Resources/Sprites/Units/chr_ice_wizard_out	参考规格.md §6 / ResPaths.cs	335	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_knight_out	client/Assets/Resources/Sprites/Units/chr_knight_out	参考规格.md §6 / ResPaths.cs	486	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_lava_hound_out	client/Assets/Resources/Sprites/Units/chr_lava_hound_out	参考规格.md §6 / ResPaths.cs	306	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_lava_pups_out	client/Assets/Resources/Sprites/Units/chr_lava_pups_out	参考规格.md §6 / ResPaths.cs	163	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_mega_knight_out	client/Assets/Resources/Sprites/Units/chr_mega_knight_out	参考规格.md §6 / ResPaths.cs	619	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_mega_minion_out	client/Assets/Resources/Sprites/Units/chr_mega_minion_out	参考规格.md §6 / ResPaths.cs	252	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_miner_out	client/Assets/Resources/Sprites/Units/chr_miner_out	参考规格.md §6 / ResPaths.cs	415	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_mini_pekka_out	client/Assets/Resources/Sprites/Units/chr_mini_pekka_out	参考规格.md §6 / ResPaths.cs	416	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_minion_out	client/Assets/Resources/Sprites/Units/chr_minion_out	参考规格.md §6 / ResPaths.cs	270	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_movingcannon_out	client/Assets/Resources/Sprites/Units/chr_movingcannon_out	参考规格.md §6 / ResPaths.cs	145	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_musketeer_out	client/Assets/Resources/Sprites/Units/chr_musketeer_out	参考规格.md §6 / ResPaths.cs	414	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_pekka_out	client/Assets/Resources/Sprites/Units/chr_pekka_out	参考规格.md §6 / ResPaths.cs	396	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_prince_out	client/Assets/Resources/Sprites/Units/chr_prince_out	参考规格.md §6 / ResPaths.cs	522	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_princess_out	client/Assets/Resources/Sprites/Units/chr_princess_out	参考规格.md §6 / ResPaths.cs	748	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_royal_giant_out	client/Assets/Resources/Sprites/Units/chr_royal_giant_out	参考规格.md §6 / ResPaths.cs	477	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_skeleton_out	client/Assets/Resources/Sprites/Units/chr_skeleton_out	参考规格.md §6 / ResPaths.cs	117	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_valkyrie_out	client/Assets/Resources/Sprites/Units/chr_valkyrie_out	参考规格.md §6 / ResPaths.cs	379	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_witch_out	client/Assets/Resources/Sprites/Units/chr_witch_out	参考规格.md §6 / ResPaths.cs	253	脚本断言	AE1-D3
+D3材质	可见物件：(目录) chr_wizard_out	client/Assets/Resources/Sprites/Units/chr_wizard_out	参考规格.md §6 / ResPaths.cs	312	脚本断言	AE1-D3
+D3材质	可见物件：(目录) spell_goblin_barrel_out	client/Assets/Resources/Sprites/Cards/spell_goblin_barrel_out	参考规格.md §6 / ResPaths.cs	13	脚本断言	AE1-D3
+D3材质	可见物件：(目录) ui_spells_out	client/Assets/Resources/Sprites/Cards/ui_spells_out	参考规格.md §6 / ResPaths.cs	92	脚本断言	AE1-D3
+D3材质	可见物件：UI 面板底/标题条/按钮	ResPaths.cs + copy-ui-assets.py	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：公主塔 BLUE 塔身	ArenaView.BluePrincessFrame	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：公主塔 RED 塔身	ArenaView.RedPrincessFrame	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：单位精灵	UnitView / ResPaths.UnitDir	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：右桥 BridgeRight	ArenaView.BuildRiverAndBridges	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：命中闪光特效	ResPaths.EffectHit*	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：国王塔 BLUE 塔身	ArenaView.BlueKingFrame	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：国王塔 RED 塔身	ArenaView.RedKingFrame	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：左桥 BridgeLeft	ArenaView.BuildRiverAndBridges	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：弹道特效	ResPaths.EffectArrow*	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：河道带 RiverBand	ArenaView.BuildRiverAndBridges	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：爆炸特效	ResPaths.EffectBlast*	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：竞技场 Art Seg ×4	ArenaView.BuildArt	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D3材质	可见物件：竞技场底图 Base	ArenaView.BuildBaseQuad	参考规格.md §6 / ResPaths.cs	3	脚本断言+并排图	AE1-D3
+D4	BootPanel	BootPanel.cs:80-95	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	BootPanel	step10b: 无 CbBtn/RawBtn	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	BootPanel	step10b	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	BootPanel	step10b	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	BootPanel	BootPanel.cs:82-90	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	BootPanel	step10b	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	DeckEditPanel	DeckEditPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	DeckEditPanel	DeckEditPanel.cs:371	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	DeckEditPanel	DeckEditPanel.cs:371	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	DeckEditPanel	缺：满8张时卡池置灰并排图(DeckEditPanel.cs:287)	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	DeckEditPanel	缺：并排图(DeckEditPanel.cs:253)	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	DeckEditPanel	缺：滚到顶底并排图	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	DeckEditPanel	DeckEditPanel.cs:285/591	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	HudPanel	HudPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	HudPanel	HudPanel.cs:653-661	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	HudPanel	HudPanel.cs:653-661	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	HudPanel	HudPanel.cs:658	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	HudPanel	HudPanel.cs:726-730	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	HudPanel	HudPanel.cs:657	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoadingPanel	LoadingPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoadingPanel	step10b	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoadingPanel	step10b	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoadingPanel	step10b	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoadingPanel	AppFlow.cs:846-851	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoadingPanel	step10b	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoginPanel	LoginPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoginPanel	CrUiStyle.cs:457-461/502-506	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoginPanel	CrUiStyle.cs:459/504	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoginPanel	缺：运行中连点截图/日志(AppFlow.cs:543)	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoginPanel	缺：超长账号输入并排图	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoginPanel	AppFlow.cs:548-551	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	LoginPanel	CrUiStyle.cs:563-567	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	MainMenuPanel	MainMenuPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	MainMenuPanel	CrUiStyle.cs:457-461	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	MainMenuPanel	CrUiStyle.cs:459	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	MainMenuPanel	缺：场景约束确认	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	MainMenuPanel	缺：超长昵称并排图(AppFlow.cs:509)	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	MainMenuPanel	CrUiStyle.cs:460	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	NicknamePanel	NicknamePanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	NicknamePanel	CrUiStyle.cs:457-461	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	NicknamePanel	CrUiStyle.cs:459	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	NicknamePanel	缺：提交中截图	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	NicknamePanel	NicknamePanel.cs 命中 characterLimit	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	NicknamePanel	CrUiStyle.cs:566	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	PausePanel	PausePanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	PausePanel	PausePanel.cs:336 起	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	PausePanel	PausePanel.cs:336	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	PausePanel	PausePanel.cs:336（SetBtn 命中）	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	PausePanel	PausePanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RegisterPanel	RegisterPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RegisterPanel	CrUiStyle.cs:457-461	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RegisterPanel	CrUiStyle.cs:459	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RegisterPanel	缺：注册中连点截图(AppFlow.cs:622)	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RegisterPanel	AppFlow.cs:657-660	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RegisterPanel	缺：并排图	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RegisterPanel	CrUiStyle.cs:566	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	ResultPanel	ResultPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	ResultPanel	ResultPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	ResultPanel	ResultPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	ResultPanel	缺：结算态按钮可用性确认	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	ResultPanel	CrUiStyle.cs:460	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomListPanel	RoomListPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomListPanel	RoomListPanel.cs:316-320	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomListPanel	RoomListPanel.cs:316	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomListPanel	RoomListPanel.cs:316-320	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomListPanel	缺：0项列表并排图	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomListPanel	缺：滚到顶底并排图	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomListPanel	缺：满项并排图	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomListPanel	RoomListPanel.cs:316	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomPanel	RoomPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomPanel	RoomPanel.cs:401-410	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomPanel	RoomPanel.cs:403	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomPanel	RoomPanel.cs:403-410	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomPanel	缺：并排图	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	RoomPanel	RoomPanel.cs:403	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	SettingsPanel	SettingsPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	SettingsPanel	SettingsPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	SettingsPanel	SettingsPanel.cs	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	SettingsPanel	缺：确认是否有需禁用场景	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	SettingsPanel	SettingsManager.cs:265-268	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D4	SettingsPanel	CrUiStyle.cs:460	状态矩阵.tsv D4	1	并排图 + 脚本	AG1-D4
+D5	ALL	UnitView.cs:299-309	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	ALL	UnitView.cs:299-309	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	ALL	AH2-report.md §4（登记为允许差异）	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	ALL	server/game/core 无 knockback	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_archer_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_archer_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_archer_out	同上	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_archer_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_archer_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_axe_man_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_axe_man_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_axe_man_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_axe_man_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_baby_dragon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_baby_dragon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_baby_dragon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_baby_dragon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_balloon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_balloon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_balloon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_balloon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bandit_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bandit_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bandit_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bandit_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_barbarian_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_barbarian_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_barbarian_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_barbarian_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bats_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bats_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bats_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bats_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_battle_ram_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_battle_ram_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_battle_ram_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_battle_ram_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bomber_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bomber_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bomber_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bomber_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bowler_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bowler_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bowler_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_bowler_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_electro_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_electro_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_electro_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_electro_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_fire_firespirit_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_fire_firespirit_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_fire_firespirit_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_fire_firespirit_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_giant_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_giant_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_giant_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_giant_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_giant_skeleton_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_giant_skeleton_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_giant_skeleton_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_giant_skeleton_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_archer_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_archer_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_archer_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_archer_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_blowdart_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_blowdart_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_blowdart_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_blowdart_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_goblin_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_hog_rider_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_hog_rider_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_hog_rider_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_hog_rider_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_ice_spirits_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_ice_spirits_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_ice_spirits_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_ice_spirits_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_ice_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_ice_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_ice_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_ice_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_knight_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_knight_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_knight_out	combat.go:98/575-585; battle.go:176	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_knight_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_knight_out	UnitView.cs:80-83,352	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_knight_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_lava_hound_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_lava_hound_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_lava_hound_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_lava_hound_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_lava_pups_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_lava_pups_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_lava_pups_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_lava_pups_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mega_knight_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mega_knight_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mega_knight_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mega_knight_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mega_minion_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mega_minion_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mega_minion_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mega_minion_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_miner_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_miner_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_miner_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_miner_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mini_pekka_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mini_pekka_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mini_pekka_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_mini_pekka_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_minion_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_minion_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_minion_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_minion_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_movingcannon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_movingcannon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_movingcannon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_movingcannon_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_musketeer_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_musketeer_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_musketeer_out	同上	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_musketeer_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_musketeer_out	UnitView.cs:120-127 / 帧段表 §1.3-§3.3	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_pekka_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_pekka_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_pekka_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_pekka_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_prince_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_prince_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_prince_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_prince_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_princess_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_princess_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_princess_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_princess_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_royal_giant_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_royal_giant_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_royal_giant_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_royal_giant_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_skeleton_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_skeleton_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_skeleton_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_skeleton_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_valkyrie_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_valkyrie_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_valkyrie_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_valkyrie_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_witch_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_witch_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_witch_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_witch_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	chr_wizard_out	UnitView.cs:57-62,478-487; 帧段表 §7.1	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D5	未映射目录(35)	UnitView.cs:479-487	状态矩阵.tsv D5	1	逐帧对比 + 并排图	AG2-D5
+D6	-	AH2-report.md §3 R14（EvSpawn(kind==1) 无接线，登记）	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	-	AH2-report.md §3 R13（无「攻击」事件	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	Arrow	BattleViewRoot.cs:704-705	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	Blast	BattleViewRoot.cs:610-613	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	EffectsView/池与回收	EffectsView.cs:242-247,209-218	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	EffectsView/池与回收	EffectsView.cs:43,149-157	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	EffectsView/起始帧定位	EffectsView.cs:159-167	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	EffectsView/锚点	EffectsView.cs:146; UnitView.cs:252-254	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	Hit	AH2-report.md §3 R12（协议只有 0..5 六种 kind	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	Hit	BattleViewRoot.cs:604-607	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	Hit	BattleViewRoot.cs:690	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D6	Hit	BattleViewRoot.cs:700	状态矩阵.tsv D6	1	并排图 + 触发断言	AG2-D6
+D7	BGM.同站点再来一局	BgmView.cs:164-168	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM.暂停时 BGM 行为	BgmView.cs:148-150; AF1报告未决2	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM.未知站点	BgmView.cs:152-160	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM.资源缺失	BgmView.cs:211-225	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM.音量 0 边界	SettingsManager:277	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM.音量 100 边界	SettingsManager:277	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Battle	BgmView.cs:200-202; SettingsManager:270-278	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Battle	Sound.cs PlayBGM	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Battle	BgmView.cs:62,203	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Battle	BgmView:182-204; Sound.cs PlayBGM	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Battle	BgmView.OnStationChanged/OnStarted/OnEnded	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Menu	BgmView.cs:200-202; SettingsManager:270-278	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Menu	Sound.cs PlayBGM	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Menu	BgmView.cs:62,203	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Menu	BgmView:182-204; Sound.cs PlayBGM	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Menu	BgmView.OnStationChanged/OnStarted/OnEnded	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Result	BgmView.cs:200-202; SettingsManager:270-278	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Result	Sound.cs PlayBGM	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Result	BgmView.cs:62,203	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Result	BgmView:182-204; Sound.cs PlayBGM	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D7	BGM/Result	BgmView.OnStationChanged/OnStarted/OnEnded	状态矩阵.tsv D7	1	脚本断言	AG2-D7
+D8	-	AH2-report.md §2 R6（整包无 hover 音，登记）	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	-	AH2-report.md §2 R5	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	-	AH2-report.md §2 R2/R4 已补（enemy_summon_01 / king_activate_01），R3（kind==1 生成不播）行内	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	-	AH2-report.md §2 R7 + §7 未决 1（接线与触发断言已给，本轮实机未采到日志）	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	-	AH2-report.md §2 R8（拖起 grabcard_01 已采到	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	-	AH2-report.md §2 R10 + §7 未决 1（本局手牌始终买得起，分支未跑起来）	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	-	AH2-report.md §2 R11（未采到）	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	-	AH2-report.md §2 R9（原版无投降专用音，走 UI 点击统一点）	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	ElixirFull	BattleAudioView.cs:182-184	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	Hit	AH2-report.md §2 R1a/R1b	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	Lose	BattleAudioView.cs:205-223	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	PlayCard	BattleAudioView.cs:157-160; AudioPaths.cs:44	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	TowerDown	BattleAudioView.cs:177-180	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D8	Win	BattleAudioView.cs:205-223	状态矩阵.tsv D8	1	脚本断言 + 日志	AG2-D8
+D9	击退(pushback)	cover_offline_test.go:228(实测行见 :247)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	国王塔 3×3 不可通行区 (BLUE/RED)	core_test.go:57	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	地面单位 × 河面	core_test.go:74	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	地面单位过河路径	battle_test.go:14(TestUnitWalksToBridgeThenAcross)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	摧毁公主塔后的口袋区: 不越车道/不吃王塔	core_test.go:181	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	摧毁公主塔后的口袋区: 车道限定	core_test.go:144(TestCanDeployPocketAfterPrincessFalls)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	斜坡阈值	参考规格§2/§5 无该机制	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	桥的可通行范围 BLUE 左桥	cover_offline_test.go:60(TestCoverBridgeSpanWalkable)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	桥的可通行范围 右桥	cover_offline_test.go:60	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	法术 × 河面	core_test.go:131	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	碰撞×角色类型: 地面×地面	cover_offline_test.go:143(TestCoverCollisionLayers)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	碰撞×角色类型: 建筑/塔(不可推)	cover_offline_test.go:173(实测行见 :194)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	碰撞×角色类型: 法术/投射物	cover_offline_test.go:196(实测行见 :217)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	碰撞×角色类型: 飞行×地面	cover_offline_test.go:160(实测行见 :170)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	碰撞×角色类型: 飞行×飞行	cover_offline_test.go:143	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	竞技场几何常量(18×32/河y∈[15,17)/桥x=3.5,14.5各宽2)	server/game/core/core_test.go:13 ; cover_offline_test.go:99(TestCoverBridgeSpanW	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	部署区边界 BLUE	cover_offline_test.go:113(TestCoverDeployZoneEdges)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	部署区边界 RED	cover_offline_test.go:113	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	飞行单位直接过河	server/game/core/battle_test.go:42(TestFlyingUnitIgnoresRiver)	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+D9	高度带 / 跳跃 / 蹲跃上限	参考规格§2/§5 无该机制	状态矩阵.tsv D9	1	离线断言	AJ1-D9
+S1数值	card_cs:archers	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:arrows	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:baby-dragon	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:balloon	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:bandit	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:barbarian-hut	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:barbarians	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:bats	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:battle-ram	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:bomb-tower	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:bomber	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:bowler	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:cannon	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:cannon-cart	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:dark-prince	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:dart-goblin	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:electro-wizard	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:elixir-collector	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:executioner	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:fire-spirit	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:fireball	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:freeze	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:giant	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:giant-skeleton	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:goblin-barrel	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:goblin-hut	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:goblins	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:hog-rider	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:ice-spirit	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:ice-wizard	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:inferno-tower	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:knight	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:lava-hound	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:lightning	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:mega-knight	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:mega-minion	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:miner	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:mini-pekka	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:minion-horde	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:minions	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:mortar	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:musketeer	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:pekka	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:poison	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:prince	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:princess	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:rage	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:rocket	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:royal-giant	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:skeleton-army	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:skeletons	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:spear-goblins	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:tesla	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:the-log	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:tombstone	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:valkyrie	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:witch	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:wizard	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:x-bow	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	card_cs:zap	策划/数值文档/card_cs.txt	参考规格.md §6	4	参考物比对	AE1-S1
+S1数值	spell_cs:arrows	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	spell_cs:fireball	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	spell_cs:freeze	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	spell_cs:goblin-barrel	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	spell_cs:lightning	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	spell_cs:poison	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	spell_cs:rage	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	spell_cs:rocket	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	spell_cs:the-log	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	spell_cs:zap	策划/数值文档/spell_cs.txt	参考规格.md §6	6	参考物比对	AE1-S1
+S1数值	unit_cs:Archer	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:ArcherArrow	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:AxeManProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:BabyDragonProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:BalloonBomb	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:Barbarian	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:Bat	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:BlowdartGoblinProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:BombSkeletonProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:BombTowerBomb	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:BombTowerProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:BowlerProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:BrokenCannon	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:FireSpiritsProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:GiantSkeletonBomb	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:Goblin	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:IceSpiritsProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:KingProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:KingTower	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:LavaHoundProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:LavaPupProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:LavaPups	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:MegaMinionSpit	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:Minion	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:MinionSpit	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:MortarProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:MovingCannonProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:MusketeerProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:PrincessProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:PrincessTower	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:RoyalGiantProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:Skeleton	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:SpearGoblin	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:SpearGoblinProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:TowerCannonball	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:TowerPrincessProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:WitchProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:archers	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:baby-dragon	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:balloon	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:bandit	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:barbarian-hut	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:barbarians	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:bats	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:battle-ram	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:bomb-tower	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:bomber	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:bowler	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:cannon	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:cannon-cart	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:chr_wizardProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:dark-prince	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:dart-goblin	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:electro-wizard	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:elixir-collector	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:executioner	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:fire-spirit	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:giant	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:giant-skeleton	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:goblin-hut	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:goblins	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:hog-rider	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:ice-spirit	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:ice-wizard	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:ice_wizardProjectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:inferno-tower	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:knight	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:lava-hound	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:mega-knight	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:mega-minion	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:miner	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:mini-pekka	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:minion-horde	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:minions	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:mortar	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:musketeer	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:pekka	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:prince	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:princess	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:royal-giant	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:skeleton-army	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:skeletons	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:spear-goblins	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:tesla	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:tombstone	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:valkyrie	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:witch	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:wizard	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:x-bow	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	unit_cs:xbow_projectile	策划/数值文档/unit_cs.txt	参考规格.md §4/参考规格.md §5/参考规格.md §6	12	参考物比对	AE1-S1
+S1数值	打表产物 card.tsv	server/game/table/tsv/card.tsv	策划/数值文档/card_cs.txt	60	脚本断言	AE1-S1
+S1数值	打表产物 spell.tsv	server/game/table/tsv/spell.tsv	策划/数值文档/spell_cs.txt	10	脚本断言	AE1-S1
+S1数值	打表产物 unit.tsv	server/game/table/tsv/unit.tsv	策划/数值文档/unit_cs.txt	90	脚本断言	AE1-S1
+S2	分辨率	aj1-play.log(eval step0..5 screen=1080x1920)	状态矩阵.tsv S2	1	脚本 + 环境基线	AJ1-S2
+S2	客户端内存	缺: 未采集 Profiler.GetTotalAllocatedMemoryLong()	状态矩阵.tsv S2	1	脚本 + 环境基线	AJ1-S2
+S2	客户端加载时间: 进图	缺: 未单独计时; chain 仅记 editor_play/editor_stop 时间戳	状态矩阵.tsv S2	1	脚本 + 环境基线	AJ1-S2
+S2	客户端帧时间: 60 单位场景	缺: 本片采样窗口内 AI 对局存活单位仅 1→7→5→2(units= 列), 未达 60; 需一次更长对局让单位累积到 ~60 再采样。60 单位证据目前只	状态矩阵.tsv S2	1	脚本 + 环境基线	AJ1-S2
+S2	客户端帧时间: 进对局(Battle01, AI 对局)	aj1-play.log(eval step3/4/5 WINDOW 行); .ai-tmp/test/aj1-frames.txt	状态矩阵.tsv S2	1	脚本 + 环境基线	AJ1-S2
+S2	服务端帧预算: 300s 对局(6000 tick)	server/game/core/battle_test.go:454 (go -C server test ./game/core/... ok)	状态矩阵.tsv S2	1	脚本 + 环境基线	AJ1-S2
+S2	渲染设备名	tools/env-check.ps1 原文(ENV-OK); client/Logs/Editor.log 'Renderer: AMD Radeon RX 	状态矩阵.tsv S2	1	脚本 + 环境基线	AJ1-S2
+S2	环境自检(杀软/GPU/崩溃风暴)	powershell -File tools/env-check.ps1	状态矩阵.tsv S2	1	脚本 + 环境基线	AJ1-S2
+S3	BgmVolume	SettingsManager.cs:82/86/208-214	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	BgmVolume	SettingsManager.cs:265-268	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	Fullscreen	SettingsManager.cs:112/243-247/290-294	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	QualityTier	SettingsManager.cs:64/287	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	QualityTier	SettingsManager.cs:92-101	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	QualityTier	AH1 已修：SettingsManager 改用引擎键 quality_level	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	QualityTier	SettingsManager.cs:287	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	QualityTier	AH1 已修：AH1-对照表行.md S3-R1（engine[quality_level]=2 与项目键一致）	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	QualityTier	AH1 已修：AH1-对照表行.md S3-R3（CORE_LEGACY_MIGRATED=YES）	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	SfxVolume	SettingsManager.cs:83/217-223	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	SfxVolume	SettingsManager.cs:265-268	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	VoiceVolume	SettingsManager.cs:84/226-232	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	分辨率	SettingsSnapshot.cs:17-33	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	画质越界	SettingsManager.cs:186-193	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	设置落盘	SettingsManager.cs:300-309	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	设置面板订阅	SettingsManager.cs:130-155	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	语言	SettingsSnapshot.cs:17-33	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	键位设置	SettingsSnapshot.cs:17-33	状态矩阵.tsv S3	1	矩阵断言	AG1-S3
+S3	音量越界	SettingsManager.cs:265-268	状态矩阵.tsv S3	1	矩阵断言	AG1-S3

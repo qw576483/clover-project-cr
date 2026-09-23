@@ -1,0 +1,91 @@
+CR-F1 / D8 + D12 两行 —— 重采读数（**登记载体**，交付后仍在）
+================================================================================
+生成器 / 驱动：
+  tools/probes/CR-U5-probe.cs        （复用；提供 state / dragstate / presshand / releasehand / click:<面板>/<按钮>）
+  .ai-tmp/test/CR-F1-run.ps1         （一条链驱动，v3：链内记录 pre/post CR.dll sha256_16）
+被验证源码（均早于被验证装配）：
+  client/Assets/Scripts/UI/Panels/HudPanel.cs        mtime 08:20:15  （D8 暂停键点击音 :805-812；D12 站点守卫 :867-891、去重留痕 :939-946）
+  client/Assets/Scripts/UI/Panels/SettingsPanel.cs   mtime 08:28:39  （D12 根因修复 OnClose :169-181）
+被验证装配：
+  client/Library/ScriptAssemblies/CR.dll
+  mtime = 2026-09-23T08:43:53.2375674+08:00 ; sha256_16 = 52358CB6966C259F
+  ⚠️ 链内 **pre-run 09:45:32 / post-run 09:48:00 两次取哈希相同（unchanged=True）** ⇒ 整条链跑在同一个装配上、装配未被换过。
+链：editor_stop(Already in edit mode) → editor_play → loginform+LoginButton → AiBattleButton → geom → click:PauseButton
+    → click:PausePanel/SettingsButton → click:SettingsPanel/CloseButton → presshand:0 → dragstate → releasehand → editor_stop
+链耗时：09:45:32 → 09:48:00 = **2m28s**（≤3 分钟，无需时间账例外）
+
+────────────────── D8：HUD 暂停键点击 → 统一点击音（数值类，L3）──────────────────
+结论（截至 2026-09-23T09:48:00+08:00，装配 sha256_16=52358CB6966C259F）：**通过**
+L3（产品自己写的日志行，`:805-812` 的 `CrUiStyle.PlayClick("PauseButton")` 产出）：
+  [2026-09-23 09:47:19.612] [Info] [CrUiStyle] 播放音效 Ui/button_click_02（按钮 PauseButton，SoundGroup.SFX 音量 0.42）
+因果相邻性（同一链内的对照行，证明"这条链真的在点按钮、且音效随点击发生"）：
+  09:46:28.279  按钮 LoginButton    （登录）
+  09:46:43.591  按钮 AiBattleButton （人机对战）
+  09:47:19.612  按钮 PauseButton    ← 本行；**8 ms 后**（09:47:19.620 `[BattleUiHost] 打开暂停菜单（站点切到 Pause）`）暂停菜单真的开了
+  09:47:28.280  按钮 SettingsButton
+⛔ 抗假阳性：日志行**带按钮名**⇒ 不可能是别的按钮的点击音顶替；且音量 0.42 是 SettingsManager 应用过的真值（非写死 1.00）。
+   
+────────────────── D12：关设置后菜单必须回来 + 无菜单时手牌不可交互 ──────────────────
+结论（截至 2026-09-23T09:48:00+08:00，装配 sha256_16=52358CB6966C259F）：**通过（两点齐）**
+
+① 中间态消失（根因修复 `SettingsPanel.cs:169-181`）
+  · 打开设置后（互斥把 PausePanel 收掉）：`state(after open settings) → station=Pause panels pause=False settings=True`
+    L3：09:47:28.280 `播放音效 …（按钮 SettingsButton）` / 09:47:28.281 `[PausePanel] 打开设置（广播 Events.Flow.OpenSettingsRequest）`
+  · **关闭设置**（`click:SettingsPanel/CloseButton`）后：
+    L3：09:47:36.435 `[SettingsPanel] 从暂停菜单进来的设置已关闭 ⇒ 请求重开暂停菜单（避免「站点 Pause 但无菜单」的中间态）`
+    L3：09:47:36.436 `[BattleUiHost] 打开暂停菜单（收到进 Pause 站点的请求）`
+    L2：`state(AFTER closing settings): station=Pause panels **pause=True** settings=False result=False hud=True`
+    ⇒ 与 CR-U5 修前实测的 `pause=False settings=False`（无菜单态）对照 ⇒ **中间态不再存在**。
+  · 对照：本片第一次链（08:34）与本次（09:47）两次独立复现同一行为 ⇒ 非偶发。
+
+② 无菜单/非 Battle 站点时手牌不可交互（站点守卫 `HudPanel.cs:867-891`）
+  · 注入**真实按下沿**（probe `presshand:0`：InputSystem → 引擎 InputManager → `Game.Input` → `HudPanel.PollDrag`，未改产品一行）：
+    L2：`presshand slot=0 card=26010012 screen=(214,221) mouseDev=Mouse` / `presshand queued buttons=1`
+  · 1.5 s 后的读数：
+    L2：`dragstate → station=Pause panels pause=True … hud _dragging=False dragCard=0 hand=[26010012,26010002,26010001,26010003] ghostActive=False`
+    L3：09:47:47.896 `[HudPanel] 按下手牌被站点守卫拦住：当前站点 Pause（仅 Battle 站点可拖放出牌）`
+  · **窗口内 `开始拖放` / `拖放抬起` 计数 = 0**（`Select-String '开始拖放|拖放抬起'` 且时间戳 ∈ 09:4[5-8] ⇒ 0 行）
+    ⇒ 对比 CR-U5 修前的同一状态：`开始拖放` + `拖放抬起 → 请求出牌` + 服务端回 `point is outside the deploy zone` ⇒ **本次一次出牌都没发出**。
+
+⛔ 抗假阴性（两条独立对照，缺一条这行就不算成立）：
+  (a) `presshand:0 card=26010012`（**非 0**）⇒ 按的是**真有牌**的槽位，不是"空槽所以没反应"；
+  (b) `按下手牌被站点守卫拦住` 这条日志**只有在按下沿真的到达 PollDrag 之后**才可能被写出（它在守卫分支内、以 `GetMouseButtonDown(0)` 为条件）
+      ⇒ 它同时是"负例"和"注入确实生效"的**阳性对照**；没有它，"`_dragging=False`"就可能是注入失败造成的假阴性。
+  另：同链前半段 `station=Battle panels hud=True hudInst=OK` ⇒ HUD 当时是活的、`OnUpdate→PollDrag` 真的在跑。
+
+表现类配图：**无**。本次 `capture_game_view` 仍失败（返回空，与 CR-U5 flow 链同一现象），按 §2 第 3 条本两行判据本质为**数值类**（运行时日志行 + 状态读数），不强制截图；⛔ 未用任何别的图充数。
+载体（交付后仍在，⛔ 非 drivers/）：本文件 + `tools/probes/CR-F1-geom-readings.log` + `tools/probes/CR-F1-geom-probe.cs` + 上述 .cs 源码行。
+
+════════════ D12 表现类配图（第二次进 Play 补采；team-lead 2026-09-23 点名要）════════════
+结论（截至 2026-09-23T09:57:16+08:00，装配 sha256_16=52358CB6966C259F，链内 pre/post 相同 unchanged=True）：**通过，图在**
+链：09:54:46 → 09:57:16 = **2m30s（≤3 分钟）**（同 v3 脚本；`--save_path` 形状改正后重跑）
+
+图：`.ai-tmp/screenshots/CR-F1-d12-pause-back.png`（**已重采为项目同口径 1080×1920**，10:00:54；首次那张 1280×720 被同路径覆盖，不留两份）
+  · 抓图那一刻的状态读数：`station=Pause panels pause=True settings=False result=False hud=True`
+  · 文件：**1080×1920 / 373400 B**；像素体检 `mean=(77,85,104) std=94.37 distinct_colors=61098 flat_fraction=0.0409`
+    ⇒ 不是空白/纯色图（这是本项目踩过的坑：只判"节点存在"会写出空白图，故这里同时给像素统计）
+  · 肉眼内容（本文件作者实读）：**暂停面板在位** —— 「暂 停」标题带 + 四颗蓝按钮（继续 / 设置 / 投降 / 回主菜单）+ 提示框（"本作的对局不会真正暂停…"）+ 两行规则 + 状态行 + 底部提示；**下层 HUD 仍在**（顶部冠数、计时 02:02、右上暂停键、手牌 4 张、圣水条 10）
+    ⇒ 正是 D12 ① 要证的东西：**从暂停菜单进设置、关掉设置之后，暂停菜单真的回来了**（用户能看见）。
+  · **对照实验（顺带把"可用形状"钉死）**：两次都是双横线 `--save_path`(相对工程内) + `--source screen`
+      - 09:57:16 **不带** `--width/--height` ⇒ 成功，**1280×720 / 195947 B**（GameView 合成缓冲尺寸，竖版画布被信箱化）
+      - 10:00:54 **带** `--width 1080 --height 1920` ⇒ 成功，**1080×1920 / 373400 B**（与全项目其余实机图同尺寸）
+    ⇒ `--width/--height` **非必需**（非带也成功），但**显式给上可控输出尺寸**；`CR-U5R` 成功族里"都带 width/height"是**相关不是必要**。
+
+**逐项记账（team-lead 要求的 5 项）+ 解掉 CR-U5R 的"路径 vs 参数"冲突**
+| 项 | 实测 |
+|---|---|
+| a) `save_path` 形态 | **相对工程**：`--save_path "Temp/CR-F1/d12-pause-back.png"`（解析结果 `savedPath: "Assets/Temp/CR-F1/d12-pause-back.png"`） |
+| b) 是否带 `source` | 带：`--source screen`（合成后含 Overlay UI 的那条路） |
+| c) 返回值 | 成功（`SHOT raw` 为 CLI 表头行；同形状的 `--format json` 诊断返回 `success: true` + `width/height/encoding/bytes/source`） |
+| d) 是否真产出 png | 是：`SHOT png: exists=True size=195947` |
+| e) 拷出后路径 | `.ai-tmp/screenshots/CR-F1-d12-pause-back.png`（`exists=True size=195947`）；**Assets 内副本(+.meta) 已删**（`SHOT clean: True`） |
+
+**真因（edit-mode 诊断，两条原文都在 `.ai-tmp/test/CR-F1-shot.out.txt` / 本节）**：
+1. **参数形状**：`capture_game_view` 只认**双横线长选项**（`--save_path` / `--source`）。写成 `save_path=… source=…` 会被当作**位置参数**喂给 `--width` / `--height`：
+   `INVALID_COMMAND_ARGS: --width 需要 Int32，但收到 save_path=Temp/CR-F1/diagA.png。 --height 需要 Int32，但收到 source=camera。`
+   ⇒ **这才是"返回空/无图"的真正原因**（也是 CR-U5R 样本②的原文）。
+2. **路径口径**：`--save_path` 传**相对路径**会落到工程 `Assets/` 下（可用）；传**工程外绝对路径**被拒：
+   `COMMAND_FAILED: … Path '…\.ai-tmp\screenshots\diagD.png' is outside the project root '…/client'.`（= CR-U5R 样本①的原文）
+   ⇒ **CR-U5R 的"必须落工程内"成立，但要修正一点**：不是"落工程内就一定行"，而是**必须先用法正确**；我核到的**可复现正例** = 双横线 + 相对路径 + `--source screen`（上文那张图）。
+   ⛔ 注意副作用：这种形状会在 **`client/Assets/Temp/…` 留副本**（Assets 不许留临时文件）⇒ 必须**拷出后立刻删副本(+.meta)**，本脚本已自动做（`SHOT clean: True`）。
+

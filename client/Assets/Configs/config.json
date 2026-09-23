@@ -1,0 +1,20 @@
+{
+  "server": {
+    "addr": "127.0.0.1:8002",
+    "udp_addr": "",
+    "tls": false,
+    "auth_addr": "http://127.0.0.1:8051",
+    "call_timeout": 10,
+    "max_reconnect_count": 5
+  },
+  "account": {
+    "name_prefix": "cr",
+    "name_suffix": "_cli",
+    "password": "cr123456",
+    "line": 0
+  },
+  "game": {
+    "default_nick": "玩家一",
+    "poll_interval_ms": 50
+  }
+}

@@ -1,0 +1,14 @@
+id	key	name_cn	elixir	rarity	radius_mt	instant_damage	crown_damage	duration_ms	tick_ms	damage_per_tick	heal_per_second	spawn_key	spawn_n	spawn_radius_mt	pushback	anywhere	on_water	sprite_dir
+int	string	string	int	int	int	int	int	int	int	int	int	string	int	int	int	int	int	string
+cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs	cs
+本表主键（26030001 起）	卡牌 key（与 卡牌_cs.key 一致）	中文名	圣水消耗	0=普通 1=稀有 2=史诗 3=传说	作用半径 milli-tile	立即伤害（11 级）；持续伤害型为 0	对王冠塔的实际伤害 = 伤害 x (1+crown_tower_damage_percent/100)	作用区存活时长 ms（官方 life_duration）	持续伤害结算间隔 ms（官方 buff hit_frequency）	每跳伤害（11 级；= 每秒伤害 x 1.1^tournament_level_index x tick/1000）	每秒治疗量	法术召唤的实体 key	法术召唤数量	法术召唤铺设半径 milli-tile	击退力（milli-tile）	能否落敌方半场 0/1	能否落河面 0/1	卡面素材目录名
+26030001	fireball	火球	4	1	2500	689	207	0	0	0	0		0	0	1000	1	1	ui_spells_out
+26030002	arrows	万箭齐发	3	0	1400	122	37	0	0	0	0		0	0	0	1	1	ui_spells_out
+26030003	rage	狂暴法术	2	2	3000	0	0	6000	300	0	0		0	0	0	1	1	ui_spells_out
+26030004	rocket	火箭	6	1	2000	1484	371	0	0	0	0		0	0	1800	1	1	ui_spells_out
+26030005	goblin-barrel	哥布林飞桶	3	2	1500	0	0	0	0	0	0	Goblin	3	0	0	1	1	ui_spells_out;spell_goblin_barrel_out
+26030006	freeze	冰冻法术	4	2	3000	115	34	4000	0	0	0		0	0	0	1	1	ui_spells_out
+26030007	lightning	雷电法术	6	2	3500	1056	317	1500	460	0	0		0	0	0	1	1	ui_spells_out
+26030008	zap	电击法术	2	0	2500	192	58	1	0	0	0		0	0	0	1	1	ui_spells_out
+26030009	poison	伤害药水法术	4	2	3500	0	110	8000	250	92	0		0	0	0	1	1	ui_spells_out
+26030010	the-log	滚木	2	3	1950	290	58	0	0	0	0		0	0	700	1	1	ui_spells_out

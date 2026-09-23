@@ -1,0 +1,104 @@
+# clover-project-cr 服务端配置（单进程 all 角色）
+#
+# 字段为**平铺结构**（如 gateway.listen_tcp，而非 gateway.tcp.addr）。
+# 模板出处：clover-engine skill 的 scaffold/new-project.md §1.3（最小可用集）。
+# 本项目特化项（出入见 docs/agents/agent-01-server-skeleton.md §4.3）：
+#   - gateway 三个监听口 + enable_wt
+#   - logic.listen_addr / auth.listen / auth.verify_addr
+#   - gateway.reconnect_grace: 30s / disconnect_grace: 10s（对局断线重连）
+#   - data.tier: TierRedisMySQL（⛔ 不许 TierMemory）+ auto_create_table
+# ⚠️ 监听地址缺失**不报错而是静默降级**，所以每个监听口都必须显式写。
+
+server_type: "all"            # 必需：game|gateway|all|master|log|auth，缺失直接报错
+
+gateway:
+  listen_ws:  "127.0.0.1:8001"  # WebSocket（浏览器/WebGL）；空=不启用
+  ws_path: "/ws"
+  ws_allow_all_origins: true    # 测试工具建议 true
+  listen_tcp: "127.0.0.1:8002"  # TCP（Unity 原生客户端走这个口）；空=不启用
+  listen_udp: "127.0.0.1:8003"  # UDP(QUIC+裸UDP 共享)；空=不启用
+  enable_wt: true               # WebTransport 复用 listen_ws 的端口号(UDP 侧)，无独立地址字段
+  max_frame_size: 1048576
+  reconnect_grace: 30s          # 对局断线重连窗口（引擎默认 0=关闭）
+  disconnect_grace: 10s         # 断线判定宽限（引擎默认 0=立即触发）
+  # 证书：本机 mkcert 生成、已装进本机信任库；**每台机器独立、不许跨机器拷贝**
+  #（来源与用法见 clover-server-tools/mkcert/README.md；路径相对服务端工作目录 = server/）
+  tls_cert: "certs/server.pem"   # 主证书：TCP/WS/QUIC 共用
+  tls_key:  "certs/server-key.pem"
+  # WebTransport 专用证书：空 = 网关自动在 certs/ 下签发并轮换（ECDSA P-256、有效期 < 2 周）
+  wt_cert: ""
+  wt_key:  ""
+  wt_pin:  true                  # 证书固定：本地 true，生产 false（生产用公共 CA）
+  # TCP 接入显式保留**明文**：Unity 原生客户端与 msg-client 直连 8002 不握手 TLS
+  # ⇒ 客户端 client/Assets/Configs/config.json 的 server.tls 必须为 **false**（二者必须相反）
+  tcp_tls_disabled: true
+  # queue_cap: 1000             # >0 启用等候队列
+
+logic:
+  listen_addr: "127.0.0.1:8011" # 必需：网关上游；空则网关拨不通逻辑服
+  http_listen: ""
+  heartbeat: 30s
+  frame_timeout: 30s
+  reconnect_grace: 30s
+
+# 账号服：登录链路的必经依赖（all 角色会一并启动账号服）
+# 登录链路：客户端 HTTP 调 {verify_addr}/auth/login 换 token → 长连接发 EMsgLogin{token}
+#           → 游戏服 POST {verify_addr}/auth/verify 换 owner
+auth:
+  listen: "127.0.0.1:8051"
+  jwt_secret: "dev-only-change-me"
+  token_ttl: 2h
+  verify_addr: "http://127.0.0.1:8051"
+  # 账号服 HTTP 默认**要求 TLS**（未配 auth.tls.cert_file/key_file 时直接启动失败）。
+  # 本机联调显式声明明文（与上面的 tcp_tls_disabled: true、客户端的 http:// 地址一致）。
+  insecure_plaintext: true
+
+data:
+  tier: "TierRedisMySQL"        # 禁止 TierMemory（会被 loadConfig 拒绝）
+  auto_create_table: true
+  table: "data"
+  redis_key_prefix: "clover:data"
+  redis:
+    addr: "127.0.0.1:6379"
+    pass: ""
+    db: 0
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    user: "root"
+    pass: ""
+    db_name: "clover"
+    charset: "utf8mb4"
+    parse_time: true
+
+# 以下为顶层字段，不在任何子结构下
+master_listen_addr: "127.0.0.1:8021"
+master_addr: "127.0.0.1:8021"
+log_listen_addr: "127.0.0.1:8031"
+log_addr: "127.0.0.1:8031"        # 仅当 etcd 发现不到 log 实例时作为兜底
+
+nats:
+  # ⚠️ 必须是**非空地址**。空值不是"不启用"那么无害：引擎 Core.PushToPlayer 第一行就是
+  #   `if co.notifyPub == nil { return nil }` —— notifyPub 为 nil 时**所有 Push* 静默返回 nil**
+  #   （不报错、不打日志）。后果：PushRoomList / PushRoomState / PushBattleStart /
+  #   PushBattleSnapshot / PushBattleEvent / PushBattleEnd 全部发不出去，客户端进对局必然黑屏。
+  #   实测出处：agent-03 端到端（补上这一行后 35 条断言全 PASS；不补则只收到 0 条推送）。
+  addr: "127.0.0.1:4222"
+nats_subject: "clover.notify"
+
+log:                            # 注意是 log，不是 logging
+  level: "debug"
+  format: "console"
+  dir: "./logs"
+  stdout: true
+
+admin:
+  disable: false
+  listen_addr: "127.0.0.1:8041" # 空=零值回落固定 127.0.0.1:8041（不是随机端口）
+  shutdown_timeout: 5s
+
+misc:
+  timezone: "Asia/Shanghai"
+
+etcd:
+  endpoints: []                 # 空=不启用服务发现（本项目单进程 all，不需要）

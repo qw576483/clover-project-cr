@@ -1,0 +1,1822 @@
+using System;
+using System.Collections.Generic;
+using CloverEngine;
+using CR.Def;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace CR.UI.Panels
+{
+    /// <summary>
+    /// 对局 HUD（`Battle` 站点，Normal 层，架构契约 §4）：圣水条 / 4 张手牌 + 下一张预览 / 计时 + 阶段 /
+    /// 冠数 / **拖放出牌**。由 `Module/Battle/BattleManager` 在站点切到 `Battle` 时打开
+    /// （面板自身不认识它，见下）。
+    ///
+    /// <para>
+    /// <b>依赖方向（契约 §1 硬线）</b>：本面板⛔**不许** `using CR.Module` —— 与 `View/**` 一样，
+    /// 只能 <c>On</c> / <c>Emit</c> `Core/Events.cs` 的 `Events.Battle.*`。所以：
+    /// 数据一律从 `Battle.Started`（`my_team` / 时间线 / 手牌初值）、`Battle.Snapshot`（10 Hz 数值）、
+    /// `Battle.Ended`、`Battle.StartFailed` 进来；请求一律 `Emit(Battle.PlayCardRequest)` 出去。
+    /// </para>
+    /// <para>
+    /// <b>为什么读的是快照而不是插值</b>：HUD 显示的是**离散数值**（圣水 / 冠数 / 阶段 / 手牌 / 计时），
+    /// 它们没有"中间态"，插值只会显示假值；插值只对**位置**有意义，那是 `View/UnitView` 的事
+    /// （`BattleManager.Sample`）。所以本面板直接消费快照原值。
+    /// </para>
+    /// <para>
+    /// <b>卡面（AB2 改：真卡面 + 原版战斗 HUD 卡槽，⛔ 不再是"类型色底"）</b>：卡槽底 = 原版图元
+    /// `ResPaths.HudHandSlot`（`ui_out/200`，原版 `slots` 子元件，索引 §3.2；整幅拉伸），
+    /// 卡面 = 原版素材帧 `ResPaths.SpellArtFrame(i)`，
+    /// 圣水费用 = 原版水滴 `ResPaths.IconElixirDrop` + 数字。卡 `key` → 卡面帧号取自
+    /// <see cref="CrUiStyle"/> 的**唯一一张**表（与 `DeckEditPanel` 同一真源，出处
+    /// `策划/原版UI素材名称索引.md` §3.5）；表里没有的卡**不猜帧号**，
+    /// 只画原版卡槽底 + 卡名（同一降级口径）。卡名/费用来自 `Events.Deck.PoolLoaded`（`CardInfo`），
+    /// 卡池还没到时显示 "卡 id=N" 并留痕。
+    /// </para>
+    /// <para>
+    /// <b>⚠️ 与 `View/HandView`（agent-07b）的重叠</b>：任务书 §5.4 把"手牌 + 落点指示 + 抬起发 C2S"
+    /// 同时描述在 `HandView` 名下，而本片任务书把"4 张手牌 + 下一张 + 拖放出牌"明确交给 `HudPanel`。
+    /// 本面板**只做 HUD 侧**：UI 手牌上按下 / 跟随 / 抬起 → `Emit(Battle.PlayCardRequest)`。
+    /// **合法性两色落点指示不在本面板**：§5.4 明令"⛔ 不许在面板里另写一套判定"，
+    /// 而共享那份几何的合法落点只有 `Core/GameConst.cs`（本片⛔无权改 `Core/**`）、
+    /// 面板又⛔不许引 `CR.Module` ⇒ 判定由 `View/HandView` 用同一套 `GameConst` 常量做。
+    /// 本面板的拖放提示是**中性**的（"松手即请求出牌，合法性由服务端裁决"）+ 把服务端的拒因原文显示出来。
+    /// </para>
+    /// </summary>
+    public sealed class HudPanel : UIPanel
+    {
+        private const string Tag = "HudPanel";
+
+        // ───────────────────────── 常量（本项目自定：引擎 UIFactory 只给"造节点"，不给布局） ─────────────────────────
+        //
+        // 画布参考分辨率 1920×1080（`UIManager` 的 CanvasScaler 设定），且 `matchWidthOrHeight = 0.5`
+        // ⇒ 真实画布高度会随窗口变小（1600×900 窗口约 972）。所以**底部元素一律用
+        // `UIFactory.AnchoredBottom` 定位**，⛔ 不许用"左上角 + 大负 y"把元素顶到屏幕外
+        //（`UIWidgetControls.cs:188` 有实测记录）。
+
+        /// <summary>
+        /// 手牌槽位数 = 4。
+        /// 出处：任务书 §5.4「手牌 4 张 + 下一张预览」+ 参考规格（原版手牌固定 4 张）。
+        /// 服务端下发的 <c>hand_a[]</c> 长度超出它时只显示前 4 张并留一条 Warn。
+        /// </summary>
+        private const int HandSlots = 4;
+
+        /// <summary>
+        /// 圣水的定点单位 = 1/1000 格。
+        /// 出处：`Def/ProtoDef.cs:151`「`elixir_a`（1/1000，0..10000）」与 `Core/GameConst.cs:26`
+        /// 的 `MilliTilePerTile`（本项目"定点单位 = 1/1000"的定义处）。
+        /// 起这个名字是为了让"圣水也用 1/1000 定点"这件事在读取处一眼可见，
+        /// ⛔ 不在业务代码里写裸 `1000`（契约 D11）。
+        /// </summary>
+        private const int ElixirMilliPerUnit = GameConst.MilliTilePerTile;
+
+        /// <summary>`BattleSnapshot.phase == 1`（加时）。取值口径见 `Def/ProtoDef.cs:150`。</summary>
+        private const int PhaseOvertime = 1;
+
+        /// <summary>`BattleSnapshot.phase == 2`（已结束）。面板⛔不许引 `CR.Module`，
+        /// 所以拿不到 `BattleManager.PhaseEnded` 那个常量，这里按同一口径本地化一份。</summary>
+        private const int PhaseEnded = 2;
+
+        // ═══════════ 竖版几何（★ AB2 重定标：每个数字都能反查到出处） ═══════════
+        //
+        // <b>基准与比例</b>：`策划/参考图/几何量取.md` §1.3「对局 HUD 底部」的基线图是
+        // `18_对局HUD_1080x1920.jpg`，它与本项目竖版画布（`CrUiStyle.DesignW×DesignH` = 1080×1920）
+        // **同尺寸** ⇒ 该节原文「18 图 = 1080×1920，与本项目画布同尺寸 ⇒ @1080 列 = 像素值（k=1.0）」
+        // ⇒ 下面每条后面的 `Dnn` 就是那节的条目号，数值**就是画布像素、不再乘任何比例**。
+        // ⚠️ 18 与 19 是同一张图（MD5 相同，§1.3 注）⇒ 本文件只用 18 的读数，⛔ 不当两张图交叉验证。
+        //
+        // <b>纵向一律用底部锚点</b>：CanvasScaler `match=0`（宽恒 1080、高随设备浮动）⇒ 贴底元素走
+        // `UIFactory.AnchoredBottom`，⛔ 不用"左上角 + 大负 y"（会整体掉出屏外，见 `UIWidgetControls.cs:188` 实测记录）。
+        //
+        // <b>顶部左块的冠数在原版基线图里未到镜</b>（§2 C4）⇒ 该项位置/尺寸**保持现状**，
+        // 并在常量注释里逐条写明「未量到（见几何量取.md §2）」。
+
+        // ── 手牌（出处：§1.3 D9/D11/D12/D13，读数来自 **18 图** `gaps` 扫描） ──
+        //
+        // ★ CR-T2e **基线裁定后的回落**（2026-09-23）：CR-T2c 曾按 `20_对局_1080x1920.jpg` 把这组常量改成
+        //   136×164 / 间距 4.67 / 左边 147；主 agent 复核后**裁定 20 图不是同一版本**，本组已**整体退回 18 口径**。
+        //   裁定依据（可复跑 `tools/probes/cr-t2d-baseline-audit.py`）：
+        //     ① 20 图右上**没有计时板、没有暂停键**，只有一个 `×2` 圣水双倍徽标 + 裸冠数文字；
+        //     ② 20 图 HUD 下方**露出竞技场**（圣水条行 1888..1907 ⇒ 1908..1919 是地图）⇒ 不是完整整屏 HUD；
+        //     ③ 20 图手牌是**金框 + 卡顶双菱形紫帽**，而 18（2.1.5）的手牌框是**灰白那族**（= `ui_out/200`）；
+        //     ④ `策划/基线图/索引.md:25` 早就把 20 记为"**未取证**；仅作『扫过顶部未见冠数/暂停』的旁证"。
+        //   ⇒ 20 归入"另一版本/模式"，⛔ 不作几何基线（相关素材 `frame_547` 留档但**不接线**，见 `ResPaths`）。
+
+        /// <summary>单卡宽 <b>140</b>。出处：D11「单卡宽 / 卡间距 = 140 / 3」（18 图 gaps 扫描；
+        /// 18 = 主 agent 裁定的唯一几何基线，理由见本段上方）。</summary>
+        private const float CardW = 140f;
+
+        /// <summary>单卡高 <b>171</b> = D12 卡顶 y=1614 → 卡底 y=1785（1785−1614）。</summary>
+        private const float CardH = 171f;
+
+        /// <summary>卡间距 <b>3</b>。出处：D11（同上，18 图 gaps 扫描）。</summary>
+        private const float CardGap = 3f;
+
+        /// <summary>
+        /// 手牌 4 张整排宽 = 4×136 + 3×4.67 = <b>558</b>（= 20 图直接量到的 705−147 = 558 ✔ 自洽）。
+        /// </summary>
+        private const float HandBarW = HandSlots * CardW + (HandSlots - 1) * CardGap;
+
+        /// <summary>手牌整排**左边** x = <b>144</b>。出处：D9（18 图 gaps「手牌整排左边 x=144」）。
+        /// 原版该排**不是居中**的（「下一张」在它左边）⇒ 用左下角锚点定位。</summary>
+        private const float HandRowLeft = 144f;
+
+        /// <summary>手牌整排底边距画布底 = DesignH − 卡底 y(1785) = <b>135</b>。出处：D13（18 图）。
+        /// ⚠️ 20 图量到卡底 y≈1862（距底 58），但同图圣水条也整体低 ~59px ⇒ 只动卡会让卡片压到条上；
+        /// 该差属基线档位问题，见本段上方说明，已回报主 agent（⛔ 未擅自改）。</summary>
+        private const float HandBottomOffset = 135f;
+
+        // ── 「下一张」预览（出处：§1.3 D14/D15） ──
+        //
+        // ★ 纠正：原版「下一张」在**底排左端**（左下角那张更小的卡），⛔ 不在右侧 ——
+        //   上一版把它放在右端是错的（那时基线图底部被宣传字压住、未量到；§1.3 已用 18 图补量）。
+
+        /// <summary>「下一张」卡左边 x = <b>33</b>。出处：D14（18 图 `c18_nextcard_zoom`：x 33..97）。</summary>
+        private const float NextLeft = 33f;
+
+        /// <summary>「下一张」卡宽 <b>64</b>。出处：D14（x 33..97 ⇒ 64）。</summary>
+        private const float NextW = 64f;
+
+        /// <summary>「下一张」卡高 <b>83</b>。出处：D14（@1080 列标注 64×83；端点 y 1634..1716 = 82，取表内标注值）。</summary>
+        private const float NextH = 83f;
+
+        /// <summary>「下一张」卡底边距画布底 = DesignH − y(1716) = <b>204</b>。出处：D14 的 y 端点。</summary>
+        private const float NextBottomOffset = 204f;
+
+        /// <summary>「下一张」标签左边 x = <b>10</b>。出处：D15（x 10..115 / y 1718..1755）。</summary>
+        private const float NextLabelLeft = 10f;
+
+        /// <summary>「下一张」标签底边距画布底 = DesignH − y(1755) = <b>165</b>。出处：D15 的 y 端点。</summary>
+        private const float NextLabelBottom = 165f;
+
+        /// <summary>「下一张」标签宽 <b>105</b>。出处：D15（x 10..115）。</summary>
+        private const float NextLabelW = 105f;
+
+        /// <summary>「下一张」标签高 <b>37</b>。出处：D15（y 1718..1755）。</summary>
+        private const float NextLabelH = 37f;
+
+        // ── 圣水条（出处：§1.3 D1~D7，18 图 col/row dump） ──
+
+        /// <summary>圣水条高 <b>44</b>。出处：D3（D1 上边 y=1797、D2 下边 y=1841 ⇒ 1841−1797 = 44）。</summary>
+        private const float ElixirBarH = 44f;
+
+        /// <summary>圣水条底边距画布底 = DesignH − y(1841) = <b>79</b>。出处：D2（外框下边 y=1841）。
+        /// ★ 顺序纠正：原版**圣水条在手牌下方**（条 y1797..1841、卡 y1614..1785），⛔ 不是"条在手牌上方"。</summary>
+        private const float ElixirBarBottom = 79f;
+
+        /// <summary>圣水条左端 x = <b>88</b>。出处：D5（18 图 dump row y=1819；左端被圣水徽章遮住，可见起 x≈88）。</summary>
+        private const float ElixirBarLeft = 88f;
+
+        /// <summary>圣水条右端 x = <b>1044</b>（右留白 1080−1044 = 36）。出处：D4（18 图 dump row y=1819）。</summary>
+        private const float ElixirBarRight = 1044f;
+
+        /// <summary>圣水条宽 = 右端 − 左端 = 1044 − 88 = <b>956</b>（由 D4/D5 算得）。</summary>
+        private const float ElixirBarW = ElixirBarRight - ElixirBarLeft;
+
+        /// <summary>圣水徽章（水滴底 + 数字）直径 <b>60</b>。出处：D7（18 图 bb mag：心 (63,1815)、径 60）。</summary>
+        private const float ElixirBadgeD = 60f;
+
+        /// <summary>圣水徽章中心距画布左 = <b>63</b>。出处：D7（心 x=63）。</summary>
+        private const float ElixirBadgeCx = 63f;
+
+        /// <summary>圣水徽章中心距画布底 = DesignH − y(1815) = <b>105</b>。出处：D7（心 y=1815）。</summary>
+        private const float ElixirBadgeCy = 105f;
+
+        /// <summary>
+        /// 条端图元 `bar_end`（`ui_out/158`，原生 10×59，出处 `策划/战斗HUD素材索引.md` §3.1）的显示宽
+        /// = 条高 44 × 10/59 ≈ <b>7.5</b>（等比缩放 ⇒ 端头不被拉扁，⛔ 不横向拉成 956 宽）。
+        /// </summary>
+        private const float ElixirEndW = ElixirBarH * 10f / 59f;
+
+        /// <summary>卡内文字（卡名）字号。出处：现状（本项目自定；§1.3 只量了几何、未量字号）。</summary>
+        private const int CardFontSize = 22;
+
+        // ── 卡面在卡槽里的贴合（★ CR-T2 改：⛔ 不再是 ArtFill = 1.0/1.0 + 0.06×卡高 的向上偏移） ──
+        //
+        // <b>原实现的两个错</b>：① 卡面按 1.0/1.0 铺满整张卡 ⇒ 卡面**顶出卡槽上沿**、卡槽下沿露出一条空底；
+        // ② 再叠 `+CardH*0.06`（= 10.3px）的向上偏移 ⇒ 上沿溢出更多、下半截与卡框明显错开
+        // （这就是用户报的「卡面也不贴合卡框」）。
+        //
+        // <b>量取口径（★ 每个值都能反查）</b>：
+        //   原版图 = `策划/参考图/20_对局_1080x1920.jpg`（1080×1920 = 本项目画布 ⇒ **像素值即画布值**，k=1.0）；
+        //   量取对象 = 该图**第 2 张手牌**（冰雪精灵 = `ui_spells_out/frame_007` ← 卡池 `card.tsv` 的
+        //   `ice-spirit`）—— 该卡是这张图里唯一"卡面不被费用泡遮住、可整幅比对"的一张。
+        //   ① 卡片外框（金边**外沿**）：金边列 x 286..290 / 417..421、金边行 y 1699..1703 / 1859..1862
+        //      ⇒ 外框 = **136 × 164**（像素）。
+        //   ② 卡面（插画）区域 = 用「与素材帧**最小平均绝对差**」反解（排除品红费用泡像素）：
+        //      把 `frame_007` 的 alpha 包围盒内容缩放到候选矩形、与原图同一区域逐像素比对，
+        //      坐标下降法求得最优内缩 = **左 6 / 上 7 / 右 5 / 下 6**（像素）⇒ 卡面 = **125 × 151**
+        //      （占卡片 91.91% × 92.07%）。量法可复跑：`tools/probes/cr-t2-fit-solve.py`。
+        //   ③ 换算式（本文件画布单位 = 画布像素）：内缩按**比例**折到 `CardW`/`CardH` ⇒ 下面四个 `*Frac`；
+        //      卡面尺寸 = `CardW×(1−左−右)` × `CardH×(1−上−下)`；卡面中心相对卡槽中心的 y 偏移
+        //      = `CardH×(下−上)/2`（本次量得 ≈ **−0.52px**，即卡面中心比卡槽中心**低** 0.52px）。
+        //   ⚠️ 「下一张」小卡按**同一比例**套用（原版是同一张卡设计按比例缩小）——见 `BuildNextPreview`。
+        //
+        // <b>量取的边界</b>：该图的手牌几何（卡片 136×164）比 `18_对局HUD_1080x1920.jpg` 的 D9/D11/D12
+        // 读数（单卡 140 × 高 171）小约 4.5%（两张图都是本项目画布尺寸 ⇒ 原版 HUD 缩放档不同）
+        // ⇒ 本片取**比例**（与缩放档无关），⛔ 不改 `CardW/CardH/CardGap/HandRowLeft`。
+
+        /// <summary>卡面在卡槽里的**左**内缩比例 = 6/136（量取口径见上方 CR-T2 段）。</summary>
+        private const float ArtInsetLeftFrac = 6f / 136f;
+
+        /// <summary>卡面在卡槽里的**右**内缩比例 = 5/136。</summary>
+        private const float ArtInsetRightFrac = 5f / 136f;
+
+        /// <summary>卡面在卡槽里的**上**内缩比例 = 7/164。</summary>
+        private const float ArtInsetTopFrac = 7f / 164f;
+
+        /// <summary>卡面在卡槽里的**下**内缩比例 = 6/164。</summary>
+        private const float ArtInsetBottomFrac = 6f / 164f;
+
+        /// <summary>卡面宽占卡宽的比例 = 1 − 左内缩 − 右内缩（量得 ≈ 0.9191）。</summary>
+        private const float ArtFillX = 1f - ArtInsetLeftFrac - ArtInsetRightFrac;
+
+        /// <summary>卡面高占卡高的比例 = 1 − 上内缩 − 下内缩（量得 ≈ 0.9207）。</summary>
+        private const float ArtFillY = 1f - ArtInsetTopFrac - ArtInsetBottomFrac;
+
+        /// <summary>卡面中心相对卡槽中心的纵向偏移比例 =（下内缩 − 上内缩）/2（负 = 卡面偏下）。</summary>
+        private const float ArtOffsetYFrac = (ArtInsetBottomFrac - ArtInsetTopFrac) * 0.5f;
+
+        /// <summary>圣水费用泡直径 = 基线量取的卡角圣水泡 58 px × 0.8696 ≈ 50（出处：07_卡组编辑 卡角泡）。</summary>
+        private const float CostIconW = 50f;
+
+        private const float GhostW = CardW;
+        private const float GhostH = CardH * 0.5f;
+
+        // ── 顶部右：倒计时（出处：§1.3 D16，18 图 `z1_18_top_x2` 读数） ──
+
+        /// <summary>计时板宽 <b>198</b>。出处：D16（x 882..1080）。
+        /// 板素材 = `HudTopRightPlate`（`ui_out/193`，原版 `HUD_topRight` 的底板，原生 212×124，
+        /// 出处 `策划/战斗HUD素材索引.md` §3.4）⇒ 按量取值 198×100 铺（0.93×/0.81× 轻微缩放；
+        /// 该帧**切边未量到** ⇒ 用 border = 0 的整幅拉伸，差值登记在 `策划/验收表.md`（D63））。</summary>
+        private const float TimerBoxW = 198f;
+
+        /// <summary>计时板高 <b>100</b>。出处：D16（y 0..100）。</summary>
+        private const float TimerBoxH = 100f;
+
+        /// <summary>计时板离画布顶 = <b>0</b>（贴顶）。出处：D16（y 起点 = 0）。</summary>
+        private const float TimerBoxTop = 0f;
+
+        /// <summary>计时数字字号：现状 <b>48</b>（09 图「2:32」字形高 40px × 0.8696 ÷ 0.72 ≈ 48）。
+        /// ⚠️ §1.3 未重标定字号 ⇒ 保持现状（字号未量到，见几何量取.md §2）。</summary>
+        private const int TimerFontSize = 48;
+
+        /// <summary>计时板内时钟图标宽 = 板高 × 0.30 = <b>30</b>（本项目自定：原版 `Clock_middle`
+        /// （`ui_out/042`，原生 15×15，出处 索引 §3.4）的**摆放尺寸未解出** —— 索引 §2.1 第 2 条明说
+        /// 「摆放尺寸要等坐标解出或按原版截图量」⇒ 不编绝对值，按板高比例给；见几何量取.md §2）。</summary>
+        private const float ClockIconW = TimerBoxH * 0.30f;
+
+        // ── 顶部左：冠数（★ 未量到 ⇒ 位置/尺寸保持现状，只把图元换成原版三件） ──
+        //
+        // 出处：几何量取.md §2 C4 —— 冠数在 02/09 + 18/19/20/21/23 七张图顶部各扫一遍，**均未见冠数控件**
+        // ⇒ 位置/尺寸**保持现状**（沿用原版顶部左块的落点）。图元 = 原版三件
+        // （`策划/战斗HUD素材索引.md` §1 第 3 行 + §3.3）：
+        //   `HudScoreNamePlate`（`ui_out/196`，原版 `printScore_*` 的裸子件，原生 247×56）
+        //   `HudStarPlayer`（`ui_out/187`，原版 `starPlayer`/`star1..3`，原生 120×98）
+        //   `HudStarEnemy`（`ui_out/188`，原版 `starEnemy`，同尺寸）。
+
+        /// <summary>顶部左块离屏左 = 现状 <b>21</b>（09 图左上「Blue King」块 24×0.8696 ≈ 21）。未量到（见几何量取.md §2 C4）。</summary>
+        private const float TopLeftX = 21f;
+
+        /// <summary>顶部左块离屏顶 = 现状 <b>18</b>（09 图左上块）。未量到（见几何量取.md §2 C4）。</summary>
+        private const float TopLeftY = 18f;
+
+        /// <summary>名条宽 = 现状 <b>260</b>（原冠数文本宽）。未量到（见几何量取.md §2 C4）。</summary>
+        private const float ScorePlateW = 260f;
+
+        /// <summary>名条显示高 = 名条宽 260 × 素材原生 56/247 ≈ <b>59</b>
+        /// （`HudScoreNamePlate` 原生 247×56，出处 索引 §3.3；由素材自身比例定，⛔ 不另编高度）。</summary>
+        private const float ScorePlateH = ScorePlateW * 56f / 247f;
+
+        /// <summary>单枚冠徽宽 = 名条高 59 × 素材原生 120/98 ≈ <b>72.2</b>
+        /// （`HudStarPlayer`/`HudStarEnemy` 原生 120×98，出处 索引 §3.3）⇒ 冠徽高 = 名条高。
+        /// ⚠️ 冠数的原版位置/尺寸**未量到**（几何量取.md §2 C4）⇒ 本项是"素材比例 × 现状名条宽"的推导，已登记。</summary>
+        private const float CrownIconW = ScorePlateH * 120f / 98f;
+
+        /// <summary>冠数数字字号 = <see cref="CrUiStyle.FontBody"/>（32）。
+        /// 现状用的是 FontTitle(56)，装不进高 ≈59 的名条 ⇒ 降一档；字号本身未量到（见几何量取.md §2 C4）。</summary>
+        private const int CrownFontSize = CrUiStyle.FontBody;
+
+        // ── 原版 HUD 图元的切边 ──
+        //
+        // ★ 本轮换帧（圣水条 155/157/158、手牌槽 200、计时板 193、按钮底板 163）之后：
+        //   ① 旧的三条切边是给**旧帧**（`ui_out/516/517/518`）量的，随帧一并作废 ⇒ 已删；
+        //   ② 新帧里 `bar_bg`(155) 是 **1×74 的 1 像素宽竖条**、`bar_body`(157) 是 **59×1 的细线**
+        //      （出处 索引 §3.1）⇒ 原版本来就靠矩阵拉伸铺，**切边无定义**，⛔ 不给细线编切边；
+        //   ③ 其余新帧（200/193/163）的切边**未量到**（索引只给整幅 bbox，未做逐列/逐行差分）
+        //      ⇒ 一律用 `Vector4.zero`（= 整幅拉伸，**不是**九宫格），使用处均注明"切边未量到"。
+
+        /// <summary>整幅拉伸（⛔ 不是九宫格）：给细长条图元，以及"切边未量到"的整幅面板用。</summary>
+        private static readonly Vector4 BorderNone = Vector4.zero;
+
+        /// <summary>
+        /// 轨道**右端圆头件** = 原版 `ui_out/156`（`elixir_bar` 的**同容器裸子件**，原生 15×75）。
+        /// <para>
+        /// <b>为什么需要它</b>（AV2 实测）：原版 18 图轨道右端是**深色圆头**（右下角实测 (1,11,38)，
+        /// 见 `AV2-pix-base.txt`），而 `bar_bg`(155) 是 **1 像素宽**竖条 ⇒ 横向铺开后左右两端必然是**直角**
+        /// （1px 宽的图没有圆头），且 AV2 原本摆在轨道右端的 `bar_end`(158) 是**品红**件 ⇒
+        /// 实机在轨道右端露出一截**孤立的品红**（`AV2-mine-barend.png`），与原版该处的深色圆头不符。
+        /// 156 的剖面（`AV2-prof-frame_156.txt`）：内部 (32,32,32,**255**) 不透明、**右端带圆角**
+        /// （col13/14 只覆盖 y10..63）⇒ 正是"深色 + 圆头"的端件，且不透明 ⇒ 实机必然渲染。
+        /// </para>
+        /// <para>出处：`策划/战斗HUD素材索引.md` §3.1「`elixir_bar` 同族件 = frame 156 / 15×75」。⛔ 帧号非推断。</para>
+        /// </summary>
+        private static readonly string ElixirTrackEnd = ResPaths.UiFrame(ResPaths.UiBarsDir, ResPaths.UiSrcUi, 156);
+
+        /// <summary>
+        /// 计时板**实心底** = 原版 `ui_out/177`（`HUD_topRight` 的**无名子件**，原生 1×1）。
+        /// <para>
+        /// <b>为什么必须有</b>：`HUD_topRight` 的底板 `193` 经逐列/逐行剖面实测是**空心圆角框**
+        /// （只有 1~2px 的边是不透明的，内部全透明，见 `AV2-prof-frame_193.txt`）⇒ 单用它画出来的"计时板"
+        /// 实机内部是**透出竞技场**的（`AV2-mine-topright.png`，AQ2 自审记的"未见原版 193 底板件"即此现象）。
+        /// 原版把**实心**交给同容器的 1×1 子件 177（索引 §3.4 原文：「`HUD_topRight`(15 帧) 的无名子件 | 1005 | 177(1×1) / 193(212×124)」）
+        /// ⇒ 本片按原版结构：先铺 177（实心）、再压 193（外框）。
+        /// </para>
+        /// <para>本帧由 `tools/probes/copy-ui-assets.py`（本片新增 `("ui_out", 177, "HudTimerPlateFill")` 一行）落地，
+        /// 与相邻帧同导入口径；`LoadAll&lt;Sprite&gt;` 断言见 `.ai-tmp/test/AV2-素材补充.md`。</para>
+        /// </summary>
+        private static readonly string TimerPlateFill = ResPaths.UiFrame(ResPaths.UiPanelsDir, ResPaths.UiSrcUi, 177);
+
+        /// <summary>轨道端件 `156`（15×75）的显示宽 = 条高 44 × 15/75 ≈ <b>8.8</b>（⛔ 不横向拉成 956 宽）。</summary>
+        private const float ElixirTrackEndW = ElixirBarH * 15f / 75f;
+
+        /// <summary>
+        /// 手牌卡槽底 `200`（96×137）的**切边** = (左 10, 下 8, 右 10, 上 8)。
+        /// <para>
+        /// <b>量到的</b>（`.ai-tmp/test/AV2-prof-frame_200.txt`，逐行/逐列 alpha 剖面）：
+        /// 上边第 0 行只覆盖 x11..83 且到第 8 行才铺满 0..95 ⇒ **上圆角 ≈8**；
+        /// 下边第 128 行起收窄、第 136 行只覆盖 x6..88 ⇒ **下圆角 ≈8**；
+        /// 左边第 0 列只覆盖 y8..130、第 11 列起铺满 ⇒ **左圆角 ≈10**；右对称 ⇒ **右圆角 ≈10**。
+        /// ⇒ 设 `Image.type = Sliced` 后四角保留原像素，⛔ 不再把 96×137 整幅非等比拉到 140×171（1.46×/1.25×）
+        /// 让圆角变椭圆（这是 AQ2 登记 D-AQ2-4 要求消解的形变）。
+        /// </para>
+        /// </summary>
+        private static readonly Vector4 HudSlotBorder = new Vector4(10f, 8f, 10f, 8f);
+
+        // ★ CR-T2e：`HudCardFrameBorder`（frame_547 的九宫格切边 11）随接线一并撤销 —— 该素材属于
+        //   "另一版本"的观感（见本文件手牌段落的基线说明）。
+        //
+        // ★ CR-T2g：**手牌槽底换成"卡体"**（原版结构 = 卡体 + 卡面内缩，⛔ 不是"描边 + 卡面"）。
+        //   实测依据（`tools/probes/cr-t2g-card-body.py` + `cr-t2f-frame-compare.py`）：
+        //     ① 原版 18 图卡 2 的卡缘 = 蓝 HUD 底 → **1px 深色描边** → **浅灰卡体 8px+**（RGB≈(215,213,216)）；
+        //        ⚠️ 18 的手牌是**灰化态**（当时 2 圣水 ⇒ 4 张卡都不可出），CR 的灰化 ≈ ×0.87 去饱和 ⇒
+        //        反推**未灰化**卡体 ≈ 215/0.87 ≈ **247** ⇒ 与 `ui_out/43` 的主色 **(248,248,248)** 一致
+        //        （`frame_043` 占比 0.85，且实测左/上缘有 **6px 深色带**、圆角半径 ≈20px ⇒ 正好是
+        //        "卡体 + 深色描边 + 圆角"三件）。这也就是 `DeckEditPanel` 卡格底用的同一件（AP1 判定保留）。
+        //     ② 旧槽底 `ui_out/200` 实测 **全图 α ≤ 60（23.5%）**、色 ≈(18,12,10) ⇒ 是"半透明深色覆盖层"，
+        //        实机在卡缘处的像素 = **竞技场草地原色（161，纯草 ~158）** ⇒ **视觉上没有框**。
+        //   ⇒ 槽底 = `ResPaths.SlotCard`（`ui_out` 43），切边沿用 deck 的实测值 20。
+        /// <summary>手牌卡体（`ResPaths.SlotCard` = `ui_out` 43，原生 107×159）的九宫格切边 = **20**（四边同值）。
+        /// 出处：与 `DeckEditPanel.BorderCard` 同一量取值（G3-量取：该帧圆角半径 ≈20px；
+        /// 本片复核：顶行 alpha 宽度 82 → 第 15 行才到 103 ⇒ 半径确实 ≈20）。</summary>
+        private static readonly Vector4 HudCardBodyBorder = new Vector4(20f, 20f, 20f, 20f);
+
+        /// <summary>状态行文字保留时长（秒）。本项目自定：只为不让上一条提示永远留在屏幕上。</summary>
+        private const float StatusHoldSeconds = 4f;
+
+        // ───────────────────────── 真卡面（G4 改：⛔ 不再是"类型色底"） ─────────────────────────
+        //
+        // <b>为什么不用类型色当最终外观</b>：那是占位物（全局 skill §0.1 ②：纯色块不可交付）。
+        // 现在卡面 = 原版素材帧 `ResPaths.SpellArtFrame(i)`（`ui_spells_out`）+ 原版战斗 HUD 卡槽图元
+        // `ResPaths.HudHandSlot`（`ui_out/200`）底。
+        //
+        // <b>卡 `key` → 帧号 表从哪来（★ CR-T2 改：本面板不再自存一份）</b>：
+        // 唯一真源 = `CrUiStyle.CardArtFrameTable`（出处 `策划/原版UI素材名称索引.md` §3.5）。
+        // ⛔ 本面板原先自存过一份「同值副本」，AO1 把另一份由 34 扩到 60 条时没同步 ⇒ 手牌 24 张卡查不到
+        // 帧号、只画「卡槽底 + 卡名」（= 用户报的"卡牌图片和框都对不上"）。上收之后**结构上不可能再不同步**。
+        // 表里没有的卡**不猜帧号**：只画原版卡槽底 + 卡名（与 `DeckEditPanel` 同一降级口径）。
+
+        /// <summary>(帧号 → 裁剪后的卡面 Sprite)。`Sprite.Create` 造的 Sprite 不归 Resources 管，必须复用。</summary>
+        private static readonly Dictionary<int, Sprite> ArtCache = new Dictionary<int, Sprite>();
+
+        /// <summary>已经 Warn 过的卡面路径（缺素材只报一次）。</summary>
+        private static readonly HashSet<string> WarnedArtMissing = new HashSet<string>();
+
+        /// <summary>拖放中的幽灵卡色调（半透白：真卡面保持原色，只降不透明度表示"跟着手走"）。</summary>
+        private static readonly Color GhostColor = new Color(1f, 1f, 1f, 0.55f);
+
+        /// <summary>卡面帧号没登记时幽灵卡的兜底色（该卡本来就不画卡面 ⇒ 只是能看见手指下有东西）。</summary>
+        private static readonly Color GhostColorFallback = new Color(1f, 1f, 1f, 0.35f);
+
+        /// <summary>幽灵卡上的文字色（压在浅色底上，用近黑）。</summary>
+        // ★ CR-T2c：`GhostTextColor` 随 `_ghostText` 一并删除（幽灵卡不再有文字）。
+
+        // ───────────────────────── 运行时状态 ─────────────────────────
+
+        private bool _built;
+
+        private BattleStartNotify _start;
+        private BattleSnapshot _snapshot;
+
+        private int _myTeam;                                       // 0=BLUE 1=RED（Battle.Started 给出）
+        private int _maxElixirMilli = GameConst.MaxElixirMilli;     // 圣水上限（1/1000）
+
+        private int _regulationMs;                                  // 常规时间（0 = 还没拿到时间线）
+        private int _overtimeMs;                                    // 加时
+
+        private readonly Dictionary<int, CardInfo> _cards = new Dictionary<int, CardInfo>();
+        private readonly int[] _handIds = new int[HandSlots];       // 每个槽位当前的卡 id（0 = 空）
+        private int _nextId;
+
+        private int _lastUnknownType = int.MinValue;
+        private int _lastUnknownPhase = int.MinValue;
+        private bool _handTooLongWarned;
+
+        /// <summary>上一次打印「本局手牌帧号表」时的手牌组成（`_handIds` 拼串）—— 只在真的变了时才打印。</summary>
+        private string _handSigLogged;
+        private bool _noCameraWarned;
+        private bool _poolMissingWarned;
+        private bool _nonOrthoWarned;
+        private bool _noTimelineWarned;
+
+        /// <summary>倒计时最后 <see cref="CountdownWarnMs"/> 毫秒的滴答：上一声播在"剩余第几秒"（-1 = 还没进窗口）。</summary>
+        private long _lastTickSec = -1;
+
+        /// <summary>`Game.Sound` 为空只报一次（表现域未挂载 ⇒ HUD 音效全不响，⛔ 不刷屏也不静默）。</summary>
+        private static bool _sfxWarned;
+
+        /// <summary>HUD 音效资源缺失只报一次（落地漏拷时能一眼看出，⛔ 不静默跳声）。</summary>
+        private static bool _sfxMissingWarned;
+
+        private RectTransform _root;                                // 面板根（屏幕 → 世界 换算要用它）
+
+        // ── 顶部信息 ──
+        private Text _crownsText;
+        private Text _timerText;
+        private Text _phaseText;
+        private Text _statusText;
+        private float _statusUntil;
+
+        // ── 圣水 ──
+        private RectTransform _elixirFill;
+        private Text _elixirText;
+
+        /// <summary>徽章内的圣水**整数**（原版 `elixir_bar/elixirBarLeftNumbers` 的 `elixirAmount` 口径）。</summary>
+        private Text _elixirBadgeText;
+
+        // ── 手牌 ──
+        private readonly Image[] _handCards = new Image[HandSlots];   // 卡槽底（原版 `SlotCard` 九宫格）
+        private readonly Image[] _handArts = new Image[HandSlots];    // 真卡面（原版 `ui_spells_out` 帧）
+        private readonly Text[] _handCosts = new Text[HandSlots];     // 圣水费用（压在原版圣水水滴上）
+        // ★ CR-T2b：原版卡面上没有卡名 ⇒ `_handTexts` 已整条删除（连带 `HandText{i}` 节点，
+        //   见 `BuildHand` 的注释）。⛔ 不要再加回来。
+        private Image _nextCard;
+        private Image _nextArt;
+        private Text _nextCost;
+        private Text _nextText;
+
+        // ── 拖放 ──
+        private bool _dragging;
+        private int _dragCardId;
+        private Image _ghost;
+
+        /// <summary>「非 Battle 站点里按下手牌被站点守卫拦住」最近一次留痕时读到的站点名（D12 去重标记）。
+        /// 空 = 还没留过痕。⛔ 只用于日志去重，不参与任何判定。</summary>
+        private string _stationGuardLogged;
+        // ★ CR-T2c：`_ghostText`（幽灵卡上的卡名）已整条删除 —— 原版幽灵卡不带字。
+
+        // ── 订阅（OnOpen 挂 / OnClose 摘，成对） ──
+        private Action<BattleStartNotify> _onStarted;
+        private Action<BattleSnapshot> _onSnapshot;
+        private Action<BattleEndNotify> _onEnded;
+        private Action<string> _onFailed;
+        private Action<CardInfo[]> _onPoolLoaded;
+
+        /// <summary>对局 HUD 是 `Battle` 站点的 Normal 层面板（架构契约 §4）。</summary>
+        public override UILayer Layer => UILayer.Normal;
+
+        public override void OnOpen(object param)
+        {
+            if (!_built)
+            {
+                Build();
+                _built = true;
+            }
+
+            Subscribe();
+            RefreshAll();
+            SetStatus("拖动手牌到场上松手即请求出牌；最终合法性由服务端裁决。", CrUiStyle.TextDim);
+        }
+
+        public override void OnClose()
+        {
+            Unsubscribe();
+            CancelDrag("面板关闭");
+        }
+
+        // ───────────────────────── 视觉树（D1：OnOpen 里用 UIFactory 自建） ─────────────────────────
+
+        private void Build()
+        {
+            _root = (RectTransform)transform;
+            UIFactory.Stretch(_root);
+
+            // HUD **不铺全屏底、不挡射线**：对局画面要能看见（与站点面板不同）。
+            // 也⛔不铺全屏 Image：那会挡住操作（本面板的输入是自己轮询的，但挡射线仍会干扰其它 UI）。
+
+            BuildTopLabels();
+            BuildElixir();
+            BuildHand();
+            BuildNextPreview();
+            BuildGhost();
+            BuildPauseButton();
+        }
+
+        private void BuildTopLabels()
+        {
+            // ── 左上：冠数（原版名条 + 我/对方冠徽 + 数字）──
+            // ⚠️ 冠数的**位置/尺寸未量到**（几何量取.md §2 C4：七张对局图顶部都扫过，未见冠数控件）
+            // ⇒ 落点沿用现状（原版顶部左块位置，本项目自定），只把图元换成原版的三件（索引 §3.3）：
+            //    名条 `HudScoreNamePlate`(196) / 我方冠 `HudStarPlayer`(187) / 对方冠 `HudStarEnemy`(188)。
+            // 冠徽**固定**为 左=我方(187 `starPlayer` 蓝底) / 右=对方(188 `starEnemy` 红底)：HUD 是玩家视角，
+            // 原版 `printScore_player` / `printScore_enemy` 也是固定这两件 ⇒ 不随 `_myTeam` 翻转。
+            var plate = CrUiStyle.AspectImage("ScorePlate", _root, ResPaths.HudScoreNamePlate, ScorePlateW,
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(TopLeftX, -TopLeftY), CrUiStyle.ButtonBg);
+
+            // 两枚冠徽贴在名条两端、等高（`AspectImage` 按素材比例：宽 72.2 ⇒ 高 = 名条高 59）。
+            CrUiStyle.AspectImage("StarPlayer", plate.rectTransform, ResPaths.HudStarPlayer, CrownIconW,
+                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, CrUiStyle.Accent);
+            CrUiStyle.AspectImage("StarEnemy", plate.rectTransform, ResPaths.HudStarEnemy, CrownIconW,
+                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, CrUiStyle.Accent);
+
+            _crownsText = UIFactory.CreateText("Crowns", plate.rectTransform, "0 : 0", CrownFontSize,
+                TextAnchor.MiddleCenter, CrUiStyle.TextColor);
+            UIFactory.Place(_crownsText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(ScorePlateW - CrownIconW * 2f, ScorePlateH));
+
+            // ── 右上：倒计时（★ 原版位置就是右上角，且**贴顶贴右**：出处 几何量取.md §1.3 D16  x 882..1080 / y 0..100）──
+            // 板素材 = `HudTopRightPlate`（原版 `HUD_topRight` 的底板 `ui_out/193`，原生 212×124，索引 §3.4）；
+            // ★ AV2：193 实测是**空心圆角框**（内部全透明）⇒ 先用原版同容器的 1×1 **实心件 177** 铺底，再压 193 外框。
+            CrUiStyle.NineSlice("TimerPlateFill", _root, TimerPlateFill, BorderNone,
+                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -TimerBoxTop),
+                new Vector2(TimerBoxW, TimerBoxH), CrUiStyle.FieldBg, false);
+
+            var timerBox = CrUiStyle.NineSlice("TimerBox", _root, ResPaths.HudTopRightPlate, BorderNone,
+                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -TimerBoxTop),
+                new Vector2(TimerBoxW, TimerBoxH), CrUiStyle.FieldBg, false);
+
+            // 时钟图标（原版元件 `Clock_middle`，`ui_out/042`，索引 §3.4）：贴板左缘、纵向居中。
+            CrUiStyle.AspectImage("ClockIcon", timerBox.rectTransform, ResPaths.HudClockIcon, ClockIconW,
+                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, CrUiStyle.Accent);
+
+            // 余下区域（板宽 − 图标宽）居中放开场标签与数字，⛔ 不与图标重叠。
+            var textW = TimerBoxW - ClockIconW;
+            var textX = ClockIconW * 0.5f; // 区域中心相对板中心的偏移
+
+            // ★ AV2 改：原版 18 图这两行都是**白字 + 黑描边**（`AV2-base-topright.png` 实测「1:51」是
+            //   白字黑描边、「剩余时间：」同为白字黑描边），实机原来是 `Accent`(金) + `TextDim`(灰蓝) 无描边
+            //   ⇒ 压在深色板/竞技场上都读不出原版那种"白字压深底"的观感。描边件走 `CrUiStyle.Outlined`
+            //   （全项目唯一的描边文字件，⛔ 不在这里自造 Outline）。
+            var timerLabel = CrUiStyle.Outlined("TimerLabel", timerBox.rectTransform, "剩余时间",
+                CrUiStyle.FontSmall,
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(textX, -6f), new Vector2(textW, 30f), TextAnchor.MiddleCenter);
+            if (timerLabel != null) timerLabel.color = CrUiStyle.TextColor;
+
+            _timerText = CrUiStyle.Outlined("Timer", timerBox.rectTransform, "--:--", TimerFontSize,
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(textX, -36f), new Vector2(textW, 62f), TextAnchor.MiddleCenter);
+
+            // 阶段（常规 / 加时 / 已结束）：顶部居中（原版该处是场景区，本项目自定：原版无此文字条）。
+            _phaseText = UIFactory.CreateText("Phase", _root, string.Empty, CrUiStyle.FontSmall,
+                TextAnchor.MiddleCenter, CrUiStyle.TextDim);
+            UIFactory.Place(_phaseText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -10f), new Vector2(420f, 30f));
+
+            // 状态行（提示 / 服务端拒因）：阶段下一行。本项目自定（原版无此文字条）。
+            _statusText = UIFactory.CreateText("Status", _root, string.Empty, CrUiStyle.FontSmall,
+                TextAnchor.MiddleCenter, CrUiStyle.TextDim);
+            UIFactory.Place(_statusText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -44f), new Vector2(900f, 30f));
+        }
+
+        private void BuildElixir()
+        {
+            // 圣水条：★ 原版在**手牌下方**（条 y1797..1841、卡 y1614..1785。出处 几何量取.md §1.3 D1/D2/D12）
+            // ⇒ 用左下角锚点定位在 (88, 79)、尺寸 956×44（D4/D5/D3）。
+            // 三件套 = A 的原版 `elixir_bar` 子元件（出处 `策划/战斗HUD素材索引.md` §1 第 1 行 + §3.1）：
+            //   槽底 `bar_bg`(`ui_out/155`, 1×74) + 填充 `bar_body`(`ui_out/157`, 59×1) + 条端 `bar_end`(`ui_out/158`, 10×59)。
+            // ⛔ 155/157 是 1 像素宽/高的细线（原版靠矩阵拉伸铺）⇒ 切边无定义，用 `BorderNone` 整幅拉伸，不编切边。
+            var track = CrUiStyle.NineSlice("ElixirTrack", _root, ResPaths.ElixirBarTrack, BorderNone,
+                new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(ElixirBarLeft, ElixirBarBottom), new Vector2(ElixirBarW, ElixirBarH),
+                CrUiStyle.FieldBg, false);
+
+            // ⛔ 不用无 sprite 的 `Image.fillAmount` 画进度（sprite 空时它走实心四边形分支、静默失效，
+            //    见 `UIWidgetControls.cs:232-238`）；用引擎给的 `SetBarWidth`。
+            // 锚点/轴心 (0,0) + 尺寸零 = 与 `LoadingPanel` 完全相同的口径（那是已验证可跑的条目填充写法）。
+            var fill = CrUiStyle.NineSlice("ElixirFill", track.rectTransform, ResPaths.ElixirBarFill, BorderNone,
+                new Vector2(0f, 0f), new Vector2(0f, 0f), Vector2.zero, Vector2.zero,
+                CrUiStyle.Accent, false);
+            _elixirFill = fill.rectTransform;
+            UIFactory.SetBarWidth(_elixirFill, 0f);
+
+            // 条端（★ AV2 改，两个用途分开、⛔ 不再混用一个件）：
+            //   ① 轨道右端 = `156`（原版 `elixir_bar` 同族裸子件，**深色 + 右端圆头 + 内部不透明**）。
+            //      出处：索引 §3.1；原版 18 图轨道右端实测 (1,11,38) 就是深色圆头（`.ai-tmp/test/AV2-pix-base.txt`）。
+            //      实机判据：`AV2-prof-frame_156.txt` 显示其内部 (32,32,32,255)，而 155 的中间是 (0,0,0,94)。
+            //   ② 填充右端 = `158`（原版 `bar_end`，10×59，**品红圆头**）—— 挂到 **fill** 的右端：
+            //      158 是品红件，语义就是"填充条的圆头端"；原来挂在轨道右端时填充没铺满就会在轨道尽头
+            //      露出一截**孤立品红**（实机 `AV2-mine-barend.png`），与原名/原版都不符。
+            //   两件都等比缩到条高（⛔ 不横向拉成 956 宽 —— 端件拉出去会被抹成一条线，就不是原版图元了）。
+            CrUiStyle.AspectImage("ElixirTrackEnd", track.rectTransform, ElixirTrackEnd, ElixirTrackEndW,
+                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, CrUiStyle.Accent);
+
+            CrUiStyle.AspectImage("ElixirFillEnd", fill.rectTransform, ResPaths.ElixirBarFrame, ElixirEndW,
+                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, CrUiStyle.Accent);
+
+            // 圣水徽章（大圣水图标）：位置/直径**不改** —— 心 (63,1815)、径 60（出处 §1.3 D7，G4 片的量取值）。
+            // ★ AQ2 换帧（只换素材，⛔ 不动几何）：改用 `ResPaths.IconElixirBarLeft`（`ui_out/159`，94×115）——
+            //   它就是原版圣水条左侧那颗大图标（`elixir_bar`(clip 1080) → 子元件 **`elixirBarLeft`**，
+            //   出处 `策划/战斗HUD素材索引.md` §3.1；`AQ2-ui-frames.png` 上 159 = 大紫水滴图元）。
+            //   ⚠️ 旧代码注释写"`ResPaths` 里没有 159 的键（本轮未落地）"——**该判断已过时**：
+            //   `client/Assets/Resources/Sprites/Ui/Icons/ui_out/frame_159.png` 在盘（8391 B，本轮 `Test-Path` 实测），
+            //   `ResPaths.IconElixirBarLeft` 的键与注释都已在 `ResPaths.cs:423` 登记 ⇒ 用它才是原版图元。
+            //   （这是 D60 那条允许差异的**消解**，不是新增差异。）
+            var badge = CrUiStyle.AspectImage("ElixirBadge", _root, ResPaths.IconElixirBarLeft, ElixirBadgeD,
+                new Vector2(0f, 0f), new Vector2(0.5f, 0.5f),
+                new Vector2(ElixirBadgeCx, ElixirBadgeCy), CrUiStyle.Accent);
+
+            // ★ AV2 改（AQ2 自审 HUD #1「不一致」的正解）：原版 18 图上那颗水滴里就是**当前圣水整数**
+            //   （`AV2-base-badge.png` 放大后可读到 **白色「2」+ 黑描边**，而条上没有文字）；
+            //   原 `elixirBarLeftNumbers`（`elixirAmount` 文本域，出处 索引 §3.1）也印证这个数字是**圣水值**。
+            //   我方原来是「159 水滴 + 条中央文字『圣水 8.2 / 10』」⇒ 数字位置/字形都不是原版。
+            //   ⇒ 数字移进徽章（白字黑描边，走全项目唯一的 `CrUiStyle.Outlined`），条上文字按原版**移除**。
+            _elixirBadgeText = CrUiStyle.Outlined("ElixirBadgeText", badge.rectTransform, string.Empty,
+                CrUiStyle.FontBody,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(ElixirBadgeD, ElixirBadgeD), TextAnchor.MiddleCenter);
+
+            // 条上不再写字（原版 18 图条上是刻度分隔 + 填充，没有文字）。节点保留但停用，
+            // ⛔ 不删字段（`RefreshElixir` 仍按同一字段刷新，改成"写空 + 停用"最小改动）。
+            _elixirText = UIFactory.CreateText("ElixirText", track.rectTransform, string.Empty, CrUiStyle.FontSmall,
+                TextAnchor.MiddleCenter, CrUiStyle.TextColor);
+            UIFactory.Stretch(_elixirText.rectTransform);
+            _elixirText.gameObject.SetActive(false);
+        }
+
+        private void BuildHand()
+        {
+            // 底排 = 手牌 4 张 + 间隙 + 「下一张」，整排居中、贴底。
+            var bar = UIFactory.CreateNode("HandBar", _root);
+            // 整排按**左下角**定位：左边 x = 144（§1.3 D9）、底边距画布底 = 135（D13）。
+            // ⚠️ 原版这一排**不是居中**的（「下一张」在它**左边**，见 `BuildNextPreview`）⇒ 用 `TextAnchor.LowerLeft`。
+            // 上一版用 `LowerCenter` + 居中推算（并因此踩过"又往左推一次、最左一张出屏"的坑）——
+            // 那是把"整排居中"当了前提；本片改用 18 图的量取值直接定位，⛔ 不再靠居中推算。
+            UIFactory.AnchoredBottom(bar, new Vector2(HandRowLeft, HandBottomOffset),
+                new Vector2(HandBarW, CardH), TextAnchor.LowerLeft);
+
+            for (var i = 0; i < HandSlots; i++)
+            {
+                var index = i; // 闭包捕获：槽位下标只用于建节点，卡 id 在刷新时按下标取
+
+                // 卡槽底 = 原版 `slots` 子元件（`ui_out/200`，原生 96×137，出处 `策划/战斗HUD素材索引.md` §3.2；
+                // 原版自己把同一 shape 在 clip 内放了 **4 次** ⇒ 与我们的 4 个槽位一一对应）。
+                // ★ AV2：切边**已量到** = `HudSlotBorder` (10,8,10,8)（逐行/逐列 alpha 剖面，见该常量注释）
+                // ⇒ `Image.type = Sliced`，四角保留原像素；⛔ 不再是 96×137 → 140×171 的整幅非等比拉伸。
+                var card = CrUiStyle.NineSlice($"Hand{index}", bar, ResPaths.SlotCard, HudCardBodyBorder,
+                    new Vector2(0f, 1f), new Vector2(0f, 1f),
+                    new Vector2(index * (CardW + CardGap), 0f), new Vector2(CardW, CardH),
+                    CrUiStyle.ButtonBg, false);
+                _handCards[index] = card;
+
+                // 真卡面：原版 `ui_spells_out` 帧（透明包围盒裁掉），压在卡槽底之上。
+                // ★ CR-T2：位置/尺寸按**量取**的 4 边内缩（见 `ArtInset*Frac` 上方那段），
+                //   ⛔ 不再用 `CardH * 0.06f` 的偏移（那会把卡面顶出卡槽上沿）。
+                var art = UIFactory.CreatePanel($"HandArt{index}", card.rectTransform, Color.white, false);
+                UIFactory.Place(art.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, CardH * ArtOffsetYFrac), new Vector2(CardW * ArtFillX, CardH * ArtFillY));
+                art.gameObject.SetActive(false);
+                _handArts[index] = art;
+
+                // ★ CR-T2b：**卡面上不再画卡名** —— 原版对局手牌的卡面上没有卡名（出处：
+                //   `策划/参考图/20_对局_1080x1920.jpg` 手牌排的逐格量取：卡面上只有卡面图 + 左上圣水泡，
+                //   没有文字带）。可读性由"圣水数字 + 卡面本身"承担；排查靠日志的
+                //   `本局手牌帧号表`（key → 帧号）与 `卡面就绪[...]` 行，⛔ 不靠屏幕上留字。
+                //   ⛔ 这里**删掉节点本身**（不是置空文本）：留一个空 Text 仍会参与布局与 overdraw。
+
+                // 圣水费用：原版圣水水滴图元贴在卡左上角，数字压在水滴上（出处：07 基线图卡角泡）。
+                var costIcon = CrUiStyle.AspectImage($"HandCost{index}", card.rectTransform,
+                    ResPaths.IconElixirDrop, CostIconW, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                    new Vector2(2f, -2f), CrUiStyle.Accent);
+                var costText = UIFactory.CreateText($"HandCostText{index}", costIcon.rectTransform, string.Empty,
+                    CardFontSize, TextAnchor.MiddleCenter, CrUiStyle.TextColor);
+                UIFactory.Stretch(costText.rectTransform);
+                _handCosts[index] = costText;
+            }
+        }
+
+        private void BuildNextPreview()
+        {
+            // ★ 位置纠正：「下一张」在原版里是**底排左端**的一张更小的卡
+            //（出处 几何量取.md §1.3 D14：x 33..97 / y 1634..1716 ⇒ 64×83），标签在它下方（D15）。
+            // 上一版把它放在右端是错的 —— 那一版做的时候基线图底部被宣传字压住、该项未量到；§1.3 已用 18 图补量。
+            // 卡槽底沿用同一件原版槽底 `HudHandSlot`（原版 `slots`，索引 §3.2）。
+            _nextCard = CrUiStyle.NineSlice("NextCard", _root, ResPaths.SlotCard, HudCardBodyBorder,
+                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(NextLeft, NextBottomOffset),
+                new Vector2(NextW, NextH), CrUiStyle.ButtonBg, false);
+
+            var label = UIFactory.CreateText("NextLabel", _root, "下一张", CrUiStyle.FontSmall,
+                TextAnchor.MiddleCenter, CrUiStyle.TextDim);
+            UIFactory.AnchoredBottom(label.rectTransform, new Vector2(NextLabelLeft, NextLabelBottom),
+                new Vector2(NextLabelW, NextLabelH), TextAnchor.LowerLeft);
+
+            // ★ CR-T2：贴合值与手牌**同一比例**（原版「下一张」就是同一张卡设计按比例缩小；
+            //   它在本片量取用的基线图里只有 66px 宽，逐像素量内缩的误差会放大到 1.5%/px ⇒ 不单独编数）。
+            _nextArt = UIFactory.CreatePanel("NextArt", _nextCard.rectTransform, Color.white, false);
+            UIFactory.Place(_nextArt.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, NextH * ArtOffsetYFrac), new Vector2(NextW * ArtFillX, NextH * ArtFillY));
+            _nextArt.gameObject.SetActive(false);
+
+            _nextCost = UIFactory.CreateText("NextCost", _nextCard.rectTransform, string.Empty, CardFontSize,
+                TextAnchor.UpperLeft, CrUiStyle.TextColor);
+            UIFactory.AnchoredTopLeft(_nextCost.rectTransform, new Vector2(4f, -2f), new Vector2(60f, 30f));
+
+            _nextText = UIFactory.CreateText("NextText", _nextCard.rectTransform, "—", CardFontSize,
+                TextAnchor.LowerCenter, CrUiStyle.TextDim);
+            UIFactory.Place(_nextText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 4f), new Vector2(NextW - 6f, 28f));
+        }
+
+        private void BuildGhost()
+        {
+            // 拖放幽灵卡：跟着指针走的小色块 + 卡名。**中性色**（不做合法/非法判定，见类注释）。
+            _ghost = UIFactory.CreatePanel("DragGhost", _root, GhostColor, false);
+            // 锚点/轴心都放中心，位置在 `MoveGhost` 里直接写 `position`（世界坐标），不依赖 anchoredPosition 口径。
+            UIFactory.Place(_ghost.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(GhostW, GhostH));
+
+            // ★ CR-T2c：**幽灵卡上也不画卡名** —— 原版拖放时跟着手指的就是那张卡面本身，没有文字带
+            //   （出处：`策划/参考图/20_对局_1080x1920.jpg` 手牌/出牌区域的逐格量取）。
+            //   ⛔ 这里连节点都不建（原 `DragGhostText` 已删），不是置空。
+            _ghost.gameObject.SetActive(false);
+        }
+
+        // ═══════════════ 暂停按钮（agent-08 加入本文件的**唯一一处**改动） ═══════════════
+        //
+        // 出处：架构契约 §4「暂停」行（`Pause` 站点 ↔ `PausePanel`，Popup 层）+ 交付形态要求
+        // 对局内可进暂停菜单。按钮**只发一条事件**，不直接开面板、⛔ 不认识 `CR.Module`（契约 §1）：
+        // `Events.Flow.StationEnterRequest` 是"请求切到某站点"的唯一入口（`Events.cs:47-52` 的注释
+        // 写明它的用途就是让这类面板请求进 `Pause` / 回 `Battle`）。`AppFlow` 收到后切站点，
+        // `CR.UI.BattleUiHost` 收到请求 / 站点变化后开 `PausePanel`（面板的开关只有那一处）。
+        // 位置选**右上角**：左上角是冠数、顶部居中往下是计时/阶段/状态行、底部是圣水条与手牌
+        //（`AnchoredBottom`），右上角是唯一不与它们重叠的空区。锚点/轴心用 (1,1)（右上），
+        // ⛔ 不用"左上角 + 大负 y"—— 见类注释里 CanvasScaler 的实测记录。
+
+        /// <summary>暂停按钮边长 = 现状 <b>48</b>（原状态的高）。
+        /// ⚠️ **未量到**（几何量取.md §2 C4c：18/20/21/23 四图未见暂停/齿轮按钮）⇒ 尺寸保持现状；
+        /// 「宽」改成等于「高」：素材底板 `ui_out/163` 原生 219×219 是**正方形**，拉成 132×48 会把圆角压扁。</summary>
+        private const float PauseButtonW = PauseButtonH;
+
+        /// <summary>暂停按钮高度（现状 48）。未量到（见几何量取.md §2 C4c）。</summary>
+        private const float PauseButtonH = 48f;
+
+        /// <summary>暂停图标宽 = 按钮边长 × 0.5 = <b>24</b>（本项目自定：原版 `play_pause_button`
+        /// 底板/图标 = 219 / 79（比例 0.36），本项目按钮只有 48 边长 ⇒ 取 0.5 保证辨识度；见几何量取.md §2 C4c）。</summary>
+        private const float PauseIconW = PauseButtonH * 0.5f;
+
+        /// <summary>暂停按钮右缘内缩 = 现状 <b>12</b>。未量到（见几何量取.md §2 C4c）。</summary>
+        private const float PauseRightInset = 12f;
+
+        /// <summary>暂停按钮与计时板下缘的间隔 = 现状 <b>8</b>。未量到（见几何量取.md §2 C4c）。</summary>
+        private const float PauseTopGap = 8f;
+
+        private void BuildPauseButton()
+        {
+            // 素材（出处 `策划/战斗HUD素材索引.md` §1 第 5 行 + §3.5）：
+            //   底板 `HudPauseButtonPlate`(`ui_out/163`, 219×219) + 暂停图标 `HudPauseIconPause`(`ui_out/171`, 84×90 ‖)。
+            // ⚠️ 如实登记的**子项缺口**：这组三件在原版里属**回放 HUD**（`replay_HUD_left` 的 `play_pause_button`），
+            //   战斗内暂停按钮在 `HUD_*` 里**没有**独立命名元件 ⇒ 本片是"取最接近的那个原版元件"，
+            //   ⛔ 不是原版的战斗内暂停按钮（索引 §1 第 5 行已把这个推断写明，此处照抄，不升级成"原版命名"）。
+            //   同族的播放态 `HudPauseIconPlay`(170, ▶) 本片**未使用**：这颗按钮恒定请求进暂停菜单，没有"播放态"要显示。
+            // 位置：右上角被计时板占住（贴顶贴右，§1.3 D16）⇒ 按钮放在**计时板正下方**、右缘对齐（现状口径，未量到）。
+            var plate = CrUiStyle.NineSlice("PauseButton", _root, ResPaths.HudPauseButtonPlate, BorderNone,
+                new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-PauseRightInset, -(TimerBoxTop + TimerBoxH + PauseTopGap)),
+                new Vector2(PauseButtonW, PauseButtonH), CrUiStyle.ButtonBg, true);
+
+            // 点击照旧只发一条事件（见 `OnPauseClicked`）；四态用 tint 倍乘表达
+            //（与 `CrUiStyle.ActionButton` 同口径：常态 tint = 白 = 原图原色，⛔ 不是给素材加滤镜）。
+            var btn = plate.gameObject.AddComponent<Button>();
+            btn.targetGraphic = plate;
+            // ★ D8 修正（CR-F1，2026-09-23）：本处是**手工建 Button** 的第 5 条路径，原先只 `AddListener(OnPauseClicked)`
+            //   ⇒ 少了统一点击音（其余 4 条建按钮路径都经 `CrUiStyle.PlayUiClick`）。
+            //   现在与 `CrUiStyle.ActionButton` / `SlateButton` 同口径：**先发点击音、再执行点击**。
+            //   `CrUiStyle.PlayClick` 是那个私有入口的公开包装（`CrUiStyle.cs:471`），⛔ 不在这里自己 `Game.Sound.PlaySFX`
+            //   （会漏日志、且将来双响）。
+            btn.onClick.AddListener(() =>
+            {
+                CrUiStyle.PlayClick("PauseButton");
+                OnPauseClicked();
+            });
+            var colors = btn.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
+            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
+            colors.selectedColor = Color.white;
+            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 1f);
+            colors.colorMultiplier = 1f;
+            colors.fadeDuration = CrUiStyle.ButtonFade;
+            btn.colors = colors;
+
+            CrUiStyle.AspectImage("PauseIcon", plate.rectTransform, ResPaths.HudPauseIconPause, PauseIconW,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, CrUiStyle.TextColor);
+        }
+
+        /// <summary>
+        /// 点击「暂停」：只请求切到 `Pause` 站点（面板开关由 `BattleUiHost` 负责）。
+        /// ⛔ 不在这里 `Game.UI.Open&lt;PausePanel&gt;()`（开关必须只有一处）；
+        /// ⛔ 不挂 `UnityEngine.Input` 快捷键（契约：输入一律走 `Game.Input`；本按钮走 UI 点击）。
+        /// </summary>
+        private void OnPauseClicked()
+        {
+            Game.Logger?.Info(Tag, "请求暂停（Emit Flow.StationEnterRequest → Pause）");
+            Game.Event?.Emit(Events.Flow.StationEnterRequest, Stations.Pause);
+        }
+
+        // ───────────────────────── 逐帧：拖放轮询 + 状态行计时 ─────────────────────────
+
+        /// <summary>
+        /// 每帧被 `UIManager.Tick` 调用（`Runtime/Presentation/UI.cs:363-379` 对每个已打开面板调 `OnUpdate`）。
+        /// 用**轮询**而不是 `EventSystem` 的按下/拖动事件：本面板的输入要求是"按下 → 跟随 → 抬起"三段，
+        /// 且必须走 `Game.Input`（⛔ 契约禁止裸 `UnityEngine.Input`）。
+        /// </summary>
+        public override void OnUpdate(float dt)
+        {
+            PollDrag();
+
+            if (_statusText != null && _statusUntil > 0f && Time.unscaledTime >= _statusUntil)
+            {
+                _statusUntil = 0f;
+                SetStatus(string.Empty, CrUiStyle.TextDim);
+            }
+        }
+
+        private void PollDrag()
+        {
+            var input = Game.Input;
+            if (input == null || _root == null) return;
+
+            // 弹窗（暂停 / 设置 / 结算）开着时**一律不许拖放出牌**。
+            //
+            // 为什么必须显式挡（这是 agent-08 报上来的真缺陷）：本面板的输入是**轮询** `Game.Input`，
+            // 不是 EventSystem 的按下/拖动事件 —— 而 Popup 层的全屏遮罩**只挡 uGUI 点击**，挡不住轮询。
+            // 症状：暂停菜单开着，玩家在弹窗上按下、拖到某个"手牌位"、松手 ⇒ 真的发出一条出牌请求，
+            // 而画面看起来只是"点了下暂停菜单"。这类"看得见的 UI 与真正生效的输入不一致"必须堵死。
+            //
+            // ★ D12 修正（CR-F1，2026-09-23）：再加一条**站点守卫** —— 只有处在 `Battle` 站点才允许拖放出牌。
+            //   为什么光靠"弹窗开着"不够（CR-U5 2026-09-23 实测的真缺陷，见 `.ai-tmp/test/CR-U5-evidence.txt` D12-b）：
+            //   暂停 → 设置 → 关设置 之后，`UIManager` 的同层互斥（`UI.cs:155-159`）把 `PausePanel` 收掉了、
+            //   而当时**没有任何代码重开它** ⇒ 出现 `station=Pause` + 屏幕上没有任何菜单 + HUD 仍在 的中间态；
+            //   上面那条"弹窗开着"的守卫看到"没弹窗"就放行，于是玩家在这种"看起来像正常对局"的画面上
+            //   按下手牌，**一次完整的拖放出牌请求真的发到了服务端**（CR-U5 实测：`拖放抬起 → 请求出牌`）。
+            //   站点守卫是**结构性判据**：不论菜单有没有开起来，非 Battle 站点都不是操作战场的时候。
+            //   配套的根因修复在 `SettingsPanel.OnClose`（关设置时把暂停菜单放回来）；本条是纵深防御。
+            var station = Game.Fsm != null ? Game.Fsm.Current : null;
+            var popupOpen = Game.UI != null &&
+                (Game.UI.IsOpen<PausePanel>() || Game.UI.IsOpen<ResultPanel>() || Game.UI.IsOpen<SettingsPanel>());
+            if (station != Stations.Battle || popupOpen)
+            {
+                // 拖到一半时弹窗才打开 / 站点被切走（例如拖放途中按了暂停）：必须收尾，
+                // 否则幽灵卡在屏幕上、且本面板再也不接受新的按下。
+                if (_dragging)
+                {
+                    CancelDrag(popupOpen
+                        ? "暂停/弹窗打开，本次拖放作废"
+                        : $"已不在 Battle 站点（{station ?? "未初始化"}），本次拖放作废");
+                }
+                else if (station != Stations.Battle && input.GetMouseButtonDown(0))
+                {
+                    // 非预期分支留痕（去重）：站点已不是 Battle 而 HUD 还开着、且真的有人在按手牌。
+                    LogStationGuardOnce(station);
+                }
+                return;
+            }
+
+            var screen = input.MousePosition;
+
+            if (!_dragging)
+            {
+                if (!input.GetMouseButtonDown(0)) return;
+
+                var slot = HitTestHand(screen);
+                if (slot < 0) return;
+
+                var cardId = _handIds[slot];
+                if (cardId == 0)
+                {
+                    SetStatus("这个手牌位是空的（等下一帧快照刷新）", CrUiStyle.TextDim);
+                    return;
+                }
+                BeginDrag(cardId, slot, screen);
+                return;
+            }
+
+            // 拖放中：幽灵跟手；抬起 ⇒ 发 C2S。
+            MoveGhost(screen);
+
+            if (input.GetMouseButtonUp(0))
+            {
+                EndDrag(screen);
+                return;
+            }
+
+            if (!input.GetMouseButton(0))
+            {
+                // 非预期分支：抬起事件没被我们看到（例如编辑器里焦点被切走）。留痕并收尾，
+                // 否则幽灵会永远粘在屏幕上、且 HUD 再也不接受新的按下。
+                CancelDrag("按键状态与拖放态不一致（按下丢了？）");
+            }
+        }
+
+        /// <summary>
+        /// 「非 Battle 站点里按下手牌被站点守卫拦住」的**去重**留痕（D12）。
+        /// <para>
+        /// 去重理由：`PollDrag` 是**逐帧轮询**，一次按下沿可能被读到多帧 —— 不去重会把日志刷爆
+        /// （引擎的日志文件是本机磁盘 IO，刷屏会盖掉别的证据）。按站点名去重：同一站点只记第一条。
+        /// </para>
+        /// </summary>
+        private void LogStationGuardOnce(string station)
+        {
+            if (_stationGuardLogged == station) return;
+            _stationGuardLogged = station;
+            Game.Logger?.Info(Tag,
+                $"按下手牌被站点守卫拦住：当前站点 {station ?? "未初始化"}（仅 Battle 站点可拖放出牌）");
+        }
+
+        /// <summary>指针落在哪个手牌槽位上；-1 = 不在任何手牌上。</summary>
+        private int HitTestHand(Vector3 screen)
+        {
+            var cam = UiPointConvertCamera();
+            var point = new Vector2(screen.x, screen.y);
+
+            for (var i = 0; i < HandSlots; i++)
+            {
+                var card = _handCards[i];
+                if (card == null) continue;
+                if (RectTransformUtility.RectangleContainsScreenPoint(card.rectTransform, point, cam)) return i;
+            }
+            return -1;
+        }
+
+        private void BeginDrag(int cardId, int slot, Vector3 screen)
+        {
+            _dragging = true;
+            _dragCardId = cardId;
+
+            var card = FindCard(cardId);
+            // ★ CR-T2c：幽灵卡不写卡名（见 `BuildGhost` 的注释）
+            if (_ghost != null)
+            {
+                // 幽灵卡用**同一张真卡面**（G4：⛔ 不再是一个纯色小块跟着手走），半透明表示"跟着手"。
+                var art = slot >= 0 && slot < HandSlots ? _handArts[slot] : null;
+                var sprite = art != null ? art.sprite : null;
+                _ghost.sprite = sprite;
+                _ghost.type = Image.Type.Simple;
+                _ghost.preserveAspect = false;
+                _ghost.color = sprite != null ? GhostColor : GhostColorFallback;
+                _ghost.gameObject.SetActive(true);
+            }
+            MoveGhost(screen);
+
+            // 卡牌拖起音（D8 补：矩阵判「拖起/放下无音」为不一致）。
+            // 源 = `Game/grabcard_01.ogg`（原版「抓牌」）⇒ 见 Core/AudioPaths.cs 的 GrabCard。
+            PlaySfx(AudioPaths.GrabCard);
+
+            // 圣水不足**在本地就提示**（但**仍然发送**：服务端才是裁决者）：费用来自卡池数据，
+            // 这不是几何判定、也不是第二套玩法规则。
+            var elixir = CurrentElixirMilli();
+            var costMilli = card != null ? card.elixir * ElixirMilliPerUnit : 0;
+            if (card != null && elixir >= 0 && costMilli > elixir)
+            {
+                // 圣水不足被拒音（D8 补）：原版无效投放音 `bad_drop_03`（整包唯一的"拒绝/无效投放"音）。
+                PlaySfx(AudioPaths.BadDrop);
+                SetStatus(
+                    $"圣水不足：「{card.name_cn}」需要 {card.elixir}，当前 {elixir / (float)ElixirMilliPerUnit:0.0}",
+                    CrUiStyle.ErrorText);
+            }
+            else
+            {
+                SetStatus($"拖动「{CardNameOrId(cardId)}」中…松手即请求出牌（合法性由服务端裁决）", CrUiStyle.Accent);
+            }
+
+            Game.Logger?.Info(Tag, $"开始拖放：槽位 {slot} card={cardId} 屏幕=({screen.x:0},{screen.y:0})");
+        }
+
+        private void MoveGhost(Vector3 screen)
+        {
+            if (_ghost == null || _root == null) return;
+
+            // 屏幕坐标 → **世界**坐标后直接写 `position`：这是 `RectTransformUtility` 专门为此提供的入口，
+            // 对 Overlay / Screen Space - Camera 两种画布都成立；⛔ 不自己拿 `anchoredPosition` 去凑
+            //（锚点/轴心口径不同会整体偏一次，且画布模式不同偏的量不一样）。
+            var cam = UiPointConvertCamera();
+            if (RectTransformUtility.ScreenPointToWorldPointInRectangle(
+                    _root, new Vector2(screen.x, screen.y), cam, out var world))
+            {
+                _ghost.rectTransform.position = world;
+            }
+
+            // 落点指示必须在**每次指针移动**时刷新（D9：合法绿 / 非法红）。
+            UpdatePlacementPreview(screen);
+        }
+
+        private void EndDrag(Vector3 screen)
+        {
+            var cardId = _dragCardId;
+            CancelDrag(null);
+
+            var world = TryScreenToWorld(screen, out var ok);
+            if (!ok)
+            {
+                SetStatus("拿不到主相机，落点无法换算成场内坐标，本次出牌未发出", CrUiStyle.ErrorText);
+                return;
+            }
+
+            // 卡牌放下音（D8 补）：**落点非法**时播原版"无效投放"音（`bad_drop_03`）；
+            // 合法时不额外播 —— 那次出牌的声音由 `PlayCardRequest` 的己方召唤音（`summon_own_07`）负责，
+            // 两个一起播会是"放下 + 召唤"双响（原版只有一声）。
+            // 判定复用 `BattleViewRoot.IsDeployLegal`（与落点指示器**同一套几何**，⛔ 不在这里另写一份）。
+            var view = CR.View.BattleViewRoot.Instance;
+            if (view != null)
+            {
+                var dragCard = FindCard(cardId);
+                var dropIsSpell = dragCard != null && dragCard.type == CardTypeSpell;
+                if (!view.IsDeployLegal(CR.View.BattleViewRoot.WorldToTile(world), dropIsSpell))
+                {
+                    PlaySfx(AudioPaths.BadDrop);
+                    Game.Logger?.Info(Tag, $"放下落点非法 ⇒ 播无效投放音（{AudioPaths.BadDrop}）");
+                }
+            }
+
+            Game.Logger?.Info(Tag,
+                $"拖放抬起 → 请求出牌 card={cardId} 屏幕=({screen.x:0},{screen.y:0}) 世界=({world.x:0.00},{world.y:0.00})");
+            SetStatus($"已请求出牌「{CardNameOrId(cardId)}」，等快照/服务端确认…", CrUiStyle.Accent);
+            Game.Event?.Emit(Events.Battle.PlayCardRequest, cardId, world);
+        }
+
+        private void CancelDrag(string why)
+        {
+            if (_dragging && !string.IsNullOrEmpty(why))
+            {
+                Game.Logger?.Info(Tag, $"取消拖放（{why}）card={_dragCardId}");
+            }
+            _dragging = false;
+            _dragCardId = 0;
+            if (_ghost != null) _ghost.gameObject.SetActive(false);
+
+            // 拖放结束（正常抬手 / 取消 / 面板关闭）都要收掉落点指示，
+            // 否则场上会留一个红/绿圈，看起来像"还能继续放"。
+            CR.View.BattleViewRoot.Instance?.HidePlacement();
+        }
+
+        /// <summary>
+        /// 屏幕坐标 → 世界坐标（格）。算法与引擎自带的 `IsoLayout.ScreenToWorldOnGround`
+        /// （`Runtime/Core/IsoLayout.cs:105-125`）**逐行同源**：正交相机下"到地面的深度"就是
+        /// `-camera.position.z`，少了它点击位置会整体偏移（引擎那里也为此打告警）。
+        /// 相机取 `UIFactory.UICamera()`（引擎给 UI 侧取相机的唯一入口）。
+        /// </summary>
+        private Vector2 TryScreenToWorld(Vector3 screen, out bool ok)
+        {
+            ok = false;
+            var cam = UIFactory.UICamera();
+            if (cam == null)
+            {
+                if (!_noCameraWarned)
+                {
+                    _noCameraWarned = true;
+                    Game.Logger?.Warn(Tag,
+                        "UIFactory.UICamera() 返回 null（主相机缺失且场景里没有启用的相机）：" +
+                        "拖放出牌的落点无法换算，⛔ 不发请求（宁可让玩家看到提示，也不发一个坐标错误的请求）");
+                }
+                return Vector2.zero;
+            }
+
+            if (!cam.orthographic && !_nonOrthoWarned)
+            {
+                _nonOrthoWarned = true;
+                // 非预期分支：竞技场相机应当是正交（`IsoLayout.ScreenToWorldOnGround` 的前提）。
+                // 留痕（现象是"落点随视角/距离漂移"，很难猜）。
+                Game.Logger?.Warn(Tag,
+                    $"主相机 {cam.name} 不是正交相机，落点换算可能整体偏移（IsoLayout 的前提是正交）");
+            }
+
+            var depth = -cam.transform.position.z;
+            if (Mathf.Approximately(depth, 0f))
+            {
+                Game.Logger?.Warn(Tag, $"相机 z={cam.transform.position.z} 导致到地面距离为 0，按 10 处理（引擎同口径）");
+                depth = 10f;
+            }
+
+            var p = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, depth));
+            ok = true;
+            return new Vector2(p.x, p.y); // z 丢掉：竞技场在地面平面 z=0 上
+        }
+
+        // ───────────────────── 落点指示（与 View 层的唯一接缝） ─────────────────────
+
+        /// <summary>`CardInfo.type` 的法术取值（`Def/ProtoDef.cs`：0=部队 1=法术 2=建筑）。</summary>
+        private const int CardTypeSpell = 1;
+
+        /// <summary>
+        /// 落点指示半径（格）。⚠️ `CardInfo` 里**没有**碰撞半径字段（协议未下发），
+        /// 所以按类型给固定值 —— 这是**表现近似**，只影响那个圈画多大，**不影响任何裁决**
+        /// （放置合法性由服务端判，客户端这个圈只是"看起来能不能放"）。
+        /// </summary>
+        private const float PlacementRadiusTilesDrop = 1.0f;
+        private const float PlacementRadiusTilesSpell = 3.0f;
+
+        /// <summary>「表现层根未建」只告警一次（避免每帧刷屏）。</summary>
+        private bool _noBattleViewWarned;
+
+        /// <summary>
+        /// 刷新落点指示（D9：合法绿 / 非法红）。
+        ///
+        /// <para>
+        /// <b>为什么几何判定一行都不在这里写</b>：部署规则（半场 / 河桥 / 摧毁公主塔后的口袋区）
+        /// 在 <see cref="CR.View.BattleViewRoot.IsDeployLegal"/>，它内部走的是与
+        /// <c>Core/GameConst</c> 同一套常量。面板里再写一套 = 第二处规则，必然与服务端漂移，
+        /// 症状是"看起来能放、点下去被拒"。所以这里只做"把屏幕坐标转成格坐标、问 View 合不合法、让它画圈"。
+        /// </para>
+        /// <para>
+        /// 与 <see cref="TryScreenToWorld"/> 的关系：那个函数负责**抬手时**交给
+        /// <c>Events.Battle.PlayCardRequest</c> 的世界坐标（保持既有行为不变）；
+        /// 这里用 <c>ScreenToTile</c> 拿格坐标给指示器。两条路都源自同一台相机，不会打架。
+        /// </para>
+        /// </summary>
+        private void UpdatePlacementPreview(Vector3 screen)
+        {
+            var view = CR.View.BattleViewRoot.Instance;
+            if (view == null)
+            {
+                // 非预期分支：表现层根没建起来（例如直接单开 Battle01 场景调试、AutoInstall 还没跑）。
+                // 必须留痕 —— 否则现象是"拖了半天没有落点提示"，看起来像功能没做。
+                if (!_noBattleViewWarned)
+                {
+                    _noBattleViewWarned = true;
+                    Game.Logger?.Warn(Tag,
+                        "CR.View.BattleViewRoot.Instance 为 null（对局表现层根未建）⇒ 本次拖放没有落点指示；" +
+                        "出牌请求仍会发出，最终由服务端裁决");
+                }
+                return;
+            }
+
+            var card = FindCard(_dragCardId);
+            var isSpell = card != null && card.type == CardTypeSpell;
+            var tile = view.ScreenToTile(screen);
+            view.ShowPlacement(tile, isSpell ? PlacementRadiusTilesSpell : PlacementRadiusTilesDrop, isSpell);
+        }
+
+        /// <summary>
+        /// 屏幕点 ↔ 画布矩形/世界点 换算要用的相机。
+        ///
+        /// <para>
+        /// <b>根因记录（2026-09-22 实机读数，CR-T3）</b>：常驻画布是
+        /// <c>ScreenSpaceOverlay</c>（引擎 `Runtime/Presentation/UI.cs:49`
+        /// `canvas.renderMode = RenderMode.ScreenSpaceOverlay`），其世界坐标<b>就是屏幕像素</b>。
+        /// 而 <see cref="RectTransformUtility"/> 收到<b>非空</b>相机时，会把屏幕点当成"相机视锥里的一个方向"
+        /// 再投到画布平面上 ⇒ 两者相差一次相机投影，判定<b>恒为 false</b>。
+        /// 实测（1080×1920 画布 + 正交半高 16 的竞技场相机，相机在 (0,0,-10)）：
+        /// 手牌槽 0 的卡面中心真屏幕点 =(214,221)，
+        /// <c>RectangleContainsScreenPoint(rect, (214,221), mainCam)=False</c>、
+        /// 传 <c>null</c> 时为 <c>True</c>；<c>HitTestHand((214,221))</c> 返回 <b>-1</b>
+        /// ⇒ 按下手牌<b>根本不进入拖放</b>（`_dragging` 恒 false），症状 = "卡牌拖不动 / 放不上战场"。
+        /// </para>
+        /// <para>
+        /// <b>⛔ 所以这里按画布模式取相机，不是"取一台相机就完事"</b>：
+        /// Overlay ⇒ <c>null</c>；ScreenSpaceCamera / WorldSpace 才用画布自己的 <c>worldCamera</c>。
+        /// 竞技场那边的"屏幕 → 格"换算（<see cref="TryScreenToWorld"/> /
+        /// `BattleViewRoot.ScreenToTile`）是<b>另一回事</b>：它要的正是相机的投影，仍用
+        /// <see cref="UIFactory.UICamera"/>（引擎 `UIWidgets.cs:189-195` 的官方入口）。
+        /// </para>
+        /// </summary>
+        private Camera UiPointConvertCamera()
+        {
+            var canvas = _root != null ? _root.GetComponentInParent<Canvas>() : null;
+            if (canvas == null || canvas.renderMode == RenderMode.ScreenSpaceOverlay) return null;
+            return canvas.worldCamera;
+        }
+
+        // ───────────────────────── 事件（OnOpen 挂 / OnClose 摘，成对） ─────────────────────────
+
+        private void Subscribe()
+        {
+            if (_onStarted == null)
+            {
+                _onStarted = OnStarted;
+                _onSnapshot = OnSnapshot;
+                _onEnded = OnEnded;
+                _onFailed = OnFailed;
+                _onPoolLoaded = OnPoolLoaded;
+            }
+
+            var bus = Game.Event;
+            if (bus == null)
+            {
+                Game.Logger?.Error(Tag, "Game.Event 为空（引擎未 Launch？），HUD 收不到任何对局数据");
+                return;
+            }
+
+            // 幂等：`UIManager` 对已打开的面板会再次调用 OnOpen（UI.cs:107-117），重复 On 会让一条消息走两遍。
+            bus.Off(Events.Battle.Started, _onStarted);
+            bus.Off(Events.Battle.Snapshot, _onSnapshot);
+            bus.Off(Events.Battle.Ended, _onEnded);
+            bus.Off(Events.Battle.StartFailed, _onFailed);
+            bus.Off(Events.Deck.PoolLoaded, _onPoolLoaded);
+
+            bus.On(Events.Battle.Started, _onStarted);
+            bus.On(Events.Battle.Snapshot, _onSnapshot);
+            bus.On(Events.Battle.Ended, _onEnded);
+            bus.On(Events.Battle.StartFailed, _onFailed);
+            // 卡名/费用（`CardInfo`）：HUD 在 `Battle` 站点才打开，那时 `Deck` 模块在主菜单发的
+            // `PoolLoaded` 早已过去 ⇒ `BattleManager` 会在站点切换时按同一条事件补发一次（见那边注释）。
+            bus.On(Events.Deck.PoolLoaded, _onPoolLoaded);
+        }
+
+        private void Unsubscribe()
+        {
+            if (_onStarted == null) return;
+            var bus = Game.Event;
+            bus?.Off(Events.Battle.Started, _onStarted);
+            bus?.Off(Events.Battle.Snapshot, _onSnapshot);
+            bus?.Off(Events.Battle.Ended, _onEnded);
+            bus?.Off(Events.Battle.StartFailed, _onFailed);
+            bus?.Off(Events.Deck.PoolLoaded, _onPoolLoaded);
+        }
+
+        private void OnStarted(BattleStartNotify start)
+        {
+            if (start == null)
+            {
+                // 非预期分支：`Emit` 用 DynamicInvoke，参数类型不对会在这里显形。留痕。
+                Game.Logger?.Warn(Tag, "收到 null 的开打配置（发送方参数有误？），HUD 不刷新");
+                return;
+            }
+
+            _start = start;
+            _myTeam = start.my_team;
+
+            var maxUnits = start.timeline != null ? start.timeline.max_elixir : 0;
+            _maxElixirMilli = maxUnits > 0 ? maxUnits * ElixirMilliPerUnit : GameConst.MaxElixirMilli;
+            _regulationMs = start.timeline != null ? start.timeline.regulation_ms : 0;
+            _overtimeMs = start.timeline != null ? start.timeline.overtime_ms : 0;
+            _noTimelineWarned = false;
+
+            Game.Logger?.Info(Tag,
+                $"开打配置到达 my_team={_myTeam}（0=蓝 1=红）圣水上限={_maxElixirMilli / (float)ElixirMilliPerUnit:0} " +
+                $"常规={_regulationMs}ms 加时={_overtimeMs}ms");
+
+            RefreshAll();
+        }
+
+        private void OnSnapshot(BattleSnapshot snap)
+        {
+            if (snap == null)
+            {
+                Game.Logger?.Warn(Tag, "收到 null 的快照（发送方参数有误？），HUD 不刷新");
+                return;
+            }
+
+            _snapshot = snap;
+            ReadHand();
+            RefreshTop();
+            RefreshElixir();
+            RefreshHand();
+            RefreshNext();
+        }
+
+        private void OnEnded(BattleEndNotify result)
+        {
+            if (result == null)
+            {
+                Game.Logger?.Warn(Tag, "收到 null 的结算（发送方参数有误？），HUD 保持原样");
+                return;
+            }
+
+            CancelDrag("对局已结束");
+            SetStatus(string.Empty, CrUiStyle.TextDim);
+
+            // 结算面板（agent-08 的 `ResultPanel`）负责展示详情；HUD 只把冠数定格在服务端给的结算值上
+            //（快照停了，不再依赖它）并把阶段写成"已结束"。
+            if (_crownsText != null)
+            {
+                _crownsText.text = $"{result.crowns_a} : {result.crowns_b}" + (result.draw ? "（平局）" : string.Empty);
+            }
+            if (_phaseText != null)
+            {
+                _phaseText.text = PhaseText(PhaseEnded);
+                _phaseText.color = CrUiStyle.TextDim;
+            }
+        }
+
+        private void OnFailed(string reason)
+        {
+            var text = string.IsNullOrEmpty(reason) ? "对局操作失败（服务端未给出原因）" : reason;
+            SetStatus(text, CrUiStyle.ErrorText);
+        }
+
+        private void OnPoolLoaded(CardInfo[] cards)
+        {
+            if (cards == null)
+            {
+                Game.Logger?.Warn(Tag, "收到 null 的卡池，手牌只能显示卡 id");
+                return;
+            }
+
+            _cards.Clear();
+            for (var i = 0; i < cards.Length; i++)
+            {
+                var card = cards[i];
+                if (card == null) continue;
+                _cards[card.id] = card;
+            }
+
+            Game.Logger?.Info(Tag, $"卡池已到达 {_cards.Count} 张，手牌文案可用（圣水数 + 中文名 + 类型色）");
+            RefreshHand();
+            RefreshNext();
+        }
+
+        // ───────────────────────── 刷新 ─────────────────────────
+
+        private void RefreshAll()
+        {
+            ReadHand();
+            RefreshTop();
+            RefreshElixir();
+            RefreshHand();
+            RefreshNext();
+        }
+
+        /// <summary>
+        /// 从快照（或开打配置的初值）读出手牌与下一张。**取哪一侧由 `my_team` 决定**
+        /// （契约：自己的手牌/圣水也在快照里；`hand_a` / `next_a` 是 BLUE 侧，`hand_b` / `next_b` 是 RED 侧）。
+        /// </summary>
+        private void ReadHand()
+        {
+            int[] hand;
+            int next;
+            if (_snapshot != null)
+            {
+                hand = _myTeam == 0 ? _snapshot.hand_a : _snapshot.hand_b;
+                next = _myTeam == 0 ? _snapshot.next_a : _snapshot.next_b;
+            }
+            else if (_start != null)
+            {
+                hand = _myTeam == 0 ? _start.hand_a : _start.hand_b;
+                next = _myTeam == 0 ? _start.next_a : _start.next_b;
+            }
+            else
+            {
+                hand = null;
+                next = 0;
+            }
+
+            var count = hand != null ? hand.Length : 0;
+            if (count > HandSlots && !_handTooLongWarned)
+            {
+                _handTooLongWarned = true;
+                // 非预期分支：服务端手牌数超过 HUD 预建的槽位（原版固定 4 张）。留痕，别静默丢卡。
+                Game.Logger?.Warn(Tag,
+                    $"服务端给出 {count} 张手牌 > HUD 预建的 {HandSlots} 个槽位，多出的卡不显示（手牌口径变了？）");
+            }
+
+            for (var i = 0; i < HandSlots; i++)
+            {
+                _handIds[i] = i < count ? hand[i] : 0;
+            }
+            _nextId = next;
+        }
+
+        private void RefreshTop()
+        {
+            var snap = _snapshot;
+
+            if (_crownsText != null)
+            {
+                var mine = snap != null ? (_myTeam == 0 ? snap.crowns_a : snap.crowns_b) : 0;
+                var theirs = snap != null ? (_myTeam == 0 ? snap.crowns_b : snap.crowns_a) : 0;
+                // 只写数字：两侧的冠徽已经是原版图元（左 187 `starPlayer` = 我方 / 右 188 `starEnemy` = 对方），
+                // 再写「我方冠…对方冠…」会把名条中间那块（宽 ≈116）撑爆。
+                _crownsText.text = $"{mine} : {theirs}";
+                _crownsText.color = mine >= theirs ? CrUiStyle.Accent : CrUiStyle.TextColor;
+            }
+
+            if (_timerText != null) _timerText.text = RemainingText(snap);
+            TickCountdown(snap);
+
+            if (_phaseText != null)
+            {
+                var phase = snap != null ? snap.phase : 0;
+                _phaseText.text = PhaseText(phase);
+                _phaseText.color = phase == PhaseEnded ? CrUiStyle.TextDim : CrUiStyle.Accent;
+            }
+        }
+
+        /// <summary>
+        /// 剩余时间：常规阶段 = `regulation_ms - server_ms`；加时 = `regulation_ms + overtime_ms - server_ms`；
+        /// 已结束 = 00:00。
+        /// <para>
+        /// ⛔ 用服务端的 `server_ms` 而不是本地计时：客户端掉帧 / 卡顿 / 挂起都会让本地计时与服务器漂移，
+        /// 而"还剩多久"是**服务端的规则量**（谁先超时判定归属就靠它）。
+        /// </para>
+        /// </summary>
+        private string RemainingText(BattleSnapshot snap)
+        {
+            if (snap == null) return "--:--";
+            if (snap.phase == PhaseEnded) return "00:00";
+
+            var total = _regulationMs + (snap.phase == PhaseOvertime ? _overtimeMs : 0);
+            if (total <= 0)
+            {
+                if (!_noTimelineWarned)
+                {
+                    _noTimelineWarned = true;
+                    // 非预期分支：还没拿到时间线（`Battle.Started` 没到）⇒ 计时无意义。留痕一次。
+                    Game.Logger?.Warn(Tag, "还没收到时间线（Battle.Started），计时无法显示，显示 --:--");
+                }
+                return "--:--";
+            }
+
+            var remainMs = Mathf.Max(0, total - snap.server_ms);
+            var totalSec = remainMs / 1000;
+            return $"{totalSec / 60:00}:{totalSec % 60:00}";
+        }
+
+        /// <summary>
+        /// 倒计时进入「最后 10 秒」的阈值（毫秒）。
+        /// 出处：`.ai-tmp/test/AG2-matrix-D8.tsv` 倒数第 5 行「倒计时最后10秒提示音 / 边界值 `timer&lt;=10s` /
+        /// 原版有滴答提示」。本项目取 10 000 ms 与矩阵边界逐字一致。
+        /// </summary>
+        private const long CountdownWarnMs = 10000L;
+
+        /// <summary>
+        /// 倒计时最后 10 秒的**每秒滴答**（D8 补：矩阵判「倒计时仅文本、无音效挂点」为不一致）。
+        /// <para>
+        /// 音源 = <see cref="AudioPaths.CountdownTick"/>（`Game/deploy_timer_tick_01v4.ogg`，原版对局计时滴答）。
+        /// 用**服务端口径的剩余时间**（与 <see cref="RemainingText"/> 同源）= 规则量，
+        /// 不用本地计时（掉帧/挂起会让本地计时漂移，滴答位置就与画面上的秒数对不上）。
+        /// </para>
+        /// <para>每"剩余整数秒"只播一声（<see cref="_lastTickSec"/> 去重）⇒ 10 Hz 快照下不会一声变十声。</para>
+        /// </summary>
+        private void TickCountdown(BattleSnapshot snap)
+        {
+            if (snap == null || snap.phase == PhaseEnded)
+            {
+                _lastTickSec = -1;
+                return;
+            }
+
+            var total = _regulationMs + (snap.phase == PhaseOvertime ? _overtimeMs : 0);
+            if (total <= 0) return; // 还没拿到时间线（RemainingText 已单独留痕）
+
+            var remainMs = Mathf.Max(0, total - snap.server_ms);
+            if (remainMs > CountdownWarnMs)
+            {
+                _lastTickSec = -1;  // 还没进窗口：复位，下一次进窗口重新从"第 10 秒"开始滴答
+                return;
+            }
+
+            var sec = remainMs / 1000;
+            if (sec == _lastTickSec) return;
+            _lastTickSec = sec;
+            if (sec > 0) PlaySfx(AudioPaths.CountdownTick);
+        }
+
+        /// <summary>
+        /// 播一个 HUD 音效（D8）。⛔ 只用 clover-engine 的 <c>Game.Sound.PlaySFX</c>
+        /// （音量走 <c>SoundGroup.SFX</c>，由 `Module/Settings/SettingsManager` 应用）；
+        /// ⛔ 不自己建 <c>AudioSource</c> / 不建池。
+        /// <para>
+        /// 每次播放留一条 Info：**这是"哪个挂点真的响了"的唯一运行时判据**（数值类证据 = 运行时日志行）。
+        /// 资源缺失与 <c>Game.Sound</c> 为空各只报一次 Warn（⛔ 不静默跳声、⛔ 不刷屏）。
+        /// </para>
+        /// </summary>
+        private static void PlaySfx(string clipName)
+        {
+            var sound = Game.Sound;
+            if (sound == null)
+            {
+                if (!_sfxWarned)
+                {
+                    _sfxWarned = true;
+                    Game.Logger?.Warn(Tag, "Game.Sound 为空（表现域未挂载）⇒ HUD 音效无法播放（只报一次）");
+                }
+                return;
+            }
+
+            var res = Game.Res;
+            if (res != null && !res.Exists(AudioPaths.SfxPath(clipName)))
+            {
+                if (!_sfxMissingWarned)
+                {
+                    _sfxMissingWarned = true;
+                    Game.Logger?.Warn(Tag,
+                        $"HUD 音效资源缺失（Resources/{AudioPaths.SfxPath(clipName)}）⇒ 该音不播放（只报一次，检查是否漏拷）");
+                }
+                return;
+            }
+
+            Game.Logger?.Info(Tag, $"播放音效 {clipName}（SoundGroup.SFX 音量 {sound.GetVolume(SoundGroup.SFX):F2}）");
+            sound.PlaySFX(clipName);
+        }
+
+        private string PhaseText(int phase)
+        {
+            switch (phase)
+            {
+                case 0: return "常规时间";
+                case PhaseOvertime: return "加时赛";
+                case PhaseEnded: return "对局已结束";
+                default:
+                    // 非预期分支：协议只定义 0/1/2（`Def/ProtoDef.cs:150`）。同一取值只报一次。
+                    if (_lastUnknownPhase != phase)
+                    {
+                        _lastUnknownPhase = phase;
+                        Game.Logger?.Warn(Tag, $"未知的对局阶段 phase={phase}（协议只定义 0=常规 1=加时 2=已结束）");
+                    }
+                    return "未知阶段";
+            }
+        }
+
+        private void RefreshElixir()
+        {
+            var elixir = CurrentElixirMilli();
+            var shown = elixir < 0 ? 0 : elixir;
+            var maxUnits = _maxElixirMilli / (float)ElixirMilliPerUnit;
+            var units = shown / (float)ElixirMilliPerUnit;
+
+            if (_elixirFill != null)
+            {
+                UIFactory.SetBarWidth(_elixirFill, _maxElixirMilli > 0 ? shown / (float)_maxElixirMilli : 0f);
+            }
+
+            // ★ AV2：数字进徽章（原版口径），条上不写字（`_elixirText` 已在 BuildElixir 里停用）。
+            // 取**整数**（原版 18 图徽章里就是一位整数「2」；`elixirAmount` 是整数文本域，不是 "8.2/10"）。
+            if (_elixirBadgeText != null)
+            {
+                _elixirBadgeText.text = ((int)units).ToString();
+            }
+        }
+
+        /// <summary>自己那侧的圣水（1/1000 单位）；没有快照时退到开打初值，仍无则 -1（= 未知）。</summary>
+        private int CurrentElixirMilli()
+        {
+            if (_snapshot != null) return _myTeam == 0 ? _snapshot.elixir_a : _snapshot.elixir_b;
+            return _start != null ? GameConst.StartingElixirMilli : -1;
+        }
+
+        /// <summary>空手牌位的卡槽染色（把原版卡槽图元压暗，表达"空位"；本项目自定，不是素材替换）。</summary>
+        private static readonly Color EmptySlotTint = new Color(0.55f, 0.55f, 0.62f, 1f);
+
+        private void RefreshHand()
+        {
+            for (var i = 0; i < HandSlots; i++)
+            {
+                var card = _handCards[i];
+                var art = _handArts[i];
+                var cost = _handCosts[i];
+                if (card == null) continue;
+
+                var id = _handIds[i];
+                if (id == 0)
+                {
+                    if (cost != null) cost.text = string.Empty;
+                    HideArt(art);
+                    card.color = EmptySlotTint;
+                    continue;
+                }
+
+                var info = FindCard(id);
+                if (cost != null) cost.text = info != null ? info.elixir.ToString() : string.Empty;
+                ApplyArt(art, info, id, $"手牌#{i + 1}");
+                // 原版卡槽图元原色（⛔ 不再按类型染色 —— 类型色底是占位物，G4 已废除）
+                card.color = Color.white;
+            }
+
+            // ★ 判据行（数值类证据 = 运行时日志行 + 断言）：手牌**组成变化时**报一次
+            //   「4 张卡的 key → 帧号」；单卡的"载入成功"由 `ApplyArt` 的「卡面就绪」行给出。
+            //   ⛔ 不随 10 Hz 快照刷屏（只在 `_handIds` 真的变了时打印）。
+            var handSig = string.Join(",", _handIds);
+            if (handSig == _handSigLogged) return;
+            _handSigLogged = handSig;
+
+            var sb = new System.Text.StringBuilder();
+            for (var i = 0; i < HandSlots; i++)
+            {
+                var id = _handIds[i];
+                var info = FindCard(id);
+                var key = info != null ? info.key : null;
+                int frame;
+                var hasFrame = CrUiStyle.TryGetCardArtFrame(key, out frame);
+                if (i > 0) sb.Append(" | ");
+                sb.Append("手牌#").Append(i + 1).Append(" id=").Append(id)
+                  .Append(" key=").Append(string.IsNullOrEmpty(key) ? "—" : key)
+                  .Append(" → ").Append(hasFrame
+                        ? "帧号 " + frame
+                        : (CrUiStyle.IsCardArtKnownGap(key) ? "已知缺口（原版无此 export 名）" : "无卡面（表与卡池脱节）"));
+            }
+            Game.Logger?.Info(Tag, $"本局手牌帧号表（帧号表 = CrUiStyle 唯一一份，共 {CrUiStyle.CardArtFrameCount} 条）：{sb}");
+        }
+
+        private void RefreshNext()
+        {
+            if (_nextCard == null) return;
+            var info = FindCard(_nextId);
+            if (_nextText != null) _nextText.text = TextFit.Clamp(_nextText, _nextId == 0 ? "—" : CardLabel(info, _nextId));
+            if (_nextCost != null) _nextCost.text = info != null ? info.elixir.ToString() : string.Empty;
+            ApplyArt(_nextArt, info, _nextId, "下一张");
+            _nextCard.color = _nextId == 0 ? EmptySlotTint : Color.white;
+        }
+
+        /// <summary>
+        /// 卡名文案。G4 后卡名只写**名字**（圣水数走卡角原版水滴、类型不再写 —— 真卡面本身已表达类型）。
+        /// 卡池没到时与服务端给的 id 一致地写「卡 id=N」并留痕（⛔ 不静默留空）。
+        /// </summary>
+        private string CardLabel(CardInfo card, int id)
+        {
+            if (card == null)
+            {
+                if (!_poolMissingWarned)
+                {
+                    _poolMissingWarned = true;
+                    // 非预期分支：卡池没到（`BattleManager` 的补发也拿不到）⇒ 只能显示 id。
+                    Game.Logger?.Warn(Tag,
+                        "卡池还没到达（Events.Deck.PoolLoaded 没收到），手牌只能显示卡 id；" +
+                        "正常流程下 BattleManager 会在进对局时补发一次卡池");
+                }
+                return $"卡 id={id}";
+            }
+
+            return string.IsNullOrEmpty(card.name_cn) ? $"卡 id={id}" : card.name_cn;
+        }
+
+        private static string CardName(CardInfo card)
+        {
+            return !string.IsNullOrEmpty(card.name_cn) ? card.name_cn : "未知卡";
+        }
+
+        private string CardNameOrId(int id)
+        {
+            var card = FindCard(id);
+            return card != null ? CardName(card) : $"卡 id={id}";
+        }
+
+        /// <summary>类型名（`CardInfo.type`：0=部队 1=法术 2=建筑，见 `Def/ProtoDef.cs:212`）。</summary>
+        private string TypeName(int type)
+        {
+            switch (type)
+            {
+                case 0: return "部队";
+                case 1: return "法术";
+                case 2: return "建筑";
+                default:
+                    // 非预期分支：配表出现协议注释外的取值。同一值只报一次。
+                    if (_lastUnknownType != type)
+                    {
+                        _lastUnknownType = type;
+                        Game.Logger?.Warn(Tag,
+                            $"未知的卡牌类型 type={type}（协议只定义 0=部队 1=法术 2=建筑），按「未知」显示");
+                    }
+                    return "未知";
+            }
+        }
+
+        // ───────────────────────── 真卡面加载（G4 新增） ─────────────────────────
+
+        /// <summary>
+        /// 按卡 `key` 把真卡面贴到卡槽上（帧号表 = `CrUiStyle` 的**唯一**一份；表里没有的卡 ⇒
+        /// **不画卡面**、只留原版卡槽底 + 卡名，与 `DeckEditPanel` 同一降级口径；
+        /// ⛔ 不猜帧号、⛔ 不按类型涂色）。
+        /// <para>
+        /// 本方法被 10 Hz 快照链路调用 ⇒ 所有日志都必须**只报一次**（否则刷屏）。
+        /// </para>
+        /// </summary>
+        /// <param name="slotTag">日志定位用（"手牌#1"…"下一张"）—— 回报里的判据行要能对上是哪一格。</param>
+        private void ApplyArt(Image target, CardInfo card, int id, string slotTag)
+        {
+            if (target == null) return;
+
+            int artFrame;
+            if (card == null || string.IsNullOrEmpty(card.key)
+                || !CrUiStyle.TryGetCardArtFrame(card.key, out artFrame))
+            {
+                HideArt(target);
+                if (card != null && !string.IsNullOrEmpty(card.key) && _noArtWarned.Add(card.key))
+                {
+                    // 非预期分支/如实登记（只留痕一次）：本卡不画卡面。两种原因**必须能从日志一眼分开**：
+                    // ① 已知缺口 = 原版 ui_spells 的 95 条 export 里本来就没有这张卡；② 新卡没跟上表。
+                    var why = CrUiStyle.IsCardArtKnownGap(card.key)
+                        ? "是**已知缺口**（原版 ui_spells 的 95 条 export 里没有对应名）"
+                        : "**没有登记帧号**（卡池与帧号表脱节）";
+                    Game.Logger?.Warn(Tag,
+                        $"卡面无帧号[{slotTag}]：卡「{card.name_cn}」(key={card.key} id={id} 类型={TypeName(card.type)}) "
+                        + why + "，本卡只画原版卡槽底 + 卡名（⛔ 不猜帧号、⛔ 不按类型涂色）");
+                }
+                return;
+            }
+
+            var resPath = ResPaths.SpellArtFrame(artFrame);
+            LoadArtSprite(artFrame, resPath, sprite =>
+            {
+                if (target == null) return;
+                target.sprite = sprite;
+                target.type = Image.Type.Simple;
+                target.preserveAspect = false; // 裁剪后的 rect 已是素材自身比例，再按比例缩会再留边
+                target.color = Color.white;
+                target.gameObject.SetActive(true);
+                // ★ 判据行（数值类证据 = 运行时日志行 + 断言）：**每个 (key, 帧号) 只报一次**。
+                if (_artReadyLogged.Add(card.key + "#" + artFrame))
+                {
+                    Game.Logger?.Info(Tag,
+                        $"卡面就绪[{slotTag}]：key={card.key} → 帧号 {artFrame} 载入成功（{resPath}）；"
+                        + $"卡面 {CardW * ArtFillX:F1}×{CardH * ArtFillY:F1} 贴进 {CardW:F0}×{CardH:F0} 卡槽"
+                        + $"（内缩 左{ArtInsetLeftFrac * 100f:F2}% / 右{ArtInsetRightFrac * 100f:F2}% / "
+                        + $"上{ArtInsetTopFrac * 100f:F2}% / 下{ArtInsetBottomFrac * 100f:F2}%，"
+                        + $"纵向偏移 {CardH * ArtOffsetYFrac:F2}px）");
+                }
+            });
+        }
+
+        private static void HideArt(Image target)
+        {
+            if (target == null) return;
+            target.sprite = null;
+            target.gameObject.SetActive(false);
+        }
+
+        /// <summary>没登记过卡面帧号的 `key`（只报一次，避免每帧刷屏）。</summary>
+        private readonly HashSet<string> _noArtWarned = new HashSet<string>();
+
+        /// <summary>已经打过「卡面就绪」判据行的 `key#帧号`（10 Hz 链路上只报一次）。</summary>
+        private readonly HashSet<string> _artReadyLogged = new HashSet<string>();
+
+        /// <summary>已经 Warn 过卡面路径的（缺素材只报一次）。</summary>
+        private static void WarnArtOnce(string message)
+        {
+            if (!WarnedArtMissing.Add(message)) return;
+            Game.Logger?.Warn(Tag, message);
+        }
+
+        /// <summary>
+        /// 取「帧号 → 裁剪过的卡面 Sprite」。
+        /// 口径 = <see cref="CrUiStyle.CropCardArt"/>（**与 `DeckEditPanel` 同一处**，⛔ 原先各写一份）。
+        /// ⚠️ 第二版修正（2026-09-22，实机取证后）：`ui_spells_out` 每张 png 的导入器**已经裁好那一帧**
+        /// （.meta 的 `sprites[0].rect` 就是内容窗）⇒ `CropCardArt` 现在原样返回它，⛔ 不再叠加
+        /// `CardArtBboxX=98` 的横向偏移（叠了会把窗口右移 98px ⇒ 手牌卡面被横切一半）。
+        /// `Sprite.Create` 造的 Sprite 不归 Resources 管 ⇒ 必须缓存复用。
+        /// </summary>
+        private static void LoadArtSprite(int artIndex, string resPath, Action<Sprite> onLoaded)
+        {
+            Sprite cached;
+            if (ArtCache.TryGetValue(artIndex, out cached) && cached != null)
+            {
+                onLoaded(cached);
+                return;
+            }
+
+            if (Game.Res == null)
+            {
+                // 非预期分支：CloverRes.Init 缺失 ⇒ 卡面加载不到。留痕（只报一次）。
+                WarnArtOnce("Game.Res 为空（漏了 CloverRes.Init？），卡面加载不了，卡槽只剩原版底图");
+                return;
+            }
+
+            Game.Res.LoadAsset<Sprite>(resPath, sprite =>
+            {
+                if (sprite == null)
+                {
+                    WarnArtOnce("卡面素材加载不到（该卡槽只画原版底图）：" + resPath);
+                    return;
+                }
+
+                var made = CrUiStyle.CropCardArt(sprite, artIndex);
+                if (made == null)
+                {
+                    // 非预期分支：纹理裁不出合法矩形（该卡槽只画原版底图）。留痕（只报一次）。
+                    WarnArtOnce("卡面帧裁不出合法矩形（该卡槽只画原版底图）：" + resPath);
+                    return;
+                }
+                // ⚠️ 只在**新建**了 Sprite 时才改名：`CropCardArt` 在"导入器已裁好"这条路上直接把
+                // `source` 原样返回 ⇒ 原地改名会**反复改同一个 Resources 资产的名字**
+                // （实测会累积成 `HudCardArt:HudCardArt:…:frame_049_0`）。
+                if (!ReferenceEquals(made, sprite)) made.name = "HudCardArt:" + made.name;
+                ArtCache[artIndex] = made;
+                onLoaded(made);
+            });
+        }
+
+        private CardInfo FindCard(int id)
+        {
+            if (id == 0) return null;
+            return _cards.TryGetValue(id, out var card) ? card : null;
+        }
+
+        private void SetStatus(string text, Color color)
+        {
+            if (_statusText == null) return;
+            _statusText.text = TextFit.Clamp(_statusText, text);
+            _statusText.color = color;
+            _statusUntil = string.IsNullOrEmpty(text) ? 0f : Time.unscaledTime + StatusHoldSeconds;
+        }
+    }
+}

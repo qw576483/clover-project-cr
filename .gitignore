@@ -1,0 +1,52 @@
+
+# --- Unity 派生 / 缓存（可重建；实测 client/Library 约 7.8 GB，禁止入仓） ---
+/client/Library/
+/client/Temp/
+/client/Obj/
+/client/Build/
+/client/Builds/
+/client/Logs/
+/client/UserSettings/
+/client/setting/
+/client/[Bb]uild[Ss]ettings/
+/client/MemoryCaptures/
+/client/Recordings/
+
+# --- Unity / IDE 生成物 ---
+*.csproj
+*.sln
+*.slnx
+*.unityproj
+*.user
+*.userprefs
+.vs/
+.idea/
+.vsconfig
+
+# --- 取证截图不许进 client/Assets/**（skill §1.8 第 6 条） ---
+#   历史目录 client/Assets/Screenshots/ 已迁 .ai-tmp/screenshots/，这里拦住它被误提交回来
+/client/Assets/Screenshots/
+
+# --- 本机引擎联调覆盖（只在本机存在，不进仓库） ---
+#   client/Packages/ 下的 embedded 包指向工作区里的 clover-client-unity-engine，
+#   优先级高于 manifest.json 里的 git 依赖 ⇒ 本机改引擎源码即时生效、且不用联网克隆。
+#   删掉这个链接 = 回到「按 manifest 从 GitHub 拉取引擎」，外人 clone 后的行为不受影响。
+/client/Packages/com.clover.unity-engine/
+
+# --- Go ---
+/server/logs/
+/server/certs/
+/logs/
+*.exe
+*.test
+*.out
+
+# --- ★ AI 临时目录（skill §1.8）：一次性产物 / 探针 / 驱动 / 判据脚本 / 取证截图 ---
+#   .ai-tmp/screenshots/ = 验收取证图（一次性，不进交付）
+#   整目录排除：实测本仓 .ai-tmp 约 2.8 GB，其中 test/ 2.3 GB、screenshots/ 524 MB
+/.ai-tmp/
+
+# --- ★ 原版资源（skill §1.9）：下载 / 解包素材的唯一来源，体积大 + 版权物，不进版本库 ---
+/原版资源/
+#   ⚠️ 例外：被交付文档引用的文本清单要跟仓库走，否则文档引用会悬空
+!/原版资源/cr-sfx/清单.md

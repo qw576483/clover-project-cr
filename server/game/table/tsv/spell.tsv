@@ -1,0 +1,11 @@
+id	key	name_cn	elixir	rarity	radius_mt	instant_damage	crown_damage	duration_ms	tick_ms	damage_per_tick	heal_per_second	spawn_key	spawn_n	spawn_radius_mt	pushback	anywhere	on_water	sprite_dir
+26030001	fireball	火球	4	1	2500	689	207	0	0	0	0		0	0	1000	1	1	ui_spells_out
+26030002	arrows	万箭齐发	3	0	1400	122	37	0	0	0	0		0	0	0	1	1	ui_spells_out
+26030003	rage	狂暴法术	2	2	3000	0	0	6000	300	0	0		0	0	0	1	1	ui_spells_out
+26030004	rocket	火箭	6	1	2000	1484	371	0	0	0	0		0	0	1800	1	1	ui_spells_out
+26030005	goblin-barrel	哥布林飞桶	3	2	1500	0	0	0	0	0	0	Goblin	3	0	0	1	1	ui_spells_out;spell_goblin_barrel_out
+26030006	freeze	冰冻法术	4	2	3000	115	34	4000	0	0	0		0	0	0	1	1	ui_spells_out
+26030007	lightning	雷电法术	6	2	3500	1056	317	1500	460	0	0		0	0	0	1	1	ui_spells_out
+26030008	zap	电击法术	2	0	2500	192	58	1	0	0	0		0	0	0	1	1	ui_spells_out
+26030009	poison	伤害药水法术	4	2	3500	0	110	8000	250	92	0		0	0	0	1	1	ui_spells_out
+26030010	the-log	滚木	2	3	1950	290	58	0	0	0	0		0	0	700	1	1	ui_spells_out

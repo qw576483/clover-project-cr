@@ -1,0 +1,26 @@
+# 打表工具配置（clover-project-cr）
+#
+# 用法（一键脚本会代跑，也可手跑）：
+#   clover-tools/table/core/table.exe -config tools/table.config.yaml -batch              # xlsx -> tsv + 强类型代码
+#   clover-tools/table/core/table.exe -pack -config tools/table.config.yaml -batch        # 源表 txt -> xlsx
+#
+# 所有相对路径均相对于**本配置文件所在目录**（tools/）。
+# 工具约定：只扫描 planning_dir 下的 *.xls / *.xlsx（单层、不递归），
+#           每张工作表(sheet)即一张表，**sheet 名 = 表名（含 _c/_s/_cs 后缀）**。
+
+planning_dir: "../策划/数值文档"
+
+client_format: "cs"
+
+# 服务端产物：<root>/server/game/table（代码直接写入该目录，base 子包 + tsv/ 子目录）
+server_dir: "../server/game/table"
+
+# 客户端产物：client/ 尚未创建，默认落到一次性目录；客户端片落地后用
+#   tools/table.ps1 -ClientDir <root>/client/Assets/Scripts/Table
+# 覆盖（见 docs/步骤文档.md §4 的客户端目录约定）。
+client_dir: "../.ai-tmp/test/table-client"
+
+default_side: "cs"
+
+# 产物溯源表：记录每个产物来自哪个 xlsx 的哪个 sheet
+mapping_file: "../策划/数值文档/打表对照表.tsv"

@@ -1,0 +1,61 @@
+CR-F1 / A-B 判定同源 —— 实机见证表读数（**登记载体**，交付后仍在）
+================================================================================
+这份是"判定行"的载体；生成器 = tools/probes/CR-F1-geom-probe.cs
+（⛔ 生成器与读数是两样东西：.cs 只负责**产生**读数，本文件才是可被引用的**读数**。
+  运行期原地产物写在 .ai-tmp/test/CR-F1-geom.out.txt（临时区，交付前会清）⇒
+  按 team-lead 2026-09-23 §3「载体必须指向交付后仍在的位置」把读数**另存到本文件**。）
+
+结论（截至 2026-09-23T09:40:40+08:00，装配 sha256_16=52358CB6966C259F）
+  客户端预校验 PlacementIndicator.IsLegalDeploy 与 server/game/core/arena.go CanDeploy
+  在 17 个见证点上**逐点一致**：mismatches=0；运行前后 CR.dll 哈希一致（未被换过）。
+
+被验证装配
+  client\Library\ScriptAssemblies\CR.dll
+  mtime   = 2026-09-23T08:43:53.2375674+08:00
+  sha256_16 = 52358CB6966C259F   （运行前 09:40:37 与运行后 09:40:40 两次取哈希相同）
+被验证源码（均早于该编译 ⇒ 三处修复都在这一版装配里）
+  View\PlacementIndicator.cs  = 08:19:32   （差异 A 桥豁免 + 差异 B 按队不对称半场）
+  UI\Panels\HudPanel.cs       = 08:20:15
+  UI\Panels\SettingsPanel.cs  = 08:28:39
+
+复现（一条命令，需编辑器在 Play 或 EditMode 均可 —— 被调的是纯函数）
+  Set-Content <root>\.ai-tmp\test\F1-arg.txt 'geom' -Encoding ascii ; cd <root>\client ; \
+  unity command eval_file --file <root>\tools\probes\CR-F1-geom-probe.cs --timeout 240
+  （探针末尾打印 GEOM SUMMARY / GEOM RESULT；服务端侧是探针内联的 arena.go CanDeploy 转写）
+
+───────────────────────── 09:40:40 那一次的原始输出 ─────────────────────────
+=== CR-F1 geom probe arg='geom' at 09:40:40.769 ===
+PLAY=1
+probe: method=True DeployInput=True
+  [PASS] A1 BLUE left bridge, river band, left pocket OPEN | team=0 tile=(3.5,15.5) enL=False enR=True client=True server=True
+  [PASS] A2 BLUE left bridge, river band, no pocket | team=0 tile=(3.5,15.5) enL=True enR=True client=False server=False
+  [PASS] A3 BLUE left bridge, y=15.0, left pocket OPEN | team=0 tile=(3.5,15) enL=False enR=True client=True server=True
+  [PASS] A4 BLUE left bridge, y=15.0, no pocket (<= counter) | team=0 tile=(3.5,15) enL=True enR=True client=False server=False
+  [PASS] A5 BLUE right bridge, river band, right pocket OPEN | team=0 tile=(14.5,16.5) enL=True enR=False client=True server=True
+  [PASS] A6 BLUE right bridge, river band, no pocket | team=0 tile=(14.5,16.5) enL=True enR=True client=False server=False
+  [PASS] W1 BLUE mid river y=16.0 (water), no pocket | team=0 tile=(9,16) enL=True enR=True client=False server=False
+  [PASS] W2 BLUE mid river y=16.0 (water), both pockets OPEN | team=0 tile=(9,16) enL=False enR=False client=False server=False
+  [PASS] H1 BLUE own half y=14.5 | team=0 tile=(9,14.5) enL=True enR=True client=True server=True
+  [PASS] H2 BLUE own river bank y=15.0 off bridge (water) | team=0 tile=(9,15) enL=True enR=True client=False server=False
+  [PASS] B1 RED own river bank y=17.0 (the B defect) | team=1 tile=(9,17) enL=True enR=True client=True server=True
+  [PASS] B2 RED y=17.0, own princess row check stays legal | team=1 tile=(14.5,17) enL=True enR=True client=True server=True
+  [PASS] W3 RED river band y=16.999 (water) | team=1 tile=(9,16.999) enL=True enR=True client=False server=False
+  [PASS] W4 RED river band y=15.0 off bridge (water) | team=1 tile=(9,15) enL=True enR=True client=False server=False
+  [PASS] A7 RED left bridge, river band, BLUE-left dead | team=1 tile=(3.5,15.5) enL=False enR=True client=True server=True
+  [PASS] A8 RED left bridge, river band, no pocket | team=1 tile=(3.5,15.5) enL=True enR=True client=False server=False
+  [PASS] H3 RED own half y=18.0 | team=1 tile=(9,18) enL=True enR=True client=True server=True
+GEOM SUMMARY rows=17 mismatches=0
+GEOM RESULT=PASS (every witness point matches server/game/core/arena.go)
+
+──────────────────── 判别力说明（为什么这 17 点不是凑数） ────────────────────
+· A4 是**反例判别点**：BLUE 在桥面上、y=15.0、无敌方塔被毁时，服务端 OwnHalf(BLUE) 上沿**不含**
+  ⇒ 必须 False。"一刀切 `<=`"那种形状在这一行会答 True（离线 §4c 用同一网格量到 16 个反向分歧点，全部落在桥面上）。
+· B1 是**差异 B 判别点**：RED 在 y=17.0（本场 frame yOwn=15.0）服务端下沿**含** ⇒ True；旧 `<` 形状答 False。
+· A1/A3/A5/A7 证明桥豁免真的接入（口袋区展开到桥面时不再画红盘）。
+· W1/W2/W3/W4 证明河面（非桥）仍然拦住地面单位，桥豁免没有把整条河带放开。
+
+──────────────────────── 与另一类载体的关系（⛔ 不得混用） ────────────────────────
+· 本文件 = **真装配**（DLL 哈希锚定）上的 17 个见证点读数。
+· `.ai-tmp/test/CR-F1-geom-after.log`（`.ai-tmp/hosts/CR-U2-geom-check.py` 的 §4c）= **修后形状的 python 模型**
+  在 0.25 格全网格上逐点比服务端（A/B/未归因 = 0，FAIL=0），并用两条反例断言证明该判据能判红。
+  ⇒ 它证明的是"**改法形状**对不对"，**不能**当"当前装配行为"的载体；两者一为穷举模型、一为真装配抽样，⛔ 不得互相替代。

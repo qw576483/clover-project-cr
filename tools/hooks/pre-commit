@@ -1,0 +1,38 @@
+#!/bin/sh
+# Mandatory gate (SKILL section 0.5 item 2 / section 3 item 2):
+# tools/verify.ps1 must run at a point every change passes through.
+# Installed by: git config core.hooksPath tools/hooks   (run tools/install-hooks.ps1)
+#
+# The check is deliberately fail-closed: if verify.ps1 cannot run at all,
+# the commit is blocked rather than silently allowed.
+
+set -e
+
+ROOT=$(git rev-parse --show-toplevel)
+SCRIPT="$ROOT/tools/verify.ps1"
+
+if [ ! -f "$SCRIPT" ]; then
+  echo "[pre-commit] tools/verify.ps1 is missing -> commit blocked" >&2
+  exit 1
+fi
+
+if command -v powershell >/dev/null 2>&1; then
+  PWSH=powershell
+elif command -v pwsh >/dev/null 2>&1; then
+  PWSH=pwsh
+else
+  echo "[pre-commit] no PowerShell found -> cannot run the gate -> commit blocked" >&2
+  exit 1
+fi
+
+echo "[pre-commit] running tools/verify.ps1 ..."
+if "$PWSH" -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT"; then
+  echo "[pre-commit] verify.ps1 OK"
+  exit 0
+else
+  echo "" >&2
+  echo "[pre-commit] verify.ps1 reported FAIL -> commit blocked." >&2
+  echo "             Fix the reported items, or record a named adjudication in" >&2
+  echo "             .ai-tmp/test/dispatch-log.tsv as described in the skill." >&2
+  exit 1
+fi

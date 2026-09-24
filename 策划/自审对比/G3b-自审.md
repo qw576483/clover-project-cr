@@ -7,7 +7,7 @@
 > **我们的截图**：`.ai-tmp/screenshots/G3b-设置.png`、`G3b-暂停.png`（均 **1080×1920** 竖版，
 > 采自同一次 Play 的合成结果 `capture_game_view --source screen --width 1080 --height 1920`；Play 记账见 `.ai-tmp/test/play-log.tsv` 末两行之前的 G3b 行）。
 > **判据口径**：每项只写 `一致` / `不一致（差在哪）`。差 ≤1px 的一律按"取整"记为 `一致`（写清差多少）。
-> **数值出处**：原版值 = `.ai-tmp/test/G3b-量取.md`（逐像素脚本 `tools/probes/g3-measure.py`）；
+> **数值出处**：原版值 = `.ai-tmp/test/G3b-量取.md`（逐像素脚本 `（一次性判据脚本，2026-09-24 清理）`）；
 > 我们的值 = `.ai-tmp/test/g3b-audit-SettingsBox.txt` / `g3b-audit-PauseBox.txt`（运行时审计）。
 > ⚠️ 本机 `read_file` 渲染 PNG 与文件像素**不一致**（预览被缩放/压暗），所以"看图"只用来判**粗布局**
 > （有没有缺件 / 错位 / 叠加 / 纯色兜底），**每个数字都以脚本读数与审计为准**。

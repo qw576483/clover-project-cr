@@ -1,6 +1,0 @@
-﻿SELFTEST: the ruler logic must recover a KNOWN grid before any real texture gets numbers
-  [P ] 20 px/tile  runs=[(60, 79, 20, 69), (280, 299, 20, 289)]  => ppt=20.0 x0=-1.0  PASS
-  [N1] 40 px/tile  runs=[(120, 159, 40, 139), (560, 599, 40, 579)]  => ppt=40.0          PASS
-  [N2] no lanes    runs=[]  => ppt=None           PASS (must refuse)
-  [N3] no --lanes-tiles => ppt=None              PASS (assumption refused)
-SELFTEST RESULT: PASS (the ruler measures, and it refuses to assume)

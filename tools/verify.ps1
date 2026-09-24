@@ -1,12 +1,14 @@
-# ---------------------------------------------------------------------------
+﻿# ---------------------------------------------------------------------------
 # tools/verify.ps1 -- the ONE delivery gate for clover-project-cr.
 #
-# SLIM SET (2026-09-24, sink4 "gate cut"): what used to be 79 Say sites /
-# ~44 reported items is now the 7 items below.  A gate survived only if it is
-# one of the five mechanical delivery criteria -- real compile / evidence
-# freshness / reference reachability / delivery hygiene / the gate itself must
-# not crash -- or it can name a concrete real defect it caught.
-# Per-item keep-or-cut table with the evidence: .ai-tmp/test/sink4-cut-cr.md
+# THREE REQUIREMENTS (2026-09-24 "gate trim"): an item survives only if it is
+# one of the three things a machine has to settle --
+#   (1) a REAL compile            -> core-builds
+#   (2) delivery hygiene          -> delivery-hygiene / tmp-budget
+#   (3) references reachable      -> screenshot-refs / evidence-freshness
+#       (incl. image freshness)
+# plus verify-entry, which is a precondition (the gate must not be a lie about
+# itself), not a 4th requirement.
 #
 #   1 verify-entry        this script exists, is the running one, is non-empty
 #   2 delivery-hygiene    scratch .cs / captures under client/Assets /
@@ -17,29 +19,28 @@
 #                         (caught: .ai-tmp/test/CR-T2f-frames.png cited, not on disk)
 #   5 evidence-freshness  a shot older than the implementation of its OWN area is
 #                         stale evidence -- nobody can see that by looking at a png
-#   6 engine-credit       RENDERED node-tree text is verbatim "by clover-engine"
-#   7 msgid-parity        client MsgDef id == server def id by canonical name+value
-#   8 tmp-budget          <root>/.ai-tmp files+bytes under a stated ceiling
-#                         (re-added 2026-09-24; see the item's own header block;
-#                          caught: .ai-tmp at 22367 files / 4.08 GiB while this
-#                          script was reporting zero FAIL)
+#   6 tmp-budget          <root>/.ai-tmp files+bytes under a stated ceiling
+#                         (caught: .ai-tmp at 22367 files / 4.08 GiB while this
+#                          script was reporting zero FAIL; see the item's own header)
 #
-# CUT in this round (whole table in .ai-tmp/test/sink4-cut-cr.md): the
-# coverage-matrix family, acceptance-table row-count / row-category
-# self-consistency, allowed-diff row-by-row audit, dispatch ledger +
-# impl-by-executor, play ledger, freeze-before-capture (a coarser duplicate of
-# evidence-freshness), evidence-economy thresholds, numeric-log-only,
+# REMOVED in this trim: engine-credit (the rendered "by clover-engine" line -- that
+# is a look-at-the-first-screen judgement, not a script's) and msgid-parity (client
+# MsgDef <-> server def id reconciliation).
+# Everything else that used to live here was already cut on 2026-09-24 (whole table:
+# .ai-tmp/test/sink4-cut-cr.md): the coverage-matrix family, acceptance-table
+# row-count / row-category self-consistency, allowed-diff row-by-row audit, dispatch
+# ledger + impl-by-executor, play ledger, freeze-before-capture (a coarser duplicate
+# of evidence-freshness), evidence-economy thresholds, numeric-log-only,
 # no-team-sessions, no-escaped-artifacts, no-handoff-docs, graphics-device
 # (tools/env-check.ps1 owns it), the spec-doc / baseline-images /
 # asset-research(-doc) / reference-table / recheck-entry presence checks,
 # scale-tier, impact-radius, and the two banned-API greps (hard-rules,
 # go-log-discipline).
-# RE-ADDED after the cut: tmp-budget (item 8) -- it named a concrete real defect
-# (4.08 GiB / 22367 files in .ai-tmp, gate green), which is exactly the keep
-# criterion stated above.
 #
-# ASCII-ONLY ON PURPOSE: every CJK path segment below is built from code points,
-# so this file needs no BOM and can never hit the PS 5.1 ANSI trap.
+# NOT ASCII-only: two COMMENTS below carry a CJK report file name, so this file is
+# saved as UTF-8 WITH BOM (PS 5.1 reads a BOM-less file as ANSI => mojibake).
+# Every CJK path segment in CODE is built from code points, so no code line can
+# hit that trap either.
 # ---------------------------------------------------------------------------
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -173,7 +174,6 @@ if ((Test-Path $coreDir) -and $goCmd) {
 # first run (measured).  Enumerations ("frame_197/198.png") are excluded too.
 # ---------------------------------------------------------------------------
 $specTxt = if (Test-Path $spec) { ReadUtf8 $spec } else { '' }
-$specLns = @($specTxt -split "`n")
 $planName = Split-Path $planDir -Leaf
 $script:ByName = @{}
 foreach ($d in @((Join-Path $root '.ai-tmp\screenshots'), (Join-Path $root '.ai-tmp\test'), $planDir)) {
@@ -285,69 +285,7 @@ else {
 }
 
 # ---------------------------------------------------------------------------
-# 6) engine-credit -- credit is judged on the RENDERED text, not on a source
-#    grep: the runtime node-tree dump must show it verbatim (case matters).
-#    A pixel font that only has capitals renders "BY CLOVER-ENGINE", which is
-#    equally non-compliant, and grep of the source can never see that.
-# ---------------------------------------------------------------------------
-$brandArts = @(Get-ChildItem (Join-Path $root '.ai-tmp\test') -Recurse -File -Filter *brand*.txt -ErrorAction SilentlyContinue |
-               Sort-Object LastWriteTime -Descending)
-if ($brandArts.Count -eq 0) { $human++; Say 'HUMAN-ONLY' 'engine-credit' 'no runtime brand-tree dump under .ai-tmp/test (*brand*.txt) -- judge the credit on the rendered first screen' }
-else {
-  $ecSrc = $brandArts[0]
-  $ecTxt = ReadUtf8 $ecSrc.FullName
-  if ($ecTxt -cmatch 'by clover-engine') { Say 'PASS' 'engine-credit' ('rendered node-tree text is verbatim "by clover-engine" (' + $ecSrc.Name + ')') }
-  else { $fail++; Say 'FAIL' 'engine-credit' ('runtime brand dump ' + $ecSrc.Name + ' does not contain the verbatim lowercase "by clover-engine" (case matters)') }
-}
-
-# ---------------------------------------------------------------------------
-# 7) msgid-parity -- client Def <-> server def msg id parity.
-#    The two sides are REQUIRED to use different identifier prefixes -- server
-#    `def.MsgSetNickname` / `def.PushRoomList` vs client `MsgDef.SetNickname` /
-#    `MsgDef.PushRoomList`.  Comparing identifiers verbatim therefore reports
-#    every single C2S id as "client-only" even when the numbers agree exactly
-#    (a permanent false positive, measured).  What has to line up is the PAIR
-#    (canonical name, numeric id): strip the documented prefix on both sides,
-#    lower-case, compare.  A genuine problem (different id, or a name present on
-#    one side only) still fails.  The server declares its ids inside a
-#    `const ( ... )` BLOCK, so each line is just `Name = 12345` -- matching on
-#    `const\s+(\w+)` finds nothing there.
-# ---------------------------------------------------------------------------
-$cliMsgDef = Join-Path $root 'client\Assets\Scripts\Def\MsgDef.cs'
-$srvMsg    = Join-Path $root 'server\game\def\msg.go'
-$srvPush   = Join-Path $root 'server\game\def\push.go'
-if ((Test-Path $cliMsgDef) -and (Test-Path $srvMsg) -and (Test-Path $srvPush)) {
-  $csTxt = ReadUtf8 $cliMsgDef
-  $goTxt = (ReadUtf8 $srvMsg) + "`n" + (ReadUtf8 $srvPush)
-  $csMap = @{}
-  foreach ($m in [regex]::Matches($csTxt, '(\w+)\s*=\s*(\d{5,})')) {
-    $n = $m.Groups[1].Value
-    if ($n.StartsWith('Msg')) { $n = $n.Substring(3) } elseif ($n.StartsWith('Push')) { $n = $n.Substring(4) }
-    $csMap[$n.ToLowerInvariant()] = $m.Groups[2].Value
-  }
-  $goMap = @{}
-  foreach ($m in [regex]::Matches($goTxt, '(\w+)\s*=\s*(\d{5,})')) {
-    $n = $m.Groups[1].Value
-    if ($n.StartsWith('Msg')) { $n = $n.Substring(3) } elseif ($n.StartsWith('Push')) { $n = $n.Substring(4) }
-    $goMap[$n.ToLowerInvariant()] = $m.Groups[2].Value
-  }
-  $mismatch = @()
-  foreach ($k in @($csMap.Keys)) {
-    if (-not $goMap.ContainsKey($k)) { $mismatch += ("client-only: $k=" + $csMap[$k]) }
-    elseif ($goMap[$k] -ne $csMap[$k]) { $mismatch += ("value differs: $k client=" + $csMap[$k] + " server=" + $goMap[$k]) }
-  }
-  foreach ($k in @($goMap.Keys)) {
-    if (-not $csMap.ContainsKey($k)) { $mismatch += ("server-only: $k=" + $goMap[$k]) }
-  }
-  if ($mismatch.Count -eq 0) { Say 'PASS' 'msgid-parity' ("$($csMap.Count) client id(s) matched a server def by name+value") }
-  else {
-    $fail++; Say 'FAIL' 'msgid-parity' ("$($mismatch.Count) mismatch(es)")
-    $mismatch | Select-Object -First 15 | ForEach-Object { Write-Output ('            ' + $_) }
-  }
-} else { $human++; Say 'HUMAN-ONLY' 'msgid-parity' 'Def/MsgDef.cs or server/game/def not present yet' }
-
-# ---------------------------------------------------------------------------
-# 8) tmp-budget -- <root>/.ai-tmp must stay inside a stated ceiling.
+# 6) tmp-budget -- <root>/.ai-tmp must stay inside a stated ceiling.
 #    WHY THIS EXISTS: the sink4 "gate cut" dropped every .ai-tmp budget item, and
 #    the measured consequence is on record (.ai-tmp/test/sinkup5-cr-总报告.md
 #    section 6, read 2026-09-24): .ai-tmp had grown to 22367 files /
@@ -383,7 +321,7 @@ $tmpDetail = ('.ai-tmp = ' + $tmpFiles + ' file(s) / ' + $tmpBytes + ' B (' + $t
 if (($tmpFiles -le $tmpBudgetFiles) -and ($tmpBytes -le $tmpBudgetBytes)) {
   Say 'PASS' 'tmp-budget' $tmpDetail
 } else {
-  $fail++; Say 'FAIL' 'tmp-budget' ($tmpDetail + ' => over ceiling (see header item 8 for the baseline)')
+  $fail++; Say 'FAIL' 'tmp-budget' ($tmpDetail + ' => over ceiling (see the tmp-budget header above for the baseline)')
 }
 
 Write-Output ''

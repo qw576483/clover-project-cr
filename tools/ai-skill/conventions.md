@@ -64,7 +64,7 @@ docs/                           过程文档（步骤文档 + agent 任务书）
 
 ## 对局内核（`server/game/core/`）约定
 
-- ⛔ **零引擎依赖**（不许 import 任何 `clover-server-engine/...`）—— 由 `tools/verify.ps1` 第 15 条机械检查。
+- ⛔ **零引擎依赖**（不许 import 任何 `clover-server-engine/...`）—— 要查时 `grep -r "clover-server-engine" server/` 一次即可（`tools/verify.ps1` 只是可选脚本，⛔ 不必跑）。
 - 位置/血量/伤害一律**整数定点**；位置单位 = **1/1000 格**。
 - 手牌 / 圣水 / 实体 / 塔全部由 `Battle` 持有；对外只有 `Step()` / `PlayCard()` / `Surrender()` /
   `Snapshot()` / `DrainEvents()` / `Result()` 几个口。

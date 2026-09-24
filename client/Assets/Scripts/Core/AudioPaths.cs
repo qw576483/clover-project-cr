@@ -48,7 +48,7 @@ namespace CR
         /// <para>
         /// 触发 = **快照里某个实体的 `hp` 比上一帧低**（`View/BattleAudioView.OnSnapshot` 逐 id 比对）——
         /// 因为协议里**没有**独立的「命中」事件（`Def/ProtoDef.cs:194` 只有 0..5 六种 kind），
-        /// 而 `kind==2` 只在**死亡**时发 ⇒ 旧实现只挂 `kind==2`，非致死命中**一声不响**（D8 判不一致的根因）。
+        /// 而 `kind==2` 只在**死亡**时发 ⇒ 只挂 `kind==2` 会让非致死命中**一声不响**。
         /// 死亡改用 <see cref="Death"/>。
         /// </para>
         /// </summary>
@@ -66,7 +66,7 @@ namespace CR
         /// <summary>对局失败。</summary>
         public const string Lose = "Lose/scroll_lose_01";
 
-        // ─────────────── v4（AH2）补齐：D8 矩阵里判为「缺」的那些事件 ───────────────
+        // ─────────────── 其余对局音效槽 ───────────────
         //
         // <b>素材来源一律 = <c>&lt;项目根&gt;/原版资源/cr-sfx/</c>（原版整包，2953 个 ogg）</b>，
         // 按**文件名语义**选型；每个常量都写明源文件，可反查。⛔ 不拿无关音冒充、⛔ 不静音糊过去。
@@ -79,9 +79,8 @@ namespace CR
         /// `Barbarians` / `Bats` … 多张卡复用 ⇒ 不是某张卡专属）。
         /// </para>
         /// <para>
-        /// <b>为什么把命中与死亡拆成两个槽</b>：D8 矩阵判「命中与死亡共用 `Hit`」为不一致；
-        /// 且 `kind==2` 在服务端语义里**只是死亡**（`combat.go:410-432`），
-        /// 非致死命中根本不会产生 `kind==2`（⇒ 旧实现"非致死命中不触发"是真缺陷，见 <see cref="Hit"/>）。
+        /// <b>为什么把命中与死亡拆成两个槽</b>：`kind==2` 在服务端语义里**只是死亡**
+        /// （`combat.go:410-432`），非致死命中根本不会产生 `kind==2`（见 <see cref="Hit"/>）。
         /// </para>
         /// </summary>
         public const string Death = "Death/npc_die_04";
@@ -104,7 +103,7 @@ namespace CR
         /// <para>
         /// 源：<c>Music/Jingles/scroll_draw_01.ogg</c> —— 与 <see cref="Win"/>/<see cref="Lose"/> **同一目录同一组**
         /// （`scroll_win_02` / `scroll_lose_01` / `scroll_draw_01`，原版结算页三态 jingle）
-        /// ⇒ 旧实现"平局不播"是缺的，不是"铁律 1 不许加"。
+        /// ⇒ 平局沿用同一组原版结算音。
         /// </para>
         /// </summary>
         public const string Draw = "Draw/scroll_draw_01";

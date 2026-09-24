@@ -21,7 +21,7 @@ namespace CR.UI.Panels
     /// <para>
     /// <b>竖版布局与视觉</b>与 <see cref="LoginPanel"/> 同一套骨架（同面板高 / 同字段位 / 同按钮位 /
     /// 同原版图元），只有标题文案与两个按钮的语义不同 —— 两个界面的视觉必须一致，⛔ 不许各摆一套。
-    /// 视觉的逐部件依据见 <see cref="LoginPanel"/> 的类注释，换帧表在 `.ai-tmp/test/AP2-量取.md`。
+    /// 视觉的逐部件依据见 <see cref="LoginPanel"/> 的类注释。
     /// </para>
     /// </summary>
     public sealed class RegisterPanel : UIPanel

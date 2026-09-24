@@ -22,7 +22,7 @@ namespace CR.UI.Panels
     /// <para>
     /// <b>竖版布局与视觉</b>：与 <see cref="LoginPanel"/> 同一套骨架（同弹窗宽 935 / 同留白 30 /
     /// 同字段高 95 / 同按钮几何 424×65 / 同原版图元），只是只有一段字段（昵称），所以弹窗矮一截。
-    /// 逐部件依据见 <see cref="LoginPanel"/> 的类注释，换帧表在 `.ai-tmp/test/AP2-量取.md`。
+    /// 逐部件依据见 <see cref="LoginPanel"/> 的类注释。
     /// </para>
     /// </summary>
     public sealed class NicknamePanel : UIPanel

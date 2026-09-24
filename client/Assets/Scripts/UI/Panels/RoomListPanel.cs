@@ -17,28 +17,27 @@ namespace CR.UI.Panels
     /// <para>
     /// <b>为什么不用 ScrollView</b>：引擎的 `UIFactory`（`Runtime/Presentation/UIWidgets.cs` +
     /// `UIWidgetControls.cs`）里**没有**滚动列表工厂（全引擎无 `ScrollRect` 构建代码），
-    /// 而任务书允许"可滚动或分页"。这里取**分页**：每页 5 行 + 上一页/下一页，
+    /// 列表容器是固定 5 行区域。这里取**分页**：每页 5 行 + 上一页/下一页，
     /// 页面切换只切 5 个固定行节点的 <c>SetActive</c>（不反复销毁重建节点）。
     /// </para>
     /// <para>
-    /// <b>竖版重排（G2）+ AP1 换帧</b>：面板底 = <see cref="CrUiStyle.SettingsPopup"/>（居中弹窗：
+    /// <b>竖版排版</b>：面板底 = <see cref="CrUiStyle.SettingsPopup"/>（居中弹窗：
     /// `ui_out` 014 板岩外框 + 019 亮面体，与主菜单 / 设置**同一套**），标题 = <see cref="CrUiStyle.BandTitle"/>
     /// （板岩带上的白字黑描边），行底 / 字段盘 = `ui_out` 014（<see cref="CrUiStyle.Skin"/> 四角镜像九宫格），
     /// 按钮 = <see cref="CrUiStyle.BlueButton"/>（`ui_out` 165 蓝底白字），输入框 = <see cref="CrUiStyle.Field"/>。
     /// ⛔ 建房三件套（"房名 + 输入框 + 创建按钮"）已**拆成三行**；⛔ 没有任何一行并排三件套。
     /// </para>
     /// <para>
-    /// ⚠️ <b>A 本体没有「房间列表」界面</b>（`策划/参考图/清单.md` §2 明确登记：原版 CR 无「房间」概念，
+    /// ⚠️ <b>A 本体没有「房间列表」界面</b>（`策划/参考图/清单.md` §2 登记：原版 CR 无「房间」概念，
     /// 本项目为用户新增）⇒ 本面板的视觉语言**逐项对齐 A 的同类部件**，⛔ **不假装是原版界面**：
-    /// 面板底 / 标题 / 行底 / 按钮 四类都是 A 的原版图元（见表与本文件常量注释），逐行依据见
-    /// `.ai-tmp/test/AP1-量取.md` A 段 + `策划/自审对比/AP1-自审.md`。
+    /// 面板底 / 标题 / 行底 / 按钮 四类都是 A 的原版图元（见表与本文件常量注释）。
     /// </para>
     /// </summary>
     public sealed class RoomListPanel : UIPanel
     {
         private const string Tag = "RoomListPanel";
 
-        // ───── 竖版排版常量（AP1 换帧后 = 居中弹窗；出处见类注释与 .ai-tmp/test/AP1-量取.md A 段） ─────
+        // ───── 竖版排版常量（居中弹窗；出处见类注释） ─────
 
         /// <summary>面板亮面体宽 = 931（<see cref="CrUiStyle.PopupW"/> 935 − 2×描边 2）。</summary>
         private const float BodyW = CrUiStyle.PopupW - 2f * CrUiStyle.PopupBorder;
@@ -70,7 +69,7 @@ namespace CR.UI.Panels
         /// <summary>板岩盘（行底 / 字段盘）的圆角边长 = 014 的圆角（与 <see cref="CrUiStyle.SettingsPopup"/> 同口径）。</summary>
         private const int PlateCorner = 24;
 
-        /// <summary>每页行数（固定 5 个行节点，翻页只切 active；行数由内容框高度倒推，见 G2-量取.md）。</summary>
+        /// <summary>每页行数（固定 5 个行节点，翻页只切 active；行数由内容框高度倒推）。</summary>
         private const int PageSize = 5;
 
         /// <summary>房名输入上限。本项目自定：服务端对房名没有长度限制（`room.go:895` 只做 TrimSpace），限长只为防误粘贴超长串。</summary>
@@ -144,7 +143,7 @@ namespace CR.UI.Panels
             float yStatus = yRows - rowsH - GapM;
             // 状态行**垫一条板岩盘**再放字（与主菜单 StatusBar 同构）：
             // 状态色（TextDim 浅灰 / Accent 金 / ErrorText 浅红）全是**为暗底设计的**，
-            // 直接压在亮面体 (229,236,242) 上对比度极低（AP1 首版实机截图实测：状态字发白看不清）。
+            // 直接压在亮面体 (229,236,242) 上对比度极低（实测：状态字发白看不清）。
             // ⚠️ 坐标是"左上角锚点 + anchoredPosition"，**y 越接近 0 越靠上** ⇒ 盘的顶边要写在
             //    字的顶边**之上** = `yStatus + GapS`（写成 `− GapS` 会把盘压到字下面，实测首版就是这样）。
             float statusPlateY = yStatus + GapS;
@@ -216,7 +215,7 @@ namespace CR.UI.Panels
 
                 // 行底：**板岩盘**（`ui_out` 014 的四角镜像九宫格）—— A 12_主菜单的深色圆角盘语言
                 // （`ItsRafaXD` 名条 / `667` 字段块都是"深色圆角块 + 亮字"）。⚠️ 原版无「房间列表」界面
-                // ⇒ 这是**对齐同类部件**（依据见 AP1-量取.md A 段），⛔ 不是"原版房间列表长这样"。
+                // ⇒ 这是**对齐同类部件**，⛔ 不是"原版房间列表长这样"。
                 _rowBoxes[index] = CrUiStyle.Skin($"Row{index}", _content, CrUiStyle.PopupFrameSlate, PlateCorner,
                     Vector4.zero, new Vector2(0f, 1f), new Vector2(0f, 1f),
                     new Vector2(InsetX, y), new Vector2(InnerW, RowH), CrUiStyle.BandSlate, false);
@@ -338,7 +337,7 @@ namespace CR.UI.Panels
                 SetRowVisible(i, true);
                 if (_rowJoinButtons[i] != null) _rowJoinButtons[i].gameObject.SetActive(true);
 
-                // 任务书要求的五项：房号 / 房名 / 人数 / 是否 AI 补位 / 是否已开打。
+                // 行内显示的五项：房号 / 房名 / 人数 / 是否 AI 补位 / 是否已开打。
                 var joinable = !room.started && room.cur < room.max;
                 var why = room.started ? "（已开打）" : (room.cur >= room.max ? "（已满）" : string.Empty);
                 if (_rowLabels[i] != null)

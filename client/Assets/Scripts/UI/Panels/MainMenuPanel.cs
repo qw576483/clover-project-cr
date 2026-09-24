@@ -22,24 +22,24 @@ namespace CR.UI.Panels
     /// —— 契约里那个 public 方法就是 agent-06/07 的接入点，面板只是它的触发源之一。
     /// </para>
     /// <para>
-    /// <b>竖版重排（G2）</b>：画布 = <see cref="CrUiStyle.DesignW"/>×<see cref="CrUiStyle.DesignH"/>（1080×1920、
+    /// <b>竖版排版</b>：画布 = <see cref="CrUiStyle.DesignW"/>×<see cref="CrUiStyle.DesignH"/>（1080×1920、
     /// `match=0`）。内容框 = <see cref="CrUiStyle.ContentPanel"/>（贴顶居中、宽 <see cref="CrUiStyle.ContentW"/>=1000），
     /// 标题 = <see cref="CrUiStyle.TitleBar"/>（原版金色标题条九宫格），
     /// 按钮 = <see cref="CrUiStyle.ActionButton"/>（原版金 / 深蓝灰按钮底九宫格），
     /// 纵向一律"面板内左上角锚点 + 逐行累加 y"（⛔ 不再有 900×660 的居中横框、⛔ 没有"大负 y"顶出屏）。
-    /// 每个数值的出处见 `.ai-tmp/test/G2-量取.md`（A = `策划/参考图/12_主菜单_750x1334.png`，折算 ×1.44）。
+    /// 每个数值的出处 = `策划/参考图/12_主菜单_750x1334.png`（折算 ×1.44）。
     /// </para>
     /// </summary>
     public sealed class MainMenuPanel : UIPanel
     {
-        // ───────────────────────── 竖版排版常量（出处：G2-量取.md，基线图宽 750 → 1080 画布 ×1.44） ─────────────────────────
+        // ───────────────────────── 竖版排版常量（基线图宽 750 → 1080 画布 ×1.44） ─────────────────────────
 
         /// <summary>
-        /// 弹窗亮面体 / 内侧留白 / 元素左边界（AO1 换帧后**不再用** `CrUiStyle.ContentW` 那一套 ——
-        /// 面板底已经从"贴顶居中的米色纸框"换成"居中弹窗(935 宽)"）。
-        /// <para>⚠️ AO1 改：原来元素宽取 `ContentW − 2×Pad` = 920，而弹窗亮面体只有 931
-        /// ⇒ 玩家条(920)几乎贴着面板边（实测首版截图），留白等于没有。基线 `12_主菜单` 的面板内留白
-        /// 是 14px@499 ⇒ 30@1080（`CrUiStyle.PopupPad`，AM2 在 `24_设置` 上同一量取）⇒ 改用它。</para>
+        /// 弹窗亮面体 / 内侧留白 / 元素左边界（面板底 = 居中弹窗，宽由 `CrUiStyle.PopupW` 定，
+        /// ⛔ 不用 `CrUiStyle.ContentW` 那一套）。
+        /// <para>⚠️ 元素宽取亮面体宽 − 左右留白，⛔ 不取 `ContentW − 2×Pad` = 920：弹窗亮面体只有 931，
+        /// 920 会让玩家条几乎贴着面板边、留白等于没有。基线 `12_主菜单` 的面板内留白
+        /// 是 14px@499 ⇒ 30@1080（`CrUiStyle.PopupPad`，与 `24_设置` 上同一量取）。</para>
         /// </summary>
         private const float BodyW = CrUiStyle.PopupW - 2f * CrUiStyle.PopupBorder;   // 931 = 亮面体宽
         private const float InnerW = BodyW - 2f * CrUiStyle.PopupPad;               // 871 = 亮面体内缩留白后
@@ -65,7 +65,7 @@ namespace CR.UI.Panels
         /// </summary>
         private const float BtnH = 66f;
 
-        /// <summary>按钮行距 = 按钮高 + 24 空隙（24 = 本项目自定节奏，登记在 G2-量取.md）。</summary>
+        /// <summary>按钮行距 = 按钮高 + 24 空隙（24 = 本项目自定节奏）。</summary>
         private const float Step = BtnH + 24f;
 
         private const float GapS = 12f;
@@ -107,13 +107,13 @@ namespace CR.UI.Panels
             }
             Subscribe();
 
-            // 昵称来源有两条，按权威性排序（根因见 `Core/PlayerSession.cs` 的类注释）：
+            // 昵称来源有两条，按权威性排序（见 `Core/PlayerSession.cs` 的类注释）：
             //  ① param —— 由 AppFlow 传入（`Game.UI.Open<MainMenuPanel>(nickname)`）；
             //  ② `PlayerSession.Nickname` —— **服务端权威会话态**（AppFlow 从 GetProfile / SetNickname
             //     回包写入）。⛔ 之所以必须要有 ②：param 是**一次性快照**，只有 `AppFlow.EnterMainMenu`
             //     会传；别的打开路径（`UIManager.Open<T>` 对已存在面板重调 `OnOpen(param)`，`UI.cs:127`；
-            //     `AppFlow.GoTo` 对同站点早退，`AppFlow.cs:365`）拿到的就是 null ⇒ 原先会**静默**显示
-            //     硬编码的 "玩家"，与服务端档案里的名字不一致且**一句日志都没有**（实测 AN1 step7）。
+            //     `AppFlow.GoTo` 对同站点早退，`AppFlow.cs:365`）拿到的就是 null ⇒ 硬编码的 "玩家"
+            //     会被**静默**显示，与服务端档案里的名字不一致且**一句日志都没有**。
             //     面板⛔不许 `using CR.Module`（契约 §1）⇒ 只能读同层 `CR.PlayerSession`，不能直接问 Flow。
             var nickname = param as string;
             if (string.IsNullOrEmpty(nickname)) nickname = PlayerSession.Nickname;
@@ -154,11 +154,10 @@ namespace CR.UI.Panels
             }
 
             // ── 标题：**白字 + 黑描边**，压在弹窗**顶部板岩带上**（不是亮面体上）──
-            // ⛔ 不再用 `CrUiStyle.TitleBar`（棕金木色条）—— 基线图上主菜单面板**没有**那条木色带。
-            // ⚠️ 为什么要放板岩带而不是亮面：白字压亮面(229,236,242)对比度太低（实测首版截图里标题发灰，
-            //    只有 2px 描边救不回来）；基线 `12_主菜单` 的标题之所以白字读得出，是因为它的描边更粗、
-            //    并且字是加粗体 —— 这两样本项目的引擎文本件都给不了 ⇒ 改放到同族板岩带上（settings 弹窗
-            //    在 AM2 就是这么做的，标题带实测 (99,104,123) 压白字对比度足够）。
+            // ⛔ 不用 `CrUiStyle.TitleBar`（棕金木色条）—— 基线图上主菜单面板**没有**那条木色带。
+            // ⚠️ 必须放板岩带而不是亮面：白字压亮面 (229,236,242) 对比度太低（2px 描边救不回来）；
+            //    基线 `12_主菜单` 的标题靠更粗的描边 + 加粗体才读得出，这两样本项目的引擎文本件都给不了
+            //    ⇒ 放到同族板岩带上（`24_设置` 弹窗同一做法，标题带实测 (99,104,123) 压白字对比度足够）。
             CrUiStyle.Outlined("Title", box.rectTransform, "主 菜 单", CrUiStyle.FontTitle, Color.white, Color.black,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, titleY),
                 new Vector2(CrUiStyle.PopupW - 2f * CrUiStyle.PopupBorder, CrUiStyle.PopupTitleH),
@@ -201,13 +200,11 @@ namespace CR.UI.Panels
                 TextAnchor.MiddleLeft, CrUiStyle.TextDim);
         }
 
-        // ══════════════ 面板侧不再自备建件（AP1：`Outlined` / `BlueButton` 已并入 `CrUiStyle`） ══════════════
+        // ══════════════ 面板侧不自备建件（`Outlined` / `BlueButton` 都在 `CrUiStyle`） ══════════════
         //
-        // <b>本片改了什么</b>：AO1 因范围限制在本文件自备的 `Outlined()` / `BlueButton()` 两份实现
-        // **已整体搬进 `CrUiStyle`**（`Outlined` 放 `CenteredText` 旁、`BlueButton` 放 `ActionButton` 旁，
-        // 位置 = AO1-report §6 的建议）⇒ 本文件现在只调用 `CrUiStyle.*`，⛔ 不再有第二份实现
-        // （否则房间列表 / 房间内 / 卡组编辑三处再各抄一份，必漂移）。
-        // ⛔ 本片的换帧结果**未被改动**：标题仍是板岩带上的白字黑描边、5 颗按钮仍是蓝底 165。
+        // 本文件只调用 `CrUiStyle.*`：`Outlined` 在 `CenteredText` 旁、`BlueButton` 在 `ActionButton` 旁，
+        // ⛔ 这里没有第二份实现（否则房间列表 / 房间内 / 卡组编辑三处再各抄一份，必漂移）。
+        // 标题仍是板岩带上的白字黑描边、5 颗按钮仍是蓝底 `ui_out` 165。
 
         /// <summary>标题行高（A 12_主菜单 标题带 h=63@750 ×1.44 = 90.7 ⇒ 取 <see cref="CrUiStyle.TitleBarH"/>=92）。</summary>
         private const float TitleRowH = CrUiStyle.TitleBarH;

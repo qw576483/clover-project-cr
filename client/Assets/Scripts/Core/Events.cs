@@ -14,8 +14,9 @@ namespace CR
     /// 最多两个参数，这是引擎 `Event.cs:113-128` 的重载上限，改动时不要超过）。
     /// </para>
     /// <para>
-    /// <b>本片（agent-05）已实现哪些</b>：`Flow.*` 与 `Settings.*` 全部；`Room.*` / `Battle.*` / `Deck.*`
-    /// 由 agent-06/07/08 消费（本片只**声明**，保证它们不必回来改本文件）。
+    /// <b>各部分的使用者</b>：`Flow.*` / `Settings.*` 由 `Module/Flow`、`Module/Settings` 与
+    /// `UI/Panels/*` 发布与订阅；`Room.*` / `Battle.*` / `Deck.*` 由 `Module/Room`、`Module/Battle`、
+    /// `Module/Deck` 消费（本文件只**声明**事件名，消费方不必回来改本文件）。
     /// </para>
     /// </summary>
     public static class Events
@@ -46,14 +47,14 @@ namespace CR
 
             /// <summary>
             /// 请求切到某站点。参数：`(string station)` —— 取值必须是 <see cref="Stations"/> 的常量。
-            /// 用途：`PausePanel` / `ResultPanel` 这类由 agent-07 实现的面板请求进 `Pause` / 回 `Battle`，
+            /// 用途：`PausePanel` / `ResultPanel` 这类面板请求进 `Pause` / 回 `Battle`，
             /// 而不必 `using CR.Module`。
             /// </summary>
             public const string StationEnterRequest = "Flow.StationEnterRequest";
 
             /// <summary>
             /// 站点已切换（发布方：`AppFlow`）。参数：`(string station)`。
-            /// 供需要"跟着站点开关自己"的模块订阅（例如 agent-07 收到 `Battle` 时开 HUD）。
+            /// 供需要"跟着站点开关自己"的模块订阅（例如 `BattleManager` 收到 `Battle` 时开 HUD）。
             /// </summary>
             public const string StationChanged = "Flow.StationChanged";
 
@@ -94,7 +95,7 @@ namespace CR
         /// 于是分组名常量无处安放、只能在面板里写裸字符串（违反 D11）。拆成三条就从根上没有这个问题。
         /// </para>
         /// <para>
-        /// <b>CR-F2：`*Changed` 的订阅方 = 显示该值的界面</b>（它们是"权威值已变更"的通知，
+        /// <b>`*Changed` 的订阅方 = 显示该值的界面</b>（它们是"权威值已变更"的通知，
         /// 不是给 `SettingsManager` 自己用的）。现状：`BgmVolumeChanged` / `SfxVolumeChanged` /
         /// `QualityChanged` / `FullscreenChanged` 由 `SettingsPanel` 订阅（事件一到就地刷新显示，
         /// 面板因此不再是"打开那一刻的快照"）；`VoiceVolumeChanged` 见其常量注释。
@@ -111,7 +112,7 @@ namespace CR
             /// <summary>
             /// 请求改人声音量。参数：`(float volume)`，0~1。
             /// <para>
-            /// ⚠️ **CR-F2：本事件今天在工程内没有发布方**（`SettingsPanel` 的「人声」行已删，见该面板
+            /// ⚠️ **本事件目前在工程内没有发布方**（`SettingsPanel` 的「人声」行已删，见该面板
             /// `Build` 的注释：原版设置界面没有此项 + 本工程无任何 voice 素材 / 播放点）。
             /// 保留它与其处理者是为了不动 `Module/Settings` 已登记的设置实体（`策划/实体清单.tsv` 的
             /// S3 VoiceVolume：`audio.voice` 仍持久化、`Init` 仍把它应用到引擎 `SoundGroup.Voice`）。
@@ -135,7 +136,7 @@ namespace CR
             /// <summary>
             /// 人声音量已生效并落盘。参数：`(float volume)`。
             /// <para>
-            /// ⚠️ **CR-F2 登记：本事件今天在工程内无人订阅，这是设计状态、不是漏挂。** 理由三条：
+            /// ⚠️ **本事件目前在工程内无人订阅，这是设计状态、不是漏挂。** 理由三条：
             /// ① 工程内**没有**任何显示"人声"的界面（设置面板的「人声」行已删：原版设置界面
             /// —— 基线图 `策划/参考图/24_设置_499x1080.jpg` —— 只有 Music / SFx 开关，没有人声项，
             /// 按"原版没有就不加"移除）；② 工程内**没有**任何 voice 素材或播放点
@@ -150,7 +151,7 @@ namespace CR
             /// 画质档位已生效并落盘。参数：`(int tier)`。订阅方：`SettingsPanel`。
             /// <para>⚠️ 有**两个**发布方，两条都在 `SettingsManager`：① 玩家点 ◀▶（`QualityRequest` 的处理链）；
             /// ② **引擎自动降档**（`Game.Quality.OnLevelChanged` → `SettingsManager.OnEngineQualityChanged`）。
-            /// 少了 ② 就会出现"自动降档后已打开的面板显示旧档位"（CR-F2 实测 S2 行）。</para>
+            /// 少了 ② 就会出现"自动降档后已打开的面板显示旧档位"。</para>
             /// </summary>
             public const string QualityChanged = "Settings.QualityChanged";
 
@@ -158,7 +159,7 @@ namespace CR
             public const string FullscreenChanged = "Settings.FullscreenChanged";
         }
 
-        /// <summary>卡组（发布方：agent-08 的 `Module/Deck`；面板 `DeckEditPanel`）。</summary>
+        /// <summary>卡组（发布方：`Module/Deck`；面板 `DeckEditPanel`）。</summary>
         public static class Deck
         {
             /// <summary>请求打开卡组编辑面板。参数：无。发布方：`MainMenuPanel`。</summary>
@@ -174,7 +175,7 @@ namespace CR
             public const string SaveFailed = "Deck.SaveFailed";
         }
 
-        /// <summary>房间（发布方：agent-06 的 `Module/Room`；面板 `RoomListPanel` / `RoomPanel`）。</summary>
+        /// <summary>房间（发布方：`Module/Room`；面板 `RoomListPanel` / `RoomPanel`）。</summary>
         public static class Room
         {
             /// <summary>请求打开房间列表面板。参数：无。发布方：`MainMenuPanel`。</summary>
@@ -214,7 +215,7 @@ namespace CR
             public const string Failed = "Room.Failed";
         }
 
-        /// <summary>对局（发布方：agent-07 的 `Module/Battle`；面板 `HudPanel` / `PausePanel` / `ResultPanel`）。</summary>
+        /// <summary>对局（发布方：`Module/Battle`；面板 `HudPanel` / `PausePanel` / `ResultPanel`）。</summary>
         public static class Battle
         {
             /// <summary>主菜单请求开一局人机对战。参数：无。发布方：`MainMenuPanel`（`AppFlow` 也直接发同义事件）。</summary>

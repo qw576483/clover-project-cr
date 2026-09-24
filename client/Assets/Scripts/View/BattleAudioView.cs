@@ -233,7 +233,7 @@ namespace CR.View
                         break;
 
                     case EventKindSpawn:
-                        // kind==1 生成：**登记为允许差异**（见回报 / `.ai-tmp/test/AG2-redrows.md`）——
+                        // kind==1 生成：**登记为允许差异**，不播音 ——
                         // 它是同一次召唤在出牌（kind==0）之后紧随的第二次事件，再播一次会与出牌音**双响**；
                         // 且整包 2953 个 ogg 里没有独立的「生成/落地」音（最接近的 `Game/summon_own_07` 已用于出牌）。
                         break;
@@ -262,7 +262,7 @@ namespace CR.View
             if (result.draw)
             {
                 // 平局：原版结算页是**三态** jingle（`scroll_win_02` / `scroll_lose_01` / `scroll_draw_01`，
-                // 同一目录 `Music/Jingles/`）⇒ 平局有原版音可用，**不是**"铁律 1 不许加"（旧实现误判）。
+                // 同一目录 `Music/Jingles/`）⇒ 平局有原版音可用。
                 Play(AudioPaths.Draw);
                 return;
             }
@@ -288,8 +288,7 @@ namespace CR.View
         ///
         /// <para>
         /// <b>为什么必须靠快照而不能靠事件</b>：协议（`Def/ProtoDef.cs:194`）只有 0..5 六种 `kind`，
-        /// **没有独立的「命中」事件**，而 `kind==2` 只在死亡时发 ⇒ 只挂事件的旧实现
-        /// 「非致死命中不触发」（D8 矩阵判不一致的原文）。
+        /// **没有独立的「命中」事件**，而 `kind==2` 只在死亡时发 ⇒ 命中必须由快照 `hp` 比对推出。
         /// </para>
         /// <para>
         /// 三条防误报：① 首次出现（新 id）不判命中；② 只有"上一帧有、这一帧 hp 变小"才算；

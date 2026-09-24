@@ -7,9 +7,9 @@ namespace CR.Module.Room
     /// 房间模块的装载点：把 <see cref="RoomManager"/> 挂到引擎的**启动钩子**上。
     ///
     /// <para>
-    /// <b>为什么要这么绕</b>：`Bootstrap`（唯一组装点，`App/Bootstrap.cs`）与 `AppFlow` 都是
-    /// agent-05 的冻结产出，本片⛔不许改；而本项目的管理器必须有人创建。可选路径：
-    /// ① 改 `Bootstrap` 加一行 —— 越界；
+    /// <b>为什么要这么绕</b>：`Bootstrap`（唯一组装点，`App/Bootstrap.cs`）与 `AppFlow` 都不经手
+    /// 本模块的创建，而本项目的管理器必须有人创建。可选路径：
+    /// ① 改 `Bootstrap` 加一行 —— 会把组装点与模块耦合起来；
     /// ② 在 `Update` 里轮询 `Game.IsRunning` 再初始化 —— 能用，但每帧白跑、且"什么时候装好"不确定；
     /// ③ **引擎自己的启动钩子**（`Game.RegisterLaunchHook`，`Game.cs:661-671`）—— 选它。
     /// </para>

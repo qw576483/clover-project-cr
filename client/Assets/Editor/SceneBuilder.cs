@@ -34,8 +34,7 @@ namespace CR.EditorTools
     {
         private const string Tag = "SceneBuilder";
 
-        // 本文件原先用裸 `Debug.Log*`（7 处）。引擎规矩 = 客户端日志一律走 `Game.Logger`
-        // （`ILogger`，⛔ 裸 `Debug.Log`）。此前担心的"Editor 期 `Game.Logger` 可能未就绪"**已核实不成立**：
+        // 日志一律走 `Game.Logger`（`ILogger`，⛔ 裸 `Debug.Log`）：
         // `Runtime/Core/Game.cs:149` `public static ILogger Logger { get; private set; } = ConsoleLogger.Instance;`
         // 且 `Runtime/Core/ConsoleLogger.cs` 的类注释逐字写着「现在 `Game.Logger` **永不为 null**：
         // 未 Launch 时指向本类（写 Console，测试里直接可见），Launch 后同样回到本类」
@@ -85,7 +84,7 @@ namespace CR.EditorTools
             Game.Logger?.Info(Tag, $"完成：{BootScenePath} + {MainScenePath} + {BattleScenePath} 已生成并写入 Build Settings");
         }
 
-        /// <summary>只读校验：三个场景文件在不在、Build Settings 里有没有（供验收取证用）。</summary>
+        /// <summary>只读校验：三个场景文件在不在、Build Settings 里有没有（供人工核对用）。</summary>
         [MenuItem("Tools/CR/2. 校验场景与 Build Settings")]
         public static void Verify()
         {
@@ -161,8 +160,8 @@ namespace CR.EditorTools
         }
 
         /// <summary>
-        /// `Battle01`：空场景 + 一台正交相机。竞技场 / 单位 / HUD 由 agent-07 的 `View` + `HudPanel`
-        /// 在进图后创建，本片**故意**不往里放东西 —— 放进去的占位物都要被删掉，不如不放。
+        /// `Battle01`：空场景 + 一台正交相机。竞技场 / 单位 / HUD 由 `View` + `HudPanel`
+        /// 在进图后创建，本生成器**故意**不往里放占位物。
         /// <para>
         /// 相机正交尺寸取 <see cref="GameConst.ArenaTilesH"/> 的一半（32 格高 ⇒ 16）：
         /// 世界坐标以"格"为单位、竞技场中心在原点（见 `Core/GameConst.cs`），
@@ -208,7 +207,7 @@ namespace CR.EditorTools
         /// 用这三个场景**整体替换** Build Settings 列表。
         /// 顺序 = <c>Boot → Main → Battle01</c>：`Boot` 必须是 index 0，构建产物启动后先加载启动场景，
         /// 再由 `AppFlow.LoadMainSceneFromBoot` 切到 `Main`。
-        /// 原来的模板场景（`SampleScene`）不再出现在列表里，但**不删除文件**（不在本片职权内）。
+        /// 模板场景 `SampleScene` 不出现在列表里，文件保留、不删除。
         /// </summary>
         private static void WriteBuildSettings()
         {

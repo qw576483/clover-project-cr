@@ -44,8 +44,8 @@ namespace CR.UI
     /// </para>
     ///
     /// <para>
-    /// <b>尺寸与字号的量取口径</b>：每个数字都能反查到 `策划/参考图/` 里的基线图与
-    /// `.ai-tmp/test/G1-量取.md`（像素值 + 占屏百分比 + 折算到 1080 画布的值 + 出处）。
+    /// <b>尺寸与字号的量取口径</b>：每个数字都记了基线图 `策划/参考图/` 里的像素读数
+    /// （像素值 + 占屏百分比 + 折算到 1080 画布的值）。
     /// 折算比例：基线图宽 750 → 1080 画布，**横纵同比例** ×(1080/750)=1.44
     /// （⛔ 不按高度百分比折算：match=0 下画布高度会浮动，按宽度折算才能保证元素尺寸一致）。
     /// 量不到的（A 没有该界面 / 该部件在基线图里看不见）**如实写"未量到"并登记待复核**，⛔ 不编数。
@@ -53,7 +53,7 @@ namespace CR.UI
     /// </summary>
     public static class CrUiStyle
     {
-        // ═══════════════════ 设计画布（★ 全项目唯一的画布尺寸出处） ═══════════════════
+        // ═══════════════════ 设计画布（全项目唯一的画布尺寸出处） ═══════════════════
 
         /// <summary>设计画布宽度（竖版 1080，`match=0` ⇒ 真机/编辑器里宽度恒为它）。</summary>
         public const float DesignW = 1080f;
@@ -66,7 +66,7 @@ namespace CR.UI
         /// <summary>
         /// 内容框宽（面板底 / 标题条 / 输入框所在的那一列）。
         /// <para>
-        /// <b>出处</b>：任务书竖版口径「内容框宽 ≤ 1000」。A 侧可量值 = 12_主菜单_750x1334 的
+        /// <b>出处</b>：竖版口径「内容框宽 ≤ 1000」。A 侧可量值 = 12_主菜单_750x1334 的
         /// Player Profile 面板（census 实测 x=17..727 ⇒ 711px @750 宽 = 屏宽 94.8%）
         /// ⇒ 折算 1080 画布 = 711×1.44 = **1023.84**。为守住 ≤1000 的口径取 <b>1000</b>，
         /// 与 A 的差值 −23.84px（−2.3%）登记在 `策划/验收表.md` 的「允许的差异」。
@@ -149,7 +149,7 @@ namespace CR.UI
         /// `24_设置_499x1080.jpg` 的 CONNECT 钮白字众数 **(255,254,255)**（150 最亮像素均值 (254,254,255)）、
         /// 同图 English 钮白字 **(255,255,255)**、同图标题带 "Settings" **(255,255,255)**（150/150 px）、
         /// `12_主菜单_750x1334.png` 深色字段盘上的 "2786" **(255,255,255)**（74 px）。
-        /// 量法 = `.ai-tmp/test/AV1-white.py`（区域内取最亮 N 像素求众数），可复跑。
+        /// 量取口径 = 区域内取最亮 N 像素求众数。
         /// 改前值 (240,243,250) ⇒ 与原版差 **(−15,−12,−5)**；改后差值 **0**。
         /// </para>
         /// </summary>
@@ -170,11 +170,10 @@ namespace CR.UI
         // ═══════════════════ 字号档位（竖版画布 1080 宽，像素） ═══════════════════
         //
         // <b>标定口径（每个档位都写清来源）</b>：
-        //   ① 先从基线图量出**字形高度**（像素）—— 量法 = `.ai-tmp/test/g1-measure.py text`，
-        //      在指定窗口里取目标颜色像素的 bbox 高度（读数见 `G1-量取.md` D 段）；
+        //   ① 先从基线图量出**字形高度**（像素）：在指定窗口里取目标颜色像素的 bbox 高度；
         //   ② 折算到 1080 画布 = 字形高度 × 1.44（基线宽 750 → 1080）；
         //   ③ 字号 = 折算后的字形高度 ÷ 字形高度比（LegacyRuntime/Arial 大写字母 ≈ 0.70、数字 ≈ 0.72）。
-        //   ⛔ 第 ③ 步的 0.70/0.72 是**字体度量常数**（不是量出来的），已在 `G1-量取.md` 里单独登记；
+        //   ⛔ 第 ③ 步的 0.70/0.72 是**字体度量常数**（不是量出来的）；
         //      量不到字形高度的档位如实写"未量到 + 暂用 X（登记待复核）"。
 
         /// <summary>
@@ -216,7 +215,7 @@ namespace CR.UI
         /// <summary>
         /// **宣传大标题字**（卡组页底部那张宣传插图上的「百張卡牌 / 組建牌組」两行）。
         /// <para>
-        /// 出处 **E64（★ D151 第三片实测）**：`策划/参考图/07_卡组编辑_1242x2208.jpg` 里，
+        /// 出处 **E64**：`策划/参考图/07_卡组编辑_1242x2208.jpg` 里，
         /// 用 `V&gt;200` 抓白色字形像素，得到两行的行段与包围盒 ——
         /// 第 1 行 y1719..1914（字高 **196px@1242**，x227..1013 宽 787）、
         /// 第 2 行 y1949..2140（字高 **192px@1242**，x225..1015 宽 791）。
@@ -237,9 +236,8 @@ namespace CR.UI
         // 直接拉到别的尺寸 = 圆角被拉成椭圆、描边粗细不均（"变形"）。
         // 九宫格只拉伸"四边中间那一块**本来就均匀**的区域"，四角/四边原样保留。
         //
-        // <b>量法</b>（`.ai-tmp/test/g1-slice2.py` + 逐列逐行剖面 `g1-measure.py`）：
-        //   对图元逐列求 `相邻两列的最大通道差`，找出"差 ≤ 容差"的最长连续区间 = 可拉伸区，
-        //   区间之外即切边。下表的值同时用肉眼核过剖面（见 `G1-量取.md` C 段）。
+        // <b>量法</b>：对图元逐列求 `相邻两列的最大通道差`，找出"差 ≤ 容差"的最长连续区间 = 可拉伸区，
+        //   区间之外即切边；下表的值同时用肉眼核过逐列逐行剖面。
         //
         // <b>⚠️ Vector4 的字段顺序 = (x=左, y=下, z=右, w=上)</b>（Unity `Sprite.border` 的定义），
         // 与"从上往下读"的习惯不同 —— 下面每个都写成 `(左, 下, 右, 上)` 并注明来源，⛔ 别照抄别处的顺序。
@@ -289,13 +287,12 @@ namespace CR.UI
         // <b>为什么另起一套</b>：用户 2026-09-2x 原话「你这 ui 也太丑了，原版 ui 不长这样啊！！！
         // 原版，界面 按钮 根本不长这样啊！！」并附截图（米色纸面板 + 棕色标题条 + 三条绿色滑条 +
         // 蓝色三角箭头 + 黄色「关闭」宽条 + 黄字百分比）。
-        // 取证发现根因 = **旧帧是照 `策划/原版UI素材索引.md` 的「建议用途」列挑的，而那一列是看缩略图猜的**
-        // ⇒ 本片改成「**先拿设置界面基线图，再按外观比对选帧**」。
+        // 选帧口径 = **先取设置界面基线图，再按外观比对选帧**；
+        // ⛔ 不按 `策划/原版UI素材索引.md` 的「建议用途」列挑帧（那一列是按缩略图猜的）。
         //
         // <b>基线图</b> = `策划/参考图/24_设置_499x1080.jpg`（499×1080，原版设置界面整屏）
         // 来源 URL = https://www.gameuidatabase.com/uploads/Clash-Royale01022022-071826-52305.jpg
-        // 量法 = `.ai-tmp/test/AM2-measure.py` / `AM2-rects.py`（按颜色连通块求外接矩形 + 逐点取样），
-        // 读数全部登记在 `.ai-tmp/test/AM2-量取.md`，⛔ 没有一个是估的。
+        // 量法 = 按颜色连通块求外接矩形 + 逐点取样，⛔ 读数没有一个是估的。
 
         /// <summary>设置基线图的像素宽（`策划/参考图/24_设置_499x1080.jpg`）。</summary>
         public const float SettingsBaselineW = 499f;
@@ -355,7 +352,7 @@ namespace CR.UI
         /// </summary>
         public static readonly Color TextOnLightDim = new Color32(110, 118, 132, 255);
 
-        // ── 本片新用的原版帧（⛔ 全部经 ResPaths.UiFrame，本类不写裸路径；⛔ 不改 ResPaths.cs）──
+        // ── 本节用到的原版帧（⛔ 全部经 `ResPaths.UiFrame`，本类不写裸路径；⛔ 不改 `ResPaths.cs`）──
 
         /// <summary>弹窗外框 / 标题带 / 滑块轨道 / 灰按钮（`ui_out` 014，96×95，左上圆角件，填充 (96,102,119)）。</summary>
         public static string PopupFrameSlate { get { return ResPaths.UiFrame(ResPaths.UiPanelsDir, ResPaths.UiSrcUi, 14); } }
@@ -381,8 +378,7 @@ namespace CR.UI
         /// （`ButtonBlueCorner` = 165 / `ButtonBlueCornerAlt` = 166），此处改引后者，⛔ `ResPaths.cs` 一字未改。
         /// </para>
         /// <para>
-        /// 量法可复跑：`.ai-tmp/test/af3-scan-frames.py`（逐帧左上 inset 剖面 + 透明 bbox）、
-        /// `.ai-tmp/test/af3-165vs166.py`；原始输出 `AF3-scan-frames.out.txt` / `AF3-165vs166.out.txt`。
+        /// 量法 = 逐帧左上 inset 剖面 + 透明 bbox。
         /// ⚠️ 该帧的圆角半径 ≈13px（透明区 bbox x=0..12 / y=0..10 ⇒ 弧到第 13 列/第 11 行才收）
         /// <b>小于</b>原版的 r≈15px@1080 ⇒ 实机复现到 ≈7~13px（见 <see cref="BlueCorner"/> 的 AF4 段），
         /// ⛔ 不写"一致"。
@@ -428,9 +424,9 @@ namespace CR.UI
         /// <summary>
         /// <see cref="Dress(Image, string, int, Vector4)"/> 的**带 tint 重载**（AV1 加）。
         /// <para>
-        /// 用途：素材帧自身色 ≠ 那条基线读数时（本片蓝按钮 (48,156,255) vs 原版 (48,112,224)），
+        /// 用途：素材帧自身色 ≠ 那条基线读数时（蓝按钮帧内填色 (48,156,255) vs 原版 (48,112,224)），
         /// 在**不换帧、不改几何**的前提下把外观标到原版读数的唯一杠杆。
-        /// <paramref name="tint"/> = <c>null</c> ⇒ 与旧口径逐字相同（`Color.white` = 原图原色，不加任何滤镜）。
+        /// <paramref name="tint"/> = <c>null</c> ⇒ 不加 tint（`Color.white` = 原图原色，不加任何滤镜）。
         /// </para>
         /// </summary>
         public static void Dress(Image img, string resPath, int corner, Vector4 border, Color? tint)
@@ -482,8 +478,8 @@ namespace CR.UI
         }
 
         /// <summary>
-        /// UI 点击音的唯一公开入口：本片把 `<see cref="ActionButton"/>/<see cref="Button"/>` 之外的
-        /// 自建 `Button`（设置面板的关闭 / 画质箭头 / 全屏）也要发声，所以把私有的 <see cref="PlayUiClick"/>
+        /// UI 点击音的唯一公开入口：除 `<see cref="ActionButton"/>/<see cref="Button"/>` 之外，
+        /// 各面板自建的 `Button`（设置面板的关闭 / 画质箭头 / 全屏）也要发声，所以把私有的 <see cref="PlayUiClick"/>
         /// 包一层 —— ⛔ 调用方不要自己 `Game.Sound.PlaySFX`（会漏日志、双响）。
         /// </summary>
         public static void PlayClick(string buttonName)
@@ -607,7 +603,7 @@ namespace CR.UI
         // 两个源图集常量，而 Logo 与进度条填充来自第三个图集 `loading_out`（索引 §4.2）。
         // `ResPaths.UiFrame(purpose, srcDir, frame)` 是通用签名，所以这里用**常量**传源图集名
         // （⛔ 不直接拼路径、也不改 `ResPaths.cs` —— 那是并行任务的 owner）。
-        // 正解是给 `ResPaths` 补一个 `UiSrcLoading` 常量，已写进回报（本片无权限改）。
+        // 正解是给 `ResPaths` 补一个 `UiSrcLoading` 常量。
 
         /// <summary>源图集目录名：加载/启动画面（索引 §4.2，34 帧）。</summary>
         private const string SrcLoading = "loading_out";
@@ -621,7 +617,7 @@ namespace CR.UI
         /// <summary>读条填充绿条（`loading_out` 015，115×39）—— `LoadingPanel` 的进度条填充。</summary>
         public static string LoadingBarFill { get { return ResPaths.UiFrame(ResPaths.UiBarsDir, SrcLoading, 15); } }
 
-        // ═══════════ 卡面（`ui_spells_out`）：帧号表 + 裁剪口径 —— ★ 全工程唯一一处 ═══════════
+        // ═══════════ 卡面（`ui_spells_out`）：帧号表 + 裁剪口径 —— 全工程唯一一处 ═══════════
         //
         // <b>为什么必须收敛到一处（CR-T2，2026-09-22）</b>：这张「卡 key → 卡面帧号」表原先在
         // `HudPanel` 与 `DeckEditPanel` **各存一份**（35 条 / 60 条），`HudPanel` 自己的注释还写着
@@ -782,7 +778,7 @@ namespace CR.UI
             if (source == null || source.texture == null) return null;
             var r = source.rect;
 
-            // ★ 关键闸门（CR-T2 第二版修，2026-09-22 实机取证后）：`ui_spells_out/*.png` 的导入器
+            // 关键闸门：`ui_spells_out/*.png` 的导入器
             //   已经把**每一帧**裁好了 —— 每张 png 的 .meta 里 `sprites[0].rect` 就是那一帧的内容窗
             //   （实测：`frame_049` = (x=97, y=125, 198×252)、`frame_022` = (x=0, y=125, 198×252)，
             //   两个例外都自带）⇒ 这时 `source.rect` **就是**我们要的窗口，
@@ -816,7 +812,7 @@ namespace CR.UI
         /// （与引擎的 Slider / InputField / Selector / ToggleRow 工厂一致，见类注释的坐标系约定）。
         /// <para>⚠️ 竖版的新面板不要用它（它把面板摆在屏幕正中、尺寸写死），改用
         /// <see cref="ContentPanel"/>：面板顶按 A 的实测比例贴顶，宽 = <see cref="ContentW"/>。
-        /// 保留本方法是因为房间/设置/卡组等面板仍在用（它们的竖版重排不归本片）。</para>
+        /// 保留本方法是因为房间/设置/卡组等面板仍在用。</para>
         /// </summary>
         public static Image CenteredBox(string name, Transform parent, Vector2 size, Color color, bool raycast = true)
         {
@@ -985,7 +981,7 @@ namespace CR.UI
         /// 面板标题条（贴面板顶、满宽）+ 居中标题字。返回标题文本节点。
         /// <para>素材 = <see cref="ResPaths.TitleBarGold"/>（A 的原版金色标题条）+ <see cref="BorderTitleBar"/>；
         /// 条高 = <see cref="TitleBarH"/>（A 的标题带实测）。文字用 <see cref="TextColor"/>（白金压木色才读得出；
-        /// 旧的 <see cref="Accent"/> 金字压在金条上等于看不见）。</para>
+        /// <see cref="Accent"/> 金字压在金条上等于看不见）。</para>
         /// </summary>
         public static Text TitleBar(string name, Transform parent, string title, float width)
         {
@@ -1054,57 +1050,50 @@ namespace CR.UI
         // x=46..187 / y=375..419）的蓝面读数：众数 **(50,110,224)**（307 / 5 724 蓝像素）、中位 (57,118,228)、
         // 均值 (65,123,226)。同图还有一颗**亮蓝**按钮（English 钮 x=47..241 / y=616..645，
         // 蓝面众数 **(104,173,248)**、981 / 4 989 px）⇒ 原版蓝按钮有**两种**读数，⛔ 不能只写一个数就完事。
-        // 量法 = `.ai-tmp/test/AV1-blue2.py`（按蓝色掩膜在指定窗口内求众数/中位/均值 + 垂直剖面）、
-        // 复核底稿 = `.ai-tmp/test/AV1-measure.{py,txt}` / `AV1-scan.{py,txt}`（全图扫过：全 37 张原版图里
-        // 与 (48,112,224) 每通道差 ≤2 的像素只出现在 `24_设置` 的 y=407..413 / x=51..182 这条带上）。
+        // 量法 = 按蓝色掩膜在指定窗口内求众数/中位/均值 + 垂直剖面；
+        // 全图扫过：全 37 张原版图里与 (48,112,224) 每通道差 ≤2 的像素只出现在 `24_设置` 的
+        // y=407..413 / x=51..182 这条带上。
         //
         // <b>我们的按钮为什么不是这个色</b>：`ui_out` 165 帧自身的内部填充（该帧 (9,9) 像素，
         // 九宫格镜像拼贴后铺满按钮内部的就是它）= **(48,156,255)**，实机截图逐点读数同为 (48,156,255)
-        // （`.ai-tmp/test/AU1-pix.txt`），即**当前渲染没有任何 tint/滤镜**（`Image.color` 被设成纯白）。
-        // ⇒ 偏差的根因 = 帧自身色 ≠ 原版读数（ΔR −2 / ΔG **+44** / ΔB +31），⛔ 不是面板代码问题。
+        // 即**当前渲染没有任何 tint/滤镜**（`Image.color` 被设成纯白）。
+        // ⇒ 偏差来源 = 帧自身色 ≠ 原版读数（ΔR −2 / ΔG **+44** / ΔB +31），⛔ 不是面板代码问题。
 
         /// <summary>
-        /// 原版**深蓝按钮**蓝面读数（`24_设置` CONNECT 钮众数 (50,110,224)，任务书引作 (48,112,224)）。
-        /// <para>本片按它标定 <see cref="BlueButton"/>；同时用作蓝按钮**取不到帧时的兜底色**（旧值 `ButtonBg`=(26,43,71)）。</para>
+        /// 原版**深蓝按钮**蓝面读数（`24_设置` CONNECT 钮众数 (50,110,224)；标定取 (48,112,224)）。
+        /// <para>按它标定 <see cref="BlueButton"/>；同时用作蓝按钮**取不到帧时的兜底色**。</para>
         /// </summary>
         public static readonly Color32 ButtonBlueReading = new Color32(48, 112, 224, 255);
 
         /// <summary>
         /// 原版**亮蓝按钮**蓝面读数（`24_设置` English 钮众数 (104,173,248)）。
-        /// <para>登记用（`.ai-tmp/test/AV1-color-report.md` §2 —— AV1 片**未**产出 `AV1-允许差异.md`，该登记只落在报告）：⛔ 本片**不**把它当标定目标 —— 任务书点名的是深蓝读数。</para>
+        /// <para>⛔ **不**把它当标定目标 —— 标定目标是深蓝读数 <see cref="ButtonBlueReading"/>。</para>
         /// </summary>
         public static readonly Color32 ButtonBlueLightReading = new Color32(104, 173, 248, 255);
 
         /// <summary>
         /// 蓝按钮的**常态标定 tint** = 原版读数 <see cref="ButtonBlueReading"/> ÷ 素材帧自身的内填色。
         /// <para>
-        /// **AF3/AF4（2026-09-22）重标定，因为源帧由 `ui_out` 165 换成 166**（换帧原因见 <see cref="ButtonBlue"/>）：
-        /// 九宫格铺满按钮内部的那个像素 = 源帧的 (c−1, c−1)；c = <see cref="BlueCorner"/> = **19**（取值见本文件 `BlueCorner` 声明处）；
-        /// ⇒ 新源帧 `166` 的取角块中心像素 = **(18,18)**，**AG3 实测其 RGB = (76,172,255)**（`.ai-tmp/test/AG3-measure-166.txt:8`）；
-        /// 分母改用**实测值** (76,**172**,255) ⇒ tint = (48/76, **112/172**, 224/255)（×255 ≈ `0xA1A6E0`）。
-        /// （修订记录：AG2b 曾按代码里的 (76,176,255) 写注释；AG3 实测 (18,18)=(76,172,255) ⇒ `/176` 令渲染 G = 172×0.6364 ≈ 109，
-        /// 正是实机 (45,108,224) 里 ΔG=−4 的来源；本行分母已改回实测的 172。）
+        /// 源帧 = `ui_out/166`（见 <see cref="ButtonBlue"/>）：九宫格铺满按钮内部的那个像素 =
+        /// 源帧的 (c−1, c−1)；c = <see cref="BlueCorner"/> = **19**（取值见本文件 `BlueCorner` 声明处）
+        /// ⇒ 取角块中心像素 = **(18,18)**，实测其 RGB = **(76,172,255)**；
+        /// 分母取**实测值** (76,**172**,255) ⇒ tint = (48/76, **112/172**, 224/255)（×255 ≈ `0xA1A6E0`）。
+        /// ⛔ 分母不能用 (76,176,255)：`/176` 令渲染 G = 172×0.6364 ≈ 109，比原版读数低 4（ΔG=−4）。
         /// </para>
         /// <para>
-        /// ⚠️ <b>AF4 更正</b>：AF3 曾按 c=12 / 帧 (11,11)=(48,180,255) 标成 (1.0000, 0.6222, 0.8784)。
-        /// 实机采图（`AF4-settings-mine-c12.png`，20:48:36）证明 **c=12 不行**：`166` 的**第 0 行前 13 列全透明**
-        /// （row0 transparent cols = 0..12），而镜像九宫格最外一行/一列取自源帧 row 0 / col (c−1)=11
-        /// ⇒ 画出来的按钮**顶边与底边各掉约 4px**（实机蓝块高 57px，改前是 65px），且角只到 r≈7px。
-        /// 取 **c=15** 后九宫格最外一行/列 = 源帧 row/col 14（**全不透明**，`row 12+ / col 13+ 无透明像素`）
+        /// ⛔ **c 必须 ≥ 13**：`166` 的**第 0 行前 13 列全透明**（row0 transparent cols = 0..12），
+        /// 而镜像九宫格最外一行/列取自源帧 row 0 / col (c−1)=11 ⇒ c 小于 13 时画出来的按钮
+        /// **顶边与底边各掉约 4px**（实测蓝块高 57px，四边完整时应为 65px），且角只到 r≈7px。
+        /// 取 c ≥ 13 后九宫格最外一行/列落在 row/col ≥ 12（**全不透明**，`row 12+ / col 13+ 无透明像素`）
         /// ⇒ 顶/底边完整，且整条弧（≤13px）都装进了取角块。
-        /// （**现值指针**，AG3 2026-09-22 追加：帧 = `ui_out/166`（见 <see cref="ButtonBlue"/>，本文件 `:373`）/
-        /// c = <see cref="BlueCorner"/> = **19** / tint 分母 = 实测 **(76,172,255)**（见 <see cref="ButtonBlueTint"/>）。
-        /// ⚠️ 帧 166 的角部上限经量取 = **≈11px**（逐行 top-left inset 收敛，`.ai-tmp/test/AG3-measure-166.txt:7`）= 加大 border 追不到原版 ≈15px@1080。）
+        /// ⚠️ 帧 166 的角部上限经量取 = **≈11px**（逐行 top-left inset 收敛）= 加大 border 追不到原版 ≈15px@1080。
         /// </para>
         /// <para>
-        /// 旧值（AV1 片，源帧 165 / c=10 / 帧 (9,9)）：(1.000, 0.718, 0.878)，分母 G=156 —— 那是 AV1 的读法
-        /// （同像素本文件 848-850 行记作 (48,156,255)，而本片对落盘 PNG 的逐像素读数是 (44,152,255)，
-        /// 存在 **+4/+4/0 的方法差**）。本片统一改用「落盘 PNG 逐像素读数」这一种口径做分母，
-        /// 目标值不变（仍是 <see cref="ButtonBlueReading"/> = (48,112,224)）。
-        /// ✅ **AF4 实机复核（2026-09-22 20:48:36，`.ai-tmp/screenshots/AF4-settings-mine-c12.png`）**：
-        /// c=12 那次实测蓝面 **mode=median=mean=(48,111,224)**（两枚画质箭头）＝ 原版读数 (50,110,224) 的 **Δ(−2,+1,0)**，
-        /// 即 AV1 目标 (48,112,224) 已达成（G 差 1 = 前述 +4/+4/0 方法差）⇒ 分母改用「落盘 PNG 逐像素读数」这套口径是对的。
-        /// 当前口径（c=19）沿用同一套读法（分母 = (76,176,255)）；AF4 最终态实机（2026-09-22 21:23:03）蓝面 = **(45,108,224)**（Δ vs 目标 (48,112,224) = (−3,−4,0)，`.ai-tmp/test/AG1-measure-final.txt:7-8`）。
+        /// 分母口径 = **落盘 PNG 逐像素读数**（当前源帧 = `ui_out/166`，分母 = (76,172,255)），
+        /// 目标值 = <see cref="ButtonBlueReading"/> = (48,112,224)。
+        /// 另一套读法（帧内取样）在同像素上记作 (48,156,255)，两种口径存在 **+4/+4/0 的方法差**。
+        /// ✅ 实机复核：蓝面 **mode=median=mean=(48,111,224)**（两枚画质箭头）＝ 原版读数 (50,110,224) 的
+        /// **Δ(−2,+1,0)**（G 差 1 即上述方法差）。
         /// </para>
         /// <para>
         /// tint 仍是**纯乘**：帧自己的高光/暗缘按同一比例缩放，⛔ 不插值、不加特效。
@@ -1115,58 +1104,43 @@ namespace CR.UI
             new Color(48f / 76f, 112f / 172f, 224f / 255f, 1f);
 
         /// <summary>
-        /// 原版蓝色按钮件的**取角块边长** = <b>15</b>（AF3 2026-09-22 由 10 改 12、AF4 同日改 15，与源帧 165→166 同批），全工程唯一来源
-        /// （`SettingsPanel` 也改成引用本常量，原先那处写 14 的不一致已消除）。
+        /// 原版蓝色按钮件的**取角块边长** = <b>19</b>，全工程唯一来源（`SettingsPanel` 也引用本常量）。
         /// <para>
-        /// <b>AE1 判值（2026-09-22，基线图 + 帧 + 实机三层量）</b>：
+        /// <b>判值（基线图 + 帧 + 实机三层量）</b>：
         /// ① **基线图** `策划/参考图/24_设置_499x1080.jpg` 里那颗蓝钮（蓝像素连通块 bbox x=46..187 / y=358..419 @499，
-        /// 与 AD1/AV1 读蓝用的条带 x=51..182 / y=407..413 同属该块）**四个角**逐行内缩：
+        /// 与读蓝用的条带 x=51..182 / y=407..413 同属该块）**四个角**逐行内缩：
         /// 上左 y=358..365 = 6,4,3,2,2,1,1,1（y=366 起 0）、上右同值、下左 y=412..419 = 1,1,1,2,2,3,5,7、
         /// 下右同值 ⇒ 原版圆角 r ≈ 7px @499 ≈ 15px @1080。
-        /// ② **帧自身** `ui_out/165`（38×40）的圆角特征占 14×14px（非透明 bbox x=0..13 / y=26..39），
-        /// **但它落在帧的"下左"**；`MakeRounded` 取的是**左上** c×c 块（那里完全不透明）⇒ 圆角**本来就没被复现**
-        /// （AE1 实机量取：按钮四角 inset 恒 0 = 方角，⛔ 与 10/14 无关，属另一处缺陷，见 `.ai-tmp/test/AE1-量取.md`）。
-        /// ③ 于是 c 的**唯一实机可判**作用 = 九宫格中心像素取自帧的 (c−1, c−1)：c=10 ⇒ 帧 (9,9) = (48,156,255)，
-        /// 乘常态 tint (1.000,0.718,0.878) = **(48,112,224) = 原版读数**（AD1 实机 mode (44,108,224)、边唇 (48,111,224)，Δ≤4）；
-        /// c=14 ⇒ 帧 (13,13) = (72,172,255)，乘同一 tint = (72,123,224) —— **AE1 实机实测 (72,122,224)**，
-        /// Δ = **(+24,+10,0)** 超出容差。⇒ 能让实机读数落回原版读数的唯一取值 = **10**（AV1 的 tint 就是按帧 (9,9) 标定的，
-        /// 两者绑定）。⚠️ 原版圆角 r≈15px 未复现这一条**不是** c 能修的，另行登记。
+        /// ② 素材帧必须是**左上圆角件**：`MakeRounded` 取的是源帧**左上** c×c 块，圆角若落在帧的下左
+        /// （如 `ui_out/165`）则不会被复现（实机量取：按钮四角 inset 恒 0 = 方角，⛔ 与 c 无关）。
+        /// ③ c 的另一作用 = 九宫格中心像素取自帧的 (c−1, c−1)，它决定乘 tint 后的实机读数
+        /// （当前源帧 `166` ⇒ (18,18) = (76,172,255)，见 <see cref="ButtonBlueTint"/>）。
         /// </para>
         /// <para>
-        /// <b>AF3 修订（2026-09-22）</b>：上面 ② 说的「圆角落在帧的**下左**」正是本轮修的缺陷根因 ——
-        /// ⛔ 不是 c 能修的，而是**源帧选错**：<see cref="MakeRounded"/> 只读源帧的**左上** c×c 块，
-        /// 所以源帧必须是真正的「左上圆角件」⇒ 换帧 165 → 166（见 <see cref="ButtonBlue"/>）。
-        /// </para>
         /// <para>
-        /// <b>AF4 修订（2026-09-22，实机读数驱动）</b>：AF3 先取 c=12（理由：166 的弧逐行 inset
-        /// = 13,9,7,6,5,4,3,2,1,1,1,0，row 11 才收敛 ⇒ c ≥ 12 才不截断弧）。**实机证明不够**：
-        /// `AF4-settings-mine-c12.png`（20:48:36）里两枚画质箭头的蓝块高 **57px**（改前 65px）——
-        /// 顶边/底边各掉了约 4px，因为镜像九宫格**最外一行/一列**取自源帧 row 0 / col (c−1)，
-        /// 而 166 的 **row 0 前 13 列全透明**（实测 transparent cols = 0..12），col 11 在 row 0 也是透明
-        /// ⇒ 那两条边被拉成了透明。改取 **c=15**：九宫格最外一行/列 = 源帧 row/col **14**，
-        /// 实测 **row 12+ / col 13+ 无任何透明像素** ⇒ 四边完整，且整条弧（≤13px）都在取角块内。
-        /// c=15 ⇒ 九宫格中心像素 = 帧 **(14,14) = (76,172,255)**（该帧真正的内部平填色），
-        /// <see cref="ButtonBlueTint"/> 已按它重标定为 (0.6316, 0.6512, 0.8784)。
+        /// ⛔ c 必须同时满足「弧不被截断」与「最外一行/列不透明」：166 的弧逐行 inset
+        /// = 13,9,7,6,5,4,3,2,1,1,1,0（row 11 才收敛 ⇒ c ≥ 12），而 **row 0 前 13 列全透明**
+        /// （实测 transparent cols = 0..12），镜像九宫格**最外一行/一列**取自源帧 row 0 / col (c−1)
+        /// ⇒ c ≥ 13 时最外一行/列落在 **row 12+ / col 13+（无任何透明像素）**，四边完整、整条弧都在取角块内；
+        /// c=12 时实测蓝块高 57px（四边完整时 65px），顶/底各掉约 4px。
+        /// 九宫格中心像素随 c 变化，<see cref="ButtonBlueTint"/> 按 c=19 的 **(18,18) = (76,172,255)**
+        /// （该帧真正的内部平填色）标定为 (0.6316, 0.6512, 0.8784)。
         /// </para>
-        /// <para>量法可复跑：`.ai-tmp/test/AE1-corner.py` / `AE1-corner2.py` / `AE1-corner3.py`（圆角）、
-        /// `AE1-tile.py`（九宫格中心像素 → tint 后的读数）、`AE1-measure.py`（实机像素）；
-        /// 原始输出 `.ai-tmp/test/AE1-corner{,-2,-3}.txt` / `AE1-tile.txt` / `AE1-measure.txt`；结论 `AE1-量取.md`。</para>
         /// </summary>
         public const int BlueCorner = 19;
 
         /// <summary>
-        /// **蓝底按钮**（原版蓝色圆角件 <see cref="ButtonBlue"/>（`ui_out` 166 —— **AF3 2026-09-22 前用的是 165，
-        /// 而 165 的圆角在左下 ⇒ 实机方角**，见 <see cref="ButtonBlue"/>；166 是左上圆角件 ⇒ 走
+        /// **蓝底按钮**（原版蓝色圆角件 <see cref="ButtonBlue"/>（`ui_out` **166**，左上圆角件 ⇒ 走
         /// <see cref="Skin"/> 的四角镜像九宫格）+ 白字黑描边标签 + 四态 tint）。
         /// <para>
         /// <b>依据</b>：A 12_主菜单里 "Clan" 按钮 / 各分区蓝 ribbon **全是蓝底白字**（基线图逐点取样
-        /// 蓝 ≈ (24,119,233)~(77,175,254)，与 165 的填充 (40,123,201) 同族；读数见 `AP1-量取.md` A 段），
+        /// 蓝 ≈ (24,119,233)~(77,175,254)，与素材帧填充 (40,123,201) 同族），
         /// 而金色立体按钮（`ui_out` 300）是商店 / 宝箱的语言 ⇒ 功能面板不用它。
         /// </para>
         /// <para>定位口径 = **左上角**（与 <see cref="ActionButton"/> 完全一致，可直接替换调用）。</para>
         /// <para>
-        /// <b>为什么并进本类</b>：AO1 在 `MainMenuPanel` 里自备过一份 ⇒ 本片是它的第二个 / 第三个使用者
-        /// （房间列表 / 房间内 / 卡组编辑），再抄三份必漂移。
+        /// <b>为什么并进本类</b>：`MainMenuPanel`、房间列表 / 房间内 / 卡组编辑都要同一种蓝底按钮，
+        /// 各处自备必漂移。
         /// </para>
         /// </summary>
         public static Image BlueButton(string name, Transform parent, string label, Vector2 pos, Vector2 size,
@@ -1176,14 +1150,13 @@ namespace CR.UI
         }
 
         /// <summary>
-        /// <see cref="BlueButton"/> 的**标签色可指定**重载（收敛 AQ1：登录 / 注册 / 昵称三面板的原自备实现
-        /// 用的是**纯白**标签 ⇒ 收敛时把标签色显式传进来，收敛前后**同口径**，⛔ 不是收敛时顺手改外观）。
+        /// <see cref="BlueButton"/> 的**标签色可指定**重载（登录 / 注册 / 昵称三面板要**纯白**标签
+        /// ⇒ 把标签色显式传进来）。
         /// </summary>
         public static Image BlueButton(string name, Transform parent, string label, Vector2 pos, Vector2 size,
             Action onClick, Color labelColor)
         {
-            // 常态 face = ButtonBlueTint（使渲染结果 = 原版 (48,112,224)）：AV1 标定，AF3 因源帧 165→166 已按新中心像素重标定；
-            // 兜底色 = 同一个原版读数。⛔ 期望值未实机复核（本片不进 Play，见 AF3-report.md §③）。
+            // 常态 face = ButtonBlueTint（使渲染结果 = 原版 (48,112,224)）；兜底色 = 同一个原版读数。
             var img = Skin(name, parent, ButtonBlue, BlueCorner, Vector4.zero,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), pos, size, ButtonBlueReading, true, ButtonBlueTint);
 
@@ -1212,11 +1185,11 @@ namespace CR.UI
         /// <see cref="BlueButton"/> 完全一致，可直接替换调用）。
         /// <para>
         /// <b>依据</b>：基线 `24_设置_499x1080.jpg` 的灰按钮行「API Token」实测 **(103,106,121)**
-        /// （`.ai-tmp/test/AM2-量取.md` A12），与弹窗外框板岩 **#636B7B** 同色 ⇒ 次操作 = 板岩底白字。
+        /// 与弹窗外框板岩 **#636B7B** 同色 ⇒ 次操作 = 板岩底白字。
         /// </para>
         /// <para>
-        /// <b>为什么并进本类</b>：AM2 在 `SettingsPanel`、AP2 在 `LoginPanel` / `RegisterPanel` 各写过一份同口径
-        /// 自备实现（AP2 回报明说"三份重复建议由主 agent 统一收敛"）⇒ 收敛到这里唯一一处（AQ1）。
+        /// <b>为什么并进本类</b>：`SettingsPanel` / `LoginPanel` / `RegisterPanel` 都要同一种板岩按钮，
+        /// 各处自备必漂移。
         /// </para>
         /// </summary>
         public static Image SlateButton(string name, Transform parent, string label, Vector2 pos, Vector2 size,
@@ -1282,7 +1255,7 @@ namespace CR.UI
         /// <summary>
         /// **状态按钮**（开 / 关两态）的九宫格切边：<see cref="ButtonGreen"/>（610）/ <see cref="ButtonRed"/>（477）
         /// 都是 69×69 的四角对称圆角块 ⇒ 直接用 `border` 九宫格拉伸（`corner = 0`）。
-        /// <para>取值依据 = AM2 在 `SettingsPanel` 上对同一对帧的实测用法（`SettingsPanel.cs:139/259/358`），⛔ 不是本片估的。</para>
+        /// <para>取值依据 = `SettingsPanel` 上对同一对帧的实测用法（`SettingsPanel.cs:139/259/358`）。</para>
         /// </summary>
         public static readonly Vector4 BorderStateButton = new Vector4(14f, 14f, 14f, 14f);
 
@@ -1291,8 +1264,8 @@ namespace CR.UI
         /// 关 = 红（<see cref="ButtonRed"/>，`ui_out` 477）。
         /// <para>
         /// <b>依据</b>：基线 `24_设置_499x1080.jpg` 的 Music/SFx 是**绿 ON**、Filter Clan Chat 是**红 Off**
-        /// （AM2 实测）；本片房间面板的「AI 补位」是同一种"开/关"语义 ⇒ 用同一对帧，
-        /// ⛔ 不用文字自造（旧实现只改文案，底图仍是深蓝灰，与原版语言不符）。
+        /// （实测）；房间面板的「AI 补位」是同一种"开/关"语义 ⇒ 用同一对帧，
+        /// ⛔ 不用文字自造（只改文案时底图仍是深蓝灰，与原版语言不符）。
         /// </para>
         /// </summary>
         public static void DressStateButton(Image img, bool on)
@@ -1303,7 +1276,7 @@ namespace CR.UI
         /// <summary>
         /// 弹窗**顶部板岩带上的居中标题**（白字 + 黑描边）。
         /// <para>
-        /// <b>为什么标题压板岩带而不是亮面体</b>：亮面体 (229,236,242) 压白字对比度太低（AO1 首版实测标题发灰）；
+        /// <b>为什么标题压板岩带而不是亮面体</b>：亮面体 (229,236,242) 压白字对比度太低（实测标题发灰）；
         /// 板岩带 (99,104,123) 压白字读得出（基线 `24_设置` 就是板岩带 + 白字）。
         /// </para>
         /// <para><paramref name="back"/> = <see cref="SettingsPopup"/> 返回的那个外框节点。</para>
@@ -1320,9 +1293,9 @@ namespace CR.UI
         }
 
         /// <summary>
-        /// 纯色按钮（**旧口径**：左上角定位 + `new Color` 底色）。
+        /// 纯色按钮（左上角定位 + `new Color` 底色）。
         /// <para>⚠️ 竖版重排后的新面板**不要**用它 —— 最终外观必须是原版图元，见 <see cref="ActionButton"/>。
-        /// 保留本方法是因为房间 / 设置 / 卡组编辑 / 结算等面板仍在用（它们的竖版重排不归本片），删掉会直接编译不过。</para>
+        /// 保留本方法是因为房间 / 设置 / 卡组编辑 / 结算等面板仍在用，删掉会直接编译不过。</para>
         /// </summary>
         public static Image Button(string name, Transform parent, string label, Vector2 pos, Vector2 size,
             Action onClick, bool primary = false, int fontSize = FontBody)

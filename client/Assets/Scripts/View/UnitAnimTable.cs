@@ -4,23 +4,23 @@
 //      —— 从 2.1.5 权威 `.sc` 解出「目录 × 档位 × 视角 → **单条 clip** 的帧段」（sid 用 AT1 的
 //         「sid→shape 记录序 + 递归展开嵌套 clip」映射，`sc-at1-resolve.py:resolve_unit`）。
 //   ② python tools/probes/d129b-gen-anim-table.py --root . --selftest
-//   + ScFps / hit_speed_ms 沿用上一版（本片不动时序常量）；hit_speed_ms 的来源仍是
+//   + ScFps / hit_speed_ms 沿用既有值（时序常量由其它来源维护）；hit_speed_ms 的来源仍是
 //     server/game/table/tsv/unit.tsv。
-// 口径①（本片修复的根因）：**每档只取一个视角的一条 clip**，不再取「9 条 clip 的并集」。
+// 口径①：**每档只取一个视角的一条 clip**（⛔ 不取「9 条 clip 的并集」）。
 //   出处：`策划/单位帧段表.md:2717`（一条 clip = 一个视角、clip 内按时序）+ `:2718`
 //   （同组 `_1…_9` = 9 个不同视角）+ `:2758` 的处置建议「① 按 clip 播（推荐）」。
-//   旧表取并集 ⇒ 运行时会依次播 9 个视角（现象：苍蝇海"1 秒 9 次视角"、走路时原地打转/抽搐）。
-// 口径②（D129b）：每档的**默认视角** = `_5` = 右向侧身（无 `_5` 的目录退到最接近 5 的视角）。
+//   取并集 ⇒ 运行时会依次播 9 个视角（现象：苍蝇海"1 秒 9 次视角"、走路时原地打转/抽搐）。
+// 口径②：每档的**默认视角** = `_5` = 右向侧身（无 `_5` 的目录退到最接近 5 的视角）。
 //   客户端朝向改用 `flipX` 表达（`UnitView.cs:294`）⇒ 只有侧身视角能读出"掉头"。
-//   判据 = `.ai-tmp/test/D129b-view-pick-*.png`（`tools/probes/d129b-view-pick.py` 生成，逐格标
+//   判据 = `tools/probes/d129b-view-pick.py` 生成的逐格标注图（每格标
 //   `视角号 + frame_NNN`）：在 knight / musketeer / archer / giant 四目录上 `_1` = 背身、
 //   `_5` = 右向侧身、`_9` = 正朝镜头。
-// 口径⑤（D129c，本片新增）：每档**额外**存 9 个视角各自的帧段（`Clip.ViewRuns`，下标 = 视角号 − 1）；
+// 口径⑤（逐视角帧段）：每档**额外**存 9 个视角各自的帧段（`Clip.ViewRuns`，下标 = 视角号 − 1）；
 //   运行时按**移动方向**选视角（`UnitView` 用**本插值窗口两端快照之差**求朝向极角 φ，再查 `StepToView`）。
 //   ⛔ 不是"前后两帧 worldPos"：逐帧位移被服务端的**毫格量化**主导，站立单位会被噪声翻 180°
-//   （D134 实测 `id=320` vstep 片段 `[4,12,12,12,4]`；根因与门槛见 `UnitView.FacingMinMoveTiles`）。
-//   映射表 = `tools/probes/d129c-view-map.tsv`（**唯一权威副本**，由本生成器逐字复制成下面的
-//   `StepToView`），其正确性由 `tools/probes/d129c-yaw-verify.py` 断言：
+//   （实测 `id=320` vstep 片段 `[4,12,12,12,4]`；门槛见 `UnitView.FacingMinMoveTiles`）。
+//   映射表 = 引擎件 `clover-client-unity-engine/Runtime/Presentation/UnitFacingMap.cs` 的
+//   `Standard16StepToView`（**权威 = 引擎件**），其正确性由 `tools/probes/d129c-yaw-verify.py` 断言：
 //     A1 相邻视角对的旋转 Δ **同号且有界**（4 目录 × 8 对 = 32/32 为正）
 //     A2 链式推定朝向与映射表逐视角吻合（容差 ±25°）
 //     A3/A4 武器极角 θ 严格单调、过零点落在 `_4`/`_5` 之间、`_9` 最负
@@ -31,10 +31,10 @@
 //   ⇒ `_1` = 背身（φ=+90°，远离镜头）→ `_5` = 侧身（φ=0°，朝 +x）→ `_9` = 正朝镜头（φ=−90°）。
 // 口径③（配色/角色组）：一个 `*_out` 目录可能装多个角色（`chr_baby_dragon_out` 同时有
 //   `baby_dragon_*` / `inferno_dragon_*`）⇒ 角色组取「归一化后与目录主干完全相等」的那个；
-//   配色侧同一目录全局只取一侧（blue > main > red，与旧表「非红」口径一致）。
+//   配色侧同一目录全局只取一侧（blue > main > red，与「非红」口径一致）。
 // 口径④：`Known == false` ⇒ 该档没有可用帧段 ⇒ UnitView 回落「整目录循环」并 Warn 一次（已登记差异）。
-// 逐视角帧段的**出处**：`.ai-tmp/test/D129b-clip-segments.tsv`（列 `dir/tier/view/export/clip_id/runs`），
-//   由 `tools/probes/d129b-clip-segments.py` 从 2.1.5 权威 `.sc` 解出 ⇒ 每个 `ViewRuns` 元素都能查回
+// 逐视角帧段的**出处**：由 `tools/probes/d129b-clip-segments.py` 从 2.1.5 权威 `.sc` 解出（列 `dir/tier/view/export/clip_id/runs`）
+//   ⇒ 每个 `ViewRuns` 元素都能查回
 //   具体 export 名与 clip id（`--verify` 也按这条逐视角断言）。
 // 覆盖：48 个目录里 **42 个**在 idle/walk/attack 三档都齐 9 视角；不足的 6 个是
 //   `building_mortar_out` / `building_xbow_out`（建筑，本就不该有 9 向）/ `chr_balloon_out` /
@@ -50,7 +50,7 @@ namespace CR.View
     /// <para>
     /// 每目录一条：4 个档位的 (start, count) + 帧号**段表** + 来源（export 名 / clip id / 视角 / 配色侧）。
     /// `Runs` = 扁平化的 [起始帧号, 长度, 起始帧号, 长度, ...]；**每档的 Runs 必须完整落在同一条 clip 内**
-    /// （`tools/probes/d129b-gen-anim-table.py --verify` 的断言；旧表取并集时该断言判红）。
+    /// （`tools/probes/d129b-gen-anim-table.py --verify` 的断言；取并集时该断言判红）。
     /// </para>
     /// <para>`Known == false` ⇒ 该档位**没有可用帧段** ⇒ 保持原行为（整目录循环）。</para>
     /// </summary>
@@ -62,29 +62,32 @@ namespace CR.View
         /// <summary>档位数（idle/walk/attack/die）。</summary>
         public const int TierCount = 4;
 
-        /// <summary>朝向档数（16 档 = 全周 360° ÷ 22.5°）。</summary>
-        public const int StepCount = 16;
+        /// <summary>朝向档数（16 档 = 全周 360° ÷ 22.5°；= 引擎 <see cref="CloverEngine.UnitFacingMap.DefaultStepCount"/>）。</summary>
+        public const int StepCount = CloverEngine.UnitFacingMap.DefaultStepCount;
 
         /// <summary>
-        /// 16 档朝向 → 视角号。**唯一权威副本** = `tools/probes/d129c-view-map.tsv`，
-        /// 由 `tools/probes/d129b-gen-anim-table.py` 逐字复制（`--verify` 断言二者一致）。
-        /// 正确性由 `tools/probes/d129c-yaw-verify.py` 断言 A1–A6 + 负控判红保证。
+        /// 16 档朝向 → 视角号（= 引擎 <see cref="CloverEngine.UnitFacingMap.Standard16StepToView"/>；
+        /// ⛔ 按**只读**对待，不许写它）。
+        /// <para>
+        /// 表 = 引擎 `clover-client-unity-engine/Runtime/Presentation/UnitFacingMap.cs` 的
+        /// `Standard16StepToView`（**权威 = 引擎件**；`tools/probes/d129b-gen-anim-table.py` 的断言④
+        /// 校验它、⑤ 校验本文件确实引用它）；表本身的正确性由 `tools/probes/d129c-yaw-verify.py`
+        /// 断言 A1–A6 + 负控判红保证。
+        /// </para>
         /// </summary>
-        public static readonly int[] StepToView = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2 };
+        public static readonly int[] StepToView = CloverEngine.UnitFacingMap.Standard16StepToView;
 
-        /// <summary>朝向档 `step` 是否要水平镜像（西半边 = 同一视角 + `flipX`）。</summary>
-        public static bool StepFlip(int step) { return step > 8; }
+        /// <summary>朝向档 `step` 是否要水平镜像（西半边 = 同一视角 + `flipX`；档位按 16 取模）。</summary>
+        public static bool StepFlip(int step) { return CloverEngine.UnitFacingMap.Default.StepFlip(step); }
 
         /// <summary>
         /// 朝向极角（**度**；从 **+x 轴**起算、**+y 为正** = 远离镜头/上场方向）→ 视角号 + 是否镜像。
-        /// `step = round((90° − φ) / 22.5°) mod 16`。
+        /// `step = round((90° − φ) / 22.5°) mod 16`（取整口径与档位边界见引擎
+        /// <see cref="CloverEngine.UnitFacingMap.StepForHeading"/>）。
         /// </summary>
         public static void ViewForHeading(float headingDeg, out int view, out bool flip)
         {
-            var step = (int)Math.Round((90.0 - headingDeg) / 22.5) % StepCount;
-            if (step < 0) step += StepCount;
-            view = StepToView[step];
-            flip = StepFlip(step);
+            CloverEngine.UnitFacingMap.Default.ViewForHeading(headingDeg, out view, out flip);
         }
 
         /// <summary>取某档某视角的帧段 `Runs`；该视角无素材（或 `view` 越界）⇒ 返回 null（调用方回落默认视角）。</summary>
@@ -121,7 +124,7 @@ namespace CR.View
             public string Source;
             /// <summary>
             /// 9 个视角各自的帧段 `Runs`（下标 = 视角号 − 1）；元素 `null` = 该视角无素材。
-            /// 出处 = `.ai-tmp/test/D129b-clip-segments.tsv`（`dir/tier/view → export/clip_id/runs`）。
+            /// 出处 = `tools/probes/d129b-clip-segments.py` 解出的 `dir/tier/view → export/clip_id/runs` 表。
             /// 运行时用 <see cref="RunsForView"/> 取当前朝向的视角；取不到才回落上面的 `Runs`（默认视角）。
             /// </summary>
             public int[][] ViewRuns;

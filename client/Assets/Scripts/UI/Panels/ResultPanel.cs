@@ -67,13 +67,12 @@ namespace CR.UI.Panels
         /// </para>
         /// <para>
         /// ⚠️ 这是**本项目自定口径**（原版结算界面基线未取到：`策划/参考图/清单.md` §2），与
-        /// <see cref="OutcomeIconW"/> 同一口径 ⇒ 登记在 `.ai-tmp/test/AS2-对照表行.md` C 段，
-        /// ⛔ 不许当成"原版量出来的尺寸"对外声称。
+        /// <see cref="OutcomeIconW"/> 同一口径，⛔ 不许当成"原版量出来的尺寸"对外声称。
         /// </para>
         /// </summary>
         private const float OutcomePlateW = 205f;
 
-        /// <summary>冠数图标（原版结算王冠帧）显示宽。**沿用旧值 74**：这一步只换帧、不动几何。</summary>
+        /// <summary>冠数图标（原版结算王冠帧）显示宽 = 74。</summary>
         private const float CrownIconW = 74f;
 
         /// <summary>冠数上限（原版 3 冠制）。240 帧里没有 2 冠 / 3 冠的堆叠帧 ⇒ 同一张复制 N 次。</summary>
@@ -82,7 +81,7 @@ namespace CR.UI.Panels
         /// <summary>
         /// 奖励条槽位宽（**本项目自定**）：原版 `ui_battle_end_out/212` 的 bbox 149×181 按上面的 1080/342
         /// 等比为 ≈470 宽 ⇒ 5 格排不下（5×470 ≫ 面板内容宽 920）。本工程改为"5 格等距排满内容宽"：
-        /// 5×168 + 4×16 = 904 ≤ 920。登记 `.ai-tmp/test/AS2-对照表行.md` C 段。
+        /// 5×168 + 4×16 = 904 ≤ 920。
         /// </summary>
         private const float RewardSlotW = 168f;
 
@@ -212,12 +211,11 @@ namespace CR.UI.Panels
             UIFactory.Stretch(dim.rectTransform);
 
             // 竖版面板：宽 = ContentW(1000)、高 = BoxH（内容驱动）。
-            // ★ AQ2 换帧（用户 2026-09-2x「原版，界面 按钮 根本不长这样啊！！」）：
-            //   旧 = `ContentPanel`（`ui_out/806` 米色纸）+ `TitleBar`（`ui_out/069` 棕木条），两张都错
-            //   （看图依据 `AQ2-ui-frames.png`：806 = 米黄撕纸、069 = 深棕木条）。
-            //   新 = `SettingsPopup`（014 板岩外框 + 019 亮灰蓝面）+ `BandTitle`（板岩带白字黑描边）——
-            //   与基线 `24_设置_499x1080.jpg` 实测一致（亮面 (229,236,242) / 板岩带 (99,104,123)，AM2 量取），
-            //   也与 AP1 在 `RoomList/Room/DeckEdit` 上的落地口径一致。
+            // 面板底 = `SettingsPopup`（`ui_out` 014 板岩外框 + 019 亮灰蓝面），标题 = `BandTitle`
+            //   （板岩带白字黑描边）—— 与基线 `24_设置_499x1080.jpg` 实测一致（亮面 (229,236,242) /
+            //   板岩带 (99,104,123)），也与 `RoomList` / `Room` / `DeckEdit` 同一口径。
+            //   ⛔ 不用 `ContentPanel`（`ui_out/806` 米色纸）与 `TitleBar`（`ui_out/069` 棕木条）：
+            //   这两张与原版功能面板的色相都不同。
             var box = CrUiStyle.SettingsPopup("ResultBox", root, BoxH, CrUiStyle.ContentW);
             var c = box.rectTransform;
 
@@ -229,7 +227,7 @@ namespace CR.UI.Panels
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -(CrUiStyle.TitleBarH + 18f)), CrUiStyle.Accent);
 
-            // 胜负字牌底板（★ AS2 接线：原版 `ui_battle_end_out/236`）—— 垫在结局文字下面。
+            // 胜负字牌底板（原版 `ui_battle_end_out/236`）—— 垫在结局文字下面。
             //   原版那行"胜 / 负"字就画在这块 65×44 的深色渐变圆角横条上：`.sc` 里它是**唯一**
             //   同时被 `touchdown_txt_blue` / `touchdown_txt_red` 引用的帧（AR2-结算帧辨认.md §3.1）。
             //   ⚠️ 字本身是**文本字段**（`.sc` 头 TextFieldCount=40，原版字体 `Supercell-Magic`），
@@ -240,12 +238,12 @@ namespace CR.UI.Panels
                 new Vector2(0f, -(CrUiStyle.TitleBarH + 180f)), CrUiStyle.FieldBg);
 
             // 结局（胜 / 负 / 平）：面板里字号最大的一条。
-            // ★ AQ2 换帧：改成 `CrUiStyle.Outlined`（白/彩字 + 黑描边）—— 亮灰蓝面板上原版所有文字都是
-            //   白字黑描边（基线 `24_设置` / `12_主菜单`）；不加描边的白字压在亮面上等于看不见（AP1 实测）。
+            // 用 `CrUiStyle.Outlined`（白/彩字 + 黑描边）—— 亮灰蓝面板上原版所有文字都是
+            //   白字黑描边（基线 `24_设置` / `12_主菜单`）；不加描边的白字压在亮面上等于看不见。
             // ⚠️ 头像框（原版结算页的双方头像外框 / 等级徽记）**不画**：本图集 240 帧里**没有**
-            //    任何圆形/方形头像外框、也没有等级徽记（AR2-结算帧辨认.md §3.3 逐页看完 240 格 +
+            //    任何圆形/方形头像外框、也没有等级徽记（逐页看完 240 格 +
             //    `.sc` 20 个 export 名里没有 avatar / portrait / frame 语义）⇒ ⛔ 不自绘、⛔ 不拿纯色块顶替。
-            //    缺什么登记在 `.ai-tmp/test/AS2-允许差异.md` A1（消除条件 = 在 `ui_out` 或玩家档案 `.sc` 里找到它）。
+            //    消除条件 = 在 `ui_out` 或玩家档案 `.sc` 里找到这类图元。
             Game.Logger?.Info(Tag,
                 "头像框：原版 ui_battle_end_out 240 帧内无头像外框/等级徽记（AR2 §3.3）⇒ 本面板不画该件（不自绘兜底）");
 
@@ -259,11 +257,10 @@ namespace CR.UI.Panels
             UIFactory.Place(crownRow, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -(CrUiStyle.TitleBarH + 240f)), new Vector2(CrUiStyle.ContentW - 2f * Pad, 80f));
 
-            // ★ AS2 换帧：旧 = `IconCrownGold`（`ui_out/50` 通用金冠）；新 = **原版结算自己的王冠帧**
-            //   （蓝 `ui_battle_end_out/027` / 红 `115` —— 原版是两段 80 帧动画，这里取**起始帧**；
-            //   AR2-结算帧辨认.md §3.4）。
+            // 冠数图元 = **原版结算自己的王冠帧**（蓝 `ui_battle_end_out/027` / 红 `115`；
+            //   原版是两段 80 帧动画，这里取**起始帧**）。
             // ⚠️ 原版 240 帧里**没有** 2 冠 / 3 冠的堆叠帧 ⇒ **N 冠 = 同一张复制 N 次**
-            //   （如实登记 `.ai-tmp/test/AS2-允许差异.md` A2）：这里建满 `CrownMax` 个格子，
+            //   这里建满 `CrownMax` 个格子，
             //   由 `RefreshCrowns` 按实际冠数点亮前 N 个、并按本机队伍换蓝/红那张。
             _crownIcons = new Image[CrownMax];
             for (var i = 0; i < CrownMax; i++)
@@ -274,22 +271,22 @@ namespace CR.UI.Panels
                 _crownIcons[i].gameObject.SetActive(false);
             }
 
-            // ★ AQ2 换帧：亮灰蓝面板上的字一律用暗色（AP1 实测：亮面上放近白字等于看不见）⇒ `TextOnLight`。
+            // 亮灰蓝面板上的字一律用暗色（亮面上放近白字等于看不见）⇒ `TextOnLight`。
             _crowns = UIFactory.CreateText("Crowns", crownRow, string.Empty, CrUiStyle.FontTitle,
                 TextAnchor.MiddleLeft, CrUiStyle.TextOnLight);
             UIFactory.Place(_crowns.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
                 new Vector2(10f, 0f), new Vector2(420f, 70f));
 
-            // ── 奖励条（★ AS2 接线：原版条位 + 原版奖励件）──────────────────────────────────
-            // 条位与图件的**权威出处 = 原版 `.sc` 的 export 名**（AR2-结算帧辨认.md §3.2）：
+            // ── 奖励条（原版条位 + 原版奖励件）──────────────────────────────────
+            // 条位与图件的**权威出处 = 原版 `.sc` 的 export 名**：
             //   格底 = `ui_battle_end_out/212`（7 个 `battleEnd_loot_item_*` export 共用同一张）；
             //   槽内 = `gold_reward`(216 金币堆) / `..._gold_and_gem`(214 宝石) / `..._questpoint`(213 奖章)
             //          / `..._challenge`(224 卷轴) / `..._chest`(223 城堡 + 218·219·220·221 白色高光)。
             // ⚠️ 协议里**没有**奖励字段（`Def/ProtoDef.cs:118-125` 的 `BattleEndNotify` 只有
-            //    win / draw / crowns_a / crowns_b / reason / hp_rate_a / hp_rate_b）⇒ 本片**只落
+            //    win / draw / crowns_a / crowns_b / reason / hp_rate_a / hp_rate_b）⇒ 这里**只落
             //    原版条位与图件、不落任何数值**：不写"+N"、也不在界面上声称"你获得了 X"（那才是编造）。
-            //    这条缺口登记在 `.ai-tmp/test/AS2-允许差异.md` A3，消除条件 = 服务端在 `PushBattleEnd`
-            //    的 payload 里下发奖励条目（届时槽内按条目填、并补数量文本）。
+            //    消除条件 = 服务端在 `PushBattleEnd` 的 payload 里下发奖励条目
+            //    （届时槽内按条目填、并补数量文本）。
             var strip = UIFactory.CreateNode("RewardStrip", c);
             UIFactory.Place(strip, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -(CrUiStyle.TitleBarH + 330f)),
@@ -321,8 +318,8 @@ namespace CR.UI.Panels
             UIFactory.Stretch(_detail.rectTransform);
 
             // ── 两个动作：竖版 ⇒ **上下两行**（⛔ 不再是左右并排的一行）。
-            // ★ AQ2 换帧：「再来一局」/「回主菜单」从 `ActionButton`（金 300 / 深蓝灰 014）换成
-            //   **`BlueButton`（`ui_out/165` 蓝底白字）** —— 看图依据 `AQ2-ui-frames.png`（300 = 亮黄金立体块、
+            // 「再来一局」/「回主菜单」从 `ActionButton`（金 300 / 深蓝灰 014）换成
+            //   **`BlueButton`（`ui_out/165` 蓝底白字）** —— 看图依据（300 = 亮黄金立体块、
             //   014 = 板岩块），原版**功能面板按钮**是蓝底白字（基线 `24_设置` 的蓝按钮 / `12_主菜单` 的 Clan 钮）。
             //   ⚠️ 原版结算界面基线未取到（`策划/参考图/清单.md:40`）⇒ 本条是"对齐同类部件"的判定，已登记。
             CrUiStyle.BlueButton("PlayAgainButton", c, "再来一局", new Vector2(Pad, -(CrUiStyle.TitleBarH + 778f)),
@@ -333,7 +330,7 @@ namespace CR.UI.Panels
                 new Vector2(CrUiStyle.ContentW - 2f * Pad, CrUiStyle.ButtonSecondaryH), OnMainMenuClicked);
 
             // 说明行：把"再来一局"在两种模式下各做什么写清楚（⛔ 不做"点了才知道"）。
-            // ★ AQ2：亮灰蓝面板上的说明字改成暗色（`TextOnLight*`）——亮面上放 `TextDim` 看不出来（AP1 实测）。
+            // 亮灰蓝面板上的说明字用暗色（`TextOnLight*`）——亮面上放 `TextDim` 看不出来。
             UIFactory.CreateLabel("Rules", c,
                 "人机对局：「再来一局」立刻开一局新的人机对战。\n" +
                 "房间对局：服务端没有「重开原房 / 重连回原房」的协议 ⇒ 「再来一局」会回主菜单，请重新开房。",
@@ -409,7 +406,7 @@ namespace CR.UI.Panels
                 _reason.color = CrUiStyle.ErrorText;
             }
             if (_detail != null) _detail.text = "请回主菜单后重新开一局；本页无法给出胜负。";
-            SetStatus("已记录问题，请把这条信息报给主 agent。", CrUiStyle.ErrorText);
+            SetStatus("已记录问题，请把这条信息反馈给开发者。", CrUiStyle.ErrorText);
         }
 
         /// <summary>

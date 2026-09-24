@@ -5,8 +5,7 @@ namespace CR.Module.Battle
 {
     /// <summary>
     /// 对局模块的装载点：把 <see cref="BattleManager"/> 挂到引擎的**启动钩子**上。
-    /// 写法与 <c>Module/Room/RoomModuleHost.cs</c> 逐条同源（本片只有 `Module/Battle/**`+`HudPanel.cs` 的权限，
-    /// `App/Bootstrap.cs` 是 agent-05 的冻结产出，⛔ 不许改它加一行）。
+    /// 写法与 <c>Module/Room/RoomModuleHost.cs</c> 逐条同源（⛔ 不在 `App/Bootstrap.cs` 里加一行）。
     ///
     /// <para>
     /// <b>为什么用引擎的启动钩子</b>（`Game.RegisterLaunchHook`，`Game.cs:661-671`，

@@ -13,14 +13,14 @@ namespace CR.UI
     /// <para>
     /// <b>为什么需要它</b>：`PausePanel` / `ResultPanel` 都⛔不许 `using CR.Module`（契约 §1），
     /// 而"什么时候开这两个面板"需要一个知道对局状态的角色：
-    /// ① 进 `Pause` 站点 ⇒ 开 `PausePanel`（`AppFlow.EnterPause` 只打日志，它是 agent-05 的冻结文件，
+    /// ① 进 `Pause` 站点 ⇒ 开 `PausePanel`（`AppFlow.EnterPause` 只打日志，
     ///    `BattleManager.OnStationChanged` 也只认 `Battle` / `MainMenu`）；
     /// ② `Events.Battle.Ended` ⇒ 开 `ResultPanel`（`BattleManager.OnBattleEndPush` 只**广播**结算体，
-    ///    面板由本片负责）。
+    ///    开关面板由本类负责）。
     /// </para>
     /// <para>
-    /// <b>为什么用启动钩子</b>（与 `RoomModuleHost` 同一理由）：`App/Bootstrap.cs` 是 agent-05 的冻结产出，
-    /// ⛔ 不许改；引擎自己提供 `Game.RegisterLaunchHook`（`Game.cs:660-671`，按 key 覆盖 ⇒ 可安全重复登记），
+    /// <b>为什么用启动钩子</b>（与 `RoomModuleHost` 同一理由）：`App/Bootstrap.cs` 不承载对局 UI 的开关；
+    /// 引擎提供 `Game.RegisterLaunchHook`（`Game.cs:660-671`，按 key 覆盖 ⇒ 可安全重复登记），
     /// 在 `Game.Launch` 建好核心子系统（含 `Game.Event`）后回调，因此本类一定早于任何面板打开就绪。
     /// ⚠️ 但 `Game.UI` 由 `CloverPresentation` 的钩子挂载，两个钩子同相位、**顺序不保证**
     /// （`RunLaunchHooks` 遍历字典）⇒ 所以这里只在钩子里挂**事件订阅**，
@@ -77,8 +77,8 @@ namespace CR.UI
 
         /// <summary>
         /// 装上事件订阅（幂等：同一条事件总线只装一次）。
-        /// 判据是 `Game.Event` 的对象标识 —— 上一轮 Launch 的订阅随旧 `EventBus` 消失，必须重装；
-        /// 同一轮里重复调用直接返回。
+        /// 判据是 `Game.Event` 的对象标识 —— 上一次 Launch 的订阅随旧 `EventBus` 消失，必须重装；
+        /// 同一次 Launch 里重复调用直接返回。
         /// </summary>
         public static void Install()
         {

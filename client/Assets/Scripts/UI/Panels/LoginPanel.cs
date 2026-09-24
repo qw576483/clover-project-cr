@@ -26,10 +26,9 @@ namespace CR.UI.Panels
     /// </para>
     ///
     /// <para>
-    /// <b>⚠️ 如实登记：A 本体没有"账号密码登录"界面</b>（原版走 Supercell ID，
+    /// <b>⚠️ A 本体没有"账号密码登录"界面</b>（原版走 Supercell ID，
     /// `策划/参考图/清单.md` §2「未取到：登录页(Supercell ID)」）⇒ 本界面是**本项目新增**，
-    /// ⛔ 不是原版复刻。它的视觉语言**逐部件对齐 A 的同类部件**（AP2 本片重做，见换帧表
-    /// `.ai-tmp/test/AP2-量取.md`）：
+    /// ⛔ 不是原版复刻。其视觉语言**逐部件对齐 A 的同类部件**：
     /// <list type="bullet">
     /// <item>面板底 = `ui_out` **014** 板岩外框 + **019** 亮面体（`CrUiStyle.SettingsPopup`）——
     /// 依据 = 基线 `24_设置_499x1080.jpg` 弹窗底实测 (229,236,242) / 外框 (99,104,123)；</item>
@@ -38,10 +37,9 @@ namespace CR.UI.Panels
     /// <item>主按钮 = 蓝底 `ui_out` **165**（基线 Language/Help/Privacy/Terms 的蓝按钮）；</item>
     /// <item>次按钮 = 板岩 `ui_out` **014**（基线灰按钮行）。</item>
     /// </list>
-    /// ⛔ 旧实现用的是米色羊皮纸面板底（`ui_out` 806）+ 棕金木色标题条（`ui_out` 069）+ 金色按钮——
-    /// 那三件与 A 的弹窗语言**色相都不同**，正是用户 2026-09-2x 说的「原版，界面 按钮 根本不长这样」。
-    /// 排布尺度（面板高、内留白、按钮位置）是新增界面的自定值，逐条登记在
-    /// `.ai-tmp/test/AP2-允许差异.md`。
+    /// ⛔ 不能用米色羊皮纸面板底（`ui_out` 806）+ 棕金木色标题条（`ui_out` 069）+ 金色按钮 ——
+    /// 那三件与 A 的弹窗语言**色相都不同**。
+    /// 排布尺度（面板高、内留白、按钮位置）是新增界面的自定值，无原版可量。
     /// </para>
     /// </summary>
     public sealed class LoginPanel : UIPanel
@@ -159,7 +157,7 @@ namespace CR.UI.Panels
             CrUiStyle.Screen("Bg", root);
             CrUiStyle.SpriteBackground("BgArt", root, ResPaths.BootBackground);
 
-            // ★ 面板底：原版**板岩外框（`ui_out` 014）+ 亮面体（`ui_out` 019）**，水平+垂直居中
+            // 面板底：原版**板岩外框（`ui_out` 014）+ 亮面体（`ui_out` 019）**，水平+垂直居中
             //   （基线 `24_设置` 弹窗 x=33..464 @屏宽 499 ⇒ 居中；y=166..905 @1080 ⇒ 居中）。
             //   ⛔ 不再用 `ContentPanel`（米色羊皮纸 806）+ `TitleBar`（棕金木色 069）。
             var box = CrUiStyle.SettingsPopup("LoginBox", root, PanelH);
@@ -171,13 +169,13 @@ namespace CR.UI.Panels
                 return;
             }
 
-            // ★ 标题：白字 + 黑描边，压在弹窗自带的**顶部板岩带**上（基线「Settings」的写法）。
+            // 标题：白字 + 黑描边，压在弹窗自带的**顶部板岩带**上（基线「Settings」的写法）。
             CrUiStyle.Outlined("Title", box.rectTransform, "登 录", CrUiStyle.FontPopupTitle, Color.white, Color.black,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(CrUiStyle.PopupBorder, 0f),
                 new Vector2(CrUiStyle.PopupW - 2f * CrUiStyle.PopupBorder, CrUiStyle.PopupTitleH),
                 TextAnchor.MiddleCenter);
 
-            // ★ 字段标签 + 输入框：亮面上的字是**深墨蓝**（基线亮面标签最暗像素 (42,44,46)）；
+            // 字段标签 + 输入框：亮面上的字是**深墨蓝**（基线亮面标签最暗像素 (42,44,46)）；
             //   输入框底 = 原版板岩圆角框（014 四角镜像九宫格，⛔ 不是纯色矩形）。
             UIFactory.CreateLabel("AccountLabel", c, "账号", CrUiStyle.FontBody,
                 new Vector2(Pad, Field1LabelY), new Vector2(InnerW, LabelH),
@@ -202,9 +200,9 @@ namespace CR.UI.Panels
             if (_account != null) _account.text = Cfg.Account.name_prefix + Cfg.Account.name_suffix;
             if (_password != null) _password.text = Cfg.Account.password;
 
-            // ★ 状态行：先垫一条**板岩条**（原版"深色字段 + 亮字"的语言）再放状态色 ——
+            // 状态行：先垫一条**板岩条**（原版"深色字段 + 亮字"的语言）再放状态色 ——
             //   `TextDim` / `Accent` / `ErrorText` 三个状态色都是为暗底设计的，压亮面 (229,236,242)
-            //   对比度极低（AO1 在主菜单上实测过同一坑：状态字直接看不见）。
+            //   对比度极低（主菜单上同一问题：状态字直接看不见）。
             CrUiStyle.Skin("StatusBar", c, CrUiStyle.PopupFrameSlate, 24, Vector4.zero,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, StatusY),
                 new Vector2(InnerW, StatusH), CrUiStyle.BandSlate, false);
@@ -212,13 +210,13 @@ namespace CR.UI.Panels
                 new Vector2(Pad + GapM, StatusY + GapM), new Vector2(InnerW - 2f * GapM, StatusH - 2f * GapM),
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);
 
-            // ★ 主按钮 = 原版蓝按钮（`ui_out` 165）+ 白字黑描边；次按钮 = 原版板岩（`ui_out` 014）。
+            // 主按钮 = 原版蓝按钮（`ui_out` 165）+ 白字黑描边；次按钮 = 原版板岩（`ui_out` 014）。
             _loginButton = CrUiStyle.BlueButton("LoginButton", c, "登 录",
                 new Vector2(ButtonX, PrimaryButtonY), new Vector2(BtnW, BtnH), OnLoginClicked, Color.white);
             _registerButton = CrUiStyle.SlateButton("RegisterButton", c, "注册新账号",
                 new Vector2(ButtonX, SecondaryButtonY), new Vector2(BtnW, BtnH), OnRegisterClicked, Color.white);
 
-            // ★ 提示行：亮面上用深墨蓝（不是浅灰 —— 浅灰压亮面读不出）。
+            // 提示行：亮面上用深墨蓝（不是浅灰 —— 浅灰压亮面读不出）。
             UIFactory.CreateLabel("Hint", c, "请先启动服务端（网关 8002 / 账号服 8051）", CrUiStyle.FontSmall,
                 new Vector2(Pad, HintY), new Vector2(InnerW, 40f),
                 TextAnchor.MiddleCenter, CrUiStyle.TextOnLight);

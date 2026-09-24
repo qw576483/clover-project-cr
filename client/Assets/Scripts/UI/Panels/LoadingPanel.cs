@@ -10,9 +10,8 @@ namespace CR.UI.Panels
     ///
     /// <para>
     /// <b>为什么不直接用 <c>Game.UI.ShowLoading</c></b>：引擎那个 Loading 通用件只有"转圈 + 文案"、
-    /// **没有进度入参**（`IUIManager.ShowLoading(string text)`），拿它显示不了真进度，
-    /// 而任务要求"把真进度显示在面板上"。所以本片自建一个带 `SetProgress` 的面板，
-    /// 架构契约 §4 也把 `Loading` 站点列了 `LoadingPanel` 这个选项。
+    /// **没有进度入参**（`IUIManager.ShowLoading(string text)`），拿它显示不了真进度
+    /// ⇒ 本面板自带 `SetProgress`；架构契约 §4 把 `Loading` 站点列为 `LoadingPanel`。
     /// </para>
     /// <para>
     /// <b>层级 = System</b>（最高层，架构契约 §4）：切场景期间它必须盖住一切，
@@ -28,21 +27,21 @@ namespace CR.UI.Panels
     /// 贴底 <see cref="BarBottomOffset"/>。
     /// </para>
     /// <para>
-    /// <b>素材 = A 的原版图元（AP2 复核过）</b>：
+    /// <b>素材 = A 的原版图元</b>：
     /// 轨道 = `ui_out` **014**（板岩圆角框体，经 <see cref="CrUiStyle.Skin"/> 的 **corner&gt;0 四角镜像** 拼九宫格）
-    /// —— ⛔ 不再用 `CrUiStyle.NineSlice` + `BorderButtonDark`：014 是**只有左上角**有圆角+描边的单角件，
+    /// —— ⛔ 不能用 `CrUiStyle.NineSlice` + `BorderButtonDark`：014 是**只有左上角**有圆角+描边的单角件，
     /// 按 border 直接九宫格拉伸会把左上的角贴到四个角上（另外三个角是错的，看图即可见）；
     /// 填充 = `loading_out` **015**（绿色加载读条，115×39）。
     /// </para>
     /// <para>
-    /// <b>⚠️ 如实登记一处"未量到"</b>：A 的加载页基线图（`策划/参考图/17_加载页_640x955.png`）**只有整幅美术、
+    /// <b>⚠️ 未量到</b>：A 的加载页基线图（`策划/参考图/17_加载页_640x955.png`）**只有整幅美术、
     /// 看不到进度条**（底部队列逐行扫过：y=900..950 全是美术的暗色，没有任何条状亮块）⇒
     /// 进度条的**位置 / 宽 / 高在 A 侧未量到**。这里取"居中 + 宽 900 + 高 64 + 贴底 260"是**本项目自定值**，
-    /// 登记为待复核（`.ai-tmp/test/AP2-允许差异.md` D-AP2-3），⛔ 不假装是量出来的。
+    /// ⛔ 不假装是量出来的。
     /// </para>
     /// <para>
     /// ⛔ <b>别把 `loading_out` 015 用到滑条上</b>：它是**加载页进度条**的填充（本面板是正确用法），
-    /// 设置面板的滑条填充必须用原版 ON 按钮的绿（`ui_out` 610）—— 见 `AM2-量取.md` B 段。
+    /// 设置面板的滑条填充必须用原版 ON 按钮的绿（`ui_out` 610）。
     /// </para>
     /// </summary>
     public sealed class LoadingPanel : UIPanel

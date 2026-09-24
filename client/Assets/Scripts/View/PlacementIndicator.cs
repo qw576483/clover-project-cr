@@ -19,7 +19,7 @@ namespace CR.View
     /// `策划/策划案/皇室战争参考规格.md` §2.1。**最终裁决永远在服务端**，这里只是"别让玩家看着能放、结果被拒"。
     /// </para>
     /// <para>
-    /// <b>落点图形取自原版素材</b>（D143）：`effects_out` 的 f221（我方：细白环，分组表 `:4777`
+    /// <b>落点图形取自原版素材</b>（差异登记见 `策划/差异登记.tsv`）：`effects_out` 的 f221（我方：细白环，分组表 `:4777`
     /// `spell_radius`）/ f294（敌方：深色圆盘 + 红边 + 外圈刻度，分组表 `:4815` `Poison`）。
     /// 同族的 `spell_*_radius` 帧列**全都是 f221** ⇒ 原版所有法术共用同一张环、靠**缩放**适配半径，
     /// 这也是本类 <see cref="Show"/> 的缩放口径。
@@ -48,7 +48,7 @@ namespace CR.View
         /// 落点指示的**转速**（度/秒）。⚠️ **本项目自定**：原版这张环是单帧静态图（f221/f294
         /// 各自只有 1 帧），"它是否旋转、转多快"在解包素材里**没有出处**。
         /// 用户原话是「原版是转圈的」⇒ 这里把原版环**旋转**起来作为进度感的来源，转速取 90°/s
-        /// （4 秒一圈，不晃眼）。**该常量是推断，已登记在差异登记 D143**。
+        /// （4 秒一圈，不晃眼）。**该常量是推断，已登记在 `策划/差异登记.tsv`**。
         /// 环上有可见的不对称特征（f221 四个基本方向的小标记 / f294 外圈的刻度），所以旋转看得见。
         /// </summary>
         private const float SpinDegreesPerSecond = 90f;
@@ -92,8 +92,8 @@ namespace CR.View
             _renderer.sprite = _discSprite;
             _renderer.color = LegalColor;
             // 落点指示必须压在**所有单位与塔之下**（它是一块地板高亮），所以给一个很低的 sortingOrder。
-            // 与 UnitView/ArenaView 的层级约定：底图 0 / 塔 50 / 单位 100 / 指示 200（见各自注释）。
-            _renderer.sortingOrder = SortingOrder.PlacementIndicator;
+            // 与 UnitView/ArenaView 的层级约定：底图 0 / 塔 50 / 指示 200 / 单位 1000（见各自注释）。
+            _renderer.sortingOrder = ArenaLayers.Instance.Indicator;
             LoadRingSprites();
             SetVisible(false);
         }
@@ -230,7 +230,7 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 让落点环**转圈**（D143：用户原话「原版是转圈的」）。
+        /// 让落点环**转圈**（参考口径：原版落点环是转圈的）。
         /// <para>
         /// 只在可见时推进（`SetVisible(false)` 会 `SetActive(false)`，本方法自然不会被调到）；
         /// 用 `unscaledDeltaTime`：对局暂停 / 时间倍率为 0 时，拖放手势仍然要有反馈。
@@ -313,9 +313,9 @@ namespace CR.View
             if (InsideKingFootprint(xTile, yTile, 1)) return false;
 
             // ③ 河面（= 河带内**且不在桥上**；桥面是实地，地面单位可走、也因此可放）
-            // ⚠️ 2026-09-23 修正（CR-F1，审计差异 A）：旧实现只按 y∈[15,17) 判"水"，把两座桥也判成水 ⇒
-            //    与 `server/game/core/arena.go:88-90` 的 `IsWater = inRiverBand(y) && !onBridge(x)`
-            //    **不同源**。症状：敌方该路公主塔被摧毁、口袋区展开到桥面格时，客户端画红盘而服务端会收。
+            // ⚠️ 判"水"须与服务端 `server/game/core/arena.go:88-90` 的
+            //    `IsWater = inRiverBand(y) && !onBridge(x)` **同源**：只按 y∈[15,17) 判会把两座桥也判成水。
+            //    症状：敌方该路公主塔被摧毁、口袋区展开到桥面格时，客户端画红盘而服务端会收。
             var onWater = yTile >= GameConst.RiverTopTile && yTile < GameConst.RiverBottomTile
                           && !IsOnBridge(xTile);
             if (isSpell) return true; // 法术：可落河面 + 可落敌方半场（塔身占格已在 ② 排除）
@@ -329,14 +329,13 @@ namespace CR.View
                 return false;
 
             // ⑤ 半场（换算到"我方 frame"的 y）
-            //   ⚠️ 2026-09-23 修正（CR-F1，审计差异 B）：**两队的边界口径不对称**，与服务端
-            //   `arena.go:148-153` 的 `OwnHalf` 逐字一致 ——
+            //   ⚠️ **两队的边界口径不对称**，须与服务端 `arena.go:148-153` 的 `OwnHalf` 逐字一致 ——
             //     BLUE（绝对 y∈[0,15)）  ⇒ 本场 yOwn∈[0,15)   上沿**不含**（河带第一行 y=15.0 是水）
             //     RED （绝对 y∈[17,32)） ⇒ 本场 yOwn∈(0,15]  下沿**含**（河带下沿 y=17.0 是实地）
-            //   旧实现两队一刀切用 `<` ⇒ RED 在 y=17.0（yOwn=15.0）被判非法、服务端却收。
-            //   ⛔ **不能一刀切改成 `<=`**：桥豁免（③）之后，BLUE 的 y=15.0 **落在桥面上**时不再被水拦掉，
+            //   ⛔ **不能两队一刀切用 `<`**：RED 在 y=17.0（yOwn=15.0）会被判非法、服务端却收。
+            //   ⛔ **也不能一刀切改成 `<=`**：桥豁免（③）之后，BLUE 的 y=15.0 **落在桥面上**时不再被水拦掉，
             //      一刀切 `<=` 会把它判成"可放"，而服务端 `OwnHalf(BLUE)` 上沿不含 ⇒ 反而**新增**反向分歧。
-            //   （两种形状的逐点比：`.ai-tmp/test/CR-F1-geom-after.log` 的 §4c）
+            //   （两种形状按上述两条边界逐点比过）
             var yOwn = OwnFrameY(input.MyTeam, yTile);
             var inOwnHalf = GameConst.IsMirroredForTeam(input.MyTeam)
                 ? yOwn <= GameConst.RiverTopTile   // RED：下沿含

@@ -21,18 +21,17 @@ namespace CR.UI.Panels
     /// 面板只用它做**展示与按钮置灰**；开打与否永远由服务端裁决（`room.go:1105-1119` 明确拒绝非房主）。
     /// </para>
     /// <para>
-    /// <b>竖版重排（G2）+ AP1 换帧</b>：面板底 = <see cref="CrUiStyle.SettingsPopup"/>（居中弹窗：
+    /// <b>竖版排版</b>：面板底 = <see cref="CrUiStyle.SettingsPopup"/>（居中弹窗：
     /// `ui_out` 014 板岩外框 + 019 亮面体，与主菜单 / 设置**同一套**），标题 = <see cref="CrUiStyle.BandTitle"/>
     /// （板岩带上的白字黑描边），座位格 = `ui_out` 014（<see cref="CrUiStyle.Skin"/> 四角镜像九宫格），
     /// 按钮 = <see cref="CrUiStyle.BlueButton"/>（`ui_out` 165 蓝底白字），
     /// **「AI 补位」= 原版状态按钮**（开 = 绿 `ui_out` 610 / 关 = 红 `ui_out` 477，见
     /// <see cref="CrUiStyle.DressStateButton"/>）。
-    /// ⛔ 旧的 1200×780 横框、⛔ 旧的 1120 宽座位条、⛔ 旧的「准备 / AI 补位」与「开始 / 离开」左右并排 —— 全部拆成一列。
+    /// ⛔ 不用 1200×780 横框、⛔ 不用 1120 宽座位条、⛔ 不用「准备 / AI 补位」与「开始 / 离开」左右并排 —— 一律单列。
     /// </para>
     /// <para>
-    /// ⚠️ <b>A 本体没有「房间内 / 对战准备」界面</b>（`策划/参考图/清单.md` §2 明确登记：原版 CR 无「房间」概念，
-    /// 本项目为用户新增）⇒ 视觉语言**逐项对齐 A 的同类部件**，⛔ **不假装是原版界面**，逐行依据见
-    /// `.ai-tmp/test/AP1-量取.md` A 段 + `策划/自审对比/AP1-自审.md`。
+    /// ⚠️ <b>A 本体没有「房间内 / 对战准备」界面</b>（`策划/参考图/清单.md` §2 登记：原版 CR 无「房间」概念，
+    /// 本项目为用户新增）⇒ 视觉语言**逐项对齐 A 的同类部件**，⛔ **不假装是原版界面**。
     /// </para>
     /// </summary>
     public sealed class RoomPanel : UIPanel
@@ -55,7 +54,7 @@ namespace CR.UI.Panels
             public string SelfPlayerId;
         }
 
-        // ───────────────────────── 竖版排版常量（出处见 G2-量取.md；A = 12_主菜单_750x1334.png，折算 ×1.44） ─────────────────────────
+        // ───────────────────────── 竖版排版常量（A = 12_主菜单_750x1334.png，折算 ×1.44） ─────────────────────────
 
         /// <summary>面板亮面体宽 = 931（<see cref="CrUiStyle.PopupW"/> 935 − 2×描边 2）。</summary>
         private const float BodyW = CrUiStyle.PopupW - 2f * CrUiStyle.PopupBorder;
@@ -181,7 +180,7 @@ namespace CR.UI.Panels
             float yHost = yLeave - BtnH - GapM;
             // 房主提示行 + 状态行**各垫一条板岩盘**再放字（与主菜单 StatusBar 同构）：
             // 这两行的颜色是**动态**的（ErrorText 浅红 / Accent 金 / TextDim 浅灰），全是**为暗底设计**的，
-            // 直接压亮面体 (229,236,242) 上对比度极低（AP1 首版实机截图实测："你不是房主…" 发白看不清）。
+            // 直接压亮面体 (229,236,242) 上对比度极低（实测："你不是房主…" 发白看不清）。
             // ⚠️ 左上角锚点 + anchoredPosition ⇒ y 越接近 0 越靠上：盘的顶边写在字的顶边**之上**（`+ GapS`）。
             float hostPlateY = yHost + GapS;
             float hostPlateH = HostH + 2f * GapS;
@@ -258,7 +257,7 @@ namespace CR.UI.Panels
             {
                 var y = seatY0 - i * SeatStep;
                 // 座位格 = **板岩盘**（`ui_out` 014 四角镜像九宫格）—— A 12_主菜单的"深色圆角盘 + 亮字"语言。
-                // ⚠️ 原版无「房间内」界面 ⇒ 对齐同类部件（依据见 AP1-量取.md A 段），⛔ 不假装是原版。
+                // ⚠️ 原版无「房间内」界面 ⇒ 对齐同类部件，⛔ 不假装是原版。
                 _seatBoxes[i] = CrUiStyle.Skin($"Seat{i}", _content, CrUiStyle.PopupFrameSlate, PlateCorner,
                     Vector4.zero, new Vector2(0f, 1f), new Vector2(0f, 1f),
                     new Vector2(InsetX, y), new Vector2(InnerW, SeatH), CrUiStyle.BandSlate, false);
@@ -445,13 +444,13 @@ namespace CR.UI.Panels
             var running = IsRunning();
 
             // 房主专属按钮：非房主置灰 + 把原因写出来（⛔ 不做"悬停才知道"的提示）。
-            // 置灰只走 Button.interactable（原版按钮图元的 disabled tint），⛔ 不再改 Image.color
-            // —— 那会把九宫格原版图元染成纯色（旧版 SetButtonEnabled 的 primary 分支就是这个问题）。
+            // 置灰只走 Button.interactable（原版按钮图元的 disabled tint），⛔ 不改 Image.color
+            // —— 那会把九宫格原版图元染成纯色。
             var canHost = host && !running;
             CrUiStyle.SetButtonEnabled(_startButton, canHost);
             CrUiStyle.SetButtonEnabled(_aiButton, canHost);
             // AI 补位按钮的**底图随状态换帧**（开 = 绿 610 / 关 = 红 477，与原版 24_设置的 ON/OFF 同一对帧）
-            // —— ⛔ 不能只改文案（旧实现就是只改文案、底图恒深蓝灰，与原版语言不符）。
+            // —— ⛔ 不能只改文案（底图会恒为深蓝灰，与原版语言不符）。
             var aiOn = state != null && state.ai_fill;
             CrUiStyle.DressStateButton(_aiButton, aiOn);
             if (_aiButtonText != null) _aiButtonText.text = aiOn ? "AI 补位：开" : "AI 补位：关";

@@ -9,27 +9,12 @@ using UnityEngine;
 
 namespace CR.Module.Battle
 {
-    // ────────────────────────────────────────────────────────────────────────────
-    // T3 删除记录：本文件这里原本还有 `BattleUnitSample` / `BattleTowerSample` 两个结构体与
-    // `Sample()` / `FillTowers()` / `AddTower()` 三个方法 —— 它们是**第二份插值实现**，而且
-    // 从落地起就是**死代码**（全仓 grep：除自身定义外零调用者，`View` 侧走的是
-    // `BattleViewRoot.TickRender` 自己的双帧缓冲）。两份实现必然漂移，且这一份的口径
-    //（用"到达时刻"做分母）正是用户报的"抖动"来源 ⇒ 本轮**删除它**，插值只保留
-    // `BattleViewRoot` 那一份（唯一实现）。
-    //
-    // 为什么不改成"Sample 唯一、删 BattleViewRoot 那份"（另一条路）：那要求 `View/**`
-    // `using CR.Module`，而契约 §1 / `docs/client-architecture.md` 明令 `View` ⛔ 不许引 `Module`；
-    // 且 `Events.Battle.Snapshot` 传的就是 `CR.Def.BattleSnapshot` 原件（`Core/Events.cs` 里
-    // 没有"插值后坐标"的事件，而它是冻结文件）⇒ 走那条路要改契约 + 改事件表，代价与收益不成比例。
-    // ────────────────────────────────────────────────────────────────────────────
-
     /// <summary>
     /// 对局的 C2S 门面 + 推送接收 + **10 Hz 快照的转发**（架构契约 D4/D9/D10）。
     ///
     /// <para>
-    /// <b>本类为什么不做插值（T3 起）</b>：插值的**唯一实现**在 `View/BattleViewRoot.TickRender`
+    /// <b>本类不做插值</b>：插值的**唯一实现**在 `View/BattleViewRoot.TickRender`
     /// （它按服务端时间戳推进渲染时钟）。本类只把 `CR.Def.BattleSnapshot` 原件广播出去。
-    /// 原先本类里那套 `Sample()`（用"快照**到达时刻**"做分母）已删除 —— 见文件头部的 T3 删除记录。
     /// </para>
     ///
     /// <para>
@@ -149,7 +134,7 @@ namespace CR.Module.Battle
         /// <summary>
         /// 装上事件订阅 + 推送处理器（幂等：同一条事件总线只装一次）。
         /// 判据是 `Game.Event` 的对象标识 —— 每次 `Game.Launch` 都新建 `EventBus`（`Game.cs:381`），
-        /// 上一轮订阅随它消失必须重装；同一轮里重复调用直接返回。
+        /// 先前的订阅随它消失，必须重装；同一次 Launch 里重复调用直接返回。
         /// </summary>
         public void Install()
         {
@@ -714,9 +699,8 @@ namespace CR.Module.Battle
         {
             Game.Logger?.Warn(Tag, "对局操作失败：" + reason);
             // ⚠️ `Events.cs` 的 Battle 段里唯一一条 (string reason) 事件就是 `StartFailed`
-            //    （语义"开一局失败（卡组非法 / 建房失败等）"）。本片没有独立的"出牌被拒"事件，
-            //    而 `Core/Events.cs` 是冻结文件（本片无权限加）⇒ 复用这一条承载"对局操作失败原因"，
-            //    与 `DeckManager` 复用 `Deck.Changed` 承载"保存请求"同一处理方式。已登记进回报的未决项。
+            //    （语义"开一局失败（卡组非法 / 建房失败等）"），因此复用它承载"对局操作失败原因"；
+            //    与 `DeckManager` 复用 `Deck.Changed` 承载"保存请求"同一处理方式。
             Game.Event?.Emit(Events.Battle.StartFailed, reason);
         }
 

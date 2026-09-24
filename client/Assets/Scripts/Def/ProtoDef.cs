@@ -164,7 +164,7 @@ namespace CR.Def
         // 本帧属于哪个房间（服务端 `def.BattleSnapshot.RoomID`，同名同值）。
         // 客户端按它丢弃"不是本局房间"的帧 —— 否则旧房间若还在推快照，它更大的 seq
         // 会让 `BattleManager.ApplySnapshot` 把新房的帧全判"倒退"丢掉。
-        // ⚠️ 旧服务端不发本字段 ⇒ 反序列化出来是 null/空串，客户端按"未知房间"放行（见 ApplySnapshot）。
+        // ⚠️ 本字段缺省（服务端未下发）时 ⇒ 反序列化出来是 null/空串，客户端按"未知房间"放行（见 ApplySnapshot）。
         public string room_id;
         public int seq;
         public int server_ms;
@@ -203,7 +203,7 @@ namespace CR.Def
         public int entity_id;
         public int team;
         public string text;
-        // 只在 kind=6（塔开火）时有意义：投射物速度，单位 = 格/分钟（D145）。
+        // 只在 kind=6（塔开火）时有意义：投射物速度，单位 = 格/分钟。
         // 服务端对"该塔没有投射物 / 投射物表里没有速度"的行写 0 ⇒ 0 表示
         // "无飞行段"，客户端只播枪口闪光、不播飞行轨迹。
         public int proj_speed;

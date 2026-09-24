@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       enginecore：把引擎 `Runtime/Core/**` 单独编成一个程序集（**非 Unity 工程、不参与打包**）
+
+       为什么必须拆成独立程序集（而不是并进 CrCompileCheck 一个大程序集）：
+         引擎的 Core / Network / Presentation / Resource / Data 是**5 个 asmdef**
+         （`Runtime/*/CloverEngine.*.asmdef`），彼此是**程序集边界**。`Runtime/Core/Timer.cs`
+         里有一个 `internal class Timer : ITimer`（同命名空间 `CloverEngine`）——
+         在 Unity 里 Network 程序集看不到它，于是 `NetworkManager` / `QuicConnection` 里
+         裸写的 `Timer` 解析到 `System.Threading.Timer`；一旦把两者编进**同一个**
+         程序集，`CloverEngine.Timer` 变成可见并无条件遮蔽 `System.Threading.Timer`
+         ⇒ CS1729 / CS1061 一片（`Timer` 没有 4 参构造 / 没有 Change / 没有 Dispose）。
+         ⇒ 本宿主保留 Core 的程序集边界，**不改引擎源码**、也不吞这类错误。
+
+       编出的程序集名与引擎 asmdef 一致（`CloverEngine.Core`），由 CrCompileCheck 引用。
+       ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>CloverEngine.Core</AssemblyName>
+    <RootNamespace>CloverEngine</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- 口径与 CrCompileCheck 逐字一致：只压制「未使用 / 未赋值字段」这类噪声；
+         ⛔ 不压制任何类型解析、成员、重载类错误，也不压制过时 API 告警（保留真实 warning 数）。 -->
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Core\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 口径与 CrCompileCheck 逐字一致：只引模块族，⛔ 不引 `Data\Managed\` 根下的单块孪生体。 -->
+    <Reference Include="$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.*Module.dll" />
+    <Reference Include="$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEditor.*Module.dll" />
+  </ItemGroup>
+
+</Project>

@@ -12,7 +12,7 @@ namespace CR
     /// <b>素材从哪来、为什么是这个布局</b>：全部复制自 `<项目根>/原版资源/cr-assets-png/assets/sc/`
     /// （A 本体 APK 解包；见 `策划/素材调研.md`）。源目录名（`chr_knight_out` 等）**原样保留**在路径里，
     /// 便于任何一条路径反查到源目录与 `策划/数值文档/unit_cs.txt` 的 `sprite_dir` 列。
-    /// 目录内文件由 `<项目根>/.ai-tmp/hosts/copy_assets.py` **规范化重命名**为 `frame_NNN.png`
+    /// 目录内文件被**规范化重命名**为 `frame_NNN.png`
     /// （源文件名里的序号补零位数不统一：大目录 3 位 `_sprite_000`、小目录 2 位 `_sprite_00`；
     /// 统一成固定位数后这里才能用一条规则拼路径）。
     /// </para>
@@ -91,7 +91,7 @@ namespace CR
         /// <summary>
         /// 法术卡面源目录名（`ui_spells_out`：403×377 卡面画布，92 张）。
         /// ⚠️ 解包素材里**只有序号**、没有「序号 → 卡 key」的索引文件 ⇒ 本类只提供按序号取图，
-        /// ⛔ **没有** `CardArtByKey`（那需要一份本项目自造的映射表 = 编造，见 agent-05 回报）。
+        /// ⛔ **没有** `CardArtByKey`（那需要一份本项目自造的映射表 = 编造）。
         /// </summary>
         public const string SpellArtSpriteDir = "ui_spells_out";
 
@@ -191,21 +191,21 @@ namespace CR
         //    它们的 shape **不被任何 `0c` 动画引用**（= 原版 `.sc` 对这些帧无任何命名引用），
         //    所以「哪块是底 / 哪块是哪个方位的角」在本项目**没有权威依据**（9-slice 几何与 `08` 矩阵-`0c` 三元组
         //    的对应关系未解出，见 `策划/原版UI素材名称索引.md` §1.1）。
-        //    ⇒ 本片**保留现状**（不改帧号、不改方位），逐条登记在 `.ai-tmp/test/Y2-允许差异.md` B1~B5。
+        //    ⇒ **保留现状**（不改帧号、不改方位）。
 
-        /// <summary>羊皮纸面板底 —— 米黄色纸方块（`ui_out` 806）。<b>判定 = 无法判定</b>（无命名引用）⇒ 保留现状，见 `.ai-tmp/test/Y2-允许差异.md` B1。</summary>
+        /// <summary>羊皮纸面板底 —— 米黄色纸方块（`ui_out` 806）。<b>判定 = 无法判定</b>（无命名引用）⇒ 保留现状。</summary>
         public static string PanelPaper { get { return UiFrame(UiPanelsDir, UiSrcUi, 806); } }
 
-        /// <summary>羊皮纸面板右上斜切角（`ui_out` 807）。<b>判定 = 无法判定</b>（无命名引用；方位不可判）⇒ 保留现状，见 `.ai-tmp/test/Y2-允许差异.md` B2。</summary>
+        /// <summary>羊皮纸面板右上斜切角（`ui_out` 807）。<b>判定 = 无法判定</b>（无命名引用；方位不可判）⇒ 保留现状。</summary>
         public static string PanelPaperCornerTr { get { return UiFrame(UiPanelsDir, UiSrcUi, 807); } }
 
-        /// <summary>羊皮纸面板左上斜切角（`ui_out` 808）。<b>判定 = 无法判定</b>（无命名引用；方位不可判）⇒ 保留现状，见 `.ai-tmp/test/Y2-允许差异.md` B3。</summary>
+        /// <summary>羊皮纸面板左上斜切角（`ui_out` 808）。<b>判定 = 无法判定</b>（无命名引用；方位不可判）⇒ 保留现状。</summary>
         public static string PanelPaperCornerTl { get { return UiFrame(UiPanelsDir, UiSrcUi, 808); } }
 
-        /// <summary>羊皮纸面板左下斜切角（`ui_out` 811）。<b>判定 = 无法判定</b>（无命名引用；方位不可判）⇒ 保留现状，见 `.ai-tmp/test/Y2-允许差异.md` B4。</summary>
+        /// <summary>羊皮纸面板左下斜切角（`ui_out` 811）。<b>判定 = 无法判定</b>（无命名引用；方位不可判）⇒ 保留现状。</summary>
         public static string PanelPaperCornerBl { get { return UiFrame(UiPanelsDir, UiSrcUi, 811); } }
 
-        /// <summary>羊皮纸面板大切角（`ui_out` 812）。<b>判定 = 无法判定</b>（无命名引用；方位不可判）⇒ 保留现状，见 `.ai-tmp/test/Y2-允许差异.md` B5。</summary>
+        /// <summary>羊皮纸面板大切角（`ui_out` 812）。<b>判定 = 无法判定</b>（无命名引用；方位不可判）⇒ 保留现状。</summary>
         public static string PanelPaperCornerBig { get { return UiFrame(UiPanelsDir, UiSrcUi, 812); } }
 
         /// <summary>白色描边圆角方框（空心 ⇒ 面板底框，`ui_out` 802）。</summary>
@@ -214,14 +214,14 @@ namespace CR
         /// <summary>
         /// 传说卡牌框光效 —— 原版**权威名** `card_frame_glow_legendary`（`ui_out` frame 532，145×188）。
         /// <para>
-        /// <b>Y2 改名（不信原名）</b>：旧键名 <c>PanelFrameWhiteInner</c>（「通用面板内框」）是错的 ——
-        /// 该 shape 在 `ui.sc` 的**显式导出表**里被 `card_frame_glow_legendary` 引用
-        /// （帧 532，见 `策划/原版UI素材名称索引.md` 第 713 行；判定见 `策划/原版UI图元更正表.md` 第 7 行 = **不符**）。
-        /// ⛔ 通用面板内框在原版源内**没有**对应帧 ⇒ 保留现状并登记（`.ai-tmp/test/Y2-允许差异.md` D1），
+        /// <b>权威名</b>：该 shape 在 `ui.sc` 的**显式导出表**里被 `card_frame_glow_legendary` 引用
+        /// （帧 532，见 `策划/原版UI素材名称索引.md` 第 713 行；判定见 `策划/原版UI图元更正表.md` 第 7 行 = **不符** 于
+        /// 旧键名「通用面板内框」）。
+        /// ⛔ 通用面板内框在原版源内**没有**对应帧 ⇒ 保留现状，
         /// 不得拿本帧冒充「通用面板内框」。
         /// </para>
         /// <para>路径里的 <see cref="UiPanelsDir"/> 是本项目的**归类标签**、不是原版权威信息（`.sc` 不含目录概念）
-        /// ⇒ 本片只改键名与注释、不动已落地的帧文件（理由登记在允许差异 D1）。</para>
+        /// ⇒ 不回改已落地的帧文件。</para>
         /// </summary>
         public static string CardFrameGlowLegendary { get { return UiFrame(UiPanelsDir, UiSrcUi, 532); } }
 
@@ -242,7 +242,7 @@ namespace CR
         /// <summary>
         /// 绿色圆角按钮件（`ui_out` frame 002；原版 `.sc` **无命名引用**）。
         /// <para>
-        /// ⚠️ <b>键名与素材不符（判定 = 不符；本片**保留现状**并登记）</b>：素材实测是**绿色**圆角件，
+        /// ⚠️ <b>键名与素材不符（判定 = 不符；**保留现状**）</b>：素材实测是**绿色**圆角件，
         /// 而键名声明的是「白色圆角胶囊描边」—— 白色胶囊按钮底在原版源内**无对应**
         /// （`ui.sc` 的 `button_*` 只有 `button_timeline` / `button_small_orange` / `button_small_square_orange` /
         /// `button_share_deck` / `full_page_button_tab*`）。白色按钮底请用 <see cref="ButtonWhite"/>（`ui_out` 476）；
@@ -250,8 +250,8 @@ namespace CR
         /// </para>
         /// <para>
         /// <b>为什么不改</b>：更正表该条的「建议改用」只给了**别的用途**（绿色主按钮）的帧，对本键自己的用途
-        /// 写的是「源内无对应」⇒ 按任务规矩（更正表未给替代帧 = 不自行挑帧）保留现状。
-        /// 出处 `策划/原版UI图元更正表.md` 第 12 行 + §3；登记 `.ai-tmp/test/Y2-允许差异.md` D2。
+        /// 写的是「源内无对应」⇒ 更正表未给替代帧 = 不自行挑帧，保留现状。
+        /// 出处 `策划/原版UI图元更正表.md` 第 12 行 + §3。
         /// </para>
         /// </summary>
         public static string ButtonCapsule { get { return UiFrame(UiButtonsDir, UiSrcUi, 2); } }
@@ -297,14 +297,14 @@ namespace CR
         /// <summary>木纹面板标题条（`ui_out` 70）。</summary>
         public static string TitleBarWood { get { return UiFrame(UiBarsDir, UiSrcUi, 70); } }
 
-        // ✅ 圣水条三件：**来源已定**（本节替换的是 Y2 那版「⛔ 不许动 + 来源未定」的注释，Y2 的登记 C1 已作废）。
+        // ✅ 圣水条三件：**来源已定**。
         //    HUD 层**就在 `ui.sc` 里**，只是以 `HUD_*` export 内部的**具名子元件**出现（不是顶层 export）——
         //    判据 = `ui.sc` → `HUD_player`(clip 1091) → `elixir_bar`(clip 1080) 的 `0c` 记录 cnt2 子元件表自带原版命名。
-        //    出处 `策划/战斗HUD素材索引.md` §1 结论表第 1 行 + §3.1（该文档 §1 明确推翻上一片「HUD 层不在这批 `.sc`」的结论）。
+        //    出处 `策划/战斗HUD素材索引.md` §1 结论表第 1 行 + §3.1（该文档 §1 的结论 = 「HUD 层就在这批 `.sc` 内」）。
         //    ⇒ 原版对应：槽 = `bar_bg`(clip 902) / 填充 = `bar_body`+`ghost`(clip 904/905) / 描边端 = `bar_end`(clip 906)。
         //    ⛔ 原键指向的 `ui_out` 516/517/518 **不在** `elixir_bar` 的引用闭包内：516 不被任何 `0c` 动画引用，
         //       517/518 被 `spell_card_full` / `win_reward_bar` / `Menu_topLayer` 引用（= 卡牌条 / 奖励条，见索引 §1.1 表）
-        //       ⇒ 那三帧不能当圣水条用，本片按权威出处换掉（换帧登记 `策划/对照表.md`）。
+        //       ⇒ 那三帧不能当圣水条用（换帧登记 `策划/对照表.md`）。
 
         /// <summary>
         /// 圣水条 槽底 —— 原版 `HUD_player` → `elixir_bar`(clip 1080) → 子元件 **`bar_bg`**（clip 902），
@@ -368,13 +368,13 @@ namespace CR
         /// <summary>
         /// 金色圆角**方块**板（24×24；`ui_battle_end_out` frame 201）。
         /// <para>
-        /// <b>Y2 改名</b>：旧键名 <c>BarGold</c>（「金色圆角**底条**（宽）」）是错的 —— 素材是 24×24 的方块，
-        /// 不是宽底条（判定 = **不符**，`策划/原版UI图元更正表.md` 第 29 行；更正表的建议 = 改成本名）。
+        /// <b>权威名</b>：素材是 24×24 的方块，不是宽底条（判定 = **不符** 于旧键名 <c>BarGold</c>「金色圆角底条（宽）」，
+        /// `策划/原版UI图元更正表.md` 第 29 行；更正表的建议 = 改成本名）。
         /// </para>
         /// <para>
-        /// ⚠️ 结算界面真正需要的「金色宽底条」**本片给不出帧**：更正表指向的 `win_reward_bar`
+        /// ⚠️ 结算界面真正需要的「金色宽底条」**在解包素材里没有帧**：更正表指向的 `win_reward_bar`
         /// 在 `ui_battle_end.sc` 里是**空 clip**（索引第 676 行：clip 4492，帧列表 = `—`）⇒ 无帧可复制。
-        /// 需要金色宽底条时登记为本项目的**表现缺口**（`.ai-tmp/test/Y2-允许差异.md` D3），⛔ 不许拿本方块拉成宽条冒充。
+        /// 需要金色宽底条时即本项目的**表现缺口**，⛔ 不许拿本方块拉成宽条冒充。
         /// </para>
         /// </summary>
         public static string GoldSquarePlate { get { return UiFrame(UiBarsDir, UiSrcBattleEnd, 201); } }
@@ -390,13 +390,13 @@ namespace CR
         /// <summary>
         /// 聊天气泡（左下尖角）—— 原版**权威名** `battle_end_chat_selection_bubble`（`ui_out` frame 54，73×113）。
         /// <para>
-        /// <b>Y2 改名（不信原名）</b>：旧键名 <c>SlotCardAlt</c>（「白色卡片底（变体）」）是错的 ——
-        /// 帧 54 在 `ui.sc` 导出表里被 `battle_end_chat_selection_bubble` 引用（索引第 1005 行；判定 = **不符**，
-        /// 更正表第 32 行）。按权威命名改为本名。
-        /// ⛔「卡槽底变体」在原版源内**没有**对应帧 ⇒ 保留现状并登记（`.ai-tmp/test/Y2-允许差异.md` D4），
+        /// <b>权威名</b>：帧 54 在 `ui.sc` 导出表里被 `battle_end_chat_selection_bubble` 引用
+        /// （索引第 1005 行；判定 = **不符** 于旧键名 <c>SlotCardAlt</c>「白色卡片底（变体）」，
+        /// 更正表第 32 行）。
+        /// ⛔「卡槽底变体」在原版源内**没有**对应帧 ⇒ 保留现状，
         /// 不得拿聊天气泡冒充卡槽底。
         /// </para>
-        /// <para>路径里的 <see cref="UiSlotsDir"/> 是本项目的**归类标签**、不是原版权威信息 ⇒ 本片只改键名、不动帧文件（允许差异 D4）。</para>
+        /// <para>路径里的 <see cref="UiSlotsDir"/> 是本项目的**归类标签**、不是原版权威信息 ⇒ 不回改帧文件。</para>
         /// </summary>
         public static string ChatBubble { get { return UiFrame(UiSlotsDir, UiSrcUi, 54); } }
 
@@ -432,7 +432,7 @@ namespace CR
         /// 蓝底金皇冠 / 蓝色方 star —— 原版权威语义名 **`star1` / `star2` / `star3`**（`printScore_player`，clip 1024）
         /// 与 **`starPlayer`**（`HUD_rightMiddle`，clip 989），`ui_out` **frame_187**（120×98）。
         /// <para>
-        /// 帧号**本来就对（差值 0，本片未换帧）**，本片补的是权威命名；出处 `策划/战斗HUD素材索引.md` §3.3。
+        /// 帧号与权威出处一致（差值 0，未换帧），本键补的是权威命名；出处 `策划/战斗HUD素材索引.md` §3.3。
         /// 战斗 HUD 内取冠数请优先用 <see cref="HudStarPlayer"/>（同帧的 HUD 语义键）；
         /// ⛔ 本键保留不动键名，以免破坏其它文件的既有引用。
         /// </para>
@@ -442,7 +442,7 @@ namespace CR
         /// <summary>
         /// 红底金皇冠 / 红色方 star —— 原版权威语义名 **`star1` / `star2` / `star3`**（`printScore_enemy`，clip 1029）
         /// 与 **`starEnemy`**（`HUD_rightMiddle`，clip 992），`ui_out` **frame_188**（120×98）。
-        /// <para>帧号本来就对（差值 0，本片未换帧）；出处 `策划/战斗HUD素材索引.md` §3.3。</para>
+        /// <para>帧号与权威出处一致（差值 0，未换帧）；出处 `策划/战斗HUD素材索引.md` §3.3。</para>
         /// </summary>
         public static string IconCrownRedGem { get { return UiFrame(UiIconsDir, UiSrcUi, 188); } }
 
@@ -470,13 +470,13 @@ namespace CR
         /// <summary>
         /// 「新建锦标赛」图标（蓝底白「+」）—— 原版**权威名** `icon_tournament_create`（`ui_out` frame 281）。
         /// <para>
-        /// <b>Y2 改名（不信原名）</b>：旧键名 <c>IconHeal</c>（「治疗 / 加血」）是错的 ——
-        /// 帧 281 在 `ui.sc` 导出表里被 `icon_tournament_create` 引用（索引第 831 行；判定 = **不符**，
+        /// <b>权威名</b>：帧 281 在 `ui.sc` 导出表里被 `icon_tournament_create` 引用
+        /// （索引第 831 行；判定 = **不符** 于旧键名 <c>IconHeal</c>「治疗 / 加血」，
         /// 更正表第 47 行；该 export 共 4 帧 274/281/380/388，本键取 281 与更正表一致）。
         /// </para>
         /// <para>
-        /// ⚠️ 「治疗图标」在原版源内**无对应**（`ui.sc` 里没有任何 heal 命名）⇒ 本项目**不存在**治疗图标图元，
-        /// 登记 `.ai-tmp/test/Y2-允许差异.md` D5。确有展示需求时用 <see cref="IconPlus"/>（`ui_out` 521），
+        /// ⚠️ 「治疗图标」在原版源内**无对应**（`ui.sc` 里没有任何 heal 命名）⇒ 本项目**不存在**治疗图标图元。
+        /// 确有展示需求时用 <see cref="IconPlus"/>（`ui_out` 521），
         /// ⛔ 不许再拿本帧当治疗图标。
         /// </para>
         /// </summary>
@@ -554,12 +554,12 @@ namespace CR
 
         /// <summary>
         /// ⛔⛔ <b>本键不属于 2.1.5 的手牌框，当前**没有任何代码引用**（留档待用，⛔ 别接回 HUD）。</b>
-        /// 它来自"另一版本/模式"的对局图观感（金框 + 卡顶双菱形紫帽）；主 agent 2026-09-23 裁定
-        /// `20_对局_1080x1920.jpg` 不是同一版本、不作几何基线 ⇒ CR-T2c 的接线已撤销
+        /// 它来自"另一版本/模式"的对局图观感（金框 + 卡顶双菱形紫帽）；
+        /// `20_对局_1080x1920.jpg` 不是同一版本、不作几何基线 ⇒ 本键不接回 HUD
         /// （2.1.5 的手牌框 = `HudHandSlot` / `ui_out` **200**）。素材文件保留：它是原版页面的 1:1 提取。
         ///
         /// <para>
-        /// **手牌卡的黄金卡框**（原 CR-T2c 落地件）：`ui_out` **frame_547**，原生 <b>158×162</b>。
+        /// **手牌卡的黄金卡框**：`ui_out` **frame_547**，原生 <b>158×162</b>。
         ///
         /// <para>
         /// 出处：原版 `ui` 图集（`.sc` = `ui_v215.sc`）导出的 <c>ui_sprite_547.png</c>
@@ -575,8 +575,8 @@ namespace CR
         /// </para>
         /// <para>
         /// ⚠️ 本件是**卡框底板**（金板），原版卡面（`ui_spells_out` 帧）按量取的内缩压在其上 ⇒
-        /// 金板露出的边就是"卡框"。原版卡顶那根**双菱形紫帽**未找到对应 sprite（同一次 20931 张扫描，
-        /// 见回报的"仍未找到"一节），⛔ 未自绘。
+        /// 金板露出的边就是"卡框"。原版卡顶那根**双菱形紫帽**未找到对应 sprite（同一次 20931 张扫描未命中），
+        /// ⛔ 未自绘。
         /// </para>
         /// </summary>
         public static string HudCardFrameGold { get { return UiFrame(UiSlotsDir, UiSrcUi, 547); } }
@@ -593,7 +593,7 @@ namespace CR
         /// **`starPlayer`**（`HUD_rightMiddle`，clip 989），`ui_out` **frame_187**（120×98）。
         /// <para>
         /// 与 <see cref="IconCrownBlueGem"/> **同一帧**（只补 HUD 语义键、不改帧）；
-        /// 同族**第二态** = `frame_197`，**已落地**（`策划/战斗HUD素材索引.md` §4 落地表 + 本片登记）
+        /// 同族**第二态** = `frame_197`，**已落地**（`策划/战斗HUD素材索引.md` §4 落地表）
         /// ⇒ 用 <see cref="HudStarPlayerAlt"/>。
         /// </para>
         /// </summary>
@@ -703,18 +703,15 @@ namespace CR
         /// </summary>
         public static string IconQuitCross { get { return UiFrame(UiIconsDir, UiSrcUi, 164); } }
 
-        // ── 原版战斗结算图元（`ui_battle_end_out`；AR2 全量逐帧辨认后由 AS2 登记并接线）──────────────
+        // ── 原版战斗结算图元（`ui_battle_end_out`）──────────────────────────────────────────
         //
-        // <b>为什么单列一组</b>：这批帧原先只躺在盘上（AR2 落地、无人登记、也没有键）⇒ 本片按 AR2 的
-        // 辨认结论登记（键名 + 路径 + 用途：`.ai-tmp/test/AR2-ResPaths建议.md`；
-        // 逐帧辨认与 `.sc` 归属：`.ai-tmp/test/AR2-结算帧辨认.md` §2/§3）。
+        // <b>为什么单列一组</b>：这批帧是结算界面专用的原版页面图元，键名 + 路径 + 用途成套登记在下方。
         // 用途的**权威出处 = 原版 `.sc` 的 export 名**（`battleEnd_loot_item_*` / `gold_reward` /
         // `touchdown_txt_blue|red`），⛔ 不是本项目看图猜的；键名本身是本项目的归类标签。
-        // ⚠️ 本图集里**没有**头像外框 / 等级徽记（AR2 §3.3：240 帧逐页看完，无任何圆形/方形头像框，
-        //    export 名里也没有 avatar / portrait / frame 语义）⇒ 不登记、不自绘顶替，
-        //    如实登记在 `.ai-tmp/test/AS2-允许差异.md` A1。
+        // ⚠️ 本图集里**没有**头像外框 / 等级徽记（240 帧逐页看完，无任何圆形/方形头像框，
+        //    export 名里也没有 avatar / portrait / frame 语义）⇒ 不登记、不自绘顶替。
 
-        /// <summary>结算面板九宫格 左上圆角（`ui_battle_end_out` 002，38×40；几何推定见 AR2 §3.4）。</summary>
+        /// <summary>结算面板九宫格 左上圆角（`ui_battle_end_out` 002，38×40；尺寸为逐帧量取的推定值）。</summary>
         public static string BattleEndBorderCornerLT { get { return UiFrame(UiPanelsDir, UiSrcBattleEnd, 2); } }
 
         /// <summary>结算面板九宫格 右上圆角（`ui_battle_end_out` 003，38×39）。</summary>
@@ -769,10 +766,9 @@ namespace CR
         /// <summary>
         /// 王冠 蓝方起始帧（`ui_battle_end_out` 027，176×126；下缘**蓝色**饰带）。
         /// <para>
-        /// 原版王冠是**两段 80 帧动画**：蓝方 027–106 / 红方 115–194（AR2-结算帧辨认.md §3.4）；
-        /// 本键 = 蓝方那段的**起始帧**（本片只接静态帧，逐帧动画未接）。
-        /// ⚠️ 240 帧里**没有** 2 冠 / 3 冠的堆叠帧 ⇒ N 冠 = 同一张**复制 N 次**，
-        /// 如实登记在 `.ai-tmp/test/AS2-允许差异.md` A2。
+        /// 原版王冠是**两段 80 帧动画**：蓝方 027–106 / 红方 115–194（逐帧辨认 `.sc` 的 clip 边界）；
+        /// 本键 = 蓝方那段的**起始帧**（只接静态帧，逐帧动画未接）。
+        /// ⚠️ 240 帧里**没有** 2 冠 / 3 冠的堆叠帧 ⇒ N 冠 = 同一张**复制 N 次**。
         /// </para>
         /// </summary>
         public static string CrownBlue { get { return UiFrame(UiIconsDir, UiSrcBattleEnd, 27); } }
@@ -810,9 +806,9 @@ namespace CR
         /// <summary>弹道帧数。</summary>
         public const int EffectArrowCount = 20;
 
-        // ───────────────────────── 法术命中特效（差异登记 D148）─────────────────────────
+        // ───────────────────────── 法术命中特效（差异登记见 `策划/差异登记.tsv`）─────────────────────────
         //
-        // 用户第 9 条「卡的实现没看到法术」的根因：法术卡走 `EvPlayCard` 事件，而客户端那条分支
+        // 法术卡必须有独立命中特效的原因：法术卡走 `EvPlayCard` 事件，而客户端那条分支
         // 只处理"远程卡"（`CardInfo.projectile_key` 非空）⇒ **法术卡 projectile_key 为空，
         // 在 `PlayProjectileFlight` 开头就被 return 掉**，于是一张法术打下去，画面上什么都没有。
         //
@@ -820,7 +816,7 @@ namespace CR
         // `tools/probes/sc-as1-index.py`）。10 张法术**共用同一本图集** `effects_out`（612 帧），
         // 每张只用其中一段连续帧 ⇒ 落地时只拷那一段（`Effects/{Spell,SpellBarrel}/`），
         // 与既有 `Effects/Hit`（f050..f056）等目录同一约定。
-        // 落地脚本：`.ai-tmp/hosts/copy_spell_fx.py`（幂等，帧号与行号都写在脚本里）。
+        // 落地：每张法术只拷它那一段连续帧进对应用途目录（帧号见下方常量）。
 
         /// <summary>
         /// 用途目录：法术命中特效（`effects_out` 图集里各法术那一段，画布 474×537）。
@@ -903,17 +899,15 @@ namespace CR
         /// <summary>哥布林飞桶帧数（该组 12 帧）。</summary>
         public const int EffectGoblinBarrelCount = 12;
 
-        // ───────────────────────── 落点范围指示（差异登记 D143）─────────────────────────
+        // ───────────────────────── 落点范围指示（差异登记见 `策划/差异登记.tsv`）─────────────────────────
         //
-        // 用户第 4 条「放卡没有进度条（原版是转圈的）」的根因：`PlacementIndicator` 过去用
-        // `CreateDiscSprite()` **自制**一张圆盘贴图，并断言「解包素材里没有落点指示图」。
-        //
-        // ⛔ 那句断言是**错的**：`策划/单位动画分组表.md` 的 `effects` 小节里有原版的
+        // ⛔ 落点指示**不许自绘**（`PlacementIndicator` 不造圆盘贴图）：`策划/单位动画分组表.md`
+        // 的 `effects` 小节里有原版的
         // 法术范围指示图元，且**分我方/敌方两种形态**（见下）。同族的 `spell_zap_radius`
         // （:4780）/ `spell_rage_radius`（:4778）/ `spell_poison_radius`（:4776）/
         // `spell_freeze_radius`（:4769）**帧列全都是 `221`** ⇒ 原版所有法术共用同一张环，
         // 靠**缩放**适配各自半径 —— 这正是"落点指示"的实现方式。
-        // 落地脚本：`.ai-tmp/hosts/copy_spell_fx.py`（`RANGE_RING` 一节）。
+        // 落地：把这 2 帧拷进「落点范围指示」用途目录（帧号见下方常量）。
 
         /// <summary>
         /// 用途目录：落点范围指示（`effects_out` 里那两张范围图元）。目录里只有 2 帧：
@@ -935,7 +929,7 @@ namespace CR
 
         /// <summary>
         /// 帧文件名规则：`frame_` + 至少 3 位十进制。
-        /// ⛔ 与 `.ai-tmp/hosts/copy_assets.py` 的重命名规则**必须一致**（改一处必须同时改另一处），
+        /// ⛔ 与素材落地脚本的重命名规则**必须一致**（改一处必须同时改另一处），
         /// 否则路径全部落空、表现为"图一个都出不来"。
         /// </summary>
         public static string EffectDir(string use)

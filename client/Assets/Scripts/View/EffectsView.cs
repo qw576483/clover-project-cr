@@ -19,7 +19,7 @@ namespace CR.View
     /// </para>
     ///
     /// <para>
-    /// <b>帧怎么定位</b>：`ResPaths.EffectDir(use)` 目录里就是该用途的**全部帧**（F1 按用途目录
+    /// <b>帧怎么定位</b>：`ResPaths.EffectDir(use)` 目录里就是该用途的**全部帧**（按用途目录
     /// 落地的原版帧，文件名 = 原版源帧号 `frame_NNN`）。这里按 <see cref="SpriteBank.ParseFrameIndex"/>
     /// 解析每帧的原版帧号，从等于 `firstFrame` 的那帧开始、往后取 `frameCount` 帧
     ///（⇒ `firstFrame` 与目录内容对齐，⛔ 不硬编码下标）。
@@ -42,16 +42,13 @@ namespace CR.View
         /// <summary>同屏特效上限（超出忽略 + 只 Warn 一次）。</summary>
         public const int MaxLive = 64;
 
-        /// <summary>特效层排序（须在单位之上：`UnitView.SortingOrder.Unit` = 1000 + 世界深度）。</summary>
-        public const int SortOrder = 3000;
-
         /// <summary>特效世界高度（格）。原版画布 474x537，meta 的 PPU=100 ⇒ 537/100 = 5.37 格。</summary>
         public const float WorldSize = 5.37f;
 
         /// <summary>
         /// 飞行弹道**兜底**时长（秒）。出处：**本项目自定**。
         /// <para>
-        /// ⚠️ V3 起弹道已接线，且调用方（`BattleViewRoot.PlayProjectileFlight`）**一律显式传入**由
+        /// ⚠️ 调用方（`BattleViewRoot.PlayProjectileFlight`）**一律显式传入**由
         /// `CardInfo.proj_speed`（格/分钟）算出的时长 ⇒ 本常量只在调用方传 <c>0</c> 时生效。
         /// </para>
         /// </summary>
@@ -85,7 +82,7 @@ namespace CR.View
             /// <summary>节点。</summary>
             public GameObject Go;
 
-            /// <summary>渲染器（`sortingOrder = SortOrder`）。</summary>
+            /// <summary>渲染器（`sortingOrder = ArenaLayers.Instance.Effect`）。</summary>
             public SpriteRenderer Renderer;
 
             /// <summary>该用途目录的**全部**帧（`ResPaths.EffectDir(use)`）。</summary>
@@ -171,7 +168,7 @@ namespace CR.View
         /// 用途：调用方按真实速度算时长 —— 例如 `BattleViewRoot` 用 `CardInfo.proj_speed`（**格/分钟**）
         /// 推 <c>时长 = 距离(格) × 60 / proj_speed</c>，⛔ 不再落到 <see cref="FlightSeconds"/> 这个兜底常量。
         /// </para>
-        /// <para>⛔ 不改上面那条既有签名（`EffectsView` 的对外契约不许改）—— 本方法只是**新增**一个带时长的重载。</para>
+        /// <para>⛔ 不改上面那条签名（`EffectsView` 的对外契约不许改）—— 本方法只是另一个带时长的重载。</para>
         /// </summary>
         /// <param name="durationSeconds">飞行时长（秒）；<c>&lt;= 0</c> 时退回 <see cref="FlightSeconds"/>。</param>
         public void PlayFlight(Vector2 from, Vector2 to, string use, int firstFrame, int frameCount, float size, float durationSeconds)
@@ -187,8 +184,8 @@ namespace CR.View
             if (_live.Count >= MaxLive)
             {
                 // 「只报一次」走引擎的**进程级**去重闸门（`Runtime/Core/LogThrottle.cs`），
-                // ⛔ 不再自持 `_capWarned` 字段 —— 引擎 sink-a3 台账口径：「已有同类能力不准再起第二套去重」。
-                // 生命周期检查：本处是"同屏特效上限"告警，与任何"每局重置"语义无关（进程级才对）。
+                // ⛔ 本类不自持去重字段 —— 引擎口径：「已有同类能力不准再起第二套去重」。
+                // 生命周期：本处是"同屏特效上限"告警，与任何"每局重置"语义无关（进程级才对）。
                 LogThrottle.WarnOnce(LogTag, "fx.live.cap",
                     $"同屏特效达到上限 {MaxLive} ⇒ 忽略后续（只报一次）");
                 SkippedTotal++;
@@ -242,7 +239,8 @@ namespace CR.View
             var go = new GameObject("Fx");
             if (_root != null) go.transform.SetParent(_root, false);
             var sr = go.AddComponent<SpriteRenderer>();
-            sr.sortingOrder = SortOrder;
+            // 特效层：全场最高层（须在单位层 `ArenaLayers.Instance.Actor` = 1000 + 世界深度之上）。
+            sr.sortingOrder = ArenaLayers.Instance.Effect;
             return new Node { Go = go, Renderer = sr };
         }
 

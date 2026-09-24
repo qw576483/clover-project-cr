@@ -53,3 +53,9 @@
 
 # --- Python 缓存 ---
 __pycache__/
+
+# --- 判据资产（tools/probes/hosts）跑 dotnet build 会在原地生成构建产物 ---
+tools/probes/hosts/**/obj/
+tools/probes/hosts/**/bin/
+#    ⚠️ 宿主工程文件必须入仓（在 *.csproj 之后声明豁免，否则闸门无工程可跑）
+!tools/probes/hosts/**/*.csproj

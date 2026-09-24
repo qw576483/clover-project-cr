@@ -23,11 +23,9 @@ namespace CR.Module.Deck
     /// </para>
     /// <para>
     /// <b>谁创建本类</b>：`DeckModuleHost`（`[RuntimeInitializeOnLoadMethod]` +
-    /// `Game.RegisterLaunchHook`）。为什么不用主 agent 在
-    /// `tools/ai-skill/registry.md` 里写的「Flow 持有」：`AppFlow` 是 agent-05 的冻结产出，
-    /// 本片⛔不许改它的文件；而引擎的启动钩子本来就是「上层模块把自己挂接到门面」的正规入口
-    /// （`Game.cs:661-671`，注释里写明"可安全配合 RuntimeInitializeOnLoadMethod 使用"）。
-    /// 已把这一差异写进回报。
+    /// `Game.RegisterLaunchHook`）。引擎的启动钩子就是「上层模块把自己挂接到门面」的正规入口
+    /// （`Game.cs:661-671`，注释里写明"可安全配合 RuntimeInitializeOnLoadMethod 使用"）；
+    /// ⚠️ 项目级 skill 的 `registry.md` 记的是「Flow 持有」，与本文件的挂载点不一致。
     /// </para>
     /// <para>
     /// <b>`Events.Deck.Changed` 是双通道（必须知道，否则会自激）</b>：`Events.cs` 里 Deck 只有
@@ -35,8 +33,8 @@ namespace CR.Module.Deck
     /// 面板 → 管理器的 `Changed(ids)` = 「请把这份卡组保存为我的卡组」；
     /// 管理器 → 面板的 `Changed(ids)` = 「服务端确认的当前卡组就是这样」。
     /// 本类发了通知后会被**自己的**订阅立刻收到（`Event.Emit` 是同步分发）——因此下面用
-    /// <c>_notifyingDeck</c> 做重入保护；这与 `AppFlow` 的"订阅处理器绝不重发同一个事件"是
-    /// 同一类问题的两种解法，本片受事件集合所限只能取后者（已写进回报的契约缺口）。
+    /// <c>_notifyingDeck</c> 做重入保护；`AppFlow` 的对应做法是"订阅处理器绝不重发同一个事件"——
+    /// 本类因 `Events.cs` 的 Deck 段没有独立的「保存请求」事件，只能取重入保护这条。
     /// </para>
     /// </summary>
     public sealed class DeckManager
@@ -74,7 +72,7 @@ namespace CR.Module.Deck
         /// <summary>
         /// 取（或首次创建）卡组模块并装上订阅。由启动钩子调用，幂等；
         /// 每次 `Game.Launch` 后都要再调一次 —— `Game.Event` 是 Launch 时新建的对象，
-        /// 上一轮的订阅随它一起消失。
+        /// 先前的订阅随它一起消失。
         /// </summary>
         public static DeckManager EnsureCreated()
         {
@@ -86,7 +84,7 @@ namespace CR.Module.Deck
         /// <summary>
         /// 装上事件订阅（幂等：同一条事件总线只装一次）。
         /// 「换总线才重装」的判据是 <c>Game.Event</c> 的**对象标识** —— 每次 <c>Game.Launch</c> 都会新建
-        /// `EventBus`（引擎 `Runtime/Core/Game.cs:381`），上一轮的订阅随它一起消失，所以每一轮都必须重装。
+        /// `EventBus`（引擎 `Runtime/Core/Game.cs:381`），先前的订阅随它一起消失，所以每次 Launch 都必须重装。
         /// ⛔ 这里**不能用裸 bool** 当"已装载"：本工程关闭了域重载（`client/ProjectSettings/EditorSettings.asset`
         /// 的 `m_EnterPlayModeOptionsEnabled`），静态量跨 Play 存活 ⇒ 裸 bool 会让编辑器里 **第 2 次及以后**
         /// 每次 Play 在 `Install()` 开头直接 return（不订阅、不写日志、不报错），
@@ -215,7 +213,7 @@ namespace CR.Module.Deck
         // ═════════════════════════ 保存 ═════════════════════════
 
         /// <summary>
-        /// 保存卡组。★ **客户端先校验**（任务书 §5.1：8 张 / 不重复 / 都在卡池里），
+        /// 保存卡组。**客户端先校验**（8 张 / 不重复 / 都在卡池里），
         /// 校验不过**一个字节都不发**，并把原因 `Emit(SaveFailed)` 交给面板显示
         /// （⛔ 不许只打日志）。
         /// </summary>

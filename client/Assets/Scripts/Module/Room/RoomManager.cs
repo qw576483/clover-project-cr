@@ -24,12 +24,11 @@ namespace CR.Module.Room
     /// </para>
     /// <para>
     /// <b>谁创建本类</b>：<see cref="RoomModuleHost"/>（`[RuntimeInitializeOnLoadMethod]` +
-    /// <c>Game.RegisterLaunchHook</c>）。⛔ 不改 `App/Bootstrap.cs`（agent-05 的冻结产出）是有意的：
-    /// 引擎的启动钩子本来就是「上层模块把自己挂接到门面」的正规入口
+    /// <c>Game.RegisterLaunchHook</c>）。本类不经 `App/Bootstrap.cs` / `AppFlow` 挂载：
+    /// 引擎的启动钩子就是「上层模块把自己挂接到门面」的正规入口
     /// （`clover-client-unity-engine/Runtime/Core/Game.cs:661-671`，注释写明「可安全配合
     /// RuntimeInitializeOnLoadMethod 使用」，并在 `Launch` 内 `RunLaunchHooks()`，`Game.cs:401-405`）。
-    /// 项目级 skill 的 `registry.md` 记的是「由 Flow 持有」—— 那需要改 `AppFlow`，本片无此权限，
-    /// 差异已写进回报（登记在 skill 里的挂载方式与实际实现不一致，请主 agent 裁决其一）。
+    /// ⚠️ 项目级 skill 的 `registry.md` 记的是「由 Flow 持有」，与本文件的挂载点不一致。
     /// </para>
     /// <para>
     /// <b>⛔ 本类不实现「人机对战」的发送</b>：`AppFlow.RequestStartAiBattle()` 已经实现了
@@ -53,7 +52,7 @@ namespace CR.Module.Room
         /// <para>
         /// ⚠️ 这是**服务端实现细节的副本**（协议未冻结它）—— 一旦服务端改前缀，本类会退化为
         /// "认不出自己"：那时会打 Warn 并把房主按钮放行，由服务端裁决（见 <see cref="ResolveSelfPlayerId"/>）。
-        /// 建议主 agent 在协议里补一个"回包带自己的 player_id / is_host"字段，彻底去掉这份副本。
+        /// ⚠️ 若协议将来补上"回包带自己的 player_id / is_host"字段，这份副本即可删掉。
         /// </para>
         /// </summary>
         private const string PlayerIdPrefix = "p_";
@@ -131,7 +130,7 @@ namespace CR.Module.Room
         /// <summary>
         /// 装上事件订阅 + 推送处理器（幂等：同一条事件总线只装一次）。
         /// 「换总线才重装」的判据是 <c>Game.Event</c> 的对象标识 —— 每次 <c>Game.Launch</c> 都会新建
-        /// `EventBus`（`Game.cs:381`），上一轮的订阅随它一起消失，所以必须重装；而同一轮里重复调用则直接返回。
+        /// `EventBus`（`Game.cs:381`），先前的订阅随它一起消失，所以必须重装；而同一次 Launch 里重复调用则直接返回。
         /// </summary>
         public void Install()
         {
@@ -563,7 +562,7 @@ namespace CR.Module.Room
         /// 开打（`PushBattleStart`，Reliable）。
         ///
         /// <para>
-        /// <b>为什么本类也订阅（`AppFlow` 已订过同一条）</b>：任务书 §5.2 要求房间模块订阅它；
+        /// <b>为什么本类也订阅（`AppFlow` 已订过同一条）</b>：房间模块要自己维护房间态，所以必须自己订阅；
         /// 而 `RequestEnterBattle` 是**按 roomId 幂等**的（`AppFlow.cs:160-208`：同一房间重复请求只
         /// 打一条 Info 就返回），并且 `Game.OnMsg` 支持同一消息号多处理器（`Router.cs:14-28`，
         /// 按注册顺序依次调用）⇒ 两条订阅同时存在是安全的，不会重复加载场景。

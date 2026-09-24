@@ -23,13 +23,13 @@ namespace CR.Module.Settings
     /// 收到后转调下面的 `Set*` —— 面板只发请求事件，⛔不直接 new 本类、也不⛔引 `CR.Module`。
     /// </para>
     /// <para>
-    /// <b>V5 修复</b>：此前这些 `*Request` 事件**全无订阅者** ⇒ 设置面板的滑块/开关全不生效。
+    /// <b>订阅关系</b>：这些 `*Request` 事件由本类订阅 ⇒ 设置面板的滑块/开关才会生效。
     /// 处理者放本类而不是 `AppFlow`：这条链是 `面板 --Emit(Request)--> 本类 --Set--> 引擎`，
     /// 本类的 `Set*` 只 Emit `*Changed`（不是 `*Request`），**不会自激**。
     /// 订阅在 <see cref="Init"/> 里做、由 `_subscribed` 保证幂等；实例随 `Bootstrap` 创建一次、跨场景存活。
     /// </para>
     /// <para>
-    /// <b>CR-F2：`*Changed` 这条反向链的职责（审计问的"设计意图"）</b> —— 它是
+    /// <b>`*Changed` 这条反向链的职责</b> —— 它是
     /// **"权威值已变更"的通知**，不是给本类自己用的：本类改完就地生效与落盘，不需要自己听。
     /// 它服务的是**显示方**（谁来显示这个值，谁就订阅它来保持与权威值同步）：
     /// <list type="bullet">
@@ -38,15 +38,15 @@ namespace CR.Module.Settings
     /// <item>`VoiceVolumeChanged` ⇒ **今天在工程内无人订阅**，理由见 `Events.Settings` 段里该常量的注释
     /// （工程内没有"人声"显示项、也没有任何 voice 素材/播放点）。**这是登记过的设计状态，不是漏挂**。</item>
     /// </list>
-    /// 另一条必须记住的分支：画质档位有**两个**来源，引擎侧的自动降档原先完全没有出口
-    /// ⇒ 由 <see cref="HookEngineQuality"/> 把它翻译成同一条 `QualityChanged`，否则已打开的面板会显示旧值。
+    /// 另一条必须记住的分支：画质档位有**两个**来源 —— 除本类外还有引擎侧的自动降档；
+    /// 由 <see cref="HookEngineQuality"/> 把它翻译成同一条 `QualityChanged`，否则已打开的面板会显示改档前的档位。
     /// </para>
     /// </summary>
     public sealed class SettingsManager
     {
         private const string Tag = "Settings";
 
-        // ── 设置面板请求事件的订阅（V5 修复：这些 *Request 此前无人订阅 ⇒ 滑块/开关不生效） ──
+        // ── 设置面板请求事件的订阅（不订阅 ⇒ 滑块/开关不生效） ──
         //    处理器必须是**实例字段**：事件总线按委托相等性去重 / 注销，走局部 lambda 会在
         //    「重复 Init」时被当成新 handler 叠加，且 Off 不掉（`Event.cs:310-328`）。
         private Action<float> _onBgmRequest;
@@ -85,7 +85,7 @@ namespace CR.Module.Settings
         /// <c>SetLevel</c> → <c>SaveLevel</c>（同文件 `:279-284`）里写这个键，而
         /// **引擎自动降档**（fps 低于目标 70% 持续 3s，同文件 `:221-243`）走的也是
         /// <c>SetLevel</c> ⇒ 降档结果只落在**引擎键**上。项目若另用 <c>video.quality_tier</c>，
-        /// 就成了"两个权威"：引擎降档后项目键仍是旧值，下次 <see cref="Init"/> 读旧值
+        /// 就成了"两个权威"：引擎降档后项目键仍停在改档前的值，下次 <see cref="Init"/> 读它
         /// 再 <c>SetLevel</c> 回去 —— 玩家看到"自动降档不保持 / 设了档位重启又变回去"。
         /// 引擎是共享代码（本项目⛔不改），⇒ **统一到引擎键**：单一权威、无需双写。
         /// </para>
@@ -93,7 +93,7 @@ namespace CR.Module.Settings
         private const string KeyQuality = "quality_level";
 
         /// <summary>
-        /// 本项目旧版用过的画质键（`video.quality_tier` 时期）：**只读一次做迁移**，
+        /// 迁移用的历史画质键（`video.quality_tier`）：**只读一次做迁移**，
         /// 避免老存档（盘上只有旧键）升级后画质档丢失 —— 与引擎对 `device_level` 的处置同一手法
         /// （`Quality.cs:16-17 / 291-302`）。
         /// </summary>
@@ -174,8 +174,8 @@ namespace CR.Module.Settings
             {
                 ApplyQuality((QualityTier)storedTier);
 
-                // 两个键同时存在（本轮统一之前的老盘：项目键 + 引擎键各写过一次，值可能已经不一致）
-                // ⇒ 删掉遗留的项目键。它本轮起不再被读，留着只会让排查的人以为"还有第二个权威"。
+                // 两个键同时存在（项目键 + 引擎键各写过一次，值可能已经不一致）
+                // ⇒ 删掉遗留的项目键：它不再被读，留着只会让排查的人以为"还有第二个权威"。
                 if (Game.Setting.Get(LegacyKeyQuality, -1) >= 0)
                 {
                     Game.Setting.Delete(LegacyKeyQuality);
@@ -232,14 +232,14 @@ namespace CR.Module.Settings
         }
 
         /// <summary>
-        /// 接上**引擎侧**的画质变更（CR-F2 修复的第二根线）。
+        /// 接上**引擎侧**的画质变更。
         ///
         /// <para>
         /// <b>为什么必须有它</b>：画质档位有两个改动来源 —— ① 本类的 `SetQuality`（玩家在设置面板点 ◀▶），
         /// ② **引擎自己的自动降档**（`Quality.cs:221-243` 的 `CheckAutoDowngrade`：平均帧率低于该档目标 70%
         /// 持续 3s ⇒ `SetLevel(当前档−1)`，并写引擎键 `quality_level`）。② 发生时本类**不知情**，
-        /// 于是 `Events.Settings.QualityChanged` 根本不会被发出 ⇒ 已打开的设置面板一直显示降档前的旧值
-        /// （面板只读"打开那一刻"的快照）。实测记录 = `.ai-tmp/test/CR-F2-证据.md` 的 S2 行。
+        /// 于是 `Events.Settings.QualityChanged` 不会被发出 ⇒ 已打开的设置面板一直显示降档前的档位
+        /// （面板只读"打开那一刻"的快照）。
         /// </para>
         /// <para>
         /// ② 的唯一可订阅出口就是引擎这个 `OnLevelChanged`（`Quality.cs:112-119` 在 `SetLevel` 里逐个回调）
@@ -352,7 +352,7 @@ namespace CR.Module.Settings
 
         /// <summary>
         /// 引擎侧画质档位变更（自动降档 / 任何绕过本类直接调 `Game.Quality.SetLevel` 的路径）。
-        /// 见 <see cref="HookEngineQuality"/> 的根因说明。
+        /// 见 <see cref="HookEngineQuality"/> 的说明。
         /// </summary>
         private void OnEngineQualityChanged(QualityTier tier)
         {

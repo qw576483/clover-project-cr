@@ -33,7 +33,7 @@ namespace CR.UI.Panels
     /// </para>
     ///
     /// <para>
-    /// <b>竖版重排（G3b）</b>：画布 = <see cref="CrUiStyle.DesignW"/>×<see cref="CrUiStyle.DesignH"/> = 1080×1920、`match = 0`。
+    /// <b>竖版排版</b>：画布 = <see cref="CrUiStyle.DesignW"/>×<see cref="CrUiStyle.DesignH"/> = 1080×1920、`match = 0`。
     /// 内容框 = <see cref="CrUiStyle.ContentPanel"/>（贴顶居中、宽 <see cref="CrUiStyle.ContentW"/> = 1000）、
     /// 标题 = <see cref="CrUiStyle.TitleBar"/>（原版金色标题条九宫格）、
     /// 「对局不真暂停」提示框 = 原版深蓝灰圆角块 <see cref="ResPaths.ButtonDarkGrey"/> 九宫格（⛔ 不再是纯色块）、
@@ -41,17 +41,15 @@ namespace CR.UI.Panels
     /// </para>
     ///
     /// <para>
-    /// <b>⛔ 竖版：四个按钮不再 2×2 左右排</b>（横屏旧值 `:103-113` 是 `(40,-212)/(460,-212)/(40,-296)/(460,-296)`
-    /// + `ButtonW 360`，两列并排只在 BoxW=860 的横屏口径下成立）⇒ 改成**单列纵向堆叠**，
+    /// <b>⛔ 四个按钮单列纵向堆叠</b>（⛔ 不 2×2 左右排：两列并排只在 BoxW=860 的横屏口径下成立），
     /// 按钮宽 <see cref="BtnW"/> = 824（A 的宽条按钮 572px@750 宽 ×1.44 = 823.7）。
-    /// 逐条出处见 `.ai-tmp/test/G3b-量取.md`。
     /// </para>
     /// </summary>
     public sealed class PausePanel : UIPanel
     {
         private const string Tag = "PausePanel";
 
-        // ═══════════════ 竖版排版常量（出处见 .ai-tmp/test/G3b-量取.md；内容框宽 1000） ═══════════════
+        // ═══════════════ 竖版排版常量（内容框宽 1000） ═══════════════
 
         private const float Pad = CrUiStyle.PanelPad;                    // 40（CrUiStyle 已登记）
         private const float InnerW = CrUiStyle.ContentW - 2f * Pad;      // 920 = 1000 − 2×40
@@ -62,19 +60,16 @@ namespace CR.UI.Panels
         private const float WarnH = 120f;
 
         /// <summary>
-        /// 动作按钮宽。出处：G3 已定稿的同一量取值 ——「A 宽条按钮 572px@750 × 1.44 = 823.7」
-        /// （`DeckEditPanel.cs:117-118` / `.ai-tmp/test/G3-量取.md`，110..233 行同款按钮），本片沿用 824
-        /// 以保持两个面板的宽条按钮同宽。
+        /// 动作按钮宽 = 824（= A 宽条按钮 572px@750 × 1.44 = 823.7，与 `DeckEditPanel` 的宽条按钮同宽）。
         /// <para>
-        /// ⚠️ **本片自己复核不了 572 这个数**：12_主菜单 里能量到的宽条只有「Battle Deck」蓝带
-        /// （本次实测 y=1176 行 x=130..614 ⇒ 485px@750 = 屏宽 64.7% ⇒ ×1.44 = **698.4**），
-        /// 与 572 差 +126px；A 的**暂停界面本身未取到**（`策划/参考图/清单.md:40`）⇒ 无直接对照物。
-        /// 两个数都登记进 `策划/验收表.md` 的「允许的差异」（A-g3b-pause-1），由 G3 的 owner 裁一次。
+        /// ⚠️ 572 这个数**没有直接对照物**：A 的暂停界面本身未取到（`策划/参考图/清单.md:40`），
+        /// `12_主菜单` 里能量到的宽条只有「Battle Deck」蓝带（实测 y=1176 行 x=130..614 ⇒
+        /// 485px@750 = 屏宽 64.7% ⇒ ×1.44 = **698.4**），与 572 差 +126px。
         /// </para>
         /// </summary>
         private const float BtnW = 824f;
 
-        /// <summary>动作按钮高。出处同 <see cref="BtnW"/>：A 宽条按钮 h=46px@750 × 1.44 = 66.2（G3 量取）⇒ 66。</summary>
+        /// <summary>动作按钮高。出处同 <see cref="BtnW"/>：A 宽条按钮 h=46px@750 × 1.44 = 66.2 ⇒ 66。</summary>
         private const float BtnH = 66f;
 
         /// <summary>
@@ -141,21 +136,19 @@ namespace CR.UI.Panels
 
             // 弹窗自己不铺全屏底（Popup 层的模态遮罩由 UIManager 负责，`UI.cs:143-147`），只画内容框。
             //
-            // ★ AQ2 换帧（用户 2026-09-2x「原版，界面 按钮 根本不长这样啊！！」）：
-            //   旧 = `ContentPanel`（`ui_out/806` 米色羊皮纸）+ `TitleBar`（`ui_out/069` 棕木条）——
-            //   **两张都错**：`AQ2-ui-frames.png` 上 806 是米黄撕纸、069 是深棕木条，而原版功能面板
-            //   的底是**板岩灰蓝外框 + 亮灰蓝面**、标题是**板岩带上的白字黑描边**（基线
-            //   `24_设置_499x1080.jpg` 实测亮面 (229,236,242) / 板岩带 (99,104,123)，AM2 量取）。
-            //   新 = `SettingsPopup`（014 外框 + 019 亮面）+ `BandTitle` —— 与 AP1 在
-            //   `RoomList/Room/DeckEdit` 上落地的同一口径（`AP1-report.md` §2）。
+            // 面板底 = `SettingsPopup`（`ui_out` 014 外框 + 019 亮面），标题 = `BandTitle`
+            //   （板岩带上的白字黑描边）—— 原版功能面板的底是**板岩灰蓝外框 + 亮灰蓝面**、
+            //   标题是板岩带上的白字黑描边（基线 `24_设置_499x1080.jpg` 实测亮面 (229,236,242) /
+            //   板岩带 (99,104,123)）；与 `RoomList` / `Room` / `DeckEdit` 同一口径。
+            //   ⛔ 不用 `ContentPanel`（806 米黄撕纸）/ `TitleBar`（069 深棕木条）。
             var box = CrUiStyle.SettingsPopup("PauseBox", root, boxH, CrUiStyle.ContentW);
             var c = box.rectTransform;
 
             CrUiStyle.BandTitle("TitleBar", box, "暂 停", CrUiStyle.ContentW);
 
-            // ── ★ 对局不真暂停：必须明说（⛔ 不许让玩家以为世界停了） ──
+            // ── 对局不真暂停：必须明说（⛔ 不许让玩家以为世界停了） ──
             // 提示框底 = 原版板岩灰蓝圆角块（`ui_out/014`）。
-            // ★ AQ2 换帧口径修正：014 是**左上圆角件**（`CrUiStyle.Skin` 的注释写明：直接配 `border` 会把同一个角
+            // 014 是**左上圆角件**（`CrUiStyle.Skin` 的注释写明：直接配 `border` 会把同一个角
             //   贴到四个角上、三个角是错的）⇒ 从 `NineSlice` 改成 `Skin(corner 24)`（四角镜像拼，只用原版像素）。
             CrUiStyle.Skin("WarnBox", c, CrUiStyle.PopupFrameSlate, 24, Vector4.zero,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, yWarn),
@@ -170,10 +163,10 @@ namespace CR.UI.Panels
                 TextAnchor.MiddleLeft, CrUiStyle.Accent);
 
             // ── 四个动作：竖版 = 单列纵向堆叠（⛔ 不再 2×2 左右排） ──
-            // ★ AQ2 换帧：四颗按钮的底从 `ActionButton`（金 300 / 深蓝灰 014）换成 **`BlueButton`（`ui_out/165` 蓝底白字）**。
-            //   看图依据：`AQ2-ui-frames.png` 上 300 = 亮黄金 3D 立体块（商店/宝箱语言）、014 = 板岩块，
+            // 四颗按钮的底从 `ActionButton`（金 300 / 深蓝灰 014）换成 **`BlueButton`（`ui_out/165` 蓝底白字）**。
+            //   看图依据：300 = 亮黄金 3D 立体块（商店/宝箱语言）、014 = 板岩块，
             //   而原版**功能面板的按钮**是蓝底白字（基线 `24_设置` 的蓝按钮 / `12_主菜单` 的 Clan 钮，
-            //   AP1 量取 A 段蓝 ≈ (24,119,233)~(77,175,254)）；「继续」是主操作 ⇒ 原版主操作也是同一蓝件。
+            //   量取蓝 ≈ (24,119,233)~(77,175,254)）；「继续」是主操作 ⇒ 原版主操作也是同一蓝件。
             var btnX = (CrUiStyle.ContentW - BtnW) * 0.5f;                               // 88
             _continueButton = CrUiStyle.BlueButton("ContinueButton", c, "继 续",
                 new Vector2(btnX, yButtons), new Vector2(BtnW, BtnH), OnContinueClicked);
@@ -343,12 +336,10 @@ namespace CR.UI.Panels
         /// <summary>
         /// 四个按钮一起置灰 / 恢复（投降与回主菜单在途时不许再点）。
         /// <para>
-        /// ⛔ **不再自己涂 `img.color`**：竖版重排后按钮底是**原版图元九宫格 + `Button.colors` 四态 tint**
+        /// ⛔ **不自己涂 `img.color`**：按钮底是**原版图元九宫格 + `Button.colors` 四态 tint**
         /// （见 `CrUiStyle.ActionButton`），直接写 `img.color` 会与 Button 的状态机互相覆盖
         /// （`DoStateTransition` 会把颜色刷回 `normalColor`，表现为"置灰一闪就没"）。
         /// 禁用态由 `colors.disabledColor`（0.55 灰）表达，所以这里只切 `interactable`。
-        /// 旧实现（`RoomPanel` 踩过的坑）用 `CrUiStyle.SetButtonEnabled` 把恢复态一律涂成 `ButtonBg`，
-        /// 会把主按钮的金色重置成蓝色 —— 这里连涂色这一步一起去掉，该坑不复存在。
         /// </para>
         /// </summary>
         private void SetInteractable(bool enabled)

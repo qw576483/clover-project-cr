@@ -14,9 +14,9 @@ namespace CR.UI.Panels
     /// —— ⛔ 面板不 `using CR.Module`、不持 `SettingsManager`。真正生效与落盘在 `SettingsManager`。
     /// </para>
     /// <para>
-    /// <b>CR-F2：快照只是初值，打开期间跟随权威值</b>。此前面板**只**读打开那一刻的快照，
-    /// 于是任何"面板开着时权威值变了"的情形都会让面板显示旧值 —— 实测到的就是引擎**自动降档**
-    /// （`Quality.cs:221-243`：面板上还写着「高」，引擎已经降到「中」）。现在面板在 <see cref="Subscribe"/>
+    /// <b>快照只是初值，打开期间跟随权威值</b>。只读打开那一刻的快照，会让面板在"权威值随后变了"时
+    /// 显示旧值 —— 典型是引擎**自动降档**
+    /// （`Quality.cs:221-243`：面板上还写着「高」，引擎已经降到「中」）。因此面板在 <see cref="Subscribe"/>
     /// 里订阅 `BgmVolumeChanged` / `SfxVolumeChanged` / `QualityChanged` / `FullscreenChanged`，
     /// 事件一到就地刷新显示（<see cref="OnClose"/> 里摘掉）。刷新一律走
     /// `SetValueWithoutNotify` / 直接改文字 ⇒ **不会反手发出请求**、不构成回环。
@@ -27,35 +27,29 @@ namespace CR.UI.Panels
     /// </para>
     ///
     /// <para>
-    /// <b>⚠️ AM2 视觉重做（本片的唯一目的）</b>：用户原话「你这 ui 也太丑了，原版 ui 不长这样啊！！！
-    /// 原版，界面 按钮 根本不长这样啊！！」，附截图 = 米色纸面板 + 棕色标题条「设置」+ 三条绿色滑条 +
-    /// 蓝色三角箭头 + 黄色「关闭」宽条 + 黄字百分比。
-    /// 旧实现的两条根因（都已消除）：
-    /// <list type="number">
-    /// <item>用**加载条图元** `loading_out` 015 当滑条填充（`ui_bars` 绿色读条），手柄拿卡槽角块凑；</item>
-    /// <item>更普遍的根因 —— 帧号是照 `策划/原版UI素材索引.md` 的「建议用途」列挑的，而**那一列是看缩略图猜的**。</item>
-    /// </list>
-    /// 本片改成「**先取设置界面基线图，再按外观比对选帧**」：
-    /// 基线图 = `策划/参考图/24_设置_499x1080.jpg`（原版设置界面整屏 499×1080，
-    /// 来源 https://www.gameuidatabase.com/uploads/Clash-Royale01022022-071826-52305.jpg）；
-    /// 逐点取样 + 按颜色连通块量取 ⇒ 读数与出处全部登记在 `.ai-tmp/test/AM2-量取.md`。
+    /// <b>⚠️ 视觉语言 = 原版设置界面</b>（基线图 = `策划/参考图/24_设置_499x1080.jpg`，
+    /// 原版设置界面整屏 499×1080，
+    /// 来源 https://www.gameuidatabase.com/uploads/Clash-Royale01022022-071826-52305.jpg）。
+    /// 选帧口径 = **先取设置界面基线图，再按外观比对选帧**，逐点取样 + 按颜色连通块量取：
+    /// ⛔ 不按 `策划/原版UI素材索引.md` 的「建议用途」列挑帧（那一列是按缩略图猜的）；
+    /// ⛔ 不用**加载条图元** `loading_out` 015 当滑条填充（`ui_bars` 绿色读条）。
     /// </para>
     ///
     /// <para>
-    /// <b>基线图上量到的原版观感（读数见 <see cref="CrUiStyle"/> 的 AM2 段）</b>：
+    /// <b>基线图上量到的原版观感（读数见 <see cref="CrUiStyle"/> 的对应用色常量）</b>：
     /// 弹窗体是**亮灰蓝 (229,236,242)**；顶部**板岩灰蓝标题带 (99,104,123)**；
     /// 右上角是**红色圆形 X 关闭**（不是宽金条）；控件是**绿 / 红 / 蓝 / 灰**四种圆角按钮，
     /// 标签压在控件上方、字是**深墨蓝**（不是黄字）；**原版设置界面上没有任何滑条 / 任何三角箭头按钮**
     /// （Music / SFx 是绿 ON 按钮，Language / Name 是蓝 / 灰按钮）。
-    /// ⇒ 音量 / 画质仍按任务契约保留（⛔ 不许改消息号与字段），但外观全部换成同一套原版视觉语言，
-    /// 逐条差异登记在 `.ai-tmp/test/AM2-允许差异.md`。
+    /// ⇒ 音量 / 画质仍按任务契约保留（⛔ 不许改消息号与字段），控件外观按同一套原版视觉语言表达；
+    /// 原版没有滑条 / 三角箭头这两类件，本面板的对应件是**本项目等价件**，⛔ 不声称是原版复刻。
     /// </para>
     /// </summary>
     public sealed class SettingsPanel : UIPanel
     {
         private const string Tag = "SettingsPanel";
 
-        // ═══════════ 竖版排版常量（出处见 .ai-tmp/test/AM2-量取.md；全部是 AM2 基线图实测值） ═══════════
+        // ═══════════ 竖版排版常量（全部是基线图 `24_设置` 的实测值） ═══════════
 
         private const float Pad = CrUiStyle.PopupPad;                 // 30（基线：面板左 33、按钮左 47 ⇒ 14px@499）
         private const float RowPitch = CrUiStyle.PopupRowPitch;       // 136（基线：行节距 63px@499）
@@ -127,8 +121,8 @@ namespace CR.UI.Panels
             // ⛔ 顺序：**先同步显示值再挂/改回调**。`UIFactory.CreateSlider` 内部已经保证
             //    "先赋 value 再 AddListener"，但面板重开（OnOpen 再来一次）时改 value 会触发已有监听
             //    ⇒ 用 `Slider.SetValueWithoutNotify`（**只改显示、不发通知**）同时同步**滑块的填充比例**与文本。
-            //    ⚠️ AM2 实测缺陷：旧实现只改文本、不改 slider.value ⇒ 填充条恒满格（Sfx 42% 也画成 100%），
-            //    与文本自相矛盾（探针实录 `.ai-tmp/test/AM2-探针.txt` 第 1 次：Fill size=735x24 且 value=1）。
+            //    ⚠️ 只改文本、不改 slider.value 会让填充条恒满格（Sfx 42% 也画成 100%）、与文本自相矛盾
+            //    ⇒ 必须同时同步**滑块的填充比例**与文本（见 `SetSlider`）。
             SetSlider(_bgmSlider, _bgmValue, snapshot.BgmVolume);
             SetSlider(_sfxSlider, _sfxValue, snapshot.SfxVolume);
             RefreshQualityText();
@@ -141,14 +135,13 @@ namespace CR.UI.Panels
         /// <summary>
         /// 关闭时：① 摘掉订阅（`UIManager.Close` 在销毁根节点**之前**调 `OnClose`，引擎 `UI.cs:203-215`，
         /// `CloseAll` 也走同一条路 ⇒ 不会漏摘）；
-        /// ② **从暂停菜单进来的这次设置，关掉后必须把暂停菜单放回来**（D12 修正，CR-F1 2026-09-23）。
+        /// ② **从暂停菜单进来的这次设置，关掉后必须把暂停菜单放回来**。
         ///
         /// <para>
         /// <b>为什么必须做</b>：`SettingsPanel` 与 `PausePanel` 同为 Popup 层，`UIManager.Open` 对 Popup 会
         /// **互斥关闭同层面板**（`UI.cs:155-159`）⇒ 打开设置的那一刻 `PausePanel` 就被收掉了，而**没有任何代码重开它**。
         /// 于是关掉设置后出现中间态：`station` 仍是 `Pause`、屏幕上却**没有任何菜单**，HUD 仍开着且可交互
-        /// —— 实测后果是"这种画面上按下手牌，一次完整的出牌请求真的发到了服务端"
-        /// （CR-U5 2026-09-23 实测，`.ai-tmp/test/CR-U5-evidence.txt` 的 [D12-a]/[D12-b]）。
+        /// ⇒ 后果是"这种画面上按下手牌，一次完整的出牌请求真的发到了服务端"。
         /// </para>
         /// <para>
         /// <b>为什么选"回 Pause 菜单"而不是"回 Battle 站点"</b>：原版从暂停菜单进设置、按 X 是**回到暂停菜单**，
@@ -171,7 +164,7 @@ namespace CR.UI.Panels
             // ① 先摘订阅（原有职责，⛔ 不许因为加了 ② 而不做）。
             Unsubscribe();
 
-            // ② D12：把被 Popup 互斥关掉的暂停菜单放回来（详见上面的类注释段落）。
+            // ② 把被 Popup 互斥关掉的暂停菜单放回来（详见上面的方法注释段落）。
             var fsm = Game.Fsm;
             var station = fsm != null ? fsm.Current : null;
             if (station != Stations.Pause) return; // 从主菜单等别的站点进来的设置：关掉就是关掉，⛔ 不切站点
@@ -197,7 +190,7 @@ namespace CR.UI.Panels
                 TextAnchor.MiddleCenter, Color.white);
 
             // 关闭 = 原版**右上角红色圆形 X**（基线：红块 x=431..460 / y=157..182 @499，压在弹窗右上角上）。
-            // ⛔ 旧实现的「金色宽条 + 关 闭」是错的（原版没有那颗按钮）。
+            // ⛔ 不用「金色宽条 + 关 闭」：原版没有那颗按钮。
             var close = CrUiStyle.Skin("CloseButton", c, CrUiStyle.ButtonRed, 0,
                 new Vector4(14f, 14f, 14f, 14f),
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
@@ -293,19 +286,10 @@ namespace CR.UI.Panels
 
         /// <summary>
         /// 原版蓝按钮 + 原版白色三角（`ui_out` 170，`ResPaths.HudPauseIconPlay`）⇒ ▶；镜像 ⇒ ◀。
-        /// <para>⚠️ AM2 起这里把取角块边长写成字面量 **14**，与 `CrUiStyle.BlueCorner`（10）不一致。
-        /// AE1（2026-09-22）三层量后判定 **10 才是对的**（帧 `ui_out/165` 的九宫格中心像素 = 帧 (c−1, c−1)：
-        /// c=10 ⇒ 帧 (9,9)=(48,156,255) 乘常态 tint = **(48,112,224) = 原版读数**；c=14 ⇒ (72,123,224)，
-        /// AE1 实机实测 (72,122,224)，Δ=(+24,+10,0) 超容差）⇒ 现改为引用 <see cref="CrUiStyle.BlueCorner"/>
-        /// 作唯一来源，两处不一致已消除。量法与读数见 `.ai-tmp/test/AE1-量取.md` / `AE1-tile.txt` / `AE1-measure.txt`。</para>
-        /// <para>⚠️ AF1（2026-09-22）：本方法原来**没把 AV1 标定 tint 传进去**（走 `Skin` 的无 tint 重载 ⇒
-        /// face = 白），所以同一帧在别处是 (44,108,224)、在这里是 (44,152,255)（AE1 实机直采）。
-        /// 现按 AV1 口径补 `CrUiStyle.ButtonBlueTint`（出处 `.ai-tmp/test/AV1-color-report.md` §2 / §3.4：
-        /// tint = (1.000, 0.718, 0.878) = 原版读数 (48,112,224) ÷ 帧 `ui_out/165` 内填）。⛔ 不改几何、不换帧。</para>
-        /// <para>⚠️ AF3/AF4（2026-09-22）：圆角「实机方角」的根因已定 = **源帧选错**（165 的圆角在左下，
-        /// 而 `CrUiStyle.MakeRounded` 只读左上 c×c）⇒ 统一在 `CrUiStyle` 侧换成 166 + `BlueCorner` 10→**15**
-        /// + `ButtonBlueTint` 重标定（本方法只引用共享常量，**未改一行**）。
-        /// AF4 实机已复核：蓝面 (48,111,224) ✓（AV1 目标 (48,112,224)）；c=12 那次实机顶/底边各掉约 4px ⇒ 改 15 后重采，见 `AF4-report.md`。</para>
+        /// <para>取角块边长引用 <see cref="CrUiStyle.BlueCorner"/>，⛔ 不写字面量：帧 `ui_out/166` 的
+        /// 九宫格中心像素 = 帧 (c−1, c−1) ⇒ 乘常态 tint 后 = 原版读数 (48,112,224)。</para>
+        /// <para>必须传 `CrUiStyle.ButtonBlueTint`：不传 tint 时 face = 白，同一帧在这里会渲染成
+        /// (44,152,255) 而不是别处的 (44,108,224)。⛔ 不改几何、不换帧。</para>
         /// </summary>
         private static void AddArrowButton(string name, Transform parent, Vector2 pos, Action onClick, bool mirror)
         {
@@ -514,14 +498,13 @@ namespace CR.UI.Panels
         // ───────────────────────── 原版素材：把图元贴回引擎控件 ─────────────────────────
 
         /// <summary>
-        /// 给引擎滑块换上**原版素材**（全部走 <see cref="CrUiStyle.Dress"/>，本片把原来面板侧那份
-        /// 私有实现下沉进了 CrUiStyle）：
+        /// 给引擎滑块换上**原版素材**（全部走 <see cref="CrUiStyle.Dress"/>）：
         /// 轨道 = 原版板岩灰蓝圆角框体（`ui_out` 014 左上圆角件拼九宫格）、
         /// 填充 = 原版**绿色按钮底**（`ui_out` 610，与原版 ON 按钮同一个绿）、
         /// 手柄 = 原版**亮面圆角块**（`ui_out` 019）。
         /// <para>⚠️ **原版设置界面上没有滑条**（Music / SFx 是绿 ON 按钮）⇒ 这三件是"原版无此部件"下
-        /// 按同一套原版视觉语言做的降级，逐条登记在 `.ai-tmp/test/AM2-允许差异.md` D3。
-        /// ⛔ 旧实现拿 `loading_out` 015（**绿色加载读条**）当滑条填充 —— 那是加载条，肯定错，已删。</para>
+        /// 按同一套原版视觉语言表达的**等价件**。
+        /// ⛔ 不用 `loading_out` 015（**绿色加载读条**）当滑条填充 —— 那是加载条。</para>
         /// </summary>
         private static void DressSlider(Slider slider)
         {
@@ -536,7 +519,7 @@ namespace CR.UI.Panels
             CrUiStyle.Dress(handle, CrUiStyle.PopupSkinLight, 10, Vector4.zero);
         }
 
-        // ⚠️ 本片起面板侧不再有素材加载 / 切片代码：原 `DressSlider` 那份私有实现（缓存 + 缺图只 Warn 一次）
-        //    已下沉成 `CrUiStyle.Dress` / `CrUiStyle.Skin` / `CrUiStyle.Icon`（CrUiStyle.cs 是本片 owner）。
+        // ⚠️ 面板侧没有素材加载 / 切片代码：轨道 / 填充 / 手柄的贴图全走
+        //    `CrUiStyle.Dress` / `CrUiStyle.Skin` / `CrUiStyle.Icon`（唯一实现在 `CrUiStyle.cs`）。
     }
 }

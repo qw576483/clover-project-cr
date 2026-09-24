@@ -1,0 +1,126 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ───────────────────────────────────────────────────────────────────────
+       cr_compilecheck：**只编译不跑**的离线编译闸门宿主（**非 Unity 工程、不参与打包**）
+
+       为什么需要它：`client/` 下没有 Unity 生成的 `*.csproj`（Unity 编辑器未打开 /
+       未生成工程文件）⇒ 改完 `Assets/Scripts/**` 与 `Assets/Editor/**` 没有任何
+       离线手段能知道「编不编得过」。本工程把
+         · Unity 托管 DLL（UnityEngine.* / UnityEditor.* / UnityEngine.UI / TextMeshPro）
+         · 引擎源码（`clover-client-unity-engine/Runtime/**`，CR.asmdef 依赖的 5 个程序集）
+         · 本项目业务源码（`client/Assets/Scripts/**` + `client/Assets/Editor/**`）
+       直接编到 .NET 上，得到 **秒级、零编辑器依赖** 的编译判定：
+       `exit 0` 且 `0 error` 才算过 —— 判据命令逐字见下方 `CloverCompileGateCommand`
+       属性（命令里含连续短横线，放进 XML 注释会让项目文件无法解析，故落在属性里）。
+
+       入口（一条命令 ⇒ error 数 + exit code）：`tools/probes/compile-check.ps1`
+         —— 它先 `dotnet restore` 再 build。**判据只看 `0 个错误`**：`-v q` 下 csc 的 warning
+         仍会原样打出（本基线 3 条，全在引擎源码、刻意不压制），warning 数不是判据。
+         为什么必须并引擎**源码**（⛔ 不能只引 `client/Library/ScriptAssemblies/*.dll`）：
+         那是 Unity 上一次编译的产物 —— 2026-09-25 实测 `CloverEngine.Presentation.dll`
+         (09-23 18:43) 里 `TextFit` / `RuntimePanelProvider` 都不存在（引擎源 09-25 01:35），
+         引它会让 `UI/PanelFactory.cs` / `UI/TextFit.cs` 报 4 条 CS0246/CS0234 **假红**。
+
+       口径说明：
+         · `EnableDefaultCompileItems=false` + 显式 `<Compile Include>` 白名单
+           ⇒ 编进来的文件一个不多一个不少；⛔ 不用 `<NoWarn>` 掩盖真实错误。
+         · 引擎源码按**目录粒度**纳入（`Runtime/{Core,Data,Network,Presentation,Resource}`）
+           —— 这是 `client/Assets/Scripts/CR.asmdef` 的 references 列出的 5 个引擎程序集，
+           即本项目对引擎的**完整依赖面**；`Runtime/Plugins` 只有原生库、无 `.cs`。
+         · 引擎源码用**相对路径**引用（`..\..\..\..\..\clover-client-unity-engine\`），
+           与引擎仓同盘并列时才有解；跨机换位置时需改这一处。
+         · `UNITY_EDITOR` 已定义（编辑器宿主口径）⇒ `Assets/Editor/**` 与
+           `#if UNITY_EDITOR` 分支都真的被编到，不会静默跳过。
+         · 它只证明「类型 / 语法 / 成员解析没问题」，**不替代**进 Unity 编辑器编译与 Play 实测。
+         · ⚠️ **托管模块的引用必须精确到模块族，⛔ 不许 `*.dll` 一把抓**（2026-09-25 实测）：
+           `Data\Managed\UnityEngine\` 这一个目录里同时放着 `UnityEngine.*Module.dll`(86)、
+           `UnityEditor.*Module.dll`(68)，**以及单块孪生体 `UnityEngine.dll` / `UnityEditor.dll`**
+           （另有 26 个与编译无关的编辑器工具 DLL：Bee.* / Unity.Cecil.* / Newtonsoft.Json …）
+           ⇒ 一把抓会匹配 182 个；本工程只引**模块族**两条 = 154 个，单块孪生体一个都不引
+           （引它 = 每个类型 CS0433「同时存在于两个程序集」）。
+           ⚠️ 另一个静默失效形状：`Data\Managed\UnityEditor\` 这个**目录根本不存在** ——
+           写 `$(UnityEditorRoot)\Data\Managed\UnityEditor\*.dll` 会匹配 0 个文件，
+           而 **MSBuild 不报错**（静默死规则）。编辑器类型一律走 `UnityEditor.*Module.dll` 那条。
+         · ⚠️ **已知项（2026-09-25 登记）**：`client/Library/ScriptAssemblies/CloverEngine.Presentation.dll`
+           是 2026-09-23 的旧产物，**不含**引擎 2026-09-25 新增的 `RuntimePanelProvider` / `TextFit`
+           ⇒ 本宿主从引擎**源码**编，不受影响（实测 0 error）；但凡**以 Library 为参考集**的离线编译
+           （skill 的 `scripts/compile-check.ps1`、直接 `dotnet build client/CR.csproj`）会对这两个类型
+           报 **CS0246 假红**，直到用户在编辑器里重建包程序集。⛔ 不许改 `Library/**` 去凑绿。
+      ─────────────────────────────────────────────────────────────────────── -->
+
+  <PropertyGroup>
+    <!-- 判据命令（只是文档，不参与构建；含连续短横线，故不能写进 XML 注释） -->
+    <CloverCompileGateCommand>dotnet build -v q --nologo</CloverCompileGateCommand>
+
+    <!-- 只编译、不执行：产物是类库，不需要 Program 入口 -->
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>CrCompileCheck</AssemblyName>
+    <RootNamespace>CrCompileCheck</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- 只压制「未使用 / 未赋值字段」这类与编译正确性无关的噪声；
+         ⛔ 不压制任何类型解析、成员、重载类错误（CS0246 / CS0234 / CS0117 / CS1061 …）。 -->
+    <NoWarn>CS0649;CS0169;CS0414;CS0067</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- 编辑器口径：`Assets/Editor/**` 与 `#if UNITY_EDITOR` 分支必须真的参与编译 -->
+    <DefineConstants>$(DefineConstants);UNITY_EDITOR</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ① 本项目业务源码：整棵 Scripts 树（含 App/Core/Def/Module/UI/View） -->
+    <Compile Include="..\..\..\..\client\Assets\Scripts\**\*.cs" />
+    <!-- ② 本项目编辑器侧源码（场景生成器等） -->
+    <Compile Include="..\..\..\..\client\Assets\Editor\**\*.cs" />
+
+    <!-- ③ 引擎源码：CR.asmdef 依赖的 5 个程序集（除 Core 外），按目录粒度纳入。
+         ⚠️ `Runtime/Core` **不在这里** —— 它由 `..\enginecore\` 编成独立程序集
+         （引擎 asmdef 的程序集边界必须保留，否则 Core 的 `internal class Timer`
+         会遮蔽 `System.Threading.Timer`，详见该工程头部注释）。 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Data\**\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Network\**\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Presentation\**\*.cs" />
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Runtime\Resource\**\*.cs" />
+
+    <!-- ④ 引擎编辑器侧源码：`Assets/Editor/SceneBuilder.cs` 调引擎的 Editor 程序集 -->
+    <Compile Include="..\..\..\..\..\clover-client-unity-engine\Editor\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ⑤ 引擎 Core 程序集（源码在 ..\enginecore\，保留引擎 asmdef 边界） -->
+    <ProjectReference Include="..\enginecore\CloverEngineCoreHost.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Unity 托管模块。真实布局（2026-09 实测 6000.6.0f1）：
+         `Data\Managed\UnityEngine\` 一个目录里同时放着 `UnityEngine.*Module.dll`（86 个）与
+         `UnityEditor.*Module.dll`（68 个，编辑器类型在这里）；`Data\Managed\` 根下另有单块孪生体
+         `UnityEngine.dll` / `UnityEditor.dll`。⛔ 单块孪生体一个都不能引（与模块组同引 ⇒ 每个类型 CS0433），
+         故这里用**精确通配**逐个模块族列出，而不是 `*.dll` 一把抓。
+         ⚠️ 另外：`Data\Managed\UnityEditor\` 这个目录**不存在** —— 写它只会静默匹配 0 个文件。 -->
+    <Reference Include="$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEngine.*Module.dll" />
+    <Reference Include="$(UnityEditorRoot)\Data\Managed\UnityEngine\UnityEditor.*Module.dll" />
+    <!-- uGUI 与 TextMeshPro 由包程序集提供，不在 Managed 下 ⇒ 用 Unity 已编译出来的产物。
+         ⚠️ 这两条依赖 `client/Library/ScriptAssemblies/` 存在（= 本机至少开过一次编辑器）。 -->
+    <Reference Include="..\..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll" />
+    <Reference Include="..\..\..\..\client\Library\ScriptAssemblies\Unity.TextMeshPro.dll" />
+  </ItemGroup>
+
+  <!-- 包程序集不在 Unity 安装目录下，只能取 `client/Library/ScriptAssemblies/`。
+       缺它时给一句人话，而不是让 MSBuild 报一串 "could not be resolved"。 -->
+  <Target Name="CloverCheckPackageAssemblies" BeforeTargets="ResolveAssemblyReferences"
+          Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\client\Library\ScriptAssemblies\UnityEngine.UI.dll')">
+    <Error Text="找不到包程序集：client/Library/ScriptAssemblies/UnityEngine.UI.dll。该目录由 Unity 编辑器生成 —— 用 Unity Hub 打开一次 clover-project-cr/client 后再重跑本闸门。" />
+  </Target>
+
+  <!-- 审计入口（不影响生成）：逐行打印本工程真正编进来的文件，用来核对「编译集构成 / 覆盖率」：
+         dotnet msbuild -t:CloverListCompileSet -v:m -nologo -->
+  <Target Name="CloverListCompileSet">
+    <Message Importance="High" Text="%(Compile.FullPath)" />
+  </Target>
+
+</Project>

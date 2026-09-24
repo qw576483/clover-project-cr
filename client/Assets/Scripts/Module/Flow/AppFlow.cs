@@ -77,7 +77,7 @@ namespace CR.Module.Flow
 
         // 会话昵称**不再放在本类字段里**：它是"服务端权威数据"，必须能被**面板**读到，
         // 而面板不许 `using CR.Module`（契约 §1）⇒ 数据落在 `CR.PlayerSession`（服务端回包写入，
-        // 面板读取）。本类保留的只是"写入 + 广播"职责。见 `Core/PlayerSession.cs` 的类注释（根因）。
+        // 面板读取）。本类保留的只是"写入 + 广播"职责。见 `Core/PlayerSession.cs` 的类注释。
         private bool _nicknameRefreshBusy;
 
         /// <summary>
@@ -90,11 +90,11 @@ namespace CR.Module.Flow
         private bool _started;
 
         /// <summary>
-        /// **本轮引擎**的事件总线（= 本流程当前订阅所在的那一条）。用途见 <see cref="EnsureCreated"/>：
-        /// 引擎每轮 `Game.Launch` 都会**新建** `EventBus`（引擎 `Game.cs:381`），而本工程**关闭了域重载**
-        /// ⇒ 静态单例 <see cref="Instance"/> 会跨轮存活。若不按总线重绑，新一轮里
+        /// **当前引擎实例**的事件总线（= 本流程当前订阅所在的那一条）。用途见 <see cref="EnsureCreated"/>：
+        /// 引擎每次 `Game.Launch` 都会**新建** `EventBus`（引擎 `Game.cs:381`），而本工程**关闭了域重载**
+        /// ⇒ 静态单例 <see cref="Instance"/> 会跨引擎实例存活。若不按总线重绑，新实例里
         /// `Instance != null` 会直接早退 ⇒ **新总线上一个订阅都没有** ⇒ 面板发的事件没人接、
-        /// 玩家点了没反应（AR1 实测的**僵尸会话**）。口径与工程其余 5 处逐字一致
+        /// 玩家点了没反应（**僵尸会话**）。口径与工程其余 5 处逐字一致
         /// （`RoomManager` / `DeckManager` / `BattleManager` / `BattleUiHost` / `BgmView`）。
         /// </summary>
         private IEventBus _bus;
@@ -105,8 +105,8 @@ namespace CR.Module.Flow
         private bool _returningToMainMenu;  // 回主菜单在途
 
         /// <summary>
-        /// 人机对战在途（防重入）。**根因（CR-F2 审计实测）**：本类此前只有 `_busy`（登录链）
-        /// / `_enteringBattle` / `_returningToMainMenu` 三道闸，`StartAiBattleAsync` **一道都没有** ——
+        /// 人机对战在途（防重入）。**为什么需要它**：本类其余链共有 `_busy`（登录链）
+        /// / `_enteringBattle` / `_returningToMainMenu` 三道闸，`StartAiBattleAsync` 需要自己的那一道 ——
         /// 主菜单「人机对战」按钮连点 N 次就会发出 N 条 `MsgAiBattleStart`，服务端每次都**真建一个房**
         /// 并各推一条 `PushBattleStart`（`server/game/logic/ai.go:onAiBattleStart` 无去重），
         /// 客户端随后被多条推送反复要求进图。
@@ -148,7 +148,7 @@ namespace CR.Module.Flow
         {
             if (Instance != null)
             {
-                // ⛔ 不要盲目返回：静态单例可能属于**上一轮**引擎（见 `_bus` 注释）。
+                // ⛔ 不要盲目返回：静态单例可能属于**前一个引擎实例**（见 `_bus` 注释）。
                 // 总线变了就把订阅重挂到当前总线上（只重挂，不重跑 Start、不回 Boot 站点）。
                 Instance.RebindIfBusChanged();
                 return Instance;
@@ -179,16 +179,15 @@ namespace CR.Module.Flow
 
             // ★★ 换总线 = 引擎重新 Launch = **新会话**：站点状态机也是全新的，此刻停在引擎的初始态
             //     （实测 `Game.Fsm.Current == "Launching"`）—— 也就是"没有任何站点在屏上"。
-            //     只重挂订阅就返回的话，流程**永远不会再动**：实测 2026-09-23 17:34 那次 Play，
-            //     17:34:20 打完 "网络已连接" 之后一行日志都没有，`[UI]` 的 7 个层
+            //     只重挂订阅就返回的话，流程**永远不会再动**：站点停在引擎的初始态、`[UI]` 的 7 个层
             //     （Background/Normal/Popup/Top/Toasts/FloatTexts/System）全空 = 纯深色空屏，
             //     而且 `consoleErrors=0` —— 正是最难查的那类"静默"。所以这里必须补一次 `GoTo(Boot)`。
             //
             //   ⛔ 判据是"当前站点**在不在本流程的站点集里**"，不是"有没有换过总线"：
             //     "从对局回主菜单"走的是**同一个引擎、同一条总线**（`Bootstrap.OnDestroy` 刻意
             //     不调 `Game.Shutdown()`，见其注释），根本进不到本方法 ⇒ 不会把已登录的玩家弹回启动画面。
-            //     旧注释把"编辑器重新 Play"也算进"不能回启动画面"的场景，那是错的：重新 Play 时
-            //     引擎是新的、玩家根本没登录，回 Boot 站点才是对的（本行就是那条缺掉的推进）。
+            //     "编辑器重新 Play"走本方法：引擎是新的、玩家根本没登录，回 `Boot` 站点才是对的
+            //     （本行就是那条推进）。
             var cur = Game.Fsm?.Current;
             var inOwnStation = cur == Stations.Boot || cur == Stations.Login || cur == Stations.Nickname
                 || cur == Stations.MainMenu || cur == Stations.Room || cur == Stations.Battle
@@ -201,11 +200,11 @@ namespace CR.Module.Flow
             }
         }
 
-        // ═════════════════════════ 对外契约（agent-06/07/08 依赖这几个签名，⛔ 不许改） ═════════════════════════
+        // ═════════════════════════ 对外契约（这几条签名被各模块依赖，⛔ 不许改） ═════════════════════════
 
         /// <summary>
         /// 请求打开卡组编辑。
-        /// 实现落点在 agent-08 的 `Module/Deck` + `DeckEditPanel`（本片范围内没有它们）：
+        /// 实现落点在 `Module/Deck` + `DeckEditPanel`：
         /// 因此这里只**广播** `Events.Deck.OpenRequest`，由那边的模块订阅后拉卡池/卡组并开面板。
         /// </summary>
         public void RequestOpenDeckEdit()
@@ -215,7 +214,7 @@ namespace CR.Module.Flow
         }
 
         /// <summary>
-        /// 请求打开房间列表。同上：面板与 `MsgRoomList` 属 agent-06 的 `Module/Room`，
+        /// 请求打开房间列表。同上：面板与 `MsgRoomList` 属 `Module/Room`，
         /// 这里只广播 `Events.Room.OpenListRequest`。
         /// </summary>
         public void RequestOpenRoomList()
@@ -236,8 +235,8 @@ namespace CR.Module.Flow
         /// <summary>
         /// 进对局：读条（真进度）→ 加载 `Battle01` → 切到 `Battle` 站点。
         /// <para>
-        /// <b>由谁调</b>：agent-06 的 `Module/Room`（收到 `PushBattleStart` 后）或 agent-07 的对局模块。
-        /// ⚠️ 本类**自己也**订阅了 `PushBattleStart`（这样单独跑本片时人机对战也能走完），
+        /// <b>由谁调</b>：`Module/Room`（收到 `PushBattleStart` 后）或对局模块。
+        /// ⚠️ 本类**自己也**订阅了 `PushBattleStart`（因此未装模块时人机对战也能走完），
         /// 所以本方法按 `roomId` **幂等**：同一个房间的重复请求只执行一次，不会加载两遍场景。
         /// </para>
         /// </summary>
@@ -264,7 +263,7 @@ namespace CR.Module.Flow
                 return;
             }
 
-            // 先在**旧场景**里广播开打配置：agent-07 的对局模块据此建立状态、
+            // 先在**当前场景**里广播开打配置：对局模块据此建立状态、
             // 并在随后的场景切换中把竞技场建起来（场景资源在 Load 完成后才属于新场景）。
             Game.Event?.Emit(Events.Battle.Started, start);
 
@@ -354,7 +353,7 @@ namespace CR.Module.Flow
             Game.Fsm.RegisterState(Stations.Pause, EnterPause);
 
             // 转移表：站点切换的**唯一入口**是 `GoTo`（内部用 `Transition`），下面这些触发器
-            // 是给"不能引 CR.Module 的面板/模块"准备的等价入口（例如 agent-07 的暂停面板可
+            // 是给"不能引 CR.Module 的面板/模块"准备的等价入口（例如暂停面板可
             // `Game.Fsm.Trigger("ToPause")`）。两条路径最终都落到同一批 OnEnter 回调。
             Game.Fsm.AddTransition("BootDone", Stations.Login);
             Game.Fsm.AddTransition("ToLogin", Stations.Login);
@@ -393,7 +392,7 @@ namespace CR.Module.Flow
             Game.Event?.On(Events.Flow.QuitRequest, _onQuitRequest);
             Game.Event?.On(Events.Flow.StationEnterRequest, _onStationEnterRequest);
             // ⛔ 本类**不订阅** `Events.Deck.OpenRequest` / `Events.Room.OpenListRequest`：
-            //    它们的响应者分别是 agent-08 的 `Module/Deck` 与 agent-06 的 `Module/Room`；
+            //    它们的响应者分别是 `Module/Deck` 与 `Module/Room`；
             //    而 `RequestOpenDeckEdit` / `RequestOpenRoomList` 就是"重发这两条事件"，
             //    挂上来会立刻自激成死循环。
             Game.Event?.On(Events.Battle.AiBattleRequest, _onAiBattleRequest);
@@ -407,7 +406,7 @@ namespace CR.Module.Flow
             // ⛔ 必须是 `PushBattleStart`（Reliable），不是快照（BestEffort，10 Hz）。
             Game.OnMsg(MsgDef.PushBattleStart, _onBattleStartPush);
 
-            // 记下"本轮引擎"的标识（`RebindIfBusChanged` 的判据）。必须在所有 On/OnMsg 之后记，
+            // 记下当前引擎实例的标识（`RebindIfBusChanged` 的判据）。必须在所有 On/OnMsg 之后记，
             // 否则中途换总线时这里会先被写上、判据就永远为真 = 白加。
             _bus = Game.Event;
         }
@@ -433,7 +432,7 @@ namespace CR.Module.Flow
             Game.Event?.Off(CloverEvents.Net.OnKicked, _onNetKicked);
             Game.OffMsg(MsgDef.PushBattleStart);
 
-            _bus = null;      // 本轮归属已失效：下一轮必须重绑（见 `_bus` 注释）
+            _bus = null;      // 归属已失效：下次使用时必须重绑（见 `_bus` 注释）
             Instance = null;
         }
 
@@ -447,7 +446,7 @@ namespace CR.Module.Flow
 
             Game.Logger?.Info(Tag, $"站点 {Game.Fsm.Current} → {station}");
             Game.Fsm.Transition(station);
-            // 站点变化对外广播：订阅方（如 agent-07 的对局模块）据此开关自己的面板。
+            // 站点变化对外广播：订阅方（如对局模块）据此开关自己的面板。
             Game.Event?.Emit(Events.Flow.StationChanged, station);
         }
 
@@ -647,7 +646,7 @@ namespace CR.Module.Flow
 
         private void EnterRoom()
         {
-            // 房间站点（`RoomPanel`）属 agent-06 的 `Module/Room`：本片不引它的类型，
+            // 房间站点（`RoomPanel`）属 `Module/Room`：本类不引它的类型，
             // 只把站点切好并广播 —— 那边的模块订阅 `Events.Flow.StationChanged` 后自己开面板。
             Game.UI?.CloseAll();
             Game.Logger?.Info(Tag, "已进入 Room 站点（RoomPanel 由 agent-06 的 Module/Room 负责打开）");
@@ -916,7 +915,7 @@ namespace CR.Module.Flow
 
         private async void StartAiBattleAsync()
         {
-            // ── 防重入闸（CR-F2）────────────────────────────────────────────
+            // ── 防重入闸 ─────────────────────────────────────────────
             // 两道都要拦：① 本方法自己在途（本次请求还没被 PushBattleStart 接手）
             //              ② 已在读条进图（上一局的开打推送已接手，场景正在加载）
             // 被拦下的点击**一条 MsgAiBattleStart 都不发**，并留痕（非预期分支必须可查）。

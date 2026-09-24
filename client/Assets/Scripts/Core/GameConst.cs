@@ -25,7 +25,7 @@ namespace CR
         /// <summary>位置的定点单位 = 1/1000 格（与服务端 `core.MilliTilePerTile` 同值）。</summary>
         public const int MilliTilePerTile = 1000;
 
-        /// <summary>服务端 tick 率 = 20 TPS（50 ms/帧，参考规格 §1；本片只做读条与站点编排，用不到，登记以便 View 复用）。</summary>
+        /// <summary>服务端 tick 率 = 20 TPS（50 ms/帧，出处：参考规格 §1）；供 View 层复用。</summary>
         public const int TicksPerSecond = 20;
 
         /// <summary>一个 tick 的毫秒数（20 TPS ⇒ 50 ms）。</summary>

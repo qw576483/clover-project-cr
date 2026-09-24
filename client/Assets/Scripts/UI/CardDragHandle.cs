@@ -6,14 +6,11 @@ using UnityEngine.UI;
 namespace CR.UI
 {
     /// <summary>
-    /// 卡组编辑的**按住拖动**手势（D146；用户第 7 条原话「编辑卡组不能拖动，配卡组竟然是点击上下页，
-    /// **不是按住拖动**」）。
+    /// 卡组编辑的**按住拖动**手势（差异登记见 `策划/差异登记.tsv`）。
     ///
     /// <para>
-    /// <b>为什么要有这个组件</b>：`DeckEditPanel` 过去只有 `Button.onClick`（点一下 = 选中/移除），
-    /// 全文没有任何 `IBeginDragHandler` / `IDragHandler` ⇒ 用户按住卡片只会在松手时触发一次点击，
-    /// 既拖不动卡、也拖不动列表。本组件把「按下 → 移动 → 抬起」三段接起来，
-    /// 并在这三段里**分流**两种意图（见下）。
+    /// <b>职责</b>：`DeckEditPanel` 的格子只有 `Button.onClick`（点一下 = 选中/移除），
+    /// 拖动由本组件接「按下 → 移动 → 抬起」三段，并在这三段里**分流**两种意图（见下）。
     /// </para>
     ///
     /// <para>
@@ -56,7 +53,7 @@ namespace CR.UI
         /// <para>
         /// 取 12：uGUI 自己先用 `EventSystem.pixelDragThreshold`（默认 10）挡一道，
         /// 本组件这一道只用来**判方向**，所以取略大于它、且小到不迟滞。
-        /// ⚠️ **本项目自定**（原版客户端的手势参数不在原版资源里）⇒ 已登记 `策划/差异登记.tsv` D146。
+        /// ⚠️ **本项目自定**（原版客户端的手势参数不在原版资源里）⇒ 已登记 `策划/差异登记.tsv`。
         /// </para>
         /// </summary>
         public const float DragThresholdPx = 12f;
@@ -115,11 +112,11 @@ namespace CR.UI
         /// 把**指针拖到滚动列表上沿之外**当成"拖卡"，优先于"纵向拖动 = 滚动"那条方向判定。
         ///
         /// <para>
-        /// <b>为什么必须加这一条（实测踩到过）</b>：卡组编辑里卡池在**下面**、已选槽位行在**上面**
+        /// <b>为什么必须加这一条</b>：卡组编辑里卡池在**下面**、已选槽位行在**上面**
         /// （原版 `07_卡组编辑` 就是这样排的）。于是"把卡从卡池拖到槽位行"这个手势的主方向恰恰是
         /// **纵向**（|dy| &gt; |dx|）⇒ 只按方向判会把它当滚动，卡永远拖不出来。
-        /// 2026-09-24 实机实测：`Card3` 被拖向 `Slot7`（Δ=(62.8, +251.3)）时被判成 `scroll`，
-        /// 卡组一张都没变 —— 光看方向是不够的。
+        /// 实测：`Card3` 被拖向 `Slot7`（Δ=(62.8, +251.3)）时会被判成 `scroll`，
+        /// 卡组一张都不变 —— 光看方向是不够的。
         /// </para>
         /// <para>
         /// 判据 = 指针的屏幕 y **高于视口上沿**（屏幕坐标 y 向上为正）⇒ 手指已经离开列表、
@@ -137,7 +134,7 @@ namespace CR.UI
             return screen.y > top.y;
         }
 
-        /// <summary>屏幕点换算要用的相机：Overlay 画布 ⇒ <c>null</c>（理由见 `HudPanel.UiPointConvertCamera` 的根因记录）。</summary>
+        /// <summary>屏幕点换算要用的相机：Overlay 画布 ⇒ <c>null</c>（理由见 `HudPanel.UiPointConvertCamera` 的说明）。</summary>
         private Camera UiCamera()
         {
             var canvas = GetComponentInParent<Canvas>();

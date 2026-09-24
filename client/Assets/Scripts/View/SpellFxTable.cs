@@ -3,7 +3,7 @@ using CR.Def;   // CardInfo（XML 文档里的 cref 用；本类的 switch 只�
 namespace CR.View
 {
     /// <summary>
-    /// 法术卡的**命中特效**查表（差异登记 D148）：法术卡 key → 原版帧目录 + 起始帧 + 帧数。
+    /// 法术卡的**命中特效**查表（差异登记见 `策划/差异登记.tsv`）：法术卡 key → 原版帧目录 + 起始帧 + 帧数。
     ///
     /// <para>
     /// <b>为什么需要这张表</b>：法术卡走 `EvPlayCard` 事件，但事件载荷里只有 `card_id`
@@ -13,13 +13,12 @@ namespace CR.View
     /// </para>
     ///
     /// <para>
-    /// <b>为什么不全用同一个特效</b>：用户第 9 条报的是"看不到法术"；若 10 张法术都放同一个通用爆闪，
-    /// 只是把"看不到"换成"看到的是错的"。所以按卡给帧。
+    /// <b>为什么不全用同一个特效</b>：若 10 张法术都放同一个通用爆闪，只是把"看不到"换成"看到的是错的"。
+    /// 所以按卡给帧。
     /// </para>
     ///
     /// <para>
-    /// <b>帧号怎么落地</b>：源图集 `effects_out` 里每张法术只用一小段连续帧，落地脚本
-    /// `.ai-tmp/hosts/copy_spell_fx.py` 只把这 10 段拷进 `Resources/Sprites/Effects/Spell/`
+    /// <b>帧号怎么落地</b>：源图集 `effects_out` 里每张法术只用一小段连续帧，落地只把这 10 段拷进 `Resources/Sprites/Effects/Spell/`
     /// （哥布林飞桶是另一本图集 ⇒ 另一个目录 `SpellBarrel/`，理由见 <see cref="ResPaths.EffectSpellBarrel"/>）。
     /// `EffectsView` 按 <c>(firstFrame, count)</c> 从目录里定位并顺序播。
     /// </para>

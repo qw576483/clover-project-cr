@@ -30,29 +30,29 @@ namespace CR.App
         private SettingsManager _settings;
 
         /// <summary>
-        /// **本轮引擎**的事件总线（= `Game.Launch` 建出来的那一条）。
+        /// **当前引擎实例**的事件总线（= `Game.Launch` 建出来的那一条）。
         /// <para>
-        /// <b>为什么需要它（根因）</b>：`Start` 的重入判定原先只看 `Game.IsRunning` 这个**裸静态 bool** ——
-        /// 它只说明"某个时刻引擎被拉起过"，**不标识是哪一轮引擎**。引擎每轮 `Game.Launch` 都会
+        /// <b>为什么需要它</b>：`Start` 的重入判定不能只看 `Game.IsRunning` 这个**裸静态 bool** ——
+        /// 它只说明"某个时刻引擎被拉起过"，**不标识是哪一条引擎实例**。引擎每次 `Game.Launch` 都会
         /// **新建** `EventBus`（引擎 `Game.cs:381`），而本工程**关闭了域重载**（Enter Play Mode Options）
-        /// ⇒ 静态字段会跨轮存活 ⇒ `Game.IsRunning` 可能在"本轮其实没被拉起 / 托管侧被整体复位"时仍为
-        /// true —— 那就是 AR1 实测出的**僵尸会话**（托管侧复位 `ThreadAbort` + TCP send loop aborted、
+        /// ⇒ 静态字段会跨实例存活 ⇒ `Game.IsRunning` 可能在"当前其实没被拉起 / 托管侧被整体复位"时仍为
+        /// true —— 那种状态即**僵尸会话**（托管侧复位 `ThreadAbort` + TCP send loop aborted、
         /// Unity 对象留存 ⇒ `Bootstrap.Start` 不再跑、引擎不再拉起、5 颗按钮的运行时监听者全部归零，
         /// 症状 = "UI 在屏、点什么都没反应"，且没有一条报错）。
         /// 这种状态下走重入分支会把 `Game.Launch` / `CloverInput.Init` / `runInBackground` /
         /// `CloverRes.Init` / `CloverNet.Init` / `PanelFactory.Install` **全部跳过**。
         /// </para>
         /// <para>
-        /// 判定口径与全工程已合格的 5 处**逐字一致**（`RoomManager` / `DeckManager` / `BattleManager` /
-        /// `BattleUiHost` / `BgmView` 都是 `ReferenceEquals(bus, _bus)`）：**按当前总线对象标识本轮引擎**。
+        /// 判定口径与全工程另 5 处**逐字一致**（`RoomManager` / `DeckManager` / `BattleManager` /
+        /// `BattleUiHost` / `BgmView` 都是 `ReferenceEquals(bus, _bus)`）：**按当前总线对象标识引擎实例**。
         /// </para>
         /// </summary>
         private static IEventBus _bus;
 
         private void Start()
         {
-            // ⚠️ 只有"引擎在跑 **且** 跑的还是我们这轮记下的那条总线"才算合法的重入；
-            //    任一不成立（总线为空 = 引擎被拆 / 总线换了对象 = 新的一轮）都必须走完整拉起路径。
+            // ⚠️ 只有"引擎在跑 **且** 跑的还是我们记下的那条总线"才算合法的重入；
+            //    任一不成立（总线为空 = 引擎被拆 / 总线换了对象 = 新的引擎实例）都必须走完整拉起路径。
             if (Game.IsRunning && ReferenceEquals(Game.Event, _bus))
             {
                 // 第二次进 Main（从 Battle01 回主菜单）：同一个引擎、同一条总线还活着，
@@ -65,7 +65,7 @@ namespace CR.App
             }
 
             LaunchEngine();
-            // 记下"本轮引擎"的标识（必须在 LaunchEngine 之后：Game.Launch 在这一步才建出总线）。
+            // 记下当前引擎实例的标识（必须在 LaunchEngine 之后：Game.Launch 在这一步才建出总线）。
             _bus = Game.Event;
 
             _settings = new SettingsManager();
@@ -79,13 +79,12 @@ namespace CR.App
         /// <summary>按 `docs/client-api-reference.md` §1 的次序初始化引擎与各子系统。</summary>
         private static void LaunchEngine()
         {
-            // ★★ 朝向治理（T1）：**必须是本方法的第一件事** —— `UIManager` 在 `Game.Launch` 的挂载钩子里
+            // ★★ 朝向治理：**必须是本方法的第一件事** —— `UIManager` 在 `Game.Launch` 的挂载钩子里
             //    构造（`CloverPresentation.Init` → `Game.AttachUI(new UIManager())`），而它在构造时
             //    **只读一次** CanvasScaler 参数 ⇒ 写在 Launch 之后等于没写（且不报错）。
             //
-            //    出处：A =《皇室战争》是**竖版(portrait)** 游戏（官方截图宽 < 高）。本项目原先是横版
-            //    （`ProjectSettings.asset:11` `defaultScreenOrientation: 4` = LandscapeRight），
-            //    用户 2026-09-20 原话：「竖版游戏，你用横板ui，真有你的」。
+            //    出处：A =《皇室战争》是**竖版(portrait)** 游戏（官方截图宽 < 高）⇒ 本项目按竖版做，
+            //    UI 一律按 1080×1920 竖版布局（横版 UI 不成立）。
             //
             //    ① 参考分辨率 = 1080×1920（竖版设计画布；与 `CrUiStyle.DesignW/DesignH` 同一口径）。
             //    ② match = 0（匹配宽度）：**画布宽恒为 1080**。竖屏下 match=0.5 会按宽高比插值出
@@ -119,7 +118,7 @@ namespace CR.App
 
             // ②' 失焦继续跑。★ 这是**联机游戏的正确行为**，不是测试取巧：
             //     服务端 tick 不会因为你切窗口而停，客户端若停摆，切回来时已经错过整局。
-            //     实测（本轮踩到，烧掉一小时）：默认 false 时窗口不在前台 ⇒ 玩家循环**完全冻结** ——
+            //     实测：默认 false 时窗口不在前台 ⇒ 玩家循环**完全冻结** ——
             //     `Time.frameCount` 恒为 1、`Time.time` 恒为 0、`Fsm.Current` 永远停在 `Boot`，
             //     而且**一条报错都没有**（`consoleErrors=0`），是最难查的一类现象。
             //     命令行驱动 Play 时编辑器必然可能不在前台，所以这里必须显式打开。
@@ -132,14 +131,14 @@ namespace CR.App
             // ④ 资源。★ 参数是 **Resources 下的子目录前缀**（`CloverRes.cs:32` 与
             //    `ResourceBackend.cs:227` 的拼法是 `root + "/" + path`），空串 = 直接以 `Assets/Resources` 为根。
             //    ⛔ 不要照抄 `docs/client-api-reference.md` §1 的 `CloverRes.Init("Assets/Resources")`：
-            //    那会让所有加载去找 `Resources/Assets/Resources/...`，一个资源都命中不了（已回报主 agent）。
+            //    那会让所有加载去找 `Resources/Assets/Resources/...`，一个资源都命中不了。
             CloverRes.Init(string.Empty);
 
             // ⑤ 配表：**本项目客户端不落地 tsv**，因此这一步是"显式声明不接入"而不是一次调用。
             //    理由：60 张卡的名称/费用/稀有度/图集键随 `GetCardPoolReply` 从服务端下发，
             //    数值的权威在服务端 `game/table`；客户端再存一份必然漂移。
             //    ⛔ 也不要写 `CloverData.InitDataTable(CloverTable.Dir)`：`CloverTable.Dir` 在
-            //    `CloverTable.LoadAll` 成功之前恒为 null，传进去只会让引擎打一条 Error（已回报主 agent）。
+            //    `CloverTable.LoadAll` 成功之前恒为 null，传进去只会让引擎打一条 Error。
             Game.Logger?.Info(Tag, "配表未接入：客户端不落地 tsv，卡池/卡组数据一律走服务端协议");
 
             // ⑥ 账号服地址 —— 不设的话 LoginAsync/SignupAsync 直接抛 InvalidOperationException。

@@ -6,14 +6,13 @@ namespace CR
     /// 会话态的**唯一**权威存放处：玩家昵称（= 服务端档案里的 `nickname`）。
     ///
     /// <para>
-    /// <b>为什么需要它（根因）</b>：`MainMenuPanel` 原先只显示 `AppFlow` 通过
-    /// `Game.UI.Open&lt;MainMenuPanel&gt;(nickname)` 递进来的那个 **param**，而那个 param 是
-    /// **一次性快照**：`AppFlow._nickname` 只在登录拉档案 / 创角回包时写一次，且只有
-    /// `EnterMainMenu` 这一条路径会把它传下去。于是任何"不经 `EnterMainMenu`"的打开路径
+    /// <b>为什么需要它</b>：`MainMenuPanel` 的打开 param 是**一次性快照**
+    /// （`AppFlow._nickname` 只在登录拉档案 / 创角回包时写一次，且只有 `EnterMainMenu`
+    /// 这一条路径会把它传下去）。任何"不经 `EnterMainMenu`"的打开路径
     ///（`UIManager.Open&lt;T&gt;` 对已存在面板会重调 `OnOpen(param)`，见
     /// `Runtime/Presentation/UI.cs:127`；`AppFlow.GoTo` 对"已经是当前站点"的请求早退，
-    /// `AppFlow.cs:365`）》都会让面板拿到 `param == null` ⇒ 界面静默显示**硬编码**的
-    /// `"玩家"`（`MainMenuPanel.cs:105`），而服务端档案里是别的名字，且**一句日志都没有**。
+    /// `AppFlow.cs:365`）都会让面板拿到 `param == null` ⇒ 界面显示**硬编码**的
+    /// `"玩家"`（`MainMenuPanel.cs:105`），而服务端档案里可能是别的名字，且**一句日志都没有**。
     /// </para>
     /// <para>
     /// <b>职责边界（契约 §1）</b>：面板⛔不许 `using CR.Module`，所以它没法去问 `AppFlow`。
@@ -28,20 +27,20 @@ namespace CR
         private static string _nickname = string.Empty;
 
         /// <summary>
-        /// 记下这个昵称时那一轮的引擎总线（= "**本轮会话**"的标识）。
+        /// 记下这个昵称时那条引擎总线（= "**当前会话**"的标识）。
         /// <para>
-        /// <b>为什么需要它（根因）</b>：`_nickname` 是**裸静态**，而本工程**关闭了域重载**
-        /// ⇒ 静态残留会把**上一轮**的昵称带进新一轮：面板先显示旧账号的名字，与服务端档案不一致，
-        /// 且一句日志都没有（这套"僵尸态"的成因见 `App/Bootstrap.cs` 的 `_bus` 注释 / AR1 实测）。
+        /// <b>为什么需要它</b>：`_nickname` 是**裸静态**，而本工程**关闭了域重载**
+        /// ⇒ 静态残留会把**上一次 Launch** 的昵称带进下一次：面板会显示上一个账号的名字，
+        /// 与服务端档案不一致，且一句日志都没有（同类静态残留见 `App/Bootstrap.cs` 的 `_bus` 注释）。
         /// 判据口径与工程其余 5 处逐字一致（`RoomManager` / `DeckManager` / `BattleManager` /
-        /// `BattleUiHost` / `BgmView`）：**按当前总线对象标识本轮** —— `Game.Launch` 每轮新建
-        /// `EventBus`（引擎 `Game.cs:381`），总线一换，上一轮记下的昵称就不再算数。
+        /// `BattleUiHost` / `BgmView`）：**按当前总线对象标识当前会话** —— `Game.Launch` 每次新建
+        /// `EventBus`（引擎 `Game.cs:381`），总线一换，先前的昵称就不再算数。
         /// </para>
         /// </summary>
         private static IEventBus _bus;
 
         /// <summary>
-        /// 本轮记下的昵称是否仍属**当前**这一轮引擎（总线未变 ⇒ 数据还算数）。
+        /// 记下的昵称是否仍属**当前**这次 Launch（总线未变 ⇒ 数据还算数）。
         /// 启动早期 `Game.Event` 为 null 且 `_bus` 也为 null 时判为"当前"（此时昵称本就是空串）。
         /// </summary>
         private static bool IsCurrentRound
@@ -51,14 +50,14 @@ namespace CR
 
         /// <summary>
         /// 服务端权威昵称；未知时为空串（⛔ 这里不塞本地默认值，默认值属兜底策略、由界面决定）。
-        /// 上一轮引擎残留的昵称**不算数**（见 <see cref="_bus"/>）。
+        /// 先前 Launch 残留的昵称**不算数**（见 <see cref="_bus"/>）。
         /// </summary>
         public static string Nickname
         {
             get { return IsCurrentRound ? (_nickname ?? string.Empty) : string.Empty; }
         }
 
-        /// <summary>是否已经从服务端拿到过非空昵称（上一轮残留的不算）。</summary>
+        /// <summary>是否已经从服务端拿到过非空昵称（先前残留的不算）。</summary>
         public static bool HasNickname
         {
             get { return !string.IsNullOrEmpty(Nickname); }
@@ -73,7 +72,7 @@ namespace CR
         public static void SetNickname(string nickname, string source)
         {
             _nickname = nickname ?? string.Empty;
-            _bus = Game.Event;   // 标记"这个昵称属于本轮引擎"（见 _bus 字段）
+            _bus = Game.Event;   // 标记"这个昵称属于当前引擎"（见 _bus 字段）
             Game.Logger?.Info(Tag, HasNickname
                 ? $"服务端昵称已记下 nickname='{_nickname}'（来自 {source}）"
                 : $"服务端昵称为空（来自 {source}）—— 该玩家尚未创角，属正常态");
@@ -83,7 +82,7 @@ namespace CR
         public static void Clear()
         {
             _nickname = string.Empty;
-            _bus = null;         // 会话已结束：这个昵称不再属于任何一轮（见 _bus 字段）
+            _bus = null;         // 会话已结束：这个昵称不再属于任何一次 Launch（见 _bus 字段）
             Game.Logger?.Info(Tag, "会话昵称已清空（登出）");
         }
     }

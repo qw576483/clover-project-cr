@@ -85,9 +85,7 @@ namespace CR.Module.Battle
         private bool _roomWarned;     // 丢掉"别的房间"的快照只报一次（跨房间快照污染）
         private bool _seqJumpWarned;  // 序号跳变只报一次（纯客户端兜底闸门）
         private bool _resyncInFlight; // 序号跳变后的自愈同步在途（防抖，别连环发）
-        // ⚠️ 原先这里还有一个 `_towerShapeWarned`（"每队应有 2 座公主塔"的只报一次标志）——
-        //    它唯一的读取点在已删除的 `FillTowers()` 里（塔位/左右归属是插值+摆位那套代码的产物）。
-        //    留着只会变成"赋值但从未读取"的 CS0414 警告，所以随那次删除一起去掉。
+        // 塔位与左右归属由「插值 + 摆位」那套代码产生；本类只做快照转发，不在此维护"每队应有 2 座公主塔"之类的告警标志。
         private bool _poolReplayMissingWarned;
 
         // ───────────────────────── 订阅与在途标记 ─────────────────────────

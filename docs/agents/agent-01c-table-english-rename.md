@@ -88,7 +88,7 @@ server/game/logic/cardtable.go:228:24: table.Default.卡牌  undefined (cannot r
 - [ ] `tools/table.ps1 -Force` 跑两遍，产物 SHA256 相同（贴哈希）
 - [ ] 三张表行数仍 **60 / 90 / 10**
 - [ ] 起服 `go run . -config configs/all` 无 panic/error，日志里配表加载行数正确
-- [ ] **端到端复跑**：用 `.ai-tmp/test/driver/`（我上一轮 agent-03 留下的驱动）重跑一次
+- [ ] **端到端复跑**：用我上一轮 agent-03 留下的端到端驱动重跑一次
       建房 → 加入 → 开打 → 出牌 → 结算，确认改名没打断任何东西（贴关键报文）
 - [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify.ps1` 原始输出
 

@@ -2,9 +2,9 @@
 # OWNER / GATE STATUS (AF3, 2026-09-22): standalone offline probe, owner = whoever touches
 #   ResPaths.cs UI keys / lands a Sprites/Ui png / edits tools/probes/copy-ui-assets.py.
 #   tools/verify.ps1 does NOT call it (grep: 0 hits) => it is NOT part of the main gate.
-#   The path above used to read `.ai-tmp/hosts/check-ui-keys.ps1` (the file lived there
-#   before it moved to tools/probes/); $PSScriptRoot already resolves $root correctly from
-#   either location, so the stale line only misled the reader -- corrected in AF3.
+# $PSScriptRoot resolves $root correctly wherever this probe is invoked from.
+
+
 # This file is intentionally ASCII-only (Windows PowerShell 5.1 reads a BOM-less .ps1 as
 # ANSI/GBK, which corrupts CJK literals and breaks parsing). Every path below is ASCII.
 #

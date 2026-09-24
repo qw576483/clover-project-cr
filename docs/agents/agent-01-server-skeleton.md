@@ -32,7 +32,7 @@
 - `server/game/def/`（消息号 + 协议结构体）
 - `server/game/datadef/`（玩家档案 schema）
 - `策划/数值文档/*.txt`（配表源表）+ `tools/table.ps1`（打表脚本）+ 打表产物
-- `tools/hosts/` 下的一次性抽取脚本（放 `.ai-tmp/hosts/`）
+- 一次性抽取脚本（放 `.ai-tmp/hosts/`）
 
 **绝不做**：
 - ⛔ 不写 `server/game/core/` 的任何文件（那是 agent-02 的地盘）

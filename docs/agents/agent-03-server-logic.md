@@ -161,7 +161,7 @@ roomMod := room.NewModule(room.Config{
 - [ ] `go test ./game/core/... -count=1` 仍全绿（**你没弄坏 core**）
 - [ ] `go run . -config configs/all` 起服无 panic/error；日志里能看到配表加载 + handler 注册
 - [ ] **端到端真跑**（用 `clover-server-tools/msg-client`，没有 `signup` 子命令就先
-      `go build -o <项目根>/.ai-tmp/test/msg-client.exe ./client` 自己编一个；
+      `go build -o ./msg-client.exe ./client` 自己编一个；
       ⛔ 不许把它留在 `clover-tools/`）：
       ① 注册两个账号 → ② 各设昵称 → ③ 各存 8 张卡组 → ④ A 建房 → ⑤ B 拉列表看到该房 →
       ⑥ B 加入 → ⑦ 双方 Ready → ⑧ A 开打 → ⑨ 双方都收到 `PushBattleStart` →

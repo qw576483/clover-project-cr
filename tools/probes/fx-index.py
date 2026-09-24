@@ -10,8 +10,8 @@
     <根>/原版资源/cr-assets-png/assets/sc/effects_out/effects_sprite_000.png .. _611.png
 
 产出:
-    .ai-tmp/screenshots/F1-fx-index-page1..N.png   带帧号的联络图（每页 <=100 格，10 列）
-    .ai-tmp/test/F1-fx-index.tsv                   逐帧量化表（尺寸 / bbox / 覆盖率 / 均色 / 主色分类）
+    联络图（带帧号，每页 <=100 格，10 列）
+    逐帧量化表（尺寸 / bbox / 覆盖率 / 均色 / 主色分类）
 
 为什么是"抽样看 + 只落地要用的几帧"：612 帧全量做逐帧 1:1 图既慢又没人读得完；
 联络图给的是"哪几帧长得像火球 / 爆炸 / 闪光"的**候选**，最终由 read_file 看图确认。

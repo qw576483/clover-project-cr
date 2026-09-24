@@ -66,7 +66,7 @@ app: business message id must be > 10000; got 6001
 - 引擎：`cd clover-server-engine && go build ./... && go vet ./...` + 两条复现用例（修复前红 → 修复后绿）
 - 业务：`cd <项目根>/server && go build ./... && go vet ./...`；起服
   （`go run . -config configs/all`，环境先 `clover-server-tools/windows-env/core/env.exe start`）
-- **真验证断线**：起服 + 用 `.ai-tmp/test/driver/`（agent-03 留下的端到端驱动）建房开打 →
+- **真验证断线**：起服 + 用 agent-03 留下的端到端驱动建房开打 →
   中途**直接关掉一方连接** →
   - 服务端**不再出现 panic**
   - 业务侧断线回调**真的被调用**（贴日志行）

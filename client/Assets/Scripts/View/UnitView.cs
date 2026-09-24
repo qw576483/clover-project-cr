@@ -351,7 +351,7 @@ namespace CR.View
 
             // 朝向 → 视角：用**本窗口两端快照之差**求朝向极角 φ，再查映射表选视角
             //（`UnitAnimTable.StepToView`，权威 = 引擎 `UnitFacingMap.Standard16StepToView`，由
-            // `tools/probes/d129c-yaw-verify.py` 的断言 A1–A6 + 负控保证）。
+            // 逐视角剪影反解的断言 A1–A6 + 负控保证）。
             // 契约 `facing` ∈ {-1, 1} 只作为"一次都还没动过"时的左右兜底（不翻）。
             if (UpdateFacing(moveDir, e.facing))
             {

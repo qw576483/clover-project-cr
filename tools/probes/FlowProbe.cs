@@ -416,7 +416,7 @@ public static class FlowProbe
     // ② 自 2026-09-22（CR-T4 修复）起运行时已改为：**稳态速率恒 1** + `SelectWindow()` **按渲染时钟**
     //    从 4 格快照历史里选窗口 + 渲染落后 2 个快照间隔（`RenderLagIntervals`）。所以本方法的读数
     //    **不再等于线上行为**，别拿它当"当前算法"的判据（本方法里的 `hasPrev/tMin/tMax` 只描述旧口径）。
-    // ③ 当前的权威离线 A/B 入口 = `tools/probes/jitter-sim.py` 的 **`lookup` 分支**（对拍 `current` /
+    // ③ 当前的权威离线 A/B 入口 = **离线仿真**的 `lookup` 分支（对拍 `current` /
     //    `rate1`）：它用**实机记录的真实帧节拍**驱动（`--dt-file <FlowProbe 的 TSV>`），
     //    裁决数是"同兵种干净直线行进窗口的速度 cv 与 max/min"。实测量级：`current` cv 0.2382、
     //    `rate1`（只固定速率）cv 0.3713（**更差**，据此证伪"速率微调是主因"）、`lookup` cv 0.0000。
@@ -429,7 +429,7 @@ public static class FlowProbe
     /// t 与位置逐帧打出来。
     /// <para>
     /// ⛔ <b>它复刻的是旧算法，已不代表运行时</b>（见本节顶部横幅）：权威离线 A/B 请用
-    /// `tools/probes/jitter-sim.py` 的 `lookup` 分支。
+    /// 离线仿真的 `lookup` 分支。
     /// </para>
     /// <para>
     /// <b>为什么值得有这一步</b>：本片在这条链上连着踩了两次，**两次都是靠"进 Play 采一次数据"
@@ -623,7 +623,7 @@ public static class FlowProbe
     /// 为什么三个都要：`transform.position` 只能反映**插值**（根因 1），
     /// `bounds.center` 才能反映**换帧时的贴图位移**（根因 4），屏幕坐标是"人眼看到的那一步"。
     /// </para>
-    /// <para>产物：`&lt;项目根&gt;/.ai-tmp/test/T3-flow-&lt;tag&gt;.tsv`。</para>
+    /// <para>产物：`TestDir` 下的 `T3-flow-&lt;tag&gt;.tsv`。</para>
     /// </summary>
     public static async Task<string> SampleFlow(string tag)
     {

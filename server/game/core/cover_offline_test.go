@@ -2,7 +2,7 @@ package core
 
 // AJ1 offline coverage assertions for D9 (physics / collision) and D10
 // (gameplay logic). Pure-Go, no engine import, no Play -- every row of
-// .ai-tmp/test/AJ1-matrix-D9.tsv and -D10.tsv is decided here.
+// the D9/D10 matrices are decided here.
 //
 // 判据出处: 参考规格 §2/§2.1（场地几何 / 桥 / 部署区）, §3（胜负判定）, §4
 // （激活机制）, §5（移动 / 索敌 / 群体卡 / 法术 / 击退）。

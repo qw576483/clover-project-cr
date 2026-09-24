@@ -5,7 +5,7 @@
 - 同机位并排图：`.ai-tmp/screenshots/AP1-roomlist-compare.png` / `AP1-room-compare.png` / `AP1-deckedit-compare.png`
   （左 = A 基线图缩放到 1080×1920，右 = 我方实机；**只缩放、未裁切**）
 - 运行时帧名断言（L3，节点树 `Image.sprite` / `Image.type`）：
-  `.ai-tmp/test/AP1-量取.md` §E … 见本文件每行的「运行时」列（原文见 `AP1-report.md` §Play 段）
+   §E … 见本文件每行的「运行时」列（原文见 `AP1-report.md` §Play 段）
 - ⚠️ **A 本体没有「房间列表 / 房间内」界面**（`策划/参考图/清单.md` §2）⇒ 这两个面板的「原版值」列取
   **A 的同类部件**（A① `12_主菜单_750x1334.png` / A② `07_卡组编辑_1242x2208.jpg`），逐行注明。
 

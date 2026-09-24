@@ -1173,7 +1173,6 @@ func (l *gameLogic) onRoomStart(c event.Ctx) error {
 // 比新房大 ⇒ 客户端按 seq 判"倒退"把新房帧全丢掉 ⇒ HUD 停在旧房数值。
 // 所以先把旧房那一局就地结束（判该玩家负，等同掉线判负的路径），
 // 再由对局 tick 在 50 ms 内推结算、停 tick（`stopBattleTimer`）并回收房间。
-// 实测对照（修前/修后日志）见 `.ai-tmp/test/AL1-report.md`。
 func (l *gameLogic) leaveRoomsOf(playerID string) {
 	for _, id := range l.rooms.roomIDs() {
 		if seat, in := l.rooms.seatOf(id, playerID); in && seat >= 0 {

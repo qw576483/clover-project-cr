@@ -304,7 +304,7 @@ def write_frame_segments(root, rows, collages, viewed_map):
     A('| `.sc` 持久副本 | `原版资源/sc/<name>_v215.sc`（本轮新增 **%d** 个） |' % len([r for r in rows if r['sc_exists']]))
     A('| 逐帧 PNG | `原版资源/cr-assets-png/assets/sc/<dir>/<name>_sprite_NNN.png` |')
     A('| 判据资产 | `tools/probes/sc-as1-index.py`（解析器复用 `tools/probes/sc-anim-index.py`，未改动它） |')
-    A('| 指纹表 | `.ai-tmp/test/AS1-指纹核对.tsv` |')
+    A('| 指纹表 ||')
     A('| 全量三元组 | `策划/单位动画分组表.md` |')
     A('')
     A('**关键口径**（与任务书一致）：`frame_NNN` 的 `NNN` = `.sc` 里 shape 定义序号（0 起）；')
@@ -330,7 +330,6 @@ def write_frame_segments(root, rows, collages, viewed_map):
           (r['dir'], r['name'] + '_v215.sc', r['ShapeCount'] if r['ShapeCount'] is not None else '—',
            r['png_n'], c))
     A('')
-    A('- 逐条可查版（含 URL / 字节）：`.ai-tmp/test/AS1-指纹核对.tsv`')
     A('- 三数：**✅相等 %d / ❌不等 %d / 下载失败 %d**（口径：不等与失败分开计，失败=未取得可解析文件）' %
       (len([r for r in rows if r['equal']]),
        len([r for r in rows if r['ShapeCount'] is not None and not r['equal']]),

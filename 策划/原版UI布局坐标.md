@@ -23,7 +23,7 @@
 |---|---|---|---|
 | 1 | `Galaxy1036/sc_decode`（本地副本 `.ai-tmp/test/scdfull/sc_decode.py`，上游 github.com/GaLaXy1036/sc_decode）`process()` 第 359-393 行 | tag `08`=读 6×int32；tag `0c`= id/fps/frames/cnt1/**三元组(saTag12Nr,saTag08Nr,saTag09Nr)**/cnt2/sids/opacity/names | `0c` 逐字节结构（本片实测 12/12 clip `consumed` 与 payload 自洽） |
 | 2 | `mirsella/clash-royale` `scripts/modern_sc2.py`（本地副本 `.ai-tmp/web/modern_sc2_saved.txt`）`precision_multiplier()` + `parse_matrix_banks()` | `precision==2 → 20.0`、`precision==3 → 1024.0`；**scale 与 translation 用两套精度** | a,b,c,d ÷1024；tx,ty ÷20 |
-| 3 | `sc-workshop/SupercellSWF-Animate`（本地副本 `.ai-tmp/web/A3-0-…SupercellSWF-Animate…README.md.txt`） | 确认 SC2 体系里 MovieClip 有 **matrix bank + frame elements(instance,matrix,color)** 三元组 | 与 #1 互证三元组语义 |
+| 3 | `sc-workshop/SupercellSWF-Animate` | 确认 SC2 体系里 MovieClip 有 **matrix bank + frame elements(instance,matrix,color)** 三元组 | 与 #1 互证三元组语义 |
 
 > 出处受限说明：本机 `api.github.com` 返回 **403（限流）**，未能在本轮现拉新源码；
 > 上表 3 份均为**上一片已下载到本工程的本地副本**（路径已给）。**未在联网新源上复核**，如实登记。

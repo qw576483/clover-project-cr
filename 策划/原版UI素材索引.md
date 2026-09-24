@@ -6,7 +6,7 @@
 
 **尺寸口径**：`原始尺寸(画布)` = PNG 自身像素（同目录内大多相同，因为图元都躺在一张大透明画布上）；`图元尺寸(bbox)` = 非透明像素包围盒，是**真正要用的那块**的像素尺寸。
 
-**可重生成**：`python tools/probes/build-ui-index.py`（读 manifest + `.ai-tmp/test/t4-desc-*.tsv` 识别笔记）。
+**可重生成**：`python tools/probes/build-ui-index.py`（读 manifest 识别笔记）。
 
 **「帧号 → 动画档位 / UI 元素名」元数据**：**已确认无**。
 `<项目根>/原版资源/cr-assets-png/` 整棵树里**非 PNG 文件只有 1 个**（`README.md`，内容 = 自述「本目录由 `find ... -name '*.png' | cpio -pdm .` 从 APK 的 `assets/` 直出」），**没有任何 README/json/txt 索引**：既没有「帧号 ↔ idle/walk/attack/die」，也没有「帧号 ↔ UI 元素名」。

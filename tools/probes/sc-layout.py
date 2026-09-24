@@ -27,7 +27,7 @@ B. tag `0c` = MovieClip，payload 结构（`Galaxy1036/sc_decode` `process()` �
      cnt1 × (u16 childIdx, u16 matrixIdx, u16 colorIdx)     ← **本片关键**：三元组 = 子元件索引 + 矩阵索引 + 颜色索引
      i16 cnt2
      cnt2 × i16 objectId ｜ cnt2 × u8 opacity ｜ cnt2 × (u8 len + name)
-   出处：`.ai-tmp/test/scdfull/sc_decode.py:359-393`（本地副本；上游 GaLaXy1036/sc_decode）。
+   出处：上游 Galaxy1036/sc_decode。
    实测印证：`HUD_player` cnt1=cnt2=9，三元组首元素 0..8 顺序、cnt2 的 name = `darken/panel/slots/elixir_bar/…`
    ⇒ 三元组**首元素 = 子元件下标**（不是 shape 序号）。
 C. `65535`（0xFFFF）在 matrixIdx / colorIdx 位 = **无矩阵 / 无颜色变换**（按恒等处理）。
@@ -202,7 +202,7 @@ def build_md(res_by_name):
     A('|---|---|---|---|')
     A('| 1 | `Galaxy1036/sc_decode`（本地副本 `.ai-tmp/test/scdfull/sc_decode.py`，上游 github.com/GaLaXy1036/sc_decode）`process()` 第 359-393 行 | tag `08`=读 6×int32；tag `0c`= id/fps/frames/cnt1/**三元组(saTag12Nr,saTag08Nr,saTag09Nr)**/cnt2/sids/opacity/names | `0c` 逐字节结构（本片实测 12/12 clip `consumed` 与 payload 自洽） |')
     A('| 2 | `mirsella/clash-royale` `scripts/modern_sc2.py`（本地副本 `.ai-tmp/web/modern_sc2_saved.txt`）`precision_multiplier()` + `parse_matrix_banks()` | `precision==2 → 20.0`、`precision==3 → 1024.0`；**scale 与 translation 用两套精度** | a,b,c,d ÷1024；tx,ty ÷20 |')
-    A('| 3 | `sc-workshop/SupercellSWF-Animate`（本地副本 `.ai-tmp/web/A3-0-…SupercellSWF-Animate…README.md.txt`） | 确认 SC2 体系里 MovieClip 有 **matrix bank + frame elements(instance,matrix,color)** 三元组 | 与 #1 互证三元组语义 |')
+    A('| 3 | `sc-workshop/SupercellSWF-Animate` | 确认 SC2 体系里 MovieClip 有 **matrix bank + frame elements(instance,matrix,color)** 三元组 | 与 #1 互证三元组语义 |')
     A('')
     A('> 出处受限说明：本机 `api.github.com` 返回 **403（限流）**，未能在本轮现拉新源码；')
     A('> 上表 3 份均为**上一片已下载到本工程的本地副本**（路径已给）。**未在联网新源上复核**，如实登记。')

@@ -1,4 +1,4 @@
-﻿# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # tools/verify.ps1 -- the ONE delivery gate for clover-project-cr.
 #
 # THREE REQUIREMENTS (2026-09-24 "gate trim"): an item survives only if it is
@@ -287,8 +287,8 @@ else {
 # ---------------------------------------------------------------------------
 # 6) tmp-budget -- <root>/.ai-tmp must stay inside a stated ceiling.
 #    WHY THIS EXISTS: the sink4 "gate cut" dropped every .ai-tmp budget item, and
-#    the measured consequence is on record (.ai-tmp/test/sinkup5-cr-总报告.md
-#    section 6, read 2026-09-24): .ai-tmp had grown to 22367 files /
+#    the measured consequence is on record (sink5 close-out section 6,
+#    read 2026-09-24): .ai-tmp had grown to 22367 files /
 #    4,378,404,676 B (4.08 GiB; gocache 645 MB + screenshots 782 MB) while this
 #    script reported zero FAIL.  A gate that is green while the disk is not is
 #    not a gate.
@@ -302,8 +302,8 @@ else {
 #       ceiling  = 40000 files (baseline x1.79) / 6442450944 B = 6 GiB (x1.47)
 #    Deleting the accumulated data is the USER's call and is out of scope here.
 #    It is judged on the MEASURED totals, so it can really turn red: the
-#    negative control (same code path, tiny ceiling, sandbox root) is recorded in
-#    .ai-tmp/test/sinkup5-impl-cr-报告.md.
+#    negative control (same code path, tiny ceiling, sandbox root) is recorded in the
+#    sink5 close-out report.
 # ---------------------------------------------------------------------------
 $tmpBudgetFiles = 40000
 $tmpBudgetBytes = 6442450944   # 6 GiB

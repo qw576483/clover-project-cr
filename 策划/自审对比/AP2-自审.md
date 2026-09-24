@@ -1,11 +1,11 @@
 # AP2 自审（逐项 一致 / 不一致 / 原版无此界面）
 
-- 我们的（当前构建、Play 实机、1080×1920、合成 overlay 后采）：`.ai-tmp/screenshots/AP2-<面板>-mine.png` ×5
-- 同机位并排：`.ai-tmp/screenshots/AP2-<面板>-compare.png` ×5；一次看全 5 个面板的联络图：`.ai-tmp/screenshots/AP2-sheet.png`
+- 我们的（当前构建、Play 实机、1080×1920、合成 overlay 后采）：实机截图 ×5
+- 同机位并排：同机位并排图 ×5；一次看全 5 个面板的联络图 ×1
 - A 侧基线：`01_启动页_Logo_1320x2868.jpg` / `17_加载页_640x955.png`；
   登录 / 注册 / 昵称 **A 本体没有这三个界面**（CR 用 Supercell ID）⇒ 形制参照 `24_设置_499x1080.jpg`
-- 数值依据（L3 运行时 dump，不是叙述）：`.ai-tmp/test/AP2-probe-0..4.txt`（每个节点 size / `SPRITE=<帧名>` / `type` / 文本色）
-  + `.ai-tmp/screenshots/AP2-<面板>-mine.png` 的逐点像素取样（见各行"实测"）
+- 数值依据（L3 运行时 dump，不是叙述）：每个节点 size / `SPRITE=<帧名>` / `type` / 文本色。
+  + 逐点像素取样（见各行"实测"）
 
 ## 启动页（基线 01）
 

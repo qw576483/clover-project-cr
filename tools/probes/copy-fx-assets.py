@@ -11,7 +11,7 @@
       （命名规则与 `Core/ResPaths.cs` 的 `FrameName` 必须一致：`frame_` + 3 位十进制）
 
 ⛔ **只复制 RANGES 里列的那几组**（38 张）；612 帧整目录搬是被明令禁止的。
-   要哪几组、为什么，见 `.ai-tmp/test/F1-特效帧辨认.md`（逐帧看图结论）。
+   要哪几组、为什么，见下方 RANGES 的注释。
 
 导入设置 = **照抄 `client/Assets/Resources/Sprites/Ui/loading_bg.png.meta`** 的 TextureImporter
 （`spriteMode: 2` / `textureType: 8` = Sprite / `spritePixelsToUnits: 100` / `filterMode: 1` /
@@ -33,11 +33,11 @@ SRC_DIR = os.path.join(ROOT, "原版资源", "cr-assets-png", "assets", "sc", "e
 DST_ROOT = os.path.join(ROOT, "client", "Assets", "Resources", "Sprites", "Effects")
 META_TEMPLATE = os.path.join(ROOT, "client", "Assets", "Resources", "Sprites", "Ui", "loading_bg.png.meta")
 
-# 画布尺寸（原版 effects_out 全部 612 帧都是这一尺寸；见 .ai-tmp/test/F1-fx-index.tsv 的 max frame size）
+# 画布尺寸（原版 effects_out 全部 612 帧都是这一尺寸）
 CANVAS_W, CANVAS_H = 474, 537
 
 # 用途目录 → 原版源帧号区间（闭区间）。**这份清单 = 落地清单**，改它必须同时改
-# `Core/ResPaths.cs` 的特效区段与 `.ai-tmp/test/F1-特效帧辨认.md`。
+# `Core/ResPaths.cs` 的特效区段。
 RANGES = [
     ("Hit", 50, 56),        # 命中/受击闪光：紫光球→黄光球→白四角星芒→淡蓝碎冰
     ("Blast", 418, 427),    # 爆炸/塔毁：黄橙漩涡大火球（由大缩到亮核）

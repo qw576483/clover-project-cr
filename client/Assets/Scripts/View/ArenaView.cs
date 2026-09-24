@@ -305,15 +305,15 @@ namespace CR.View
         //
         // ★ 以下数值保留作出处记录：
         //
-        // ★ 不用 f006 的「2 段透视映射」当地面的理由（实测，脚本 `tools/probes/cr-v1-calib-tex_.py` /
-        //   `tools/probes/cr-v1-waterprof.py`）：
+        // ★ 不用 f006 的「2 段透视映射」当地面的理由（逐像素校准 + 水面剖面
+        //   实测）：
         //   f006 是一张**带透视**的画布：近段 58.3 px/格、远段 22 px/格。把远段铺到 15.8 格上 ⇒ 纵向被放大
         //   **2.59 倍**、横向只放大 1.32 倍 ⇒ 棋盘格被抹平、观感变成「整片一个绿色」（用户判词）。
         //   而 **f022 的地面是 66.4 px/格（纵向）**，铺到 60 px/格 的渲染尺度是**缩小 0.90 倍**。
         //   ⚠️ 上面的「放大比 2.59× / 0.90×」是**由标定算出来的**量；
         //     「⇒ 棋盘格清晰」属**未取证的预期**，不是已证结论。
         //
-        // ★ 出处（都可在 `tools/probes/cr-v1-calib-tex_.py` 复跑）：
+        // ★ 出处（下述读数均由逐像素量取得出）：
         //   · 场地左/右沿：f022 草地 bbox x **99..912**（= 18 格 ⇒ 45.2 px/格(x)），与两条通路中心
         //     (43.7 px/格) 互证 4% 内。
         //   · 后沿（格 y=0）：**py 1642**；公主塔广场（格 6.5）实测 py **869** ⇒
@@ -352,7 +352,7 @@ namespace CR.View
 
         // ══════════ ★★ 地面真实层配方（用户判词「地图不对，路连不上」）★★ ══════════
         //
-        // ★ 素材结构（判据脚本 `tools/probes/cr-d130-rows.py`，可复跑；数字见下方长注释）：
+        // ★ 素材结构（逐行量取；数字见下方长注释）：
         //   `training_area_bg`（= clip 48 ⇒ 帧号 22）这一张画布的 alpha **不是一条连续带**，用逐行
         //   alpha 扫描量得 **3 段实心 + 2 段透明缝**（逐行剖面实测）：
         //     · 行 0..55     56 行    （后沿带：草边 + 王台后半 + 外沿草须）
@@ -369,7 +369,7 @@ namespace CR.View
         //   646..996 落在实心段内、1076..1082 正是缝 —— 整条裁必然穿缝。
         //
         // ★ 正确铺法 = **按实测锚点把 帧 22 切 6 段铺**（离线逐块复现；
-        //   量取脚本 `tools/probes/cr-d130-rows.py` 可复跑）。
+        //   逐行量取得出）。
         //
         //   ① 帧 22 这一张画布**不是**「一条连续带」也不是「两个半场块」—— 它是一张**贴图集**：把
         //      同一条河 + 两岸按**屏幕上下顺序**拼成一条连续带（实测：带内 492..996 **逐行都是
@@ -502,7 +502,7 @@ namespace CR.View
         /// <summary>
         /// 河面所用**帧号** = <b>6</b>（`atlasgenerator_texture_rgb565`）—— 本帧集里**唯一**带蓝色水面的层。
         /// <para>
-        /// <b>出处（逐层量取，`tools/probes/cr-d130-arena-layers.py` + 行/列剖面）</b>：
+        /// <b>出处（逐层量取 + 行/列剖面）</b>：
         /// 帧 22（`training_area_bg`）**本身不带场地内的蓝水** —— 它的蓝色像素只落在**场地左右之外**
         /// （画布 px 33..97 与 900..972 两小段）；场地内那一段是「近岸草 + 木栏/灰石 + 桥板」。
         /// 帧 6 的水面行 **806..853**（47 行），横向 px 207.6..1027（= 格 0..18），均色自上而下
@@ -545,13 +545,13 @@ namespace CR.View
 
         // ══════════ ★★ 河岸带与桥板分层（用户判词「地图不对，路连不上，乱七八糟」）★★ ══════════
         //
-        // ★ 定量依据（`tools/probes/lead-d130b-bands.py`，只读可复跑）
+        // ★ 定量依据（逐段中位色，只读）
         //   ——把 frame_022 的**河岸带**与**桥板**彻底分开：
         //   · 水带（河面占位）= 行 **536..583**，共 **48 行**；`GameConst.RiverTopTile..RiverBottomTile`
         //     = 2 格 ⇒ **24.0 行/格**；段① 的落位定标（行 536 ↔ 格 17.0，行 748 ↔ 格 7.5）给出
         //     **22.316 行/格**。两者一致到 7%（同一批行、同一张画布）⇒ 段① 的纵向定标可信。
         //   · **原"河岸带"（行 575..612）—— 结论已改：它不是泥岸带，是「泥 + 成片竖木板」的一整件**
-        //     （逐行剖面 `tools/probes/lead-d130b-rowscan.py`：
+        //     （逐行剖面：
         //      rows 570..574 = 纯草 GRASS 0.98 / 木 0；rows 579..605 = WOOD 0.44..0.86，且木色列遍布全宽）。
         //     ⛔ **不用**它（见下方 ③）。把它当"泥岸带"是**看漏了木色列**。
         //   · **桥板（跨河桥面）** = 行 **604..668**（64 行 ÷ 22.316 = **2.87 格**），两束各 3 条竖板，
@@ -581,8 +581,8 @@ namespace CR.View
         //   实机 census（新 DLL）：`GroundRedBank | order=3 | yTop 815.4..915.0` —— 确实落在水的上沿以上，
         //   方向是对的（旧 DLL 对照图上是"上 0.000 / 下 0.234"，新版翻成"上 0.235 / 下 0.000"）。
         //   但**判据与肉眼同时报异常**：水带上方多出一整片**成束竖木板**
-        //   （`tools/probes/lead-d130b-live-verdict.py` 在实机图上量：上格 WOOD=0.675）。
-        //   追到源（`tools/probes/lead-d130b-banksrc.py` + `lead-d130b-rowscan.py`）：
+        //   （在实机图上量得：上格 WOOD=0.675）。
+        //   追到源（源图集 + 逐行剖面）：
         //     rows 575..612 整段 **WOOD=0.547**，木色列**遍布全宽** `(118,135)(169,220)…(731,865)`；
         //     而 rows 570..574 才是纯草（GRASS=0.98、木 0）⇒ 这条带是「**泥 + 成片竖木板**」的一整件，
         //     **不是**"泥岸带"（把它当泥岸带是**看漏了木色列**）。
@@ -623,7 +623,7 @@ namespace CR.View
         //
         // ★ 原版塔**不是一张图** —— `策划/塔与建筑动画表.md` §52-53 已写：
         //   「塔为多 shape 合成（塔体 + 国王人物 + 炮塔），单取一帧只得塔体层」。
-        //   用 `tools/probes/cr-tower-compose.py`（复跑命令见该文件头）解析 `building_tower_v215.sc`
+        //   用整塔合成量法解析 `building_tower_v215.sc`
         //   的 **Export 表（显式 id 引用）**，得到权威配方（记录序 = `frame_NNN`）：
         //     · `KingTower_blue`(clip 308) = turret(clip 247 → rec 30-47) + king_idle(clip 252 → rec 101-113) + **rec 213**
         //     · `KingTower_red` (clip 307) = rec 15 + king_idle(clip 245 → rec 16-28) + rec 30-97 + **rec 211 + rec 212**
@@ -635,7 +635,7 @@ namespace CR.View
         //      ⇒ 偏移不能是常量，要在运行时按各自 `sprite.rect`（裁剪框）反算，见 `PrincessOccupantLocalPx`
         //        与 `PrincessFootLinePx`（按画布中心对齐会让公主飘在塔顶外）。
 
-        // ★ 「红塔为何红、蓝塔为何蓝」（`tools/probes/cr-t1b-occupant.py` 输出）：
+        // ★ 「红塔为何红、蓝塔为何蓝」（逐格量取）：
         //   `KingTower_red` = clip **307** → rec 15-28 / 30-97 / **211-212**；
         //   `KingTower_blue` = clip **308** → rec 30-47 / 99-161 / **213**。
         //   两方是**各自不同的 shape 记录**，不是"同一张灰度图 + 运行时 ColorTransform"——
@@ -657,12 +657,12 @@ namespace CR.View
         public const int RedTowerBodyTopFrame = 212;
 
         // ★ CR-T1i：**公主塔的塔体不是王塔那套 art** —— 原版公主塔垛口宽 1.85~1.91 格、王塔 2.88~2.93 格
-        //   （`策划/参考图/03_对局_1320x2868.jpg`，91.5 px/格，量法见 `tools/probes/cr-t1h_scale.py`），
+        //   （`策划/参考图/03_对局_1320x2868.jpg`，91.5 px/格，量法见逐尺度比对），
         //   而王塔 art（rec 213/211）宽 170/171 px ⇒ 拿它画公主塔会**宽出约 65%**。
         //   正确 art = `building_tower_v215.sc` 的 `StarTower_base_*`（export 表见 `cr-t1i-hunt.py`）：
         //     · `StarTower_base_blue`(clip 236) = rec **10**（白石垛口 + 蓝壁板 + 金冠徽记 + 木地板 + 梯）
         //     · `StarTower_base_red` (clip 235) = rec **9**（同形、红壁板）
-        //   形状判据（逐格目视，对照图由 `tools/probes/cr-t1i-princess.py` 出）：与原版公主塔逐项同构，
+        //   形状判据（逐格目视，对照图为逐格并排目视所得）：与原版公主塔逐项同构，
         //   塔腔里的深色内景 / 木地板 / 阵营壁板**就在这张 art 里** ⇒ 上一轮为公主塔补的 `BackA/BackB`
         //   （那是**王塔**的内景层）⇒ ⛔ 不给公主塔叠 `BackA/BackB`。
         /// <summary>BLUE 公主塔塔体（常态皮肤）：`StarTower_base_blue`(clip 236) = rec **10**。</summary>
@@ -679,7 +679,7 @@ namespace CR.View
         /// 非透明 bbox = `(138,148)-(262,218)`（蓝）/ `(139,148)-(264,219)`（红）—— 落在塔体的**塔腔前区**
         /// （塔体 rec 10 bbox = (126,87)-(275,286)，塔腔木地板带 y=137~160），**不是塔体上方**；
         /// 且原版图里公主下半身被前垛口挡住 ⇒ 它是**前墙**，且必须画在乘员之后。
-        /// 量法见 `tools/probes/cr-t1i-princess.py` 的 bbox 输出。
+        /// 量法见 alpha 紧框 bbox 量取。
         /// </para>
         /// </summary>
         public const int BluePrincessTopFrame = 8;
@@ -689,7 +689,7 @@ namespace CR.View
 
         // ───────────────── 阵亡废墟（D133：用户判词「塔阵亡没废墟」）─────────────────
         //
-        // ★ 出处（判据脚本 `tools/probes/cr-d133-tower-ruin.py`，可复跑）：把 `building_tower_v215.sc` 的
+        // ★ 出处（逐像素判据）：把 `building_tower_v215.sc` 的
         //   **36 个 export 全表 + 62 条 clip 全表** 按语义关键词（destroy/ruin/rubble/dead/break…）过一遍，
         //   命中的**只有 3 条**（其余 33 个 export 全是皮肤/部件，与摧毁无关）：
         //     · clip 301 `Tower_destroyed_ground1` → childTable sid **208** → 记录序 **207**（PNG 407×471）
@@ -702,7 +702,7 @@ namespace CR.View
         //   `2vs2_*_tower_top` rec 11/206）⇒ 本工程 1v1 ⛔ 不用 204。
         //
         // ★★ 关键判定：这两帧是**按队伍**分开的（蓝 = 207 / 红 = 205），**不是**按塔型分开的。
-        //   三条互相独立的证据（§F 与 `tools/probes/cr-d133-rubble-compose.py` 的产物都可复跑）：
+        //   三条互相独立的证据（§F 与其叠加对照图的断言）：
         //     ① **数量**：1v1 只有两帧废墟，却要覆盖 {蓝王, 红王, 蓝公, 红公} 四种组合 —— 两帧只能覆盖
         //        **一个维度**。阵营色在塔体 art 里是**烘焙**的（本文件顶部 CR-T1b 段：rec211 r−b=+32.7 红、
         //        rec213 r−b=−3.3 中性偏蓝），而两帧废墟的均色几乎相同（205 r−b=**+42.8** / 207 r−b=**+40.7**，
@@ -773,7 +773,7 @@ namespace CR.View
         /// <summary>
         /// 我方（BLUE）公主塔乘员：`princess_tower_idle1_3`（clip 981）= rec **502**（公主 + 弩，**视角 3**）。
         /// <para>
-        /// <b>两套 + 9 视角</b>（`chr_princess_v215.sc` 的 Export 表，`tools/probes/cr-t1b-occupant.py` 复跑）：
+        /// <b>两套 + 9 视角</b>（`chr_princess_v215.sc` 的 Export 表）：
         /// `princess_tower_idle1_1..9` = rec **504,503,502,501,500,499,498,497,496**；
         /// `princess_tower_red_idle1_1..9` = rec **8,7,6,5,4,3,2,1,0**（逐帧配色统计证明蓝/红两套，见下）。
         /// 两套**逐视角 bbox 完全相同**（`cr-t1b-occupant.py` 输出里 B_n 与 R_n 的 bbox 逐项一致）⇒ 红/蓝
@@ -834,7 +834,7 @@ namespace CR.View
 
         // ───────────────── 层级配方：来自 `.sc` 的 placement（CR-T1c 解出，⛔ 不许手改顺序）─────────────────
         //
-        // **判定链**（`tools/probes/cr-t1c-placement.py` 可复跑）：
+        // **判定链**（逐格 placement 量取）：
         //   `.sc` 里 `0x08` 记录 = **24 字节 = 6 × i32 = (a, b, c, d, tx, ty)** 的仿射矩阵
         //   （`a/d` 是 1/1024 定点缩放、`b/c` 是旋转错切、`tx/ty` 单位 = **twips = 1/20 画布像素**；
         //    证据：1244 条矩阵里 `a=d=1024`(=1.0) 出现 379 次为最多、且 95% 的条目 `b=c=0` ⇒ 1024=1.0）。
@@ -968,7 +968,7 @@ namespace CR.View
         /// <summary>
         /// 公主的**落脚线**（塔体画布 y，**自上而下**计，单位 = 画布 px）。
         /// <para>
-        /// <b>出处（CR-T1j 重定，按裁剪框锚点口径）</b>：候选扫描（`tools/probes/cr-t1i-occ.py --sweep
+        /// <b>出处（CR-T1j 重定，按裁剪框锚点口径）</b>：候选扫描（裁剪框锚点全覆盖 --sweep
         /// --foots 165,185`，每格带落脚值与算出的 localPos）与原版
         /// `03_对局` 裁切**同尺度并排**逐格看 ⇒ **185** 这一档下：公主的头冠顶与白石垛口上沿齐平、
         /// 躯干在塔腔内、弩横在身前，下半身由 `FrontWall`(rec 7/8) 压住 —— 与原版一致；165 那一档她整块
@@ -1006,7 +1006,7 @@ namespace CR.View
         /// <summary>
         /// **国王塔**的缩放。**1.7**（原值 1.6 是 CR-T1h 的口径错误值，见下）。
         /// <para>
-        /// <b>出处（两侧同口径 + 统一换算成"格"，`tools/probes/cr-t1i-fit.py` 可复跑）</b>：
+        /// <b>出处（两侧同口径 + 统一换算成"格"）</b>：
         /// 口径 = 「**白件宽**」= 两边同一掩膜 `r&gt;205 &amp; g&gt;195 &amp; b&gt;185`：
         ///   · 原版 `03_对局`：国王塔 **268(RED) / 264(BLUE) px**，除以实测的 **91.5 px/格**
         ///     （桥心距 1019.5 px ÷ 11 格 = 92.7、顶部两公主塔中心距 993 px ÷ 11 格 = 90.3，两锚互证 3%）
@@ -1028,7 +1028,7 @@ namespace CR.View
         /// <summary>
         /// **公主塔**的缩放。**1.65**（与国王塔 1.7 不是同一个数；两者用**同一条口径**分别量取）。
         /// <para>
-        /// <b>出处（两侧同口径 + 统一换算成"格"，`tools/probes/cr-t1i-fit.py` 可复跑）</b>：
+        /// <b>出处（两侧同口径 + 统一换算成"格"）</b>：
         /// 口径 = 「白件宽」（掩膜同上）：
         ///   · 原版 `03_对局`：公主塔 **169 / 175 / 172 px** ÷ 91.5 px/格 = **1.88 格**
         ///     （≲ 公主塔"半径 1 格 = 直径 2 格"的占地 ✔ 与原版王塔"白件宽 ≈ 占地"同一规律）
@@ -1300,7 +1300,7 @@ namespace CR.View
 
             // ① 水：横向窗口用**帧 6 自己的原点**（格 0..18 ⇔ px 207.6..1027.4）—— ⛔ 不是帧 22 的
             //    px 99：帧 6 与帧 22 是两张画布，各自的车道中心不同列（帧 6 = 367/868，帧 22 = 259/760，
-            //    间距都是 501 px ⇒ 同一 45.545 px/格，只是画布留白不同）。出处：`tools/probes/cr-d130-water-xcal.py`
+            //    间距都是 501 px ⇒ 同一 45.545 px/格，只是画布留白不同）。出处：逐图水面色量取
             //    （帧 6 水带 805..852，左沿水色起于 px ~200）+ `cr-d130-lane-rowscan.py`。
             var pxLeft = WaterPxLeft;
             var pxRight = WaterPxLeft + GameConst.ArenaTilesW * GroundPxPerTileX;
@@ -1647,7 +1647,7 @@ namespace CR.View
                     $"阵亡废墟帧取不到（帧号 {rubbleFrame}，共 {frames.Length} 个 Sprite）：" +
                     $"team={team} isKing={isKing} ⇒ 该塔阵亡时只能整座藏掉（无废墟）");
 
-            // 塔的血条（两条数已复核；量法 = `tools/probes/cr-d133-tower-hpbar.py`，可复跑）：
+            // 塔的血条（两条数已复核；量法 = 条带像素量取）：
             //   · **宽**（local，会被塔根 scale 放大）：公主 1.4 / 国王 1.8 ⇒ 外宽（含 0.04 边框）2.376 / 3.13 格。
             //     基线图 `策划/参考图/04_对局_1320x2868.jpg` 底部两座公主塔血条**填充**外宽实测
             //     **199 / 200 px**（青色掩膜 `b>190 & g>140 & r<150 & b−r>70` 的 x 段 114..312 与 1068..1267，
@@ -1738,7 +1738,7 @@ namespace CR.View
         /// （`h_occ` = 乘员裁剪框高：底心相对裁剪框中心 = (0, −h/2)）。
         /// `target` 与它的出处见 <see cref="PrincessCavityCxPx"/> / <see cref="PrincessFootLinePx"/>。
         /// </para>
-        /// <para>复跑：`tools/probes/cr-t1i-occ.py --calib`（校准裁剪框口径）/ `--sweep`（与原版 1:1 并排逐格）。</para>
+        /// <para>量法：按校准裁剪框口径做原版 1:1 并排逐格比对。</para>
         /// </summary>
         private static Vector2 PrincessOccupantLocalPx(Sprite body, Sprite occ, float scale)
         {
@@ -1804,7 +1804,7 @@ namespace CR.View
         /// <para>
         /// <b>为什么必需</b>：工程里的塔 PNG 是 Unity **自动切片**（Sprite Mode = Multiple）导入的，
         /// 一张 `frame_NNN.png` 可能切成多张子精灵，而**废墟本来就是散的** ⇒ 自动切片会把零落的碎石切成
-        /// 独立子精灵。实测（`tools/probes/cr-d133-tower-ruin.py` §F 的 meta 段）：`frame_207.png`
+        /// 独立子精灵。实测（§F 的 meta 段）：`frame_207.png`
         /// = `frame_207_0`（29×27 的一小块）+ `frame_207_1`（145×137 主体石堆）；
         /// `frame_204.png` = `_0`(23×22) + `_1`(209×151)。只取 `_0` ⇒ 实机上"废墟"是一颗小石子。
         /// </para>
@@ -1854,7 +1854,7 @@ namespace CR.View
         /// </para>
         /// <para>
         /// ⚠️ 废墟与塔体**同一张 407×471 画布**（三张废墟 PNG 实测都是 407×471，见
-        /// `tools/probes/cr-d133-rubble-compose.py` 的断言）⇒ 两张图的 `rect` 可以直接相减。
+        /// （同画布叠加对照图的断言）⇒ 两张图的 `rect` 可以直接相减。
         /// </para>
         /// </summary>
         private static Vector2 CanvasOffsetPx(Sprite body, Sprite piece)
@@ -2120,7 +2120,7 @@ namespace CR.View
                     _destroyed = true; // 终态锁（上面 Apply 开头就靠它挡住"复活"快照）
                     // ★ D133 改：**不再把整座塔藏掉了事** —— 改成"塔体各层藏掉 + 亮出废墟层"。
                     //   帧号出处 = `BlueTowerRubbleFrame` / `RedTowerRubbleFrame` 常量上的长注释
-                    //   （`building_tower_v215.sc` 的 clip 297/298/301，判据脚本 `tools/probes/cr-d133-tower-ruin.py`）。
+                    //   （`building_tower_v215.sc` 的 clip 297/298/301，逐像素判据）。
                     //   ⛔ "素材缺摧毁态下标"是**错的前提**：废墟帧一直在盘上（`frame_204/205/207`），
                     //      只是从没有代码取过它。
                     SetTowerLayersEnabled(false);

@@ -41,7 +41,7 @@
 |---|---|---|
 | 1 | 卡池 **4 列**、每页 8 张 | 左图 4 列 vs 右图 4 列 → `PoolGrid 998x762`、`poolLabel='卡池：共 60 张 · 第 1/8 页（每页 8 张）'` |
 | 2 | **每格都画原版卡面** | 运行时逐格 dump：60 格中 **59 格 `art_sprite=CardArt:frame_NNN`（197×251）**，唯一 `Card41`（`goblin-hut`）无帧（见不一致 #5） |
-| 3 | 卡面 = **原版 `ui_spells` 帧**，按 `.sc` export 名对卡 | 逐格帧号与 `card.tsv` 顺序**逐行吻合**（knight=22 / archers=23 / goblins=49 / spear-goblins=53 / giant=55 / pekka=30 / minions=34 / minion-horde=33 …）；依据 `.ai-tmp/test/AO1-量取.md` B 段 |
+| 3 | 卡面 = **原版 `ui_spells` 帧**，按 `.sc` export 名对卡 | 逐格帧号与 `card.tsv` 顺序**逐行吻合**（knight=22 / archers=23 / goblins=49 / spear-goblins=53 / giant=55 / pekka=30 / minions=34 / minion-horde=33 …） |
 | 4 | 竖版 1080×1920 | 同主菜单 |
 
 **不一致 = 8**
@@ -68,4 +68,4 @@
 | 房间列表 / 房间内 | **未自审** | **未自审** | —— 本片未改这两个面板（见 `AO1-report.md` §5） |
 
 ⛔ 上表里所有"不一致"都**没有被处理成一致**，也没有被写成"基本一致" —— 它们是本片**没做完**的部分，
-登记在 `.ai-tmp/test/AO1-允许差异.md`，并由 `AO1-report.md` §5 给出接力接口。
+差异已登记，并由 `AO1-report.md` §5 给出接力接口。

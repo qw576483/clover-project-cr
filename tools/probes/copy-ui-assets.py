@@ -68,7 +68,7 @@ WHERE THIS FILE LIVES / WHY IT IS NOT A THROWAWAY
     builds the contact sheets, `build-ui-index.py` folds the notes into the index
     document).
     Verified by `tools/probes/check-ui-keys.ps1` (offline: registry <-> disk <->
-    this file must agree, all three ways) and `tools/probes/check-ui-sprites.cs`
+    this file must agree, all three ways) and the offline sprite check
     (in-editor: every key must resolve to exactly one loaded Sprite whose rect is
     the frame's bbox, with import settings identical to `Ui/loading_bg.png`).
 

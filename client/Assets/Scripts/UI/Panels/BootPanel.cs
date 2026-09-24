@@ -35,11 +35,12 @@ namespace CR.UI.Panels
     ///
     /// <para>
     /// <b>`by clover-engine` 是硬要求</b>（项目级约定：引擎自称逐字 `clover-engine`，且必须出现在
-    /// 首页画面底部）。这里的落点是 `root/ByCloverEngine`，用引擎专门的
-    /// `UIFactory.CreateBottomLabel`（内置 `AnchoredBottom`，锚点与轴心都钉在父节点底边，
-    /// 只向 +y 偏 <see cref="BylineBottomOffset"/>）—— 引擎注释明确写过：
-    /// 底部元素**不要**用"左上角锚点 + 大负 y"，因为 CanvasScaler 的 match 与真实画布高度
+    /// 首页画面底部）。这里用引擎**专门**的 `UIFactory.CreateCreditLabel`
+    /// （`Runtime/Presentation/UIWidgets.cs:229`，默认文案逐字 `by clover-engine`）—— 它内置
+    /// `AnchoredBottom`（锚点与轴心都钉在父节点底边、底部居中），只向 +y 偏 <see cref="BylineBottomOffset"/>。
+    /// 引擎注释明确写过：底部元素**不要**用"左上角锚点 + 大负 y"，因为 CanvasScaler 的 match 与真实画布高度
     /// 随设备变化，y 一旦超过画布高度元素就整体掉到屏幕外。
+    /// ⚠️ 颜色必须显式写 `CrUiStyle.TextDim`（引擎默认 `(1,1,1,0.55)` 会改变画面）。
     /// </para>
     ///
     /// <para>
@@ -52,10 +53,13 @@ namespace CR.UI.Panels
         /// <summary>署名离屏幕底边的距离（像素）。本项目自定：只为不贴边、不被安全区圆角裁掉。</summary>
         private const float BylineBottomOffset = 28f;
 
-        /// <summary>署名文本宽度（像素）：足够放下 `by clover-engine` 且居中不受父宽影响。</summary>
+        /// <summary>
+        /// 底部文本宽度（像素）：署名行（引擎 `CreateCreditLabel` 自带宽 600）与上面**版权两行**共用本常量。
+        /// ⛔ 版权两行仍在用 ⇒ 保留（只服务旧署名行的 `Byline*` 常量一个都没删，逐个确认过）。
+        /// </summary>
         private const float BylineWidth = 640f;
 
-        /// <summary>署名行高（像素）。</summary>
+        /// <summary>底部文本行高（像素）：署名行与版权两行共用。</summary>
         private const float BylineHeight = 32f;
 
         /// <summary>版权行离屏幕底边的距离（在署名之上，逐行 +34）。本项目自定。</summary>
@@ -99,9 +103,15 @@ namespace CR.UI.Panels
             UIFactory.CreateBottomLabel("CopyrightNote", root, "本作品仅供学习研究 · 非商业用途", CrUiStyle.FontSmall,
                 new Vector2(0f, CopyrightBottomOffset), new Vector2(BylineWidth, BylineHeight), CrUiStyle.TextDim);
 
-            // ★ 首页画面底部的引擎署名（硬要求）。
-            UIFactory.CreateBottomLabel("ByCloverEngine", root, "by clover-engine", CrUiStyle.FontSmall,
-                new Vector2(0f, BylineBottomOffset), new Vector2(BylineWidth, BylineHeight), CrUiStyle.TextDim);
+            // ★ 首页画面底部的引擎署名（硬要求）：走引擎**专门**的 `UIFactory.CreateCreditLabel`
+            //   （`Runtime/Presentation/UIWidgets.cs:229`）—— 它内置"贴父节点底边居中"的定位
+            //   （`AnchoredBottom` + `TextAnchor.LowerCenter`）、默认文案逐字 `by clover-engine`、
+            //   以及"未指定字体 ⇒ 可能被静默渲染成全大写"的降频留痕。⛔ 不再自拼
+            //   `CreateBottomLabel` 的锚底摆法（那是本工程原先的第二套署名写法）。
+            //   ⚠️ **必须显式写 `credit.color`**：引擎默认色是 `(1,1,1,0.55)`，不写就会改变画面；
+            //   本项目口径 = `CrUiStyle.TextDim`（与上面版权两行同色）。
+            var credit = UIFactory.CreateCreditLabel(root, null, CrUiStyle.FontSmall, BylineBottomOffset);
+            credit.color = CrUiStyle.TextDim;
 
             var logoRt = _logo != null ? _logo.rectTransform : null;
             Game.Logger?.Info("BootPanel",

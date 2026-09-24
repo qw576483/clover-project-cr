@@ -1,3 +1,4 @@
+using CloverEngine;
 using UnityEngine;
 
 namespace CR.View
@@ -18,9 +19,15 @@ namespace CR.View
     /// `策划/策划案/皇室战争参考规格.md` §2.1。**最终裁决永远在服务端**，这里只是"别让玩家看着能放、结果被拒"。
     /// </para>
     /// <para>
-    /// <b>为什么用程序生成的圆盘而不是素材</b>：解包素材里没有"落点指示"图（`ui_out` 914 帧未做逐帧识别，
-    /// 且卡面/UI 序号→语义的映射表在本项目里不存在）。用 `Texture2D` 生成一个圆盘是**自制品**，
-    /// 不冒充原版素材、也不会因路径猜错而静默不显示（见 `ResPaths` 注释里"别编映射表"的同款理由）。
+    /// <b>落点图形取自原版素材</b>（D143）：`effects_out` 的 f221（我方：细白环，分组表 `:4777`
+    /// `spell_radius`）/ f294（敌方：深色圆盘 + 红边 + 外圈刻度，分组表 `:4815` `Poison`）。
+    /// 同族的 `spell_*_radius` 帧列**全都是 f221** ⇒ 原版所有法术共用同一张环、靠**缩放**适配半径，
+    /// 这也是本类 <see cref="Show"/> 的缩放口径。
+    /// </para>
+    /// <para>
+    /// ⛔ 旧注释里那句「解包素材里没有'落点指示'图」**是错的**（已订正），当时才用 `Texture2D`
+    /// 现场生成了一张圆盘。自制圆盘<b>保留为兜底</b>（素材加载失败时画面不能什么都没有），
+    /// 但正常路径不再用它。
     /// </para>
     /// </summary>
     public sealed class PlacementIndicator : MonoBehaviour
@@ -37,9 +44,30 @@ namespace CR.View
         /// <summary>指示圆盘贴图边长（像素）。64 足够 —— 它永远是半透明的，放大后靠线性过滤就够平滑。</summary>
         private const int DiscTexSize = 64;
 
+        /// <summary>
+        /// 落点指示的**转速**（度/秒）。⚠️ **本项目自定**：原版这张环是单帧静态图（f221/f294
+        /// 各自只有 1 帧），"它是否旋转、转多快"在解包素材里**没有出处**。
+        /// 用户原话是「原版是转圈的」⇒ 这里把原版环**旋转**起来作为进度感的来源，转速取 90°/s
+        /// （4 秒一圈，不晃眼）。**该常量是推断，已登记在差异登记 D143**。
+        /// 环上有可见的不对称特征（f221 四个基本方向的小标记 / f294 外圈的刻度），所以旋转看得见。
+        /// </summary>
+        private const float SpinDegreesPerSecond = 90f;
+
         private SpriteRenderer _renderer;
         private Sprite _discSprite;
         private bool _visible;
+
+        /// <summary>最近一次 <see cref="Show"/> 的参数（原版环形素材是**异步**加载的，到货后要按它重画）。</summary>
+        private Vector2 _lastTile;
+        private float _lastRadius;
+        private bool _lastLegal;
+
+        /// <summary>原版环形素材（我方 f221 / 敌方 f294）；未到货时为 null ⇒ 用 <see cref="_discSprite"/> 兜底。</summary>
+        private Sprite _ringFriendly;
+        private Sprite _ringHostile;
+
+        /// <summary>环形素材到货（或确认取不到）后只留痕一次。</summary>
+        private static bool _ringLoadLogged;
 
         /// <summary>当前是否可见。</summary>
         public bool Visible => _visible;
@@ -66,7 +94,62 @@ namespace CR.View
             // 落点指示必须压在**所有单位与塔之下**（它是一块地板高亮），所以给一个很低的 sortingOrder。
             // 与 UnitView/ArenaView 的层级约定：底图 0 / 塔 50 / 单位 100 / 指示 200（见各自注释）。
             _renderer.sortingOrder = SortingOrder.PlacementIndicator;
+            LoadRingSprites();
             SetVisible(false);
+        }
+
+        /// <summary>
+        /// 异步取两张原版范围图元（我方 f221 / 敌方 f294）。到货前 <see cref="Show"/> 用自制圆盘兜底。
+        /// <para>
+        /// 为什么用 `Game.Res.LoadAsset&lt;Sprite&gt;`（异步）而不是 `SpriteBank.LoadDir`：这两张图**各自
+        /// 就是一个用途目录里的单帧**，没有"整条取"的需求；`HudPanel` 取卡面走的也是这条入口。
+        /// </para>
+        /// </summary>
+        private void LoadRingSprites()
+        {
+            if (Game.Res == null)
+            {
+                if (!_ringLoadLogged)
+                {
+                    _ringLoadLogged = true;
+                    Game.Logger?.Warn(LogTag,
+                        "Game.Res 为空（漏了 CloverRes.Init？）⇒ 落点指示只能用**自制圆盘**兜底" +
+                        $"，取不到原版范围图元（{ResPaths.EffectRangeRing}/f{ResPaths.EffectRangeRingFriendly}）");
+                }
+                return;
+            }
+            LoadOneRing(ResPaths.EffectRangeRingFriendly, 0);
+            LoadOneRing(ResPaths.EffectRangeRingHostile, 1);
+        }
+
+        private void LoadOneRing(int frame, int which)
+        {
+            var path = ResPaths.EffectFrame(ResPaths.EffectRangeRing, frame);
+            Game.Res.LoadAsset<Sprite>(path, sprite =>
+            {
+                if (sprite == null)
+                {
+                    if (!_ringLoadLogged)
+                    {
+                        _ringLoadLogged = true;
+                        Game.Logger?.Warn(LogTag,
+                            $"原版范围图元加载不到（仍用自制圆盘兜底）：{path}；" +
+                            "检查 .ai-tmp/hosts/copy_spell_fx.py 是否跑过、以及新 PNG 是否已被 Unity 导入");
+                    }
+                    return;
+                }
+                if (which == 0) _ringFriendly = sprite; else _ringHostile = sprite;
+                if (!_ringLoadLogged)
+                {
+                    _ringLoadLogged = true;
+                    Game.Logger?.Info(LogTag,
+                        $"落点范围图元已就绪：我方 f{ResPaths.EffectRangeRingFriendly} / " +
+                        $"敌方 f{ResPaths.EffectRangeRingHostile}（目录 {ResPaths.EffectRangeRing}；" +
+                        "出处 策划/单位动画分组表.md :4777 spell_radius / :4815 Poison）");
+                }
+                // 素材是异步到的：如果此刻正显示着，按最近一次参数**重画**，否则会一直停在自制圆盘上。
+                if (_visible) Reapply();
+            });
         }
 
         /// <summary>
@@ -77,14 +160,61 @@ namespace CR.View
         /// <param name="legal">是否合法（由 <see cref="IsLegalDeploy(DeployInput,float,float,bool)"/> 判定）。</param>
         public void Show(Vector2 tileXY, float radiusTiles, bool legal)
         {
-            transform.position = GameConst.TileToWorld(tileXY.x, tileXY.y);
-            // 圆盘贴图直径 = 1 世界单位（Sprite 默认 1 unit/pixel 比例下由 Sprite.Create 的 pixelsPerUnit 决定），
-            // 所以直接按"直径 = 2 * 半径"缩放即可 —— 不引入额外魔法数。
-            var diameter = Mathf.Max(0.5f, radiusTiles * 2f);
-            transform.localScale = new Vector3(diameter, diameter, 1f);
-            _renderer.color = legal ? LegalColor : IllegalColor;
+            _lastTile = tileXY;
+            _lastRadius = radiusTiles;
+            _lastLegal = legal;
+            Reapply();
             SetVisible(true);
         }
+
+        /// <summary>
+        /// 按**最近一次** <see cref="Show"/> 的参数重画（位置 / 缩放 / 贴图 / 颜色）。
+        /// <para>
+        /// 缩放口径：原版所有法术共用同一张环，靠**缩放**适配半径（见 <see cref="ResPaths.EffectRangeRing"/>）
+        /// ⇒ `缩放 = 目标直径 / 该贴图自身的世界直径`。贴图直径从 `sprite.bounds.size.x` 现读，
+        /// ⛔ 不写死"环直径 1.24 格"这类会随素材变更而失效的常量。
+        /// </para>
+        /// </summary>
+        private void Reapply()
+        {
+            if (_renderer == null) return;
+
+            transform.position = GameConst.TileToWorld(_lastTile.x, _lastTile.y);
+
+            var sprite = _lastLegal ? _ringFriendly : _ringHostile;
+            if (sprite == null) sprite = _discSprite;      // 兜底：原版图元还没到货 / 取不到
+            var usingFallback = ReferenceEquals(sprite, _discSprite);
+            _renderer.sprite = sprite;
+
+            var native = sprite != null ? sprite.bounds.size.x : 1f;
+            if (native <= 0f) native = 1f;
+            // 自制圆盘的 pixelsPerUnit = 贴图边长 ⇒ 它的 bounds 正好 1 个世界单位，走同一条算式也成立。
+            var diameter = Mathf.Max(0.5f, _lastRadius * 2f);
+            var scale = diameter / native;
+            transform.localScale = new Vector3(scale, scale, 1f);
+
+            // 两种贴图用两套着色（理由见 ApplyTint 的注释）。
+            if (usingFallback) _renderer.color = _lastLegal ? LegalColor : IllegalColor;
+            else _renderer.color = _lastLegal ? LegalTint : IllegalTint;
+        }
+
+        /// <summary>
+        /// 落点颜色的取法。
+        /// <para>
+        /// ⚠️ **与旧版不同**：旧版是**自制**圆盘（白色软边），所以整块染成绿/红没有违和感。
+        /// 现在贴图是**原版**图元（我方白环 / 敌方红边盘），**再整块染绿会把它染成一张绿环、
+        /// 丢掉原版的红/白区分** ⇒ 原版素材上只做"合法性提示"的轻量着色：
+        /// 合法 = 略带绿（<see cref="LegalTint"/>），非法 = 压红（<see cref="IllegalTint"/>），
+        /// 两者都保留原图元自己的明暗。**自制圆盘兜底时**仍用旧的两套半透明色
+        /// （<see cref="LegalColor"/> / <see cref="IllegalColor"/>），因为那张图本来就是白的，
+        /// 不染色就等于没有合法性提示。
+        /// </para>
+        /// </summary>
+        /// <summary>合法落点着色（白 → 略带绿，alpha = 1 保留原图元不透明度）。</summary>
+        private static readonly Color LegalTint = new Color(0.80f, 1f, 0.85f, 1f);
+
+        /// <summary>非法落点着色（压红 + 降一点不透明度，让"不能放"一眼可辨）。</summary>
+        private static readonly Color IllegalTint = new Color(1f, 0.55f, 0.50f, 0.9f);
 
         /// <summary>隐藏指示盘（拖放结束 / 抬手）。</summary>
         public void Hide()
@@ -97,6 +227,18 @@ namespace CR.View
             _visible = visible;
             if (_renderer != null) _renderer.enabled = visible;
             gameObject.SetActive(visible);
+        }
+
+        /// <summary>
+        /// 让落点环**转圈**（D143：用户原话「原版是转圈的」）。
+        /// <para>
+        /// 只在可见时推进（`SetVisible(false)` 会 `SetActive(false)`，本方法自然不会被调到）；
+        /// 用 `unscaledDeltaTime`：对局暂停 / 时间倍率为 0 时，拖放手势仍然要有反馈。
+        /// </para>
+        /// </summary>
+        private void Update()
+        {
+            transform.Rotate(0f, 0f, SpinDegreesPerSecond * Time.unscaledDeltaTime);
         }
 
         private void OnDestroy()

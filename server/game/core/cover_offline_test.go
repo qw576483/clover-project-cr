@@ -150,7 +150,10 @@ func TestCoverCollisionLayers(t *testing.T) {
 	b := mustBattleWith(t, newCoverTable(), troopDeck, troopDeck, 71)
 	g1 := b.spawnUnit(TeamBlue, knight, cardKnight, 9000, 8000, 0)
 	g2 := b.spawnUnit(TeamRed, knight, cardKnight, 9000, 8000, 0)
-	b.resolveCollisions()
+	// 分离是**限速**的（`combat.go:separationStepLimitMilli`：一次调用最多推开"自己走一步"
+	// 的距离 —— 根因取证见 `separation_limit_test.go`），所以同点的一对要跑几轮才分开，
+	// 每轮对应实际对战里的一个 tick。判据意图不变：陆军对必须**最终**分开到 2 半径 - 容差。
+	settleCollisions(b)
 	if d := Distance(g1.xMilli, g1.yMilli, g2.xMilli, g2.yMilli); d < 2*500-touchToleranceMilli {
 		t.Fatalf("ground-ground coincident pair: distance = %d, want >= %d", d, 2*500-touchToleranceMilli)
 	}
@@ -173,7 +176,7 @@ func TestCoverCollisionLayers(t *testing.T) {
 	b3 := mustBattleWith(t, newCoverTable(), troopDeck, troopDeck, 73)
 	a1 := b3.spawnUnit(TeamBlue, minion, cardMinion, 9000, 8000, 0)
 	a2 := b3.spawnUnit(TeamRed, minion, cardMinion, 9000, 8000, 0)
-	b3.resolveCollisions()
+	settleCollisions(b3)
 	if d := Distance(a1.xMilli, a1.yMilli, a2.xMilli, a2.yMilli); d < 2*500-touchToleranceMilli {
 		t.Fatalf("air-air coincident pair: distance = %d, want >= %d", d, 2*500-touchToleranceMilli)
 	}
@@ -184,7 +187,7 @@ func TestCoverCollisionLayers(t *testing.T) {
 	w := b4.spawnUnit(TeamBlue, wall, cardKnight, 9000, 8000, 0)
 	k := b4.spawnUnit(TeamRed, knight, cardKnight, 9000, 8500, 0) // 500 from wall, overlap
 	wx, wy := w.xMilli, w.yMilli
-	b4.resolveCollisions()
+	settleCollisions(b4)
 	if w.xMilli != wx || w.yMilli != wy {
 		t.Fatalf("building moved in a collision: (%d,%d) -> (%d,%d)", wx, wy, w.xMilli, w.yMilli)
 	}
@@ -288,28 +291,35 @@ func TestCoverSpawnerBuilding(t *testing.T) {
 	countSkel := func() int {
 		n := 0
 		for _, e := range b.units {
-			if e.Team == TeamBlue && e.Def != nil && e.Def.Key == "Skeleton" {
+			// ⚠️ 必须过滤 `alive`：`compact()` 刻意把**已死但还没被快照播报**
+			// （`deathReported == false`）的尸体留在 `b.units` 里（见 compact 的根因注释），
+			// 离线测试没有快照驱动 ⇒ 尸体会一直堆着。旧口径统计的是"进过 `b.units` 的个数"，
+			// 那会把尸体算成存活子代，2026-09-24 实测 = 9（3 活 + 6 尸）而误报。
+			if e.alive && e.Team == TeamBlue && e.Def != nil && e.Def.Key == "Skeleton" {
 				n++
 			}
 		}
 		return n
 	}
-	runSteps(b, 70) // 3.5 s: exactly three spawns at 1 s intervals
+	runSteps(b, 70) // 3.5 s: exactly three waves at 1 s intervals (wave gap = SpawnIntervalMs)
 	if n := countSkel(); n != int(hut.SpawnLimit) {
 		t.Fatalf("spawner produced %d live units in 3.5 s, want %d", n, hut.SpawnLimit)
 	}
 	if hb.spawnedCount != hut.SpawnLimit {
 		t.Fatalf("spawnedCount = %d, want %d", hb.spawnedCount, hut.SpawnLimit)
 	}
-	// Past the limit it stops: no fourth spawn, even though earlier skeletons
-	// keep marching off and are eventually killed by a tower. The limit counts
-	// SPAWNS, not survivors.
+	// ★ 2026-09-23 改（差异登记 D142）：`spawn_limit` 卡的是**场上存活子代数**，
+	// ⛔ 不是累计生成数。出处 = 参考实现 `cr_sim/engine/battle.py::_phase_run_spawners`：
+	//     `living = [存活的子代]; room = spawn_limit - len(living)`
+	// 旧断言写的是"累计再也不会涨"（旧实现按 `spawnedCount` 卡），
+	// 那是**把上限理解成了总额度**。正确的不变量是：**任何时刻场上存活子代 ≤ SpawnLimit**。
+	// 子代战死后补员是原版行为（小屋在塔的射程边缘会持续补）。
 	runSteps(b, 400)
-	if hb.spawnedCount != hut.SpawnLimit {
-		t.Fatalf("spawner exceeded its limit: spawnedCount = %d, want %d", hb.spawnedCount, hut.SpawnLimit)
+	if n := countSkel(); n > int(hut.SpawnLimit) {
+		t.Fatalf("live spawned children = %d > SpawnLimit = %d（上限必须按存活数卡）", n, hut.SpawnLimit)
 	}
-	t.Logf("spawner: 3 spawns by 3.5 s, then stops (spawnedCount=%d, live skeletons after 10.3 s = %d -- they marched into a tower's range)",
-		hb.spawnedCount, countSkel())
+	t.Logf("spawner: 3 waves by 3.5 s, live children stay <= %d (spawnedCount=%d cumulative, live skeletons after 10.3 s = %d)",
+		hut.SpawnLimit, hb.spawnedCount, countSkel())
 }
 
 // ---------------------------------------------------------------------------
@@ -615,4 +625,17 @@ func TestCoverAttackWindupAndProjectile(t *testing.T) {
 	}
 	t.Logf("attack: no swing before 500 ms windup, swings=1 at 500 ms, swings=2 at 1500 ms (%d projectiles in flight)",
 		len(b.projectiles))
+}
+
+// settleCollisions runs enough separation rounds for the board to stop changing.
+//
+// 为什么需要它：分离现在是**限速**的（`combat.go:separationStepLimitMilli` ——
+// 一次调用最多把一个实体推开"它自己走一步"的距离，根因取证见
+// `separation_limit_test.go`），所以一对完全同点的单位要跑几轮才分得开，
+// 而每一轮就对应实际对战里的一个 tick。断言"最终分开"的判据据此改成
+// "跑到稳定"，判据意图（陆军对必须分开、建筑不动、投射物不参与）完全不变。
+func settleCollisions(b *Battle) {
+	for i := 0; i < 30; i++ {
+		b.resolveCollisions()
+	}
 }

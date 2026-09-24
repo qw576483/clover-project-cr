@@ -64,13 +64,19 @@ type BattleTimeline struct {
 
 // BattleEvent 对局中的一个离散事件。
 type BattleEvent struct {
-	Kind     int32  `json:"kind"` // 0=出牌 1=生成 2=死亡 3=塔毁 4=圣水满 5=塔激活
+	Kind     int32  `json:"kind"` // 0=出牌 1=生成 2=死亡 3=塔毁 4=圣水满 5=塔激活 6=塔开火
 	CardID   int32  `json:"card_id"`
 	XMilli   int32  `json:"x_milli"`
 	YMilli   int32  `json:"y_milli"`
 	EntityID int32  `json:"entity_id"`
 	Team     int32  `json:"team"`
 	Text     string `json:"text"`
+
+	// ProjSpeed 只在 kind==6（EvTowerShoot）上有值：该塔投射物的速度，单位 = 格/分钟
+	// （与 CardInfo.proj_speed 同口径）。塔不是卡 ⇒ 客户端查不到，必须由服务端下发；
+	// 0 = 该塔无投射物（近战塔），客户端只播枪口闪光。
+	// ⛔ 加在**末尾**且 omitempty：老客户端不认识该字段，反序列化时忽略即可（JSON 前向兼容）。
+	ProjSpeed int32 `json:"proj_speed,omitempty"`
 }
 
 // RoomInfo 房间列表里的一行。
@@ -116,6 +122,7 @@ type CardInfo struct {
 	// 战斗本体：群体卡（弓箭手 / 亡灵…）取 `summon_key` 指向的本体行，与
 	// logic.cardDefOf 的 CardDef.UnitKey 同口径；投射物行本身不参与。
 	ProjectileKey string `json:"projectile_key"`
+
 	// ProjSpeed 是弹道速度，单位 = **格/分钟**，与官方
 	// `cards_stats_projectile.json` 的 `speed` 同口径
 	// （出处：策划/策划案/皇室战争参考规格.md §4「投射物：`projectile` 非空 ⇒ 远程，
@@ -123,4 +130,14 @@ type CardInfo struct {
 	// 取值来源 = 战斗单位_cs 里该投射物行（kind=3）的 `speed` 列（表内列注释
 	// 「投射物行为弹道速度」），⛔ 不在 Go 里硬编码。ProjectileKey 为空时为 0。
 	ProjSpeed int32 `json:"proj_speed"`
+
+	// AoeRadiusMilli 是**法术卡**的作用半径，单位 = milli-tile（1 格 = 1000）。
+	// 非法术卡恒为 0。
+	//
+	// 为什么要下发它：客户端拖出法术时要在落点画一个**半径圈**，圈多大必须等于真实
+	// 作用范围（`spell.tsv` 的 `radius_mt` 列，10 张法术各不相同：万箭齐发 1400 …
+	// 毒药/雷电 3500）。旧实现是客户端写死 `PlacementRadiusTilesSpell = 3.0f`
+	// 一刀切 ⇒ 万箭齐发的圈画大了 2 倍多、雷电/毒药又画小了，玩家照着圈放会打空。
+	// 数值权威在服务端配表 ⇒ 由服务端算好下发，⛔ 客户端不许自造半径。
+	AoeRadiusMilli int32 `json:"aoe_radius_milli,omitempty"`
 }

@@ -419,13 +419,14 @@ func eventsToDef(in []core.Event) []def.BattleEvent {
 	out := make([]def.BattleEvent, 0, len(in))
 	for _, e := range in {
 		out = append(out, def.BattleEvent{
-			Kind:     e.Kind,
-			CardID:   e.CardID,
-			XMilli:   e.XMilli,
-			YMilli:   e.YMilli,
-			EntityID: e.EntityID,
-			Team:     e.Team,
-			Text:     e.Text,
+			Kind:      e.Kind,
+			CardID:    e.CardID,
+			XMilli:    e.XMilli,
+			YMilli:    e.YMilli,
+			EntityID:  e.EntityID,
+			Team:      e.Team,
+			Text:      e.Text,
+			ProjSpeed: e.ProjSpeed,
 		})
 	}
 	return out

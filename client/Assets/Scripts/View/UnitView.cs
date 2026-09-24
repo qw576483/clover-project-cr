@@ -122,6 +122,17 @@ namespace CR.View
         private int _lastMaxHp = -1;
         private bool _barVisible = true;
 
+        // ───────────────── D129c：朝向 → 视角（9 视角 / 16 档朝向）─────────────────
+        /// <summary>朝向档（0..15，见 <see cref="UnitAnimTable.StepToView"/>）。初值 4 = 侧身朝右（φ=0°）。</summary>
+        private int _viewStep = 4;
+        /// <summary>是否已由**实际移动方向**定过朝向（false ⇒ 首帧用契约 `facing` 的左右兜底）。</summary>
+        private bool _viewStepSet;
+        /// <summary>当前视角号（1..9）= `UnitAnimTable.StepToView[_viewStep]`；变号时必须重算 `_clip`。</summary>
+        private int _viewNo = 5;
+        /// <summary>最近一次**有效**移动方向（未归一化；站桩时保持上一次朝向）。</summary>
+        private Vector2 _moveDir = new Vector2(1f, 0f);
+        private bool _hasMoveDir;
+
         /// <summary>当前绑定的精灵目录（`ResPaths` 里那一列，如 `chr_knight_out`）。空串 = 用占位色。</summary>
         public string SpriteDir => _spriteDir;
 
@@ -130,6 +141,41 @@ namespace CR.View
 
         /// <summary>当前 `anim` 档位。</summary>
         public int Anim => _anim;
+
+        /// <summary>当前**视角号**（1..9）—— D129c 的朝向选择结果，供实机采样/回归脚本读取。</summary>
+        public int ViewNo => _viewNo;
+
+        /// <summary>当前**朝向档**（0..15）—— `UnitAnimTable.StepToView` 的下标。</summary>
+        public int ViewStep => _viewStep;
+
+        /// <summary>最近一次有效的移动方向（未归一化；`_hasMoveDir == false` 时是 `facing` 的左右兜底）。</summary>
+        public Vector2 MoveDir => _moveDir;
+
+        /// <summary>
+        /// D129c 回归计数器：`dir → 长度 9 的数组`（下标 = 视角号 − 1，值 = 该视角被**切入**的次数）。
+        /// 判据出处 = D129b 的「苍蝇海 1 秒 9 次视角」回归：修好后每个单位的视角切换次数应远少于
+        /// 每秒 1 次（同向移动的单位切一次就稳定）。
+        /// </summary>
+        private static readonly Dictionary<string, int[]> ViewSwitchCount = new Dictionary<string, int[]>();
+
+        /// <summary>视角切换计数的汇总（每个目录一行 `dir total=N [_1=a _2=b …]`）。</summary>
+        public static string ViewSwitchReport()
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var kv in ViewSwitchCount)
+            {
+                var total = 0;
+                for (var i = 0; i < kv.Value.Length; i++) total += kv.Value[i];
+                sb.Append(kv.Key).Append(" total=").Append(total).Append(" [");
+                for (var i = 0; i < kv.Value.Length; i++)
+                    sb.Append(i == 0 ? "" : " ").Append('_').Append(i + 1).Append('=').Append(kv.Value[i]);
+                sb.Append("] ; ");
+            }
+            return sb.Length == 0 ? "(无视角切换)" : sb.ToString();
+        }
+
+        /// <summary>清空视角切换计数（驱动脚本在每个采样段开始时调，便于分段统计）。</summary>
+        public static void ResetViewSwitchCount() { ViewSwitchCount.Clear(); }
 
         // ───────────────────────────── 取用 / 归还 ─────────────────────────────
 
@@ -210,11 +256,18 @@ namespace CR.View
             {
                 // 尺寸口径：单位约 1 格宽，血条取 1.0×0.12（引擎默认值），离脚底 1.6 格
                 //（比默认 2.15 低 —— 我们的相机是"一格约一两百像素"的竖屏构图，2.15 会让血条飘太高）。
-                _hpBar = WorldHpBar.Create(transform, 1.0f, 0.12f, 1.6f, LogTag + ".Hp");
+                // `sortingOrder` 口径：血条必须**高于单位层、低于特效层**（推导见 `SortingOrder.HpBar`）。
+                // 不传的话 = 引擎默认 0（`UIWidgets.CreateQuad` 不写 `sortingOrder`）⇒ 血条被
+                // **自己单位的精灵**（`SortingOrder.Unit` = 1000+）盖住 —— 这是"血量看不见"的第二个原因。
+                _hpBar = WorldHpBar.Create(transform, 1.0f, 0.12f, 1.6f, LogTag + ".Hp", SortingOrder.HpBar);
                 _lastHp = -1;
                 _lastMaxHp = -1;
-                _barVisible = true;
             }
+            // 池复用必须**显式拉一次可见**：上一个宿主可能把这条血条 `SetVisible(false)` 过
+            //（那时它满血/阵亡），而 `_barVisible` 只是本类的镜像、`WorldHpBar` 内部还记着 false。
+            // 不拉这一下 ⇒ 同一个池对象第二次被取用时血条再也不出现（无报错的静默失败）。
+            if (_hpBar != null) _hpBar.SetVisible(true);
+            _barVisible = true;
 
             if (_spriteDir != (spriteDir ?? string.Empty) || _frames == null)
             {
@@ -238,12 +291,19 @@ namespace CR.View
             // 无任何可用帧段的目录（89 个里 44 个）保持"整目录循环"，只报一次（已登记差异，非静默降级）；
             // 部分档位不可用的目录在 ClipIndices 里按档位留痕。
             WarnIfUnmapped(isBuilding, _spriteDir);
+            AssertHpBarOrder();
 
             // 归一档位/位置：档位帧序列由 ClipIndices 现算（帧号语义），位置一律从 0 起（= 该档首帧）。
             _anim = AnimIdle;
             _animDone = false;
             _frameTimer = 0f;
-            _clip = ClipIndices(_spriteDir, _anim);
+            // D129c：换宿主必须把"已定朝向"复位 —— 新单位的第一帧还没有移动方向，
+            // 否则会**继承上一个宿主的朝向**（池复用的静默串味）。
+            _viewStep = 4;                     // 4 = 侧身朝右（φ=0°）= 旧行为（不翻）
+            _viewStepSet = false;
+            _hasMoveDir = false;
+            _viewNo = UnitAnimTable.StepToView[_viewStep];
+            _clip = ClipIndices(_spriteDir, _anim, _viewNo);
             _pos = 0;
             // 复用时必须重新贴帧：`Release()` 会松开 sprite 引用（避免池长期持有），
             // 若这里不补回，第二次取用同一个 spriteDir 就会得到"看不见的单位"（无报错的静默失败）。
@@ -252,29 +312,71 @@ namespace CR.View
 
         // ───────────────────────────── 每帧驱动 ─────────────────────────────
 
+        /// <summary>「血条排序层」断言只报一次的集合（每目录一次）。</summary>
+        private static readonly HashSet<string> HpBarOrderChecked = new HashSet<string>();
+
+        /// <summary>
+        /// 不变量断言（D129b）：血条的 `sortingOrder` 必须**严格高于单位层上界**
+        /// （`SortingOrder.Unit` + 纵深最大偏移），否则血条会被**自己单位的精灵**盖住
+        /// —— 这是"血量看不见"的第二个原因，且不报任何错（静默失败）。
+        /// 出处：单位层上界 = 1000 + 32 格 × 16 级 ÷ 2 = 1256（见 <see cref="Apply"/> 与 <see cref="SortingOrder.HpBar"/>）。
+        /// </summary>
+        private void AssertHpBarOrder()
+        {
+            if (_hpBar == null) return;
+            var upper = SortingOrder.Unit + Mathf.RoundToInt(GameConst.ArenaTilesH * 0.5f * 16f);
+            if (_hpBar.SortingOrder <= upper && HpBarOrderChecked.Add(_spriteDir))
+                Game.Logger?.Warn(LogTag,
+                    $"血条 sortingOrder={_hpBar.SortingOrder} <= 单位层上界 {upper} ⇒ 血条会被单位精灵盖住：dir={_spriteDir}");
+        }
+
         /// <summary>
         /// 用一条（已插值的）实体状态刷新表现。
         /// </summary>
         /// <param name="e">服务端实体快照（`EntitySnapshot`）。</param>
         /// <param name="worldPos">**已插值**的世界坐标（格，竞技场中心为原点）—— 由 `BattleViewRoot` 算好。</param>
         /// <param name="alpha">整条实体的透明度（部署期为半透明，见 `BattleViewRoot` 的说明）。</param>
-        public void Apply(EntitySnapshot e, Vector2 worldPos, float alpha)
+        /// <param name="moveDir">
+        /// **本插值窗口**两端快照的世界位移（格）= 服务端这一步的真实行进向量；
+        /// 无上一帧（刚落地）时为 `Vector2.zero`。⛔ 不要传逐帧插值位移（见 `FacingMinMoveTiles`）。
+        /// </param>
+        public void Apply(EntitySnapshot e, Vector2 worldPos, float alpha, Vector2 moveDir)
         {
             if (e == null) return;
 
-            transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
+            transform.position = new Vector3(worldPos.x, worldPos.y, DepthTiebreak(e.id));
 
-            // 朝向：契约 `facing` ∈ {-1, 1}；只有"向左"才翻。
-            if (_renderer != null) _renderer.flipX = e.facing < 0;
+            // 朝向 → 视角（D129c）：用**本窗口两端快照之差**求朝向极角 φ，再查映射表选视角
+            //（`UnitAnimTable.StepToView`，出处 `tools/probes/d129c-view-map.tsv`，由
+            // `tools/probes/d129c-yaw-verify.py` 的断言 A1–A6 + 负控保证）。
+            // 契约 `facing` ∈ {-1, 1} 只作为"一次都还没动过"时的左右兜底（与旧行为一致）。
+            if (UpdateFacing(moveDir, e.facing))
+            {
+                // 转身只是**换角度**、不是换动作 ⇒ 保持 `_pos`（只夹到新序列长度内），
+                // ⛔ 不许把走路/攻击从头播（那会让转身看起来像"卡了一下"）。
+                _clip = ClipIndices(_spriteDir, _anim, _viewNo);
+                if (_clip != null && _clip.Length > 0) _pos = Mathf.Clamp(_pos, 0, _clip.Length - 1);
+                RefreshSprite();
+            }
+            if (_renderer != null) _renderer.flipX = UnitAnimTable.StepFlip(_viewStep);
 
             // 档位切换：换档要**重置帧**，否则会从上一档的残留帧继续播（现象是"走路的第 30 帧直接接攻击"）。
+            // 但**不能每次都照单接受**：服务端的 `anim` 是"瞬时"的 —— 一次挥砍只在挥砍那一 tick 置
+            // `AnimAttack`（`server/game/core/combat.go:68-73`），下一 tick 就回 `AnimWalk`
+            //（`battle.go:525/533/536-539`）。若每 tick 都切，就会出现"攻击 1 帧 → 走路从第 0 帧重来"，
+            // 单位看起来在原地**抽搐**（= 用户报的第 2 条"抖动"。苍蝇海攻击间隔 1s、攻击段 7 帧时最明显）。
+            // 滞回规则（同档不重播 + 攻击播完才让位）：
+            //   ① 请求档 == 当前档 ⇒ 什么都不做（⛔ 绝不重新从 0 帧起播）；
+            //   ② 当前档是 **attack 且还没播完** ⇒ 扣住不放（除 `AnimDie` —— 死亡无条件立即生效）；
+            //   ③ 其余情况正常换档（换档当帧立刻贴新档首帧）。
             var anim = Mathf.Clamp(e.anim, AnimIdle, AnimDie);
-            if (anim != _anim)
+            var holdAttack = _anim == AnimAttack && !_animDone && anim != AnimDie;
+            if (anim != _anim && !holdAttack)
             {
                 _anim = anim;
                 // 换档必须**重算档位帧序列**并把位置归 0：否则会从上一档的残留位置继续播
                 //（现象 = "走路第 30 帧直接接攻击"），或按上一档的帧号序列取帧（档位帧号区间互不相同）。
-                _clip = ClipIndices(_spriteDir, _anim);
+                _clip = ClipIndices(_spriteDir, _anim, _viewNo);
                 _pos = 0;
                 _frameTimer = 0f;
                 _animDone = false;
@@ -291,9 +393,16 @@ namespace CR.View
             }
 
             // 深度排序：俯视视角下"越靠近屏幕下方（y 越小）越靠前"。
-            // 用世界 y 换算成排序值（每 0.5 格一级），避免同一行单位互相穿插。
+            // 粒度口径（D129b 取细）：旧值 = 每 0.5 格 1 级（`(16 - y) * 2`）⇒ 同一行里相距半格的
+            // 两个单位会拿到**同一个 order**，谁盖谁由渲染器枚举顺序决定（= 看起来"互相穿插"）。
+            // 现取 **16 级/格**（`(16 - y) * 16`）。上限推导（⛔ 不许超出层级预算）：
+            //   场地 32 格（`GameConst.ArenaTilesH`）× 16 = 512 级 ⇒ order ∈ [Unit-512, Unit+512]
+            //   = [488, 1512]；必须 > `SortingOrder.Tower`(50)、< `SortingOrder.HpBar`(2000) —— 两个约束都满足。
+            //   1 级 ≈ 1/16 格 ≈ 3.75 px（1080p 竖向构图一格约 60 px），已细于任何两个实体的最小可见纵深差。
+            // ⛔ 但 int 粒度到 1/16 格为止：**位置完全重合**的单位（苍蝇海一次 6 只落在同一格）必然同序，
+            //   谁盖谁又回到"渲染器枚举顺序"。第二键由 `DepthTiebreak`（只由 id 决定的微小 z）给出。
             if (_renderer != null)
-                _renderer.sortingOrder = SortingOrder.Unit + Mathf.RoundToInt((GameConst.ArenaTilesH * 0.5f - worldPos.y) * 2f);
+                _renderer.sortingOrder = SortingOrder.Unit + Mathf.RoundToInt((GameConst.ArenaTilesH * 0.5f - worldPos.y) * 16f);
 
             UpdateHpBar(e.hp, e.max_hp);
         }
@@ -307,8 +416,12 @@ namespace CR.View
             _lastMaxHp = maxHp;
             _hpBar.SetHp(hp, maxHp);
 
-            // 满血不显示血条（原版表现）；空血/死亡也不显示。
-            var visible = maxHp > 0 && hp > 0 && hp < maxHp;
+            // 血条常显（D129b 修正）：目标**活着**就显示（含满血）。
+            // 出处 = 原版对局图 `策划/基线图/03_对局_1320x2868.jpg`：满血蓝方国王塔的血条读数 `1740`
+            //（= 满血）与两座满血公主塔**都画着满格血条**；`策划/基线图/20_对局_1080x1920.jpg` 同。
+            // 旧口径 `hp < maxHp`（满血不显）⇒ 开局全部单位都没有血条 = 用户报的"血量看不见"的**主因**。
+            // 空血（`hp <= 0`，服务端已判死）不显示；`maxHp <= 0`（明细缺失）也不显示。
+            var visible = maxHp > 0 && hp > 0;
             if (visible != _barVisible)
             {
                 _barVisible = visible;
@@ -324,7 +437,7 @@ namespace CR.View
             var count = ClipCount();
             if (count <= 1) return;
 
-            var fps = FpsFor(_spriteDir, _anim);
+            var fps = FpsFor(_spriteDir, _anim, _viewNo);
             if (fps <= 0f) return;   // 0 = 该档"静止帧（不播）"（收录目录的 idle，见 FpsFor 出处）
             _frameTimer += Time.deltaTime * fps;
             while (_frameTimer >= 1f)
@@ -348,17 +461,135 @@ namespace CR.View
             }
         }
 
+        /// <summary>朝向档切换的**滞回半宽**（单位 = 档；0.25 档 = 5.625°）—— 避免在档边界上左右跳。</summary>
+        private const float ViewHysteresisSteps = 0.25f;
+
+        /// <summary>
+        /// 判定"确实在走"所需的**最小窗口位移**（格）。
+        /// <para>
+        /// ⛔ 不能取旧值 `1e-4`：服务端位置是**毫格**（<c>1e-3</c> 格）量化的，站着不动的单位
+        /// 也会因为插值窗口切换算出 ±2 毫格的位移；旧门槛把这种**舍入噪声**当成真实移动方向，
+        /// 于是朝向在 180° 两侧反复翻（实测 <c>.ai-tmp/test/D134-units.tsv</c>：<c>id=320</c>
+        /// frame 6062..6066 的 vstep 片段 <c>[4, 12, 12, 12, 4]</c>，而同期逐帧位移只有
+        /// <c>-0.002 格</c> —— 现象就是用户报的"人物又飘又抖"）。
+        /// </para>
+        /// <para>
+        /// 取值 0.01 格 = **10 倍量化步长**，同时远低于最小真实移速对应的窗口位移
+        /// （0.1 格/秒 × 100ms 快照间隔 = 0.01 格）⇒ 既滤掉噪声，也不会让慢速单位定不了朝向。
+        /// </para>
+        /// </summary>
+        private const float FacingMinMoveTiles = 0.01f;
+
+        /// <summary>
+        /// 由**窗口位移**更新朝向档；返回 `_viewNo` 是否变化（变化时调用方必须重算 `_clip`）。
+        /// <para>
+        /// 算式（出处 `tools/probes/d129c-view-map.tsv`）：`φ = atan2(dy, dx)`（度，+x 起算、+y = 远离镜头）
+        /// ⇒ `u = (90° − φ) / 22.5°`（连续档位，0 = 背身）⇒ `step = round(u) mod 16`。
+        /// </para>
+        /// <para>
+        /// <b>为什么入参是"窗口位移"而不是"逐帧插值位移"</b>：一个插值窗口内 `t` 从 0 推到 1，
+        /// 逐帧位移 = 窗口位移 × Δt，方向本应恒定；但服务端的毫格量化会让站立单位的逐帧位移
+        /// 在 ±0.002 格之间抖，方向随之翻 180°。窗口位移 = 两端快照之差 = **服务端这一步的
+        /// 真实行进向量**，在一个窗口内恒定 ⇒ 朝向天然稳定（见 <see cref="FacingMinMoveTiles"/>）。
+        /// </para>
+        /// <para>站桩（窗口位移低于门槛）保持上一次朝向；一次都没动过 ⇒ 用 `facing` 的左右兜底。</para>
+        /// </summary>
+        private bool UpdateFacing(Vector2 moveDir, int facing)
+        {
+            if (moveDir.sqrMagnitude >= FacingMinMoveTiles * FacingMinMoveTiles)
+            {
+                _moveDir = moveDir;
+                _hasMoveDir = true;
+            }
+
+            var dirv = _hasMoveDir ? _moveDir : new Vector2(facing >= 0 ? 1f : -1f, 0f);
+            var u = (90f - Mathf.Atan2(dirv.y, dirv.x) * Mathf.Rad2Deg) / 22.5f;
+
+            var step = _viewStep;
+            if (!_viewStepSet)
+            {
+                _viewStepSet = true;
+                step = Wrap16(Mathf.RoundToInt(u));      // 首次直接吸附（不做滞回）
+            }
+            else
+            {
+                var diff = u - _viewStep;
+                diff -= Mathf.Round(diff / 16f) * 16f;   // 折到 [-8, 8]（环绕）
+                if (Mathf.Abs(diff) > 0.5f + ViewHysteresisSteps) step = Wrap16(Mathf.RoundToInt(u));
+            }
+
+            if (step == _viewStep) return false;
+            _viewStep = step;
+            _viewNo = UnitAnimTable.StepToView[step];
+
+            int[] cnt;
+            if (!ViewSwitchCount.TryGetValue(_spriteDir ?? string.Empty, out cnt))
+            {
+                cnt = new int[9];
+                ViewSwitchCount[_spriteDir ?? string.Empty] = cnt;
+            }
+            cnt[_viewNo - 1]++;
+            return true;
+        }
+
+        private static int Wrap16(int v)
+        {
+            v %= 16;
+            return v < 0 ? v + 16 : v;
+        }
+
+        /// <summary>
+        /// 同 `sortingOrder` 下的**确定性次序键**：一个只由实体 id 决定的微小 z 偏移。
+        /// <para>
+        /// <b>为什么需要它</b>：`sortingOrder` 的粒度是 1/16 格（见 <see cref="Apply"/>），
+        /// 位置**完全重合**的单位（苍蝇海一次 6 只落在同一格、射手对叠在桥口）拿到的是**同一个**
+        /// `sortingOrder`；两个 SpriteRenderer 同层同序时，Unity 由"枚举顺序"决定先后 ——
+        /// 每帧都可能不同 ⇒ 同一像素上两张不同动画帧的贴图互相翻盖 = 用户报的"苍蝇海打人时抽搐"。
+        /// 实测出处：`tools/probes/d134-jitter.py` 判据 D 在 `.ai-tmp/test/D134-units.tsv` 上
+        /// 命中的 7 组（如 <c>frame=5907 pos=(-5.5,2.5) n=3 order=[1216,1216,1216]</c>，
+        /// 三只 `chr_minion_out` 同格）。
+        /// </para>
+        /// <para>
+        /// <b>为什么用 z 而不是再塞进 sortingOrder</b>：`sortingOrder` 是 int，再细分就会
+        /// 撞穿 `SortingOrder.Tower`(50) 与 `SortingOrder.HpBar`(2000) 的层级预算（见 <see cref="Apply"/> 的推导）。
+        /// z 则是渲染器在**同一 `sortingOrder` 内**的次级排序键，官方口径（Unity Manual「2D 渲染顺序」：
+        /// 排序层 → 层内顺序 → 渲染队列 → **距离** → 排序组 → 材质；其中「距离」条目明写
+        /// "正交：Unity 使用从相机平面到游戏对象中心的距离。**要控制渲染顺序，请增加或减少游戏对象
+        /// Transform 组件中的 z 位置。**"，同页又写明"若两个游戏对象上述值都相同，Unity 用内部渲染队列
+        /// 顺序决定先后 —— **此顺序是不固定的，您无法控制**"，正是本缺陷的成因）：
+        /// `https://docs.unity3d.org.cn/Manual/sprite/sort-sprites/sort-sprites.html`
+        /// 且本工程的相机是**正交**的（实测 <c>ortho=True</c>）⇒ z 不改变投影位置，只决定先后。
+        /// </para>
+        /// <para>
+        /// <b>为什么只由 id 决定</b>：必须**逐帧稳定**。若用任何随时间变化的量（如帧号、lerp 进度），
+        /// 次序会来回翻，等于没修。id 在一次对局内不变 ⇒ 同格堆叠中"新召唤的压在上面"，与直觉一致。
+        /// 步长 `1e-4` 格 × 上限 255 ⇒ 最大 z 偏移 0.0255 格，远小于 1 个 `sortingOrder` 级（1/16 格 = 0.0625 格）。
+        /// </para>
+        /// </summary>
+        private static float DepthTiebreak(int id)
+        {
+            var k = id % DepthTiebreakMod;
+            if (k < 0) k += DepthTiebreakMod;
+            return k * DepthTiebreakStep;
+        }
+
+        /// <summary>`DepthTiebreak` 每步的 z 偏移（格）。</summary>
+        private const float DepthTiebreakStep = 1e-4f;
+
+        /// <summary>`DepthTiebreak` 取模基数（决定可区分的同格堆叠上限 = 256 只）。</summary>
+        private const int DepthTiebreakMod = 256;
+
         /// <summary>
         /// 当前档位的**帧下标序列**（把帧段表的**帧号**经 <see cref="SpriteBank.FrameNumberMap"/> 换算成下标）。
         /// 返回 `null` = 该档没有可用帧段（目录未收录 / 该档 `Known==false` / 帧号一帧都解析不出）
         /// ⇒ 调用方回落「整目录」。
         /// </summary>
-        private int[] ClipIndices(string dir, int anim)
+        private int[] ClipIndices(string dir, int anim, int view)
         {
             if (_frames == null || _frames.Length == 0 || _spritePath.Length == 0) return null;
             if (anim < 0 || anim > AnimDie) return null;
 
-            var key = (int)_pivotMode + "|" + _spritePath + "|" + anim;
+            var key = (int)_pivotMode + "|" + _spritePath + "|" + anim + "|" + view;
             int[] cached;
             if (ClipIndexCache.TryGetValue(key, out cached)) return cached.Length == 0 ? null : cached;
 
@@ -368,9 +599,12 @@ namespace CR.View
                 && anim < entry.Tiers.Length && entry.Tiers[anim].Known)
             {
                 var clip = entry.Tiers[anim];
+                // D129c：优先取**当前朝向对应视角**的帧段（`ViewRuns[view-1]`，出处
+                // `.ai-tmp/test/D129b-clip-segments.tsv`）；该视角无素材 ⇒ 回落 `clip.Runs`（默认视角）。
+                var runs = UnitAnimTable.RunsForView(clip, view) ?? clip.Runs;
+                var want = UnitAnimTable.CountOfRuns(runs);
                 var map = SpriteBank.FrameNumberMap(_spritePath, _pivotMode);
-                var list = new List<int>(clip.Count);
-                var runs = clip.Runs;
+                var list = new List<int>(want);
                 if (runs != null)
                 {
                     for (var r = 0; r + 1 < runs.Length; r += 2)
@@ -380,15 +614,16 @@ namespace CR.View
                             if (idx >= 0 && idx < _frames.Length) list.Add(idx);
                         }
                 }
-                if (list.Count > 1) result = list.ToArray();
-                else if (UnknownTierWarned.Add(dir))
-                    // 非预期分支必须留痕：段表有帧、但帧号→下标解析不出（非恒等目录的缺项）⇒ 静默变"木头人"是最难查的。
-                    Game.Logger?.Warn(LogTag,
-                        $"帧段解析出的可用帧 {list.Count} 帧（该目录帧号→下标有缺项）⇒ 该档回落整目录：dir={dir} anim={TierName(anim)} 段表帧数={clip.Count} frames.Length={_frames.Length}");
+                if (list.Count >= 1) result = list.ToArray();
+                else
+                    // 非预期分支必须留痕：段表有帧、但帧号→下标**一帧都解析不出**（非恒等目录的缺项）⇒
+                    // 静默变"木头人"是最难查的。去重走引擎的**进程级**闸门（键 = 目录）。
+                    LogThrottle.WarnOnce(LogTag, "tier:" + dir,
+                        $"帧段解析出的可用帧 0 帧（该目录帧号→下标全部缺项）⇒ 该档回落整目录：dir={dir} anim={TierName(anim)} view={view} 段表帧数={want} frames.Length={_frames.Length}");
             }
-            else if (UnknownTierWarned.Add(dir))
+            else
                 // 目录在表里但该档不可用（素材无此动画 / `.sc` 引用越界 shapeID）⇒ 整目录（已登记差异，每目录一次）。
-                Game.Logger?.Warn(LogTag,
+                LogThrottle.WarnOnce(LogTag, "tier:" + dir,
                     $"该档位不可用（素材无此动画 / `.sc` 越界 shapeID）⇒ 整目录循环播（已登记差异）：dir={dir} anim={TierName(anim)}");
 
             ClipIndexCache[key] = result ?? System.Array.Empty<int>();
@@ -439,9 +674,11 @@ namespace CR.View
 
         private void AdvanceEnd()
         {
-            if (_anim == AnimDie)
+            if (_anim == AnimDie || _anim == AnimAttack)
             {
-                // 死亡：停在末帧（⛔ 不循环 —— 循环会让尸体反复站起来）
+                // 死亡：停在末帧（⛔ 不循环 —— 循环会让尸体反复站起来）。
+                // 攻击：**播完一遍就停在末帧**（配合 `Apply` 的滞回：攻击段没播完时不让位给 walk/idle，
+                //   否则"挥砍只播 1 帧就被走路打断"= 抽搐）。下一档请求到来时 `Apply` 会重置 `_animDone`。
                 _animDone = true;
                 _pos = Mathf.Max(0, ClipCount() - 1);
             }
@@ -454,23 +691,27 @@ namespace CR.View
         /// <summary>
         /// 当前目录+档位的播放帧率（帧/秒）。出处 = `策划/单位帧段表.md` §3 + `server/game/table/tsv/unit.tsv`：
         /// <list type="bullet">
-        /// <item>**idle**：`0f` —— 表里 idle 是「静止姿态帧」（9 视角各 1 帧）⇒ **不播**，停在首帧。</item>
+        /// <item>**idle**：`0f` —— 表里 idle 是**所取单条 clip** 的静止姿态帧（knight / musketeer / archer /
+        /// giant / minion 取到的那条 `_5` clip 里，idle 都只有 1 帧）⇒ 按 `0f` **不播**、停在首帧。</item>
         /// <item>**walk**（原版 `run1`）：该目录 `.sc` 自带 FPS（`UnitAnimTable.Entry.ScFps`）。</item>
         /// <item>**attack**：`攻击段帧数 ÷ (hit_speed_ms ÷ 1000)` ⇒ **攻击段播完一遍 == `hit_speed_ms`**。</item>
         /// <item>**die**：同 walk（素材无死亡动画 ⇒ 该档 `Known==false` ⇒ 实际走不到这里）。</item>
         /// </list>
         /// 未收录目录 / 未覆盖档位 ⇒ 回落 <see cref="AnimFps"/> 默认值。
         /// </summary>
-        private static float FpsFor(string dir, int anim)
+        private static float FpsFor(string dir, int anim, int view)
         {
             UnitAnimTable.Entry entry;
             if (UnitAnimTable.TryGet(dir ?? string.Empty, out entry) && entry.Tiers != null
                 && anim >= 0 && anim < entry.Tiers.Length && entry.Tiers[anim].Known)
             {
                 var clip = entry.Tiers[anim];
+                // D129c：帧数按**当前视角**算（各视角帧数可能不同；attack 的 fps 随之缩放 ⇒
+                // 「攻击段播完一遍 == hit_speed_ms」这条对任何视角都成立）。
+                var runs = UnitAnimTable.RunsForView(clip, view) ?? clip.Runs;
                 if (anim == AnimIdle) return 0f;                                  // 静止帧：不播
                 if (anim == AnimAttack && entry.HitSpeedMs > 0)
-                    return clip.Count / (entry.HitSpeedMs / 1000f);               // = 攻击段帧数 ÷ 秒
+                    return UnitAnimTable.CountOfRuns(runs) / (entry.HitSpeedMs / 1000f);   // = 攻击段帧数 ÷ 秒
                 if (entry.ScFps > 0) return entry.ScFps;                          // walk / die：.sc 自带帧率
             }
             return AnimFps[Mathf.Clamp(anim, 0, AnimFps.Length - 1)];
@@ -540,8 +781,11 @@ namespace CR.View
             AssertAttackTiming(_spriteDir);
         }
 
-        /// <summary>「档位不可用 ⇒ 整目录」与「帧段解析不出」的去重集合（每目录一次）。</summary>
-        private static readonly HashSet<string> UnknownTierWarned = new HashSet<string>();
+        // ★ 「档位不可用 ⇒ 整目录」与「帧段解析不出」这两条告警原来各自持一个
+        //   `static HashSet<string> UnknownTierWarned`（每目录一次）。生命周期 = **进程级**
+        //   （static HashSet、从不清空）⇒ 已改用引擎的 `LogThrottle.WarnOnce`
+        //   （`Runtime/Core/LogThrottle.cs:164`，键 = `"tier:" + dir`），⛔ 不再自持第二套去重集合。
+        //   出处：引擎 sink-a3 台账原话「不再写第二套去重（已有同类能力不准再起第二套）」。
 
         /// <summary>目录**一个可用档位都没有**（未收录 / 4 档全 Unknown）的**单位**目录只报一次
         /// （整目录循环 = 已登记差异，非静默降级）。</summary>
@@ -604,9 +848,9 @@ namespace CR.View
     /// <summary>
     /// 渲染层级（sortingOrder）常量 —— 唯一定义处，避免各 View 各写一个数字导致"底图盖住单位"。
     /// <para>
-    /// 约定（后画 = 数值大）：底图 0 / 装饰 10 / **塔** 50 / **落点指示** 200 / **单位** 1000+（单位按世界 y 再加 0..64 的深度）
-    /// / 塔的血条由 <see cref="WorldHpBar"/> 的 3D 位置决定，不在这里。
-    /// 单位给到 1000 是因为它要按世界 y 做深度排序（每 0.5 格一级，最多 32 格 ⇒ 至多 +64），
+    /// 约定（后画 = 数值大）：底图 0 / 装饰 10 / **塔** 50 / **落点指示** 200 / **单位** 1000+（单位按世界 y
+    /// 再加 ±512 的深度）/ **血条** 2000 / **特效** 3000（`EffectsView.SortOrder`，不在本类里）。
+    /// 单位给到 1000 是因为它要按世界 y 做深度排序（16 级/格、32 格 ⇒ ±512），
     /// 与塔的 50 之间留足空隙，避免"站在塔前面的兵被塔盖住"。
     /// </para>
     /// </summary>
@@ -626,6 +870,17 @@ namespace CR.View
 
         /// <summary>单位基准层级（+ 世界 y 深度，见 <see cref="UnitView.Apply"/>）。</summary>
         public const int Unit = 1000;
+
+        /// <summary>
+        /// 头顶血条（<see cref="WorldHpBar"/> 的两个 Quad）。
+        /// <para>
+        /// **必须高于单位层、低于特效层**：<c>1000 + 512 = 1512 &lt; 2000 &lt; 3000</c>。
+        /// 出处：单位层上界由 <see cref="Unit"/> + 32 格 × 16 级（见 <see cref="UnitView.Apply"/>）算得 1512；
+        /// 特效层 = <c>EffectsView.SortOrder</c> = 3000。取中间的整千 2000，给两侧各留 ≥480 的余量。
+        /// ⛔ 引擎默认是 0（`UIWidgets.CreateQuad` 不写 `sortingOrder`）⇒ 血条会被**自己单位的精灵**盖住。
+        /// </para>
+        /// </summary>
+        public const int HpBar = 2000;
     }
 
     /// <summary>
@@ -655,6 +910,17 @@ namespace CR.View
         public const float FallbackPixelsPerUnit = 100f;
 
         private static readonly Dictionary<string, Sprite[]> Cache = new Dictionary<string, Sprite[]>();
+
+        /// <summary>
+        /// 降级留痕（每目录一次）的去重集合。
+        /// <para>
+        /// ⚠️ **为什么这里<b>不</b>换 `LogThrottle.WarnOnce`**（与 `UnknownTierWarned` 的区别）：
+        /// 本集合在 <see cref="ClearCache"/> 里被 `Warned.Clear()` 清空 —— 它的生命周期是
+        /// **帧缓存生命周期**（出图时清），不是进程级。换成进程级的 `WarnOnce` 会让「第 2 局又取不到
+        /// 素材」这类事**静默**（与 `BattleManager._seqWarned`「每局重置」同一条理由：
+        /// `LogThrottle.Reset()` 是全量清 ⇒ 会连带清掉别的系统的限频记录，是越界副作用）。
+        /// </para>
+        /// </summary>
         private static readonly HashSet<string> Warned = new HashSet<string>();
 
         /// <summary>
@@ -763,7 +1029,14 @@ namespace CR.View
         /// <summary>「帧号 → 扁平化下标」映射缓存（键与 <see cref="LoadDir(string, SpritePivotMode)"/> 同）。</summary>
         private static readonly Dictionary<string, int[]> FrameNoMap = new Dictionary<string, int[]>();
 
-        /// <summary>「帧号 → 下标」恒等断言的去重集合（每个目录只打印一次）。</summary>
+        /// <summary>
+        /// 「帧号 → 下标」恒等断言的去重集合（每个目录只打印一次）。
+        /// <para>
+        /// ⚠️ **为什么这里<b>不</b>换 `LogThrottle.WarnOnce`**：本集合在 <see cref="ClearCache"/>
+        /// 里被 `FrameNoMapLogged.Clear()` 清空（与 <see cref="Warned"/> 同理）⇒ 生命周期是
+        /// **帧缓存生命周期**而非进程级；换成进程级闸门会让重进对局后的恒等断言不再打印。
+        /// </para>
+        /// </summary>
         private static readonly HashSet<string> FrameNoMapLogged = new HashSet<string>();
 
         /// <summary>

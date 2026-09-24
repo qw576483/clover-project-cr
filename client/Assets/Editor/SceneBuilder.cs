@@ -1,4 +1,5 @@
 using System.IO;
+using CloverEngine;
 using CR;
 using CR.App;
 using CR.Module.Flow;
@@ -33,6 +34,15 @@ namespace CR.EditorTools
     {
         private const string Tag = "SceneBuilder";
 
+        // 本文件原先用裸 `Debug.Log*`（7 处）。引擎规矩 = 客户端日志一律走 `Game.Logger`
+        // （`ILogger`，⛔ 裸 `Debug.Log`）。此前担心的"Editor 期 `Game.Logger` 可能未就绪"**已核实不成立**：
+        // `Runtime/Core/Game.cs:149` `public static ILogger Logger { get; private set; } = ConsoleLogger.Instance;`
+        // 且 `Runtime/Core/ConsoleLogger.cs` 的类注释逐字写着「现在 `Game.Logger` **永不为 null**：
+        // 未 Launch 时指向本类（写 Console，测试里直接可见），Launch 后同样回到本类」
+        // ⇒ Editor 编辑模式（未 Play / 未 Launch）下调 `Game.Logger?.Xxx(tag, msg)` 一样进 Unity Console，
+        // 且输出格式 `[时间] [级别] [tag] 消息` 与运行时文件日志同格式、可按时间逐行对齐。
+        // ⛔ 不发明 Logger 包装类（引擎已有唯一入口，起第二套 = 违规）。
+
         /// <summary>场景目录（相对工程根）。</summary>
         public const string ScenesDir = "Assets/Scenes";
 
@@ -58,7 +68,7 @@ namespace CR.EditorTools
             if (EditorApplication.isPlaying)
             {
                 // 非预期分支：Play 模式下改场景会被 Unity 丢弃。留痕，别静默什么都不做。
-                Debug.LogError($"[{Tag}] 正处于 Play 模式，请先退出 Play 再生成场景");
+                Game.Logger?.Error(Tag, "正处于 Play 模式，请先退出 Play 再生成场景");
                 return;
             }
 
@@ -72,7 +82,7 @@ namespace CR.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log($"[{Tag}] 完成：{BootScenePath} + {MainScenePath} + {BattleScenePath} 已生成并写入 Build Settings");
+            Game.Logger?.Info(Tag, $"完成：{BootScenePath} + {MainScenePath} + {BattleScenePath} 已生成并写入 Build Settings");
         }
 
         /// <summary>只读校验：三个场景文件在不在、Build Settings 里有没有（供验收取证用）。</summary>
@@ -86,9 +96,9 @@ namespace CR.EditorTools
                           && CountInBuildSettings(MainScenePath) > 0
                           && CountInBuildSettings(BattleScenePath) > 0;
 
-            Debug.Log($"[{Tag}] 校验：{BootScenePath}={(bootOk ? "存在" : "缺失")} " +
-                      $"{MainScenePath}={(mainOk ? "存在" : "缺失")} " +
-                      $"{BattleScenePath}={(battleOk ? "存在" : "缺失")} BuildSettings={(inBuild ? "已写入" : "缺失")}");
+            Game.Logger?.Info(Tag, $"校验：{BootScenePath}={(bootOk ? "存在" : "缺失")} " +
+                                   $"{MainScenePath}={(mainOk ? "存在" : "缺失")} " +
+                                   $"{BattleScenePath}={(battleOk ? "存在" : "缺失")} BuildSettings={(inBuild ? "已写入" : "缺失")}");
         }
 
         // ───────────────────────── 场景内容 ─────────────────────────
@@ -117,7 +127,7 @@ namespace CR.EditorTools
             AddCamera();
 
             var saved = EditorSceneManager.SaveScene(scene, BootScenePath);
-            Debug.Log($"[{Tag}] {BootScenePath} 保存{(saved ? "成功" : "**失败**")}（含 Bootstrap 组件）");
+            Game.Logger?.Info(Tag, $"{BootScenePath} 保存{(saved ? "成功" : "**失败**")}（含 Bootstrap 组件）");
         }
 
         /// <summary>
@@ -147,7 +157,7 @@ namespace CR.EditorTools
             AddCamera();
 
             var saved = EditorSceneManager.SaveScene(scene, MainScenePath);
-            Debug.Log($"[{Tag}] {MainScenePath} 保存{(saved ? "成功" : "**失败**")}（含 Bootstrap 组件）");
+            Game.Logger?.Info(Tag, $"{MainScenePath} 保存{(saved ? "成功" : "**失败**")}（含 Bootstrap 组件）");
         }
 
         /// <summary>
@@ -168,8 +178,8 @@ namespace CR.EditorTools
             cam.orthographicSize = GameConst.ArenaTilesH * 0.5f;
 
             var saved = EditorSceneManager.SaveScene(scene, BattleScenePath);
-            Debug.Log($"[{Tag}] {BattleScenePath} 保存{(saved ? "成功" : "**失败**")}" +
-                      $"（空场景 + 正交相机 size={cam.orthographicSize}）");
+            Game.Logger?.Info(Tag, $"{BattleScenePath} 保存{(saved ? "成功" : "**失败**")}" +
+                                   $"（空场景 + 正交相机 size={cam.orthographicSize}）");
         }
 
         /// <summary>建一台 2D 用相机（正交、纯色清屏、带 AudioListener）。</summary>
@@ -210,8 +220,8 @@ namespace CR.EditorTools
             };
             EditorBuildSettings.scenes = scenes;
 
-            Debug.Log($"[{Tag}] EditorBuildSettings.scenes 已写入 {scenes.Length} 条：" +
-                      $"[0] {BootScenePath} [1] {MainScenePath} [2] {BattleScenePath}");
+            Game.Logger?.Info(Tag, $"EditorBuildSettings.scenes 已写入 {scenes.Length} 条：" +
+                                   $"[0] {BootScenePath} [1] {MainScenePath} [2] {BattleScenePath}");
         }
 
         private static int CountInBuildSettings(string path)

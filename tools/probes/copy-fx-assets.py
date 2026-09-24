@@ -10,7 +10,7 @@
 落点： client/Assets/Resources/Sprites/Effects/<用途>/frame_NNN.png   （NNN = **原版源帧号**）
       （命名规则与 `Core/ResPaths.cs` 的 `FrameName` 必须一致：`frame_` + 3 位十进制）
 
-⛔ **只复制 RANGES 里列的那几组**（37 张）；612 帧整目录搬是被明令禁止的。
+⛔ **只复制 RANGES 里列的那几组**（38 张）；612 帧整目录搬是被明令禁止的。
    要哪几组、为什么，见 `.ai-tmp/test/F1-特效帧辨认.md`（逐帧看图结论）。
 
 导入设置 = **照抄 `client/Assets/Resources/Sprites/Ui/loading_bg.png.meta`** 的 TextureImporter
@@ -42,6 +42,10 @@ RANGES = [
     ("Hit", 50, 56),        # 命中/受击闪光：紫光球→黄光球→白四角星芒→淡蓝碎冰
     ("Blast", 418, 427),    # 爆炸/塔毁：黄橙漩涡大火球（由大缩到亮核）
     ("Arrow", 440, 459),    # 弹道/飞行物：红羽白镞箭矢
+    # 出牌落地（D132）：原版 export `deploy_arrows_effect`（clip 354，档位=spawn）的 timeline 16 条
+    # 记录**全部指向同一像素帧 f119** ⇒ 只需落地这一帧。出处 `策划/单位动画分组表.md:5021`
+    # （同表 `:4725` 的 `deploy_arrows` 同 clip）。像素内容 = 绿色上箭头（474×537 画布内 34×38）。
+    ("Deploy", 119, 119),
 ]
 
 

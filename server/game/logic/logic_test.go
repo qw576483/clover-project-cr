@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"clover-cr/game/core"
+	"clover-cr/game/table"
 )
 
 // 本文件是**离线秒级断言**（不依赖起服 / redis / mysql，`go test ./game/logic/ -count=1`）：
@@ -123,24 +124,128 @@ func TestCheckDeckRejects(t *testing.T) {
 	t.Logf("卡组校验：合法（%d 张）通过；7 张 / 重复 / 不存在 均被拒", deckSize)
 }
 
-// TestAIDeckIsTroopDeck AI 卡组必须是 8 张可解析的**部队卡**
-// （原因见 ai.go buildAIDeck：镜像全法术卡组会让 AI 一步都不走）。
-func TestAIDeckIsTroopDeck(t *testing.T) {
+// TestAIDeckMatchesReferenceDefaultDeck AI 卡组必须**逐张等于**参考实现的 `DEFAULT_DECK`。
+//
+// ★ D148：这条断言取代了旧的 `TestAIDeckIsTroopDeck`（旧断言要求"8 张全是部队卡"）。
+// 旧口径正是缺陷本身：它把法术卡整个排除在 AI 卡组外 ⇒ `core/ai.go::decideSpell` 永不触发
+// ⇒ 玩家整局看不到对手放法术（用户第 9 条「卡的实现没看到法术」）。
+//
+// 出处 = `原版资源/cr-sim/cr_sim/train/run.py:55` 的 `DEFAULT_DECK`
+// （也在 `cr_sim/play/server.py:46`）：Knight, Musketeer, Cannon, Skeletons,
+// IceSpirits, Log, Fireball, Goblins —— 6 部队/建筑 + **2 法术**。
+//
+// 为什么"含法术"这条断言自己也能失败（防"恒绿"）：它逐个核 `core.CardDef.Kind`，
+// 数出法术张数必须 == 2；若谁把 `aiDeckRefKeys` 改回全部队卡，这条立刻红。
+func TestAIDeckMatchesReferenceDefaultDeck(t *testing.T) {
+	const wantSpells = 2 // cr-sim train/run.py:55 DEFAULT_DECK 里的法术张数（Log + Fireball）
+
 	ct := testTable(t)
 	deck := buildAIDeck(ct)
 	if len(deck) != deckSize {
 		t.Fatalf("AI 卡组应为 %d 张，实际 %d 张", deckSize, len(deck))
 	}
+
+	// ① 逐张对上参考卡组的 key（顺序也要对 —— `DEFAULT_DECK` 是有序元组）。
+	wantKeys := []string{"knight", "musketeer", "cannon", "skeletons", "ice-spirit", "the-log", "fireball", "goblins"}
+	gotKeys := make([]string, 0, len(deck))
 	for _, id := range deck {
 		cd, ok := ct.Card(id)
 		if !ok || cd == nil {
 			t.Fatalf("AI 卡组里的卡 %d 解析不到", id)
 		}
-		if cd.Kind != core.CardTypeTroop {
-			t.Fatalf("AI 卡组里的卡 %d(%s) 不是部队卡（kind=%d）", id, cd.Key, cd.Kind)
+		gotKeys = append(gotKeys, cd.Key)
+	}
+	for i := range wantKeys {
+		if gotKeys[i] != wantKeys[i] {
+			t.Fatalf("AI 卡组第 %d 张应为 %s（参考 DEFAULT_DECK），实际 %s（全组 %v）",
+				i, wantKeys[i], gotKeys[i], gotKeys)
 		}
 	}
-	t.Logf("AI 卡组 = %v", deck)
+
+	// ② 法术张数 == 2，且每张法术都真的带上了 SpellDef（否则 decideSpell 仍然打不出去）。
+	spells := 0
+	for _, id := range deck {
+		cd, _ := ct.Card(id)
+		if cd.Kind != core.CardTypeSpell {
+			continue
+		}
+		spells++
+		if cd.Spell == nil {
+			t.Fatalf("AI 卡组的法术卡 %d(%s) 没有 SpellDef ⇒ decideSpell 照样打不出去", id, cd.Key)
+		}
+		if cd.Spell.RadiusMilli <= 0 {
+			t.Fatalf("AI 卡组的法术卡 %d(%s) 半径 <= 0 ⇒ decideSpell 会 `continue` 跳过它", id, cd.Key)
+		}
+	}
+	if spells != wantSpells {
+		t.Fatalf("AI 卡组应含 %d 张法术（参考 DEFAULT_DECK），实际 %d 张（全组 %v）", wantSpells, spells, gotKeys)
+	}
+
+	// ③ 6 张非法术（部队/建筑）——与参考卡组同构。
+	if troops := len(deck) - spells; troops != deckSize-wantSpells {
+		t.Fatalf("AI 卡组应含 %d 张部队/建筑，实际 %d 张", deckSize-wantSpells, troops)
+	}
+
+	t.Logf("AI 卡组 = %v（法术 %d 张）", gotKeys, spells)
+}
+
+// TestBuildAIDeckDegradesLoudlyWhenRefCardMissing 负控：参考卡组点名的卡在本表里缺失时，
+// `buildAIDeck` 必须**仍然凑满 8 张**（否则 `room.go` 的"座位没有 8 张卡组"会让 AI 房开不了局），
+// 而且要打到 Warn（"配表与参考实现脱节"不许静默）。
+//
+// 做法：拿真表**复制一份**、从 `cardRows` 里摘掉 `fireball` 那一行 ⇒ 只影响这一条断言，
+// ⛔ 不动盘上的 tsv。
+func TestBuildAIDeckDegradesLoudlyWhenRefCardMissing(t *testing.T) {
+	ct := testTable(t)
+
+	trimmed := &cardTable{
+		cards:    ct.cards,
+		units:    ct.units,
+		cardRows: make([]*table.CardRow, 0, len(ct.cardRows)),
+	}
+	removed := false
+	for _, row := range ct.cardRows {
+		if row.Key == "fireball" {
+			removed = true
+			continue
+		}
+		trimmed.cardRows = append(trimmed.cardRows, row)
+	}
+	if !removed {
+		t.Fatalf("负控自身失效：card 表里找不到 key=fireball，无法构造缺卡场景")
+	}
+
+	deck := buildAIDeck(trimmed)
+	if len(deck) != deckSize {
+		t.Fatalf("缺参考卡时应降级补齐到 %d 张，实际 %d 张", deckSize, len(deck))
+	}
+	seen := make(map[int32]bool, len(deck))
+	for _, id := range deck {
+		if seen[id] {
+			t.Fatalf("降级补齐后出现重复 id=%d（全组 %v）", id, deck)
+		}
+		seen[id] = true
+		if _, ok := ct.Card(id); !ok {
+			t.Fatalf("降级补齐塞进了卡池外的 id=%d", id)
+		}
+	}
+	// 缺的是 fireball ⇒ 降级结果里必然没有它（补进来的是配表顺序里的下一张）。
+	if seen[fireballID(t, ct)] {
+		t.Fatalf("fireball 已被摘掉，降级结果里不该出现它（全组 %v）", deck)
+	}
+	t.Logf("缺 fireball 时的降级卡组 = %v（%d 张，无重复）", deck, len(deck))
+}
+
+// fireballID 取 `fireball` 的卡 id（负控断言要用；找不到就 Fatal）。
+func fireballID(t *testing.T, ct *cardTable) int32 {
+	t.Helper()
+	for _, row := range ct.cardRows {
+		if row.Key == "fireball" {
+			return int32(row.Id)
+		}
+	}
+	t.Fatalf("card 表里找不到 key=fireball")
+	return 0
 }
 
 // newTestBattle 用两个 AI 卡组开一局（离线，不碰引擎）。
@@ -271,12 +376,18 @@ func cardTableOf(t *testing.T, _ *core.Battle) *cardTable {
 
 // TestRoomRegistryDisconnectCleanup 断线清理的业务侧簿记（离线）。
 //
-// ★ 为什么只能离线验：本引擎在**连接关闭**时 gwcore.cleanup 会 panic
-// （`index out of range [-1]`，session.go:1280 的 "清尾" 写在 append 截断之后），
-// 而派发断线事件的代码在它**之后**（session.go:1340），所以 panic 一发生
-// `OnDisconnect` 就永远不会触发（实测：关掉客户端连接后服务端 0 条日志、
-// stderr 三条同款 panic 栈 = 三个客户端）。引擎缺陷不在本片可写范围内，
-// 因此这里把「断线后该发生什么」在注册表层钉成断言，等引擎修好后 end-to-end 自然生效。
+// ⚠️ **旧结论已失效（2026-09-24 复核）**：本注释原先逐字写着「本引擎在**连接关闭**时
+// gwcore.cleanup 会 panic（`index out of range [-1]`，session.go 的 "清尾" 写在 append
+// 截断之后），而派发断线事件的代码在它之后 ⇒ `OnDisconnect` 永远不会触发」。**引擎已修**：
+// `clover-server-engine/internal/transport/gateway/gwcore/session.go` 的会话摘除已改成
+// 「先在**原长度**上清尾（`sessions[n-1] = nil`）再 `sessions = sessions[:n-1]` 截断」，
+// 同处注释逐字记着原缺陷的因果（append 截断之后 len 已 -1 ⇒ 清的是最后一条**存活**会话，
+// 且本会话是唯一一条时对 `sessions[-1]` 赋值越界 panic ⇒ 尾部
+// fireHardDisconnect → OnDisconnect 永不执行）⇒ **断线事件派发现在可达**。
+//
+// 本测试**仍然离线**（不改回 end-to-end）是有意的：它判的是「断线后**注册表**该发生什么」——
+// 那是业务侧 `roomRegistry.detach` 的簿记语义，与服务端连接层是否 panic 无关；
+// 钉在注册表层比端到端更稳（端到端还要起 gateway + 真连接，判据会变脆）。
 func TestRoomRegistryDisconnectCleanup(t *testing.T) {
 	ct := testTable(t)
 	r := newRoomRegistry()
@@ -364,4 +475,65 @@ func TestRoomRegistryDisconnectCleanup(t *testing.T) {
 		t.Fatalf("结算后应清掉离线座位并留下 p_a，实际 empty=%v humans=%v", empty, humans)
 	}
 	t.Logf("断线清理：对局外直接摘座位 / 对局中判负并保留座位 / 结算后清理离线座位，全部符合预期（reason=%s）", res.Reason)
+}
+
+// TestAISpellCastFromReferenceDeck 端到端留痕判据：用**参考实现的 AI 卡组**
+// 跑一整局纯 AI 对局，AI（红方）必须**真的放出过法术**。
+//
+// ★ 为什么这条是 D148 用户第 9 条「卡的实现没看到法术」的直接判据：
+// 上一轮客户端已经补好了法术特效链路（`SpellFxTable` / 落点环 / 施法帧），
+// 但服务端 `buildAIDeck` 只取部队卡 ⇒ AI 卡组 0 张法术 ⇒
+// `core/ai.go::decideSpell` **永远走不到** ⇒ 整局看不到对手放法术。
+// 只测「卡组里有法术」还不够 —— 那只证明数据对；这条测的是
+// **决策真的选中了法术并把 EvPlayCard 发了出来**。
+//
+// 白盒口径：直接订阅 `core.Event`（`EvPlayCard` 带 `CardID`），
+// 用 `cardTable.Card(id).Kind == core.CardTypeSpell` 判是不是法术。
+// 两个 AI 用的是同一副 `buildAIDeck`，所以只数**红方**（对手位）的出牌。
+func TestAISpellCastFromReferenceDeck(t *testing.T) {
+	b := newTestBattle(t, 20240924)
+	ct := testTable(t)
+
+	const totalTicks = 6000 // 300 s：足够走完"开局铺场 → 中路会战 → 法术清场"
+	spellPlays := 0
+	perKey := map[string]int{}
+	playedTotal := 0
+
+	for tick := 0; tick < totalTicks; tick++ {
+		if tick%aiDecisionTicks == 0 {
+			for _, team := range []core.Team{core.TeamBlue, core.TeamRed} {
+				if cardID, x, y, ok := core.Decide(b, team); ok {
+					if err := b.PlayCard(team, cardID, x, y); err != nil {
+						t.Fatalf("AI 出牌被拒 team=%d card=%d (%d,%d): %v", team, cardID, x, y, err)
+					}
+				}
+			}
+		}
+		b.Step()
+
+		for _, ev := range b.DrainEvents() {
+			if ev.Kind != core.EvPlayCard {
+				continue
+			}
+			if core.Team(ev.Team) != core.TeamRed {
+				continue // 只数对手位（AI）
+			}
+			cd, ok := ct.Card(ev.CardID)
+			if !ok || cd == nil {
+				t.Fatalf("AI 打出的卡 %d 在配表里解析不到", ev.CardID)
+			}
+			playedTotal++
+			if cd.Kind == core.CardTypeSpell {
+				spellPlays++
+				perKey[cd.Key]++
+			}
+		}
+	}
+
+	if spellPlays == 0 {
+		t.Fatalf("AI 在 %d tick（%d s）里一张法术都没放（共出牌 %d 张）—— decideSpell 仍是死代码",
+			totalTicks, totalTicks/20, playedTotal)
+	}
+	t.Logf("AI（红方）出牌 %d 张，其中法术 %d 张 %v —— decideSpell 已被走到并成功下发 EvPlayCard",
+		playedTotal, spellPlays, perKey)
 }

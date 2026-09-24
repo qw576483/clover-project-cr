@@ -145,9 +145,14 @@ func cardDefOf(row *table.CardRow, unitRows *table.UnitTable, spells map[string]
 		cd.UnitKey = u.SummonKey
 		cd.UnitN = int32(u.SummonN)
 		cd.UnitRadiusMilli = int32(u.SummonRadiusMt)
-		if u.SummonDeployDelayMs > 0 {
-			cd.DeployDelayMs = int32(u.SummonDeployDelayMs)
-		}
+		// ★ 2026-09-23 修（差异登记 D142/D147）：`summon_deploy_delay` 的语义是
+		// **逐个错开的间隔**，⛔ 不是"这一组单位的绝对部署时间"。参考实现
+		// `cr_sim/engine/battle.py:659` 写的是
+		// `deploy_ticks = spec.deploy_ticks + index * self.clock.ticks(summon_deploy_delay)`
+		// ⇒ 第 i 只在"单位自身 deploy_time + i × 间隔"落地。
+		// 旧实现把它当绝对 deploy 覆写（`cd.DeployDelayMs = 100/200`），于是整组**同时**出现
+		// 而不是排队出现，观感就是"啪一下全冒出来"。
+		cd.UnitStaggerMs = int32(u.SummonDeployDelayMs)
 		return cd, nil
 	}
 	cd.UnitKey = row.Key
@@ -197,7 +202,19 @@ func unitDefOf(row *table.UnitRow) *core.UnitDef {
 		SpawnN:           int32(row.SpawnN),
 		SpawnRadiusMilli: int32(row.SpawnRadiusMt),
 		SpawnIntervalMs:  int32(row.SpawnIntervalMs),
+		SpawnStaggerMs:   int32(row.SpawnStaggerMs),
 		SpawnLimit:       int32(row.SpawnLimit),
+
+		// ★ 2026-09-23 增（差异登记 D142）：普攻溅射半径。旧实现的 `aoe_radius_mt`
+		// 只映射了角色表的 `area_damage_radius`，投射物行的溅射半径（官方投射物表的
+		// `radius`）被错列进了 `radius_mt`（= 弹体半径）⇒ 法师/屠夫/滚石/炸弹兵/公主/
+		// 火精灵的溅射一发不剩，且 core 侧**根本没有**这个字段。
+		AoeRadiusMilli: int32(row.AoeRadiusMt),
+
+		// ★ 2026-09-23 增（差异登记 D142）：跳河。官方 `jump_enabled`/`jump_height`/
+		// `jump_speed`（野猪骑士 / 王子 / 黑暗王子 / 野蛮人攻城槌 四张卡是 true + 4000 + 160）。
+		JumpHeightMilli:      int32(row.JumpHeightMt),
+		JumpSpeedTilesPerMin: int32(row.JumpSpeed),
 
 		SpriteDir: row.SpriteDir,
 
@@ -251,22 +268,31 @@ func (t *cardTable) UnitCount() int { return len(t.units) }
 //
 // 每张卡额外带 `projectile_key` + `proj_speed`（远程判定 + 弹道速度）：这两条是
 // 玩法规则（参考规格 §4 投射物），所以走 core.ProjectileOf，⛔ 不在本层写判定分支。
+// 法术卡再带 `aoe_radius_milli`（作用半径）：客户端拖出法术时要在落点画半径圈，
+// 半径必须等于真实作用范围（`spell.tsv` 的 `radius_mt`）—— 数值权威在配表，故由本层下发。
 func (t *cardTable) cardPool() []def.CardInfo {
 	out := make([]def.CardInfo, 0, len(t.cardRows))
 	for _, row := range t.cardRows {
-		projKey, projSpeed := core.ProjectileOf(t, t.cards[int32(row.Id)])
+		card := t.cards[int32(row.Id)]
+		projKey, projSpeed := core.ProjectileOf(t, card)
+		// 法术半径：只对法术卡有意义（`card.Spell` 为 nil 时留 0）。
+		var aoeRadius int32
+		if card != nil && card.Spell != nil {
+			aoeRadius = card.Spell.RadiusMilli
+		}
 		out = append(out, def.CardInfo{
-			ID:            int32(row.Id),
-			Key:           row.Key,
-			NameCn:        row.NameCn,
-			NameEn:        row.NameEn,
-			Type:          int32(row.Type),
-			Rarity:        int32(row.Rarity),
-			Elixir:        int32(row.Elixir),
-			Arena:         int32(row.Arena),
-			Icon:          row.Icon,
-			ProjectileKey: projKey,
-			ProjSpeed:     projSpeed,
+			ID:             int32(row.Id),
+			Key:            row.Key,
+			NameCn:         row.NameCn,
+			NameEn:         row.NameEn,
+			Type:           int32(row.Type),
+			Rarity:         int32(row.Rarity),
+			Elixir:         int32(row.Elixir),
+			Arena:          int32(row.Arena),
+			Icon:           row.Icon,
+			ProjectileKey:  projKey,
+			ProjSpeed:      projSpeed,
+			AoeRadiusMilli: aoeRadius,
 		})
 	}
 	return out

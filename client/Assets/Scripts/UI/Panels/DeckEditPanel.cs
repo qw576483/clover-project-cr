@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using CloverEngine;
 using CR.Def;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace CR.UI.Panels
@@ -60,66 +61,415 @@ namespace CR.UI.Panels
         /// </summary>
         private const int FallbackMaxSelected = 8;
 
-        // ═══════════════ 竖版排版常量（出处见 G3-量取.md；原版 = 07_卡组编辑_1242x2208.jpg，折算 ×0.8696） ═══════════════
+        // ═══════ 原版整屏版式常量（★ D146-UI 片：出处 = 策划/参考图/几何量取.md **§1.4**） ═══════
         //
-        // <b>AP1 换帧：面板底从「贴顶居中的米色纸框」换成「居中弹窗（014 板岩外框 + 019 亮面体）」</b>
-        // （与主菜单 / 设置同一套语言）⇒ 元素坐标系改为**亮面体左上角**为原点，宽度按亮面体重新定：
-        //   · 弹窗宽 = `ContentW` = 1000（**仍守住竖版"内容框 ≤ 1000"口径**；比主菜单的 935 宽，
-        //     因为本面板要放**原版 4 列卡阵**——基线 07 的卡阵几乎顶到屏边，属原版的**全宽**布局）；
-        //   · 亮面体宽 = 1000 − 2×2 = 996；文字元素内缩 30（`PopupPad`）⇒ 可用 936。
-        // ⚠️ 由此卡阵 / 槽位比 G3 的取值各收 ~2%：卡宽 206 → **205**（原版量取值 209.6 ⇒ −2.2%，G3 时是 −1.7%），
-        //    槽宽 96 → **95**、槽缝 33 → **32**；差值逐条登记在 `.ai-tmp/test/AP1-量取.md` B 段 + 允许差异。
+        // <b>为什么整段换掉（旧口径的根因）</b>：旧版是「居中弹窗（014 板岩外框 + 019 亮面体）」，
+        // 坐标系原点在**亮面体左上角**、宽度按亮面体 996 定。但基线图 `07_卡组编辑_1242x2208.jpg` 上的
+        // 原版**根本不是一个弹窗** —— 它是**整屏深蓝**（卡池底实测 `(2,35,90)`）+ 顶部 **Tab 带**
+        // （Decks / Collection）+ **卡组编号行**（1..5 + 交换 / 复制）。用户 2026-09-24 原话
+        // 「你的UI都不是原版UI啊」说的就是这件事。
+        // ⇒ 坐标系改为**整屏**：原点 = 屏幕**左上角**、y 向下走为负、宽 = <see cref="CrUiStyle.DesignW"/> = 1080。
+        //
+        // ⛔ 全部数字量自 `07_卡组编辑_1242x2208.jpg`（1242×2208 → 1080×1920 同宽高比 ⇒ 单一比例
+        //    k = 1080/1242 = 0.8696），逐条编号 **E\*** 见 `策划/参考图/几何量取.md` **§1.4**
+        //    —— 那一节是本片新增的：原 §2 的 **C7** 把「Tab 带 / 编号行的精确边界」记为**量不到**，
+        //    本片改用「**整行中位数**」（对带内卡面内容鲁棒）后全部读出，工具 = `tools/probes/ref07-bands.py`。
 
-        /// <summary>弹窗外框宽 = 1000（<see cref="CrUiStyle.ContentW"/>；见上面的口径说明）。</summary>
-        private const float BoxW = CrUiStyle.ContentW;
+        /// <summary>整屏深蓝底 —— 量取 **E18** <c>(2,35,90)</c>（`几何量取.md` §1.4 卡池底中位色）。</summary>
+        private static readonly Color DeckBgColor = new Color32(2, 35, 90, 255);
 
-        /// <summary>亮面体宽 = 996（= BoxW − 2×描边 2）。</summary>
-        private const float BodyW = BoxW - 2f * CrUiStyle.PopupBorder;
+        /// <summary>**选中**的 Tab —— 量取 **E15** <c>(33,124,193)</c>（亮蓝；原版 Decks 那一块）。</summary>
+        private static readonly Color TabOnColor = new Color32(33, 124, 193, 255);
 
-        /// <summary>亮面体内缩留白后的可用宽 = 936（= BodyW − 2×<see cref="CrUiStyle.PopupPad"/>）。</summary>
-        private const float InnerW = BodyW - 2f * CrUiStyle.PopupPad;
+        /// <summary>**未选中**的 Tab —— 量取 **E14** <c>(12,55,97)</c>（x=1100 列 y48..112 的中位色）。</summary>
+        private static readonly Color TabOffColor = new Color32(12, 55, 97, 255);
 
-        /// <summary>元素左边界 = 32（= 描边 2 + 留白 30）。</summary>
-        private const float InsetX = CrUiStyle.PopupBorder + CrUiStyle.PopupPad;
+        /// <summary>Tab 带顶边 = **33.9**。出处 **E2**（y=39@1242；该处行中位色差 d=15.0）。</summary>
+        private const float TabBarY = 33.9f;
 
-        /// <summary>标题行高 = 92（与主菜单同口径：标题压弹窗顶部板岩带）。</summary>
-        private const float TitleRowH = CrUiStyle.TitleBarH;
+        /// <summary>Tab 带高 = **102.6**。出处 **E4 − E2** = (157−39)×0.8696（E4 处 d=**236.0**，全图最硬边界之一）。</summary>
+        private const float TabBarH = 102.6f;
+
+        /// <summary>Decks Tab 左边 = **101.7**。出处 **E5**（x=117@1242，d=242.0）。</summary>
+        private const float TabDecksX = 101.7f;
+
+        /// <summary>单个 Tab 宽 = **418.3**。出处 **E6 − E5** = (598−117)×0.8696。</summary>
+        private const float TabW = 418.3f;
+
+        /// <summary>
+        /// Collection Tab 左边 = **568.7**。出处 **E50**（★ D151 实测：原分辨率逐像素扫 y=55/100@1242，
+        /// 填充色在 **x=654@1242** 从 `#072853` 跳到 `#0C3761` ⇒ 654 × 0.8696 = 568.7）。
+        /// <para>
+        /// ⛔ 旧值 560.0 是"由 Decks 右边 + 推定缝 40"反解出来的（§2 **C7b**），本片用**实测**取代。
+        /// 为什么以前读不出：未选中态填充 `#0C3761` 与顶区面板底部 `#0C325E` 只差 ~9/通道，
+        /// 中位色差通道被淹没 ⇒ 必须**在原分辨率上逐像素看跳变**才读得到（见 `几何量取.md` §3 复跑命令）。
+        /// </para>
+        /// </summary>
+        private const float TabCollectionX = 568.7f;
+
+        /// <summary>
+        /// Collection Tab 宽 = **394.0**。出处 **E51**（★ D151 实测：右缘 **x=1107@1242** ⇒ 962.7@1080；
+        /// 962.7 − 568.7 = 394.0）。两次独立确认：① y=55@1080 细扫在 x=964 从 `#0E3761` 掉到 `#072A57`；
+        /// ② 减背景放大图上可**目视**看到右上圆角（放大 4×，圆角起弯 ≈950@1080、直边止于 ≈963）。
+        /// </summary>
+        /// <remarks>
+        /// ⚠️ **原版两个页签不同宽**（Decks <see cref="TabW"/> = 418.3 / Collection = 394.0）—— 这是实测，
+        /// ⛔ 不是对称假设。原因合理：原版 "Decks" 用的是**更大的字号**，"Collection" 字号小一档
+        /// （基线图上可直接看出），页签宽 = 文字宽 + 内边距 ⇒ 宽窄不同。
+        /// </remarks>
+        private const float TabWCollection = 394.0f;
+
+        /// <summary>
+        /// 两个 Tab 之间的缝 = **48.7**。出处 **E52**（★ D151：由两个**各自实测**的边反算
+        /// = TabCollectionX(568.7) − (TabDecksX(101.7) + TabW(418.3))）。
+        /// <para>
+        /// ⛔ 旧值 40 是"由对称性反解"的**推定值**（§2 **C7b**）—— 本片实测后差 8.7px@1080（= 10px@1242，
+        /// 超出 ±5px@1242 的读数容差）⇒ C7b **消除**，本条不再带推定成分。
+        /// </para>
+        /// </summary>
+        private const float TabGap = TabCollectionX - (TabDecksX + TabW);
+
+        /// <summary>卡组编号行顶边 = **136.5**（= 量取 **E4**，即 Tab 带的底边）。</summary>
+        private const float NumRowY = 136.5f;
+
+        /// <summary>卡组编号行高 = **152.2**。出处 **E7 − E4** = (332−157)×0.8696（E7 处 d=103.0）。</summary>
+        private const float NumRowH = 152.2f;
+
+        /// <summary>
+        /// 卡格阵列第 1 行**主体**顶边 = **335.7**。出处 §1.1 **A4**（y=386@1242）+ §1.4 **E10**（同值）。
+        /// ⚠️ 选中卡的**外发光**比主体再高 33（量取 **E9** = y=348@1242 ⇒ 302.6）—— 发光是卡框帧自身的
+        /// 外扩，⛔ 不在几何里补偿（否则未选中的格子会整体上移 33）。
+        /// </summary>
+        private const float GridTopY = 335.7f;
+
+        /// <summary>
+        /// 卡格阵列**左**边界 = **71.2**。出处 **E14 = §1.1 A1**（第 1 格左边 x=82@1242 ⇒ 71.3）。
+        /// <para>
+        /// ⚠️ <b>卡阵**不是**整屏居中的</b>：右边 = 71.2 + 968.5 = 1039.7 ⇒ 右边距 40.3 ≠ 左边距 71.2。
+        /// 这是**原版实测**（A1 与 A2 两条独立读数互证：第 4 格左边 960@1242 ⇒ 960 − 3×292.7 = 81.9 ≈ 82）
+        /// ⇒ 按"写不出出处的量不进工程"，**照量取用 71.2、不居中**。
+        /// （旧实现按弹窗亮面体宽居中 = (996−968.5)/2 = **13.75**，那是弹窗口径的产物，不是原版位置。）
+        /// </para>
+        /// </summary>
+        private const float GridLeftX = 71.2f;
 
         private const float GapS = 12f;
         private const float GapM = 16f;
         private const float GapL = 32f;
 
-        /// <summary>卡池列数。原版 07 的卡格实测 **4 列**（列左边 x = 344 / 651 / 959 @1242）。</summary>
+        /// <summary>卡格列数 = **4**。出处 §1.1 **A7**（原版 07 的可视卡阵 = 4 列 × 2 行）。</summary>
         private const int Columns = 4;
 
-        /// <summary>每页行数。原版 07 可见 2 行（行顶 y = 437 / 934 @1242）⇒ 每页 8 张。</summary>
-        private const int Rows = 2;
-
-        private const int PageSize = Columns * Rows;                      // 8
-
-        /// <summary>单格宽。原版卡格 241@1242 ⇒ 209.6；AP1 换帧后要塞进亮面体 996 ⇒ 取 205（原版 −2.2%，登记）。</summary>
-        private const float CardW = 205f;
-
-        /// <summary>单格高。原版卡格 393@1242 ⇒ 341.8，同比例收窄取 334（原版 −2.2%，登记）。</summary>
-        private const float CardH = 334f;
-
-        /// <summary>列间距。原版 307.5 − 241 = 66.5@1242 ⇒ 57.8 ⇒ 58。</summary>
-        private const float ColGap = 58f;
-
-        /// <summary>行间距。原版 497 − 393 = 104@1242 ⇒ 90.4 ⇒ 90。</summary>
-        private const float RowGap = 90f;
-
-        private const float CardStepX = CardW + ColGap;                   // 263
-        private const float CardStepY = CardH + RowGap;                   // 424
-        private const float GridW = Columns * CardW + (Columns - 1) * ColGap;   // 994 ≤ 亮面体 996
-        private const float GridH = Rows * CardH + (Rows - 1) * RowGap;         // 758
+        /// <summary>
+        /// 一屏可见的卡格行数 = 2。出处 §1.1 **A7**（4 列 × 2 行 = 8 格）+ **A6**（行步进 549@1242 ⇒ 477.4@1080）。
+        /// <para>
+        /// ★ D146：这个数字过去叫 `Rows` 并被当成"每页行数"（配合「上一页 / 下一页」两颗按钮分页）。
+        /// 用户第 7 条「配卡组竟然是点击上下页，**不是按住拖动**」⇒ 翻页职责已交给卡池的
+        /// <see cref="ScrollRect"/>；本常量现在只用来定**卡池视口高度**（<see cref="PoolViewportH"/>）。
+        /// </para>
+        /// </summary>
+        private const int VisibleRows = 2;
 
         /// <summary>
-        /// 卡阵左边界 = 1。
-        /// <para>⚠️ 卡阵按**亮面体全宽**居中（不是按内缩 936 居中）：基线 07 的卡阵是**全宽铺满**
-        /// 的（4 列几乎顶到屏边）⇒ 卡阵不该再套 30px 内缩（套了就装不下 994 宽）。</para>
+        /// 卡池格子总数 = **60**。出处 = 服务端配表 `server/game/table/tsv/card.tsv` 的 60 行
+        /// （`策划/registry.md` 记 `card_cs = 60`）—— 与"每页几张"无关：整池一次建好、拖动滚动查看。
         /// </summary>
-        private const float GridX = (BodyW - GridW) * 0.5f;               // 1
+        private const int MaxPoolCells = 60;
+
+        /// <summary>已选卡组的张位（原版是 8 张）；槽位数由 <see cref="_maxSelected"/> 决定，上限 <see cref="DefaultSlotCount"/>。</summary>
+        private const int DefaultSlotCount = 8;
+
+        /// <summary>
+        /// 单格宽 = **205**。出处 §1.1 **A1**（原版第 1 格 236px@1242 ⇒ **205.2**@1080）；取 205，
+        /// 差 0.2 在「±5px@1242」读数容差之内。
+        /// </summary>
+        private const float CardW = 205f;
+
+        /// <summary>
+        /// 单格高 = **256**。出处 §1.1 **A5**（原版第 1 行卡格**主体**高 294px@1242 ⇒ **255.7**@1080）。
+        /// <para>
+        /// ⚠️ <b>D146 改</b>：旧值 334 是 AP1 换帧时按「弹窗亮面体宽 996」反推的**本项目自定值**
+        /// （原版 341.8 × 收窄比），比原版卡格主体高多出约 30% ⇒ 卡格被纵向拉长。
+        /// 用户第 7 条「ui 也巨丑，根本不是原版」包含此项。
+        /// </para>
+        /// </summary>
+        private const float CardH = 256f;
+
+        /// <summary>
+        /// 列间距 = **49.5**。出处 §1.1 **A3**：原版列步进 292.7px@1242 ⇒ **254.5**@1080 ⇒
+        /// `ColGap = 254.5 − CardW(205)`。（旧值 58 对应步进 263，比原版宽 3.3%。）
+        /// </summary>
+        private const float ColGap = 49.5f;
+
+        /// <summary>
+        /// 行间距 = **221.4**。出处 §1.1 **A6**：原版行步进 549px@1242 ⇒ **477.4**@1080 ⇒
+        /// `RowGap = 477.4 − CardH(256)`。（旧值 90 对应步进 424，比原版窄 11.2%。）
+        /// </summary>
+        private const float RowGap = 221.4f;
+
+        /// <summary>列步进 = 254.5（= A3）。</summary>
+        private const float CardStepX = CardW + ColGap;
+
+        /// <summary>行步进 = 477.4（= A6）。</summary>
+        private const float CardStepY = CardH + RowGap;
+
+        /// <summary>卡阵总宽 = 4×205 + 3×49.5 = **968.5**（= A3 的三步 254.5 + 一格 205）。</summary>
+        private const float GridW = Columns * CardW + (Columns - 1) * ColGap;
+
+        /// <summary>卡池**内容**总行数 = ⌈60 / 4⌉ = **15**（整池一次建好，靠拖动滚动查看）。</summary>
+        private const int PoolRows = (MaxPoolCells + Columns - 1) / Columns;
+
+        /// <summary>卡池内容总高 = 15×256 + 14×221.4 = **6940**（视口 554.6 ⇒ 可滚约 12.5 屏）。</summary>
+        private const float PoolContentH = PoolRows * CardH + (PoolRows - 1) * RowGap;
+
+        // ═══════════ 整屏分带的纵向锚点（★ D151：原版整屏版式的骨架） ═══════════
+        //
+        // 每一条都由 `07_卡组编辑_1242x2208.jpg` 量出，逐条列在 `策划/参考图/几何量取.md` §1.4 / §1.6。
+        // ⛔ 全部按**屏幕左上角**为原点、y 向下为正（写进代码时取负，见 `At`）。
+
+        /// <summary>顶部安全区 = E13 <c>(7,38,92)</c>（整宽，高 = Tab 带底边 <see cref="TabBarY"/> + <see cref="TabBarH"/>）。</summary>
+        private static readonly Color TopAreaColor = new Color32(7, 38, 92, 255);
+
+        /// <summary>Decks Tab 顶部亮线 = 实测 <c>(33,194,227)</c>。出处 **E66（★ D155 第三片）**：
+        /// 原分辨率 x=358..362 逐行读得 y28 `#34C4E7` / y29 `#1FC2E3` / y30 `#21B9E0`，
+        /// 三行逐通道中位 = (33,194,227)。<para>
+        /// ⚠️ 旧值 <c>(48,148,210)</c> 是"y32..64 的中位色"——那一段已经**含渐变**（y32 之后就走下坡），
+        /// 所以读出来的是一条偏暗的蓝，⛔ 不是那条高光本身。本片改为只取**高光那 3 行**。</para></summary>
+        private static readonly Color TabOnEdgeColor = new Color32(33, 194, 227, 255);
+
+        /// <summary>Collection Tab 顶部**暗带**（未选中态是"沉下去"的，顶部没有高光）= 实测 <c>(3,26,74)</c>。
+        /// 出处 **E67（★ D155 第三片）**：原分辨率 x=880 列 y30 `#041C4B` / y36 `#031949` ⇒ 中位 (3,26,74)；
+        /// 它比顶区面板自身（y24 的 `#06245A`）**更暗** ⇒ 这是一条**内阴影**，⛔ 不是背景。</summary>
+        private static readonly Color TabOffEdgeColor = new Color32(3, 26, 74, 255);
+
+        /// <summary>
+        /// 页签底 **tint** = 实测页签色 ÷ 源帧内填色 <c>(76,172,255)</c>
+        /// （与 <see cref="CrUiStyle.ButtonBlueTint"/> **同一口径**：那个是 (48,112,224)÷(76,172,255)）。
+        /// 出处 **E65（★ D155 第三片）**：
+        /// ① 选中 <c>(33,124,193)</c> ⇒ (0.4342, 0.7209, 0.7569)；
+        /// ② 未选中 <c>(12,55,97)</c> ⇒ (0.1579, 0.3198, 0.3804)。
+        /// <para>
+        /// <b>为什么要 tint</b>：源帧 <c>ui_out</c> 166 的自填色是 **(76,172,255)**（B=255，很艳），
+        /// 而参考图上页签实测只有 B=193/97 ⇒ 不染色直接铺会**明显偏艳**。
+        /// 该 tint 的**分母是实测的**（见 `d155-frame-ident.py` 的逐像素比对），⛔ 不是随手调色。
+        /// </para>
+        /// </summary>
+        private static readonly Color TabOnTint = new Color(0.4342f, 0.7209f, 0.7569f, 1f);
+
+        /// <inheritdoc cref="TabOnTint"/>
+        private static readonly Color TabOffTint = new Color(0.1579f, 0.3198f, 0.3804f, 1f);
+
+        /// <summary>编号行带的**上下亮边** = 实测 <c>(2,130,255)</c>（x=40 列 y320 / x=300 列 y160）。</summary>
+        private static readonly Color NumBarEdgeColor = new Color32(2, 130, 255, 255);
+
+        /// <summary>编号行带的带体 = 实测 <c>(1,96,234)</c>（x=40 列 y240，介于上下亮边之间）。</summary>
+        private static readonly Color NumBarColor = new Color32(1, 96, 234, 255);
+
+        /// <summary>编号按钮常态 = E16 <c>(56,107,195)</c>。</summary>
+        private static readonly Color NumBtnColor = new Color32(56, 107, 195, 255);
+
+        /// <summary>编号按钮**选中**（金色）= 实测 <c>(252,200,64)</c>（金按钮 1 的填充中位色，避开白色数字）。</summary>
+        private static readonly Color NumBtnOnColor = new Color32(252, 200, 64, 255);
+
+        /// <summary>平均圣水 pill 底 = 实测 <c>(26,66,126)</c>。</summary>
+        private static readonly Color AvgPillColor = new Color32(26, 66, 126, 255);
+
+        /// <summary>底行工具按钮底 = 实测 <c>(58,129,188)</c>。</summary>
+        private static readonly Color ToolBtnColor = new Color32(58, 129, 188, 255);
+
+        /// <summary>Decks Tab 块顶边 = **24.3**（实测 x=300 列 y28@1242 出现 Tab 上缘）。</summary>
+        private const float TabDecksY = 24.3f;
+
+        /// <summary>Decks Tab 块高 = 136.5 − 24.3 = **112.2**。</summary>
+        private const float TabDecksH = NumRowY - TabDecksY;
+
+        /// <summary>
+        /// Collection Tab 块顶边 = **23.5**。出处 **E25（★ D151 第三片订正，推翻第二片）**。
+        /// <para>
+        /// <b>第二片为什么错</b>：它用"原分辨率逐点看填充色跳变"，读到 y=40@1242 处
+        /// `#062252` V=82.33 → `#0D305C` V=92.53 的一步跳 10.2。**那条跳变确实存在**，
+        /// 但它是页签的「顶部暗斜面 → 签体填充」这条**内部**边，⛔ 不是页签的外上缘。
+        /// 页签的外上缘在它**上面 13 行**处 —— 面板 `#09275B`（V=92）掉到暗斜面 `#021E4B`（V=78）。
+        /// </para>
+        /// <para>
+        /// <b>本片怎么钉死的</b>（两个独立算子 + 一条版式互证）：
+        /// ① 「逐列首个**暗于面板-9** 的行」在 x=680..1080 上取中位 = **27@1242**；
+        /// ② 「逐列首个**亮于面板+40** 的行」在 x=140..480（Decks 签）上取中位 = **27@1242**，
+        ///    且 5%/95% 分位都是 27（整条边完全平）；
+        /// ③ 版式互证：两颗页签在**同一行**里并排 ⇒ 上缘必然同高，而 Decks 签顶边实测就是 27。
+        /// ⇒ 27 × 0.8696 = **23.5@1080**。
+        /// </para>
+        /// <para>
+        /// ⚠️ 签体顶部那 12 行（y27..39@1242）是**比底色更暗**的斜面（V≈81）⇒ 旧读数正是被它带偏的。
+        /// </para>
+        /// </summary>
+        private const float TabOffY = 23.5f;
+
+        /// <summary>Collection Tab 块高 = 136.5 − 23.5 = **113.0**（与 Decks 签的 112.2 只差 0.8 ⇒ 两签同高）。</summary>
+        private const float TabOffH = NumRowY - TabOffY;
+
+        /// <summary>Tab 块顶部**亮线**高 = **3.5**（= 4px@1242）。出处 **E66**：高光只占 y27..y30 共 4 行。
+        /// ⚠️ 旧值 6 是"取 6 便于看清"，本片改成实测值并把**未选中态**分开成 <see cref="TabOffEdgeH"/>。</summary>
+        private const float TabEdgeH = 3.5f;
+
+        /// <summary>Tab 块顶部**暗带**高（未选中态）= **10.4**（= 12px@1242）。出处 **E67**：暗带占 y27..y38。
+        /// 选中态顶部是**亮线**（3.5）、未选中态顶部是**暗带**（10.4）—— 这是"抬起 / 沉下"的语言，⛔ 不是同一条。</summary>
+        private const float TabOffEdgeH = 10.4f;
+
+        /// <summary>编号行带的上下亮边高 = **10**（实测 y157..180@1242 ⇒ 20@1080 是「上亮边 + 渐变」合起来，本工程取 10）。</summary>
+        private const float NumBarEdgeH = 10f;
+
+        /// <summary>编号按钮**宽** = **95.7**（实测 110@1242；E8 的金按钮实测 75..184 ⇒ 109）⇒ 110 × k。</summary>
+        private const float NumBtnW = 95.7f;
+
+        /// <summary>编号按钮**步进** = **142.2**（实测按钮 2..5 的左边 236/400/563/727@1242 ⇒ 步进 163.5 ⇒ 142.2@1080）。</summary>
+        private const float NumBtnPitch = 142.2f;
+
+        /// <summary>第 1 颗编号按钮左边 = **63.9**（实测金按钮左边 73.5@1242 ⇒ 63.9@1080，与步进反推的 236−163.5=72.5 一致）。</summary>
+        private const float NumBtnX0 = 63.9f;
+
+        /// <summary>编号按钮顶边 = **169.6**（实测金按钮 y 195..294@1242，带 157..332 ⇒ 上下各留 38 ⇒ 对称居中）。</summary>
+        private const float NumBtnY = 169.6f;
+
+        /// <summary>编号按钮高 = **87.0**（实测 100@1242）。</summary>
+        private const float NumBtnH = 87.0f;
+
+        /// <summary>底行顶边 = **1174.8**（实测底行工具按钮 y1351..1469@1242 ⇒ 顶边 1351）。</summary>
+        private const float BottomRowY = 1174.8f;
+
+        /// <summary>
+        /// 底行钮板高 = **103.5**。出处 **E41（★ D151 第三片第三次订正）**。
+        /// <para>
+        /// <b>历次读数（同一个对象三次读数都不同，根因都是"算子/口径"而不是图变了）</b>：
+        /// · 第一片 "118@1242" = 102.6@1080 —— 口径 `x800..880` 的亮掩码跨在钮 1/钮 2 的**缝**上 ⇒ 偏低；
+        /// · 第二片 "127@1242" = 110.5@1080 —— 改用 `x1075..1200` + `V&gt;140`，但那是**在缩放到
+        ///   1080 的图上**量的，且阈值 140 只比底行带（V≈140）高一点点 ⇒ 把钮板下方的**柔光/暗边**
+        ///   一并圈进来了 ⇒ 偏高；
+        /// · 第三片 **119@1242** = **103.5@1080** —— 口径：**原分辨率**、`x1080..1180`（整颗第 3 钮）、
+        ///   阈值 `V&gt;165`（钮板 V≈188 / 底行带 V≈140 ⇒ 取中值偏板 2）。亮像素数的平台阶跃落在
+        ///   **上缘 1351 / 下缘 1470** ⇒ 板占 [1351, 1469]，高 = **119@1242**。
+        ///   独立互证：同一条钮板的 `R&gt;40` 分段给出 1354..1466（差 ≤8px，同为"板体"读数）。
+        /// </para>
+        /// <para>⚠️ 这条由 `tools/probes/d151-band-diff.py`（`底行 钮板 下缘`）持续把关。</para>
+        /// </summary>
+        private const float BottomRowH = 103.5f;
+
+        /// <summary>
+        /// 平均圣水 pill 左边 = **20.9**。出处 **E59（★ D151 第三片实测）**。
+        /// <para>
+        /// 量法：pill 底 = `#1C4280` / 底行带 = `#02458B`，在 **y=1370@1242**（文字上方那一行，
+        /// 避开白色数字）逐列取色 —— x=18 仍是带色 `#02458B`，**x=24 转 pill 的暗边 `#003575`**
+        /// ⇒ 左缘 = 24@1242 × 0.8696 = **20.9**。
+        /// </para>
+        /// </summary>
+        private const float AvgPillX = 20.9f;
+
+        /// <summary>
+        /// 平均圣水 pill 宽 = **231.3**。出处 **E60（★ D151 第三片实测）**。
+        /// 同一行读到右缘 **x=290@1242**（x=282 转暗边 `#013475`、x=294 已回到带色 `#03468D`）
+        /// ⇒ (290 − 24) × 0.8696 = **231.3**。⛔ 旧值 261.8 / 7.8 是"按内容估的"，本片消除。
+        /// </summary>
+        private const float AvgPillW = 231.3f;
+
+        // ─────────── 底行右侧：**原版是 3 颗方形工具钮**（★ D151 第三片订正） ───────────
+        //
+        // 用户 2026-09-24「**你的UI都不是原版UI啊**」的第二大条视觉差：
+        // 原版 07 底行右侧是**三颗一样大的浅蓝方形钮**（放大镜 / 卡组视图 / 菜单），
+        // 本工程之前把它整体画成**两颗大蓝块**（保存 / 取消）⇒ 一眼就不像。
+        // 本片把**版式**按原版钉死（位置 / 尺寸 / 步进全部实测），三颗钮各自接**真功能**：
+        //   钮 1（放大镜 `ResPaths.IconSearch` = `ui_out` 279，原版同一件图元）= **浏览卡牌**（切到 Collection 页）
+        //   钮 2 = **保存**，钮 3 = **取消**
+        // ⚠️ 原版钮 2/钮 3 的图标（卡组视图 / 菜单）本工程**没有对应图元**、对应功能也没实现 ⇒
+        //    用文字占位，差异登记在 `策划/差异登记.tsv` **D153**（⛔ 不拿别的帧冒充图标）。
+        //
+        // 量法（★ D151 第三片）：钮板 = `#4B92C8`（R≈75）/ 底行带 = `#02488E`（R≈2）
+        // ⇒ 用 **R>40** 在 **y=1360@1242**（钮板内、图标之上）逐列分段，得到三段各 **119@1242** 宽：
+        //   (783,901) (936,1054) (1088,1206) ⇒ 步进 152.5@1242。
+
+        /// <summary>底行第 1 颗工具钮左边 = **680.9**（实测 783@1242）。出处 **E61**。</summary>
+        private const float BottomBtnX0 = 680.9f;
+
+        /// <summary>工具钮宽 = **103.5**（实测 119@1242）。出处 **E62**。</summary>
+        private const float BottomBtnW = 103.5f;
+
+        /// <summary>工具钮步进 = **132.6**（实测 152.5@1242；第 3 颗右缘 = 1080 − 30.4 = 1049.6）。出处 **E63**。</summary>
+        private const float BottomBtnPitch = 132.6f;
+
+        /// <summary>卡池视口顶边 = **1317.4**（= 底行底边 1277.4 + 40 留白；原版该处往下是宣传插图区，⛔ 无 UI 出处）。</summary>
+        private const float PoolTopY = BottomRowY + BottomRowH + 40f;
+
+        /// <summary>卡池视口底边距画布底 = **48**（本项目自定：给状态行让位）。</summary>
+        private const float PoolBottomGap = 48f;
+
+        /// <summary>
+        /// 卡池**视口**高 = **554.6**（= <see cref="CrUiStyle.DesignH"/> − <see cref="PoolTopY"/> − <see cref="PoolBottomGap"/>）。
+        /// <para>
+        /// ⚠️ <b>D151 改</b>：旧值 = 「可见 2 行 = 733.4」（按"卡池自己占满剩下的屏"算的）。版式改成**整屏原版**
+        /// 之后卡池被压到屏幕下半，高度由**剩余空间**决定，不再由行数决定。可滚的行数不变（<see cref="PoolRows"/> = 15）。
+        /// </para>
+        /// </summary>
+        private const float PoolViewportH = CrUiStyle.DesignH - PoolTopY - PoolBottomGap;
+
+        /// <summary>已选张数标签顶边 = **294**（卡阵 <see cref="GridTopY"/> 335.7 上方那 40 的空白带；⛔ 原版无此标签）。</summary>
+        private const float SelectedLabelY = GridTopY - 42f;
+
+        /// <summary>卡池说明行顶边 = **1284**（底行底边与卡池视口之间那条 40 的带）。</summary>
+        private const float PoolLabelY = PoolTopY - 33f;
+
+        /// <summary>状态行顶边 = **1876**（= 画布底 1920 − 44；在卡池视口下方）。</summary>
+        private const float StatusY = CrUiStyle.DesignH - 44f;
+
+        /// <summary>
+        /// **开发期附加件的总开关**（★ D151 第三片新增）。
+        /// <para>
+        /// 本工程有两件**原版没有**的东西：① 卡阵上方的 `已选 N/8` 标签；② 屏幕最下沿的状态行。
+        /// 它们对开发有用，但会破坏"1:1 复刻原版 UI"这条铁律
+        /// （用户 2026-09-24「**你的UI都不是原版UI啊**」）。
+        /// ⇒ 默认 **false = 不建**（= 原版版式）；需要时改一处即可回来，⛔ 不是把代码删掉。
+        /// 两条差异登记在 `策划/差异登记.tsv` **D154**。
+        /// </para>
+        /// </summary>
+        /// ⛔ 必须是 `static readonly` 而**不是** `const`：写成 `const` 时编译器会把
+        /// `if (ShowDevChrome)` 折成恒假 ⇒ 两个分支各报一条 **CS0162（无法访问的代码）**，
+        /// 而本工程的编译闸门要求 **0 警告**（实测：写成 const 后 2 警告）。
+        private static readonly bool ShowDevChrome = false;
+
+        // ─────────── ★ D151 第二片：Decks 页底部的**宣传区**（原版 07 的真实内容） ───────────
+        //
+        // 用户 2026-09-24「**你的UI都不是原版UI啊**」的**最大一条**视觉差就在这：
+        // 原版 07 在底行（平均圣水 + 工具钮）**之下**是一整块**宣传插图**（两个人像 + 卡背 + 两行大标题
+        // 「百張卡牌 / 組建牌組」），而本工程之前**把卡池塞在那里** ⇒ 完全不像。
+        // ★ 独立证据：`原版资源/sc/ui_v215.sc` 里卡组页与收藏页是**两个不同 clip**
+        //   （`card_page_deck_special` clip=4418 / `card_page_collection` clip=4423）⇒ 原版就是**两页**，
+        //   ⛔ 不是"一页里上下拼"。所以本片把两页分开：Decks 页 = 卡阵 + 宣传区；Collection 页 = 卡池。
+
+        /// <summary>
+        /// 宣传区顶边 = **1305**。出处 **E53**（★ D151 实测：07 图缩到 1080 宽后，y=1305 处行中位色差
+        /// d=41.0、下行中位色 `#066099` ⇒ 底行之下第一条硬分带）。
+        /// </summary>
+        private const float BannerTopY = 1305f;
+
+        /// <summary>宣传区底边距画布底 = **0**（原版插图一直铺到屏幕最下沿，实测 y=1918@1080 仍是底色 `#023666`）。</summary>
+        private const float BannerBottomGap = 0f;
+
+        /// <summary>宣传区高 = 1920 − 1305 − 0 = **615**。</summary>
+        private const float BannerH = CrUiStyle.DesignH - BannerTopY - BannerBottomGap;
+
+        /// <summary>
+        /// 宣传区底色 = **<c>#01477D</c>**。出处 **E54**（★ D151 实测中位色：y1310-1360 = `#014F8C`、
+        /// y1420-1500 = `#01426C` ⇒ 取两者中值；原版是**竖向渐变**，本工程没有渐变图元 ⇒ 用单色近似，
+        /// 差异登记在 `策划/差异登记.tsv` D152）。
+        /// </summary>
+        private static readonly Color BannerPlateColor = new Color32(1, 71, 125, 255);
+
+        /// <summary>
+        /// 宣传语第 1 行中心 y = **1580**。出处 **E55**（★ D151 实测：x=300..780 内 V&gt;230 的亮像素
+        /// 行范围 = y1500..1665 ⇒ 中心 1580）。
+        /// </summary>
+        private const float BannerLine1Y = 1580f;
+
+        /// <summary>宣传语第 2 行中心 y = **1775**。出处 **E56**（同上口径：亮像素行范围 y1700..1850）。</summary>
+        private const float BannerLine2Y = 1775f;
 
         // ── 卡面几何（量自素材自身，⛔ 不是"拍"的） ──
         //
@@ -127,41 +477,72 @@ namespace CR.UI.Panels
         // `CrUiStyle`（`CardArtBbox*` / `CardArtCropOffsetX` / `TryGetCardArtFrame`）—— 原先本面板与
         // `HudPanel` 各存一份，AO1 把本面板那份由 34 扩到 60 条时没同步 `HudPanel` ⇒ 手牌大批卡无卡面。
         // ⛔ 本面板只保留**自己这两处**的量取值（卡池格的内边距/距格顶，量自 `07_卡组编辑` 基线图）。
-        private const float ArtW = 188f;                                  // 卡面宽 = 格宽 − 2×9（原版卡面占卡宽 ≈91%）
-        private const float ArtH = 239f;                                  // = 188 × (251/197)（素材自身宽高比）
+        // ── 卡面几何（量自**原版基线图**，⛔ 不是"拍"的） ──
+        //
+        // ★ D146 改（用户第 7 条「图片和框也不完整重合」）：卡面改为**满铺卡格**。
+        //   依据 = `策划/参考图/07_卡组编辑_1242x2208.jpg` 逐像素放大图
+        //   （`.ai-tmp/test/D146-ref07-card1.png`）：原版卡格**整块**都是卡面彩图，
+        //   卡格边缘那圈亮色是**压在卡面之上**的卡框，卡面并没有内缩留白。
+        //   ⛔ 旧值「左右各内缩 6、距顶 3」（AQ1 量取）量的是"卡框玻璃高光边缘到彩图"的那条
+        //   过渡带，把它当成"卡面内边距"是**读错了对象** ⇒ 卡面比卡格小一圈、
+        //   四周露出一圈白色卡底，这就是用户说的"不完好重合"。
+        //   ⇒ 两个内边距都取 0，`artH` 直接等于卡格高（见 `CreateCell` 的算式）。
+        //
+        // ★ 另一半根因在**素材**侧（本片一并修）：`ui_spells_out/*.png` 是 403×377 整幅画布、
+        //   `.meta` 的 sprite rect 是内容窗 ⇒ uGUI `Image.GetDrawingDimensions`
+        //   （`com.unity.ugui` `Image.cs:850-880`）会套用它算出的 padding，把卡面画到偏移的四边形里。
+        //   修法 = 与工程内其它 UI 帧同约定：**按 alpha 包围盒裁切**、`.meta` rect 改成整幅。
+        //   落地脚本 + 自检见 `.ai-tmp/hosts/crop_card_art.py`，量法见 `.ai-tmp/test/D146-artbbox.txt`。
+
+        /// <summary>卡面距格左右的内边距 = 0（卡面满铺；依据见上面的 D146 段）。</summary>
+        private const float ArtInsetX = 0f;
+
+        /// <summary>卡面距格顶的内边距 = 0（卡面满铺；依据见上面的 D146 段）。</summary>
+        private const float ArtTop = 0f;
+
         /// <summary>
-        /// 卡面距格顶 / 距格左右的内边距（AQ1 实测，读数见 `.ai-tmp/test/AQ1-量取.md` C 段）。
+        /// 名字带高 64（= 原版 "Level 11" 带 74px@1242 ⇒ 64.4@1080，取 64）。
         /// <para>
-        /// <b>量的哪条边</b>：原版 `07_卡组编辑_1242x2208.jpg` 第一行卡片的**上边与左右两边** ——
-        /// 卡格外沿（黑描边/白亮框）与卡面彩色内容之间那条留白，逐像素读 RGB 找边界。
-        /// 读数：左右各 **6~8px@1242**（卡格宽 256~270 ⇒ 3.05%）、格顶 **4px@1242**（卡格宽 263 ⇒ 1.52%）。
-        /// </para>
-        /// <para>
-        /// ⛔ 旧值 = 左右 9 / 顶 6（卡池格 205 宽 ⇒ 4.39% / 2.93%）**大于**原版 ⇒ 卡面比原版小一圈、
-        /// 格内四周多出一圈留白（D-AP1-9「卡面偏上留白」）。按比例换算：左右 = 205×3.05% ≈ **6**、
-        /// 顶 = 205×1.52% ≈ **3**。
+        /// ⚠️ 原版那条带是**压在卡面之上**的半透明带；本项目没有这条带的图元
+        /// （`ui_out` 里查不到，⛔ 不拿别的帧冒充、⛔ 不自绘），所以只画**带描边的文字**压在卡面上
+        /// （<see cref="CrUiStyle.Outlined"/>：白字 + 黑描边，正是原版 UI 的绝对多数文字的读法）。
+        /// 这一条差异登记在 `策划/对照表.md`。
         /// </para>
         /// </summary>
-        private const float ArtInsetX = 6f;
-
-        private const float ArtTop = 3f;                                  // 卡面距格顶（AQ1 实测 4px@1242 ⇒ 3）
-        private const float NameBandH = 64f;                              // 名字带高（原版 Level 带 74@1242 ⇒ 64）
+        private const float NameBandH = 64f;
         private const float BadgeW = 40f;                                 // 圣水水滴宽（原版格角圣水数是紫圆 + 数字）
         private const float BadgeX = 4f;
         private const float BadgeH = 40f;
 
-        /// <summary>已选槽位宽：8 格 + 7 缝排进亮面体 996 ⇒ 95（原版卡格宽 209.6 的同一收窄比例）。</summary>
-        private const float SlotW = 95f;
-        private const float SlotH = 155f;                                 // = 95 × (393/241)（原版卡格宽高比）
-        private const float SlotGap = 32f;
-        private const int DefaultSlotCount = 8;
-
-        private const float BtnW = 824f;                                  // A 宽条按钮 572@750 ×1.44 = 823.7
-        private const float BtnH = 66f;                                   // A 同一条 h=46@750 ×1.44 = 66.2
-        private const float PageBtnH = 48f;                               // 行内小按钮档（A "Clan" 33@750 ⇒ 47.5）
-
         /// <summary>悬停 / 按下的混色系数（本项目自定；原版只有常态底图）。</summary>
         private const float HoverBlend = 0.15f;
+
+        // ── D146 拖动 / 滚动（⛔ 下面这几个数是**本项目自定**，原版客户端的手势与滚动手感参数
+        //    不在原版资源里；逐条登记在 `策划/差异登记.tsv` D146） ──
+
+        /// <summary>
+        /// 落位吸附的**半径系数**（K）：松手点落在某个卡格中心 **± 半格×(1+K)** 之内即算命中该格。
+        /// <para>
+        /// ⚠️ 旧实现是「一行 8 个小槽位」的纵向吸附带（`SlotH*0.75`）。版式改成原版 **4×2 大卡阵**后，
+        /// 槽位不再是"一行"，吸附改为**按最近格中心 + 半径**判定（<see cref="HitTestSlot"/>）。
+        /// K 取 0.35 ⇒ 相邻格中心之间的中缝仍然判给更近的那一格、而卡格**外**的一圈也算"落在这格上"
+        /// （原版手感是"拖到那一带就吸附"，严格按格判会要求像素级对准）。
+        /// </para>
+        /// <para>⛔ **本项目自定**：原版资源里没有手势参数（原版客户端的手势代码未取得）。</para>
+        /// </summary>
+        private const float SlotSnapPadK = 0.35f;
+
+        /// <summary>卡池滚动列表的弹性系数（`ScrollRect.elasticity`）。取原版手感的近似值，本项目自定。</summary>
+        private const float ScrollElasticity = 0.10f;
+
+        /// <summary>卡池滚动列表的惯性衰减（`ScrollRect.decelerationRate`；Unity 默认 0.135，沿用）。</summary>
+        private const float ScrollDeceleration = 0.135f;
+
+        /// <summary>幽灵卡的不透明度（跟着指针走的那张半透明卡；`HudPanel.GhostColor` 同口径 0.55 附近，取 0.70）。</summary>
+        private const float GhostAlpha = 0.70f;
+
+        /// <summary>被拖走的那一格的卡面不透明度（半透明 = "它正在被搬走"，用户第 5 条「放卡没有卡模型 透明的那种」）。</summary>
+        private const float DraggedArtAlpha = 0.35f;
 
         // ★ CR-T2：本面板原先自存的「卡 `key` → `ui_spells_out` 帧号」表（60 条，依据 = 原版
         // `原版资源/sc/ui_spells_v215.sc` 的 95 条 export 名 → `frame_NNN`，登记在
@@ -175,20 +556,37 @@ namespace CR.UI.Panels
 
         private bool _built;
         private int _maxSelected;                       // 服务端卡组张数（来自 PanelArgs，见 ResolveMaxSelected）
-        private int _page;                              // 当前卡池页（0 基）
 
         private CardInfo[] _pool;                       // 60 张卡池（可达 null：还没拉到）
         private readonly Dictionary<int, CardInfo> _cards = new Dictionary<int, CardInfo>();
-        private readonly List<int> _selected = new List<int>();  // 当前选中（按点选顺序）
+        private readonly List<int> _selected = new List<int>();  // 当前选中（按点选 / 拖放顺序）
 
-        private RectTransform _content;                 // 内容框（所有元素的父节点）
-        private RectTransform _gridRoot;                // 卡池格子的容器
-        private readonly List<Cell> _cells = new List<Cell>();       // 60 个卡池格（整池一次建好，翻页只切 active）
+        private RectTransform _content;                 // 内容框（所有元素的父节点 = 整屏根）
+        private ScrollRect _poolScroll;                 // 卡池滚动列表（★ D146：拖动滚动取代翻页按钮）
+        private RectTransform _poolContent;             // 卡池滚动**内容**（15 行，整池一次建好）
+        private GameObject _bannerLayer;                // ★ D151 第二片：Decks 页底部宣传区（与卡池互斥）
+        private Page _page = Page.Decks;                 // ★ D151 第二片：当前页（原版卡组页 / 收藏页是两个 clip）
+        private readonly List<Cell> _cells = new List<Cell>();       // 60 个卡池格（整池一次建好，只按卡池长度切 active）
         private readonly List<Cell> _slotCells = new List<Cell>();
 
+        // 卡阵（4×2）的几何（建完就固定；拖动落位判定要用它把屏幕点换算成"第几格"，见 HitTestSlot）
+        private float _slotX0;                          // 第 1 格左边 = GridLeftX = 71.2
+        private float _slotYTop;                        // 第 1 行顶边 = GridTopY = 335.7
+        private float _slotStepX;                       // 列步进 = CardStepX = 254.5
+        private float _slotStepY;                       // 行步进 = CardStepY = 477.4
+
         private Text _selectedLabel;
-        private Text _pageLabel;
+        private Text _poolLabel;
         private Text _status;
+        private Text _avgElixir;                        // 底行 pill 的「平均圣水」读数（原版 07 是 "3.8"）
+
+        // ── D146 拖动状态 ──
+        private Image _ghost;                           // 跟着指针走的半透明幽灵卡（唯一一个，反复复用）
+        private int _dragCardId = -1;                   // 本次拖的是哪张卡（卡池卡 / 槽位卡的 id）
+        private int _dragIndex = -1;                     // 源下标（卡池下标 或 槽位下标）
+        private bool _dragFromSlot;                     // 源是不是"已选槽位"
+        private bool _dragActive;                       // 正在拖（防止 OnDragMoved 早于 OnDragBegan 被调用）
+        private bool _ghostArtWarned;                   // 「幽灵卡拿不到卡面」只告警一次
 
         private bool _emittingSave;                     // 正在发保存请求（用来识别本类自己那条 Changed 的回声）
         private bool _busy;                             // 保存在途（界面侧；权威在途闸是 DeckManager._saving）
@@ -209,10 +607,17 @@ namespace CR.UI.Panels
             public Text Elixir;
 
             /// <summary>
-            /// 本格当前应有的色调。为什么要存下来：卡面的 Sprite 是**异步**到达的，到货时会重设 color
-            /// ⇒ 必须由回调重新贴回当前状态色，否则刚选中的格子在素材到货后又变回原色。
+            /// 本格当前应有的色调（**不含**"正在被拖走"那一层）。为什么要存下来：卡面的 Sprite 是
+            /// **异步**到达的，到货时会重设 color ⇒ 必须由回调重新贴回当前状态色，
+            /// 否则刚选中的格子在素材到货后又变回原色。
             /// </summary>
             public Color Tint = Color.white;
+
+            /// <summary>
+            /// 本格的卡是否**正在被拖走**（★ D146）。为 true 时卡面按 <see cref="DraggedArtAlpha"/> 半透明 ——
+            /// 与 <see cref="Tint"/> 分开存，因为这两个状态会叠加（"已选的卡被拖起来换位"）。
+            /// </summary>
+            public bool Dragging;
         }
 
         /// <summary>卡组编辑是 `MainMenu` 的子面板（架构契约 §4 ⇒ Popup 层）。</summary>
@@ -243,8 +648,12 @@ namespace CR.UI.Panels
             Subscribe();
             RefreshSlots();
             RefreshCells();
-            RefreshPageLabel();
-            SetStatus("点卡池里的卡选进卡组；点已选槽位可移除。最多 8 张、同一张只能带一次。",
+            RefreshPoolLabel();
+            // ★ D151：布局落定之后**走真实射线**自检一次「按住拖动」的事件路径。
+            //   放在最后：它要读已经算好的矩形（RefreshCells 决定哪些格子 SetActive）。
+            VerifyDragPath();
+            SetStatus("点一下卡池里的卡选进卡组；或者按住卡片拖动 —— 把卡拖到上面的卡阵即选入 / 换位，"
+                + "在卡阵里拖动即换位，把卡阵里的卡拖到下方卡池上即移除。最多 8 张、同一张只能带一次。",
                 CrUiStyle.TextDim);
         }
 
@@ -271,118 +680,488 @@ namespace CR.UI.Panels
 
         // ───────────────────────── 视觉树（D1：OnOpen 里用 UIFactory 自建） ─────────────────────────
 
+        /// <summary>
+        /// 建**整屏**视觉树（★ D151：整屏原版版式）。
+        ///
+        /// <para>
+        /// <b>为什么整段重写</b>：旧版把这一页建成一个**居中弹窗**（014 板岩外框 + 019 亮面体）。
+        /// 但基线图 `07_卡组编辑_1242x2208.jpg` 上的原版**不是弹窗** —— 它是整屏深蓝，自上而下五条带：
+        /// 顶部安全区 → Tab 带（Decks / Collection）→ 编号行（1..5 + 两颗动作钮）→ 4×2 卡格阵列 → 底行（平均圣水 + 工具钮）。
+        /// 用户 2026-09-24 原话「你的UI都不是原版UI啊」说的就是这件事（台账 D146③ 自己写着"尚未复刻"）。
+        /// </para>
+        /// <para>
+        /// <b>坐标口径</b>：父节点 = **面板根（整屏）**，原点 = 屏幕**左上角**、y 向下为正
+        /// （写进 <c>AnchoredTopLeft</c> 时取负，见 <see cref="At"/>）。宽 = <see cref="CrUiStyle.DesignW"/> = 1080。
+        /// 全部数字量自 `07` 图，逐条编号 <c>E*</c>/<c>A*</c> 见 `策划/参考图/几何量取.md` §1.1 / §1.4 / §1.6。
+        /// </para>
+        /// <para>
+        /// ⛔ <b>两块全屏底图必须 <c>raycast = false</c></b> —— 它们盖住整屏，一旦吃掉射线，
+        /// 下面的卡格、按钮就一个都点不动（这正是"按住拖动到底行不行"最容易被悄悄掐断的那一层）。
+        /// </para>
+        /// </summary>
         private void Build()
         {
             var root = (RectTransform)transform;
             UIFactory.Stretch(root);
+            _content = root;                                    // ★ 整屏：所有元素的父节点 = 面板根
 
-            // 面板底 = **居中弹窗**（014 板岩外框 + 019 亮面体）、宽 1000（竖版口径 ≤1000）、高由内容倒推。
-            // 坐标原点 = **亮面体左上角**（`CrUiStyle.SettingsPopup` 的 body 锚点在左上），y 为负 = 向下。
-            float ySel = -(TitleRowH + GapM);                                            // −108
-            float ySlots = ySel - CrUiStyle.LabelH - GapS;                               // −164
-            float yPool = ySlots - SlotH - GapM;                                         // −335
-            float yGrid = yPool - 36f - GapS;                                            // −383
-            float yStatus = yGrid - GridH - GapM;                                        // −1157
-            // 状态行**垫一条板岩盘**再放字（与主菜单 StatusBar 同构）：状态色（TextDim 浅灰 / Accent 金 /
-            // ErrorText 浅红）是为暗底设计的，直接压亮面体 (229,236,242) 上对比度极低（AP1 首版实机实测）。
-            // ⚠️ 左上角锚点 + anchoredPosition ⇒ y 越接近 0 越靠上：盘的顶边写在字的顶边**之上**（`+ GapS`）。
-            float statusPlateY = yStatus + GapS;                                         // −1145
-            float statusPlateH = 44f + 2f * GapS;                                        // 68
-            float yPrev = statusPlateY - statusPlateH - GapS;                            // −1225
-            float yNext = yPrev - PageBtnH - GapS;                                       // −1309
-            float ySave = yNext - PageBtnH - GapM;                                       // −1373
-            float yCancel = ySave - BtnH - GapS;                                         // −1451
-            float boxH = -yCancel + BtnH + GapL;                                         // 1549（亮面体高）
+            // ── ① 整屏底（两块，⛔ 都必须 raycast=false）──
+            // 全屏底 = 卡池底深蓝 E18 (2,35,90)；顶部到 Tab 带底 = 安全区 E13 (7,38,92)。
+            UIFactory.CreateBoxRect("DeckBg", root, Vector2.zero,
+                new Vector2(CrUiStyle.DesignW, CrUiStyle.DesignH), DeckBgColor, false);
+            UIFactory.CreateBoxRect("TopArea", root, Vector2.zero,
+                new Vector2(CrUiStyle.DesignW, TabBarY + TabBarH), TopAreaColor, false);
 
-            var box = CrUiStyle.SettingsPopup("DeckBox", root, boxH + CrUiStyle.PopupTitleH, BoxW);
-            var c = box.rectTransform.Find("DeckBoxBody") as RectTransform;
-            if (c == null)
+            // ── ② Tab 带（E2/E4/E5/E6 + 实测的 Tab 块上缘）──
+            // ★ D151 第二片：两个页签**不同宽**（实测 Decks 418.3 / Collection 394.0）—— 见 TabWCollection。
+            BuildTab("TabDecks", "Decks", TabDecksX, TabDecksY, TabDecksH, TabW,
+                TabOnColor, TabOnEdgeColor, TabEdgeH, TabOnTint, OnDecksTabClicked);
+            BuildTab("TabCollection", "Collection", TabCollectionX, TabOffY, TabOffH, TabWCollection,
+                TabOffColor, TabOffEdgeColor, TabOffEdgeH, TabOffTint, OnCollectionTabClicked);
+
+            // ── ③ 编号行（E4..E7；band 体 + 上下两条亮边）──
+            UIFactory.CreateBoxRect("NumBar", root, At(0f, NumRowY),
+                new Vector2(CrUiStyle.DesignW, NumRowH), NumBarColor, false);
+            UIFactory.CreateBoxRect("NumBarTopEdge", root, At(0f, NumRowY),
+                new Vector2(CrUiStyle.DesignW, NumBarEdgeH), NumBarEdgeColor, false);
+            UIFactory.CreateBoxRect("NumBarBottomEdge", root, At(0f, NumRowY + NumRowH - NumBarEdgeH),
+                new Vector2(CrUiStyle.DesignW, NumBarEdgeH), NumBarEdgeColor, false);
+            BuildDeckNumberRow();
+
+            // ── ④ 已选张数（★ D151 第三片：**默认不建**）──
+            // ⛔ 原版 07 卡阵上方那条 40 的空白带**是空的**，本行的 `已选 N/8` 是本工程自己加的。
+            //    用户 2026-09-24「你的UI都不是原版UI啊」⇒ 第三片把它从**默认版式**里摘掉。
+            //    代码保留（字段/刷新逻辑一字未改）⇒ 只要把 ShowDevChrome 改回 true 就回来了。
+            if (ShowDevChrome)
             {
-                // 非预期分支（必须留痕）：亮面体没建出来 ⇒ 后面的元素全落空。
-                Game.Logger?.Error(Tag, "弹窗亮面体 DeckBoxBody 没建出来，卡组编辑内容无法摆放");
-                return;
+                _selectedLabel = CrUiStyle.Outlined("SelectedLabel", root, "已选", CrUiStyle.FontSmall,
+                    new Vector2(0f, 1f), new Vector2(0f, 1f), At(GridLeftX, SelectedLabelY),
+                    new Vector2(GridW, 32f), TextAnchor.MiddleLeft);
             }
-            _content = c;
 
-            // 标题：板岩带上的白字黑描边（A 原版 UI 的标题语言；⛔ 不用旧的金色标题条 069）。
-            CrUiStyle.BandTitle("Title", box, "卡 组 编 辑", BodyW);
+            // ── ⑤ 4×2 卡格阵列（A1/A3/A4/A5/A6/A7）──
+            BuildSlots();
 
-            // 亮面体上的字一律用**暗色**（`TextOnLight` / `TextOnLightDim`）：亮底 + 亮字 = 看不见
-            // （AM2 在 24_设置 上给的解法；AP1 首版实机截图实测过）。
-            _selectedLabel = UIFactory.CreateLabel("SelectedLabel", c, "已选", CrUiStyle.FontBody,
-                new Vector2(InsetX, ySel), new Vector2(InnerW, CrUiStyle.LabelH), TextAnchor.MiddleLeft,
-                CrUiStyle.TextOnLight);
+            // ── ⑥ 底行（平均圣水 pill + 保存 / 取消）──
+            BuildBottomRow();
 
-            BuildSlots(ySlots);
+            // ── ⑦ Decks 页底部 = **宣传区**（★ D151 第二片：原版 07 的真实内容，E53..E56）；
+            //     与 ⑧ 的卡池**互斥**，由 SetTab() 切换可见性 —— 原版卡组页 / 收藏页是两个不同 clip。──
+            BuildBanner();
 
-            _pageLabel = UIFactory.CreateLabel("PoolLabel", c, "卡池", CrUiStyle.FontSmall,
-                new Vector2(InsetX, yPool), new Vector2(InnerW, 36f), TextAnchor.MiddleLeft, CrUiStyle.TextOnLight);
+            // ── ⑧ 卡池说明 + 卡池（★ D146：按住拖动滚动，取代旧的「上一页 / 下一页」）──
+            _poolLabel = CrUiStyle.Outlined("PoolLabel", root, "卡池", CrUiStyle.FontSmall,
+                new Vector2(0f, 1f), new Vector2(0f, 1f), At(GridLeftX, PoolLabelY),
+                new Vector2(GridW, 30f), TextAnchor.MiddleLeft);
+            BuildGrid();
 
-            BuildGrid(yGrid);
+            // ★ D151 第二片：初始落在 **Decks 页**（原版 07 截图就是 Decks 高亮、底部是宣传区）。
+            SetTab(Page.Decks);
 
-            CrUiStyle.Skin("StatusPlate", c, CrUiStyle.PopupFrameSlate, 24, Vector4.zero,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(InsetX, statusPlateY),
-                new Vector2(InnerW, statusPlateH), CrUiStyle.BandSlate, false);
-            _status = UIFactory.CreateLabel("Status", c, string.Empty, CrUiStyle.FontSmall,
-                new Vector2(InsetX + 16f, yStatus), new Vector2(InnerW - 32f, 44f), TextAnchor.UpperLeft,
-                CrUiStyle.TextDim);
+            // ── ⑨ 状态行（★ D151 第三片：**默认不建**）──
+            // ⛔ 原版 07 屏幕最下沿是**宣传插图的画面本身**，没有状态条。本工程这条状态行会盖在插图上
+            //    ⇒ 第三片从默认版式里摘掉。`SetStatus()` 的调用点**一个没删**，只是因为 `_status == null`
+            //    变成空操作（每处都有 null 守卫）⇒ 想调回来只需 ShowDevChrome = true。
+            if (ShowDevChrome)
+            {
+                UIFactory.CreateBoxRect("StatusPlate", root, At(0f, StatusY),
+                    new Vector2(CrUiStyle.DesignW, 44f), CrUiStyle.PanelBg, false);
+                _status = UIFactory.CreateLabel("Status", root, string.Empty, CrUiStyle.FontSmall,
+                    At(24f, StatusY + 6f), new Vector2(CrUiStyle.DesignW - 48f, 32f), TextAnchor.MiddleLeft,
+                    CrUiStyle.TextDim);
+            }
 
-            // ⛔ 竖版：标签/控件/按钮**不并排** —— 分页与保存各占整行。
-            // 按钮 = 原版**蓝底白字**（`ui_out` 165，A 12_主菜单的 `Clan` / 蓝 ribbon 语言）
-            // ⇒ ⛔ 不用旧的金色主按钮（`ui_out` 300，那是商店 / 宝箱的语言）。
-            CrUiStyle.BlueButton("PrevButton", c, "上一页", new Vector2(InsetX, yPrev),
-                new Vector2(InnerW, PageBtnH), OnPrevPage);
-            CrUiStyle.BlueButton("NextButton", c, "下一页", new Vector2(InsetX, yNext),
-                new Vector2(InnerW, PageBtnH), OnNextPage);
-            // CR-F2：保存按钮句柄留下来 —— 在途时必须**真的禁用**（见 `SetSaveBusy`）。
-            _saveButton = CrUiStyle.BlueButton("SaveButton", c, "保 存", new Vector2((BodyW - BtnW) * 0.5f, ySave),
-                new Vector2(BtnW, BtnH), OnSaveClicked).GetComponent<Button>();
-            CrUiStyle.BlueButton("CancelButton", c, "取 消", new Vector2((BodyW - BtnW) * 0.5f, yCancel),
-                new Vector2(BtnW, BtnH), OnCancelClicked);
+            BuildGhost();
         }
 
-        /// <summary>已选槽位：一行 8 格（原版 07 的卡格宽高比），每格可点（点 = 从卡组里移除这张）。</summary>
-        private void BuildSlots(float ySlots)
+        /// <summary>
+        /// 把「屏幕坐标（原点 = 左上角、y 向下为**正**）」换算成 <c>AnchoredTopLeft</c> 要的
+        /// <c>anchoredPosition</c>（y 取负 = 向下）。
+        /// <para>为什么要有这个函数：量取表的读数一律是"距图顶边多少像素"，与 uGUI 的 y 向上为正**反号**
+        /// ⇒ 散落各处的 <c>-y</c> 极易漏一个负号、且漏了看不出来（元素会跑到屏幕上方看不见）。
+        /// 统一走这里 ⇒ 漏负号变成编译错误而不是"某个东西不见了"。</para>
+        /// </summary>
+        private static Vector2 At(float x, float yFromTop)
         {
-            var count = SlotCount;
-            var totalW = count * SlotW + (count - 1) * SlotGap;   // 8×95 + 7×32 = 984 ≤ 亮面体 996
-            var x0 = (BodyW - totalW) * 0.5f;                     // 6
+            return new Vector2(x, -yFromTop);
+        }
 
-            for (var i = 0; i < count; i++)
+        /// <summary>按钮四态（常态 = 白 = 原版图元原色；⛔ 不用底色当滤镜）。口径同 <c>CrUiStyle</c> 内那几处。</summary>
+        private static void DressButtonColors(Button btn)
+        {
+            if (btn == null) return;
+            var colors = btn.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
+            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
+            colors.selectedColor = Color.white;
+            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 1f);
+            colors.colorMultiplier = 1f;
+            colors.fadeDuration = CrUiStyle.ButtonFade;
+            btn.colors = colors;
+        }
+
+        /// <summary>
+        /// 一颗 Tab（原版 `full_page_button_tab` 的**色块**近似：整块底色 + 顶部一条高光）。
+        /// <para>
+        /// ⚠️ 本工程没有落地 `full_page_button_tab` 的图元（它由 265/266/267/239/196/166 六件九宫格拼成），
+        /// 所以这里用**量取的底色**画块（选中 <see cref="TabOnColor"/> E15 / 未选中 <see cref="TabOffColor"/> E14
+        /// + 实测的高光条）。差异登记在 `策划/差异登记.tsv` D151。
+        /// </para>
+        /// </summary>
+        /// <summary>
+        /// 建一颗页面 Tab（Decks / Collection）。
+        /// <para>
+        /// <b>★ D155 第三片：底从「纯色方块」换成原版图元的九宫格。</b>
+        /// 用户 2026-09-24「你的 UI 都不是原版 UI 啊」——旧实现是
+        /// <c>CreateBoxRect</c> = **方角 + 无描边**的实心矩形，而参考图上页签是**圆角件**。
+        /// 现在底 = <see cref="CrUiStyle.Skin"/> + <see cref="CrUiStyle.ButtonBlue"/>（= `ui_out` 166，
+        /// 「左上圆角」件，**原版像素经四角镜像拼九宫格**）+ <see cref="TabOnTint"/> / <see cref="TabOffTint"/>，
+        /// 圆角边长 = <see cref="CrUiStyle.BlueCorner"/>（= 19）。
+        /// </para>
+        /// <para>
+        /// <b>圆角的诚实缺口</b>：19@1080 = 21.9@1242，而参考图上页签圆角实测 **25@1242**（E68：逐行最左
+        /// 亮蓝像素 x140→118 收口于 y52）⇒ 我们**偏小 3.1px@1242（12%）**。
+        /// 根因是源帧 166 自身圆弧只有 ≈13px，镜像拼不出更大的圆角；⛔ 不写"一致"。
+        /// </para>
+        /// <para>
+        /// <b>顶部那条线两态不同</b>（实测，E66 / E67）：选中 = **亮线** 3.5 高 <see cref="TabOnEdgeColor"/>；
+        /// 未选中 = **暗带** 10.4 高 <see cref="TabOffEdgeColor"/>。旧实现两态都画 6 高的同一条亮边，⛔ 是错的。
+        /// </para>
+        /// </summary>
+        private void BuildTab(string name, string label, float x, float y, float h, float w,
+            Color fill, Color edge, float edgeH, Color tint, Action onClick)
+        {
+            var block = CrUiStyle.Skin(name, _content, CrUiStyle.ButtonBlue, CrUiStyle.BlueCorner,
+                Vector4.zero, new Vector2(0f, 1f), new Vector2(0f, 1f), At(x, y), new Vector2(w, h),
+                fill, true, tint);
+            // 顶部那条线：**盖在**圆角件之上（圆角件自身的高光在左上角，整条顶边要靠这一条补）。
+            UIFactory.CreateBoxRect(name + "Edge", block.rectTransform, Vector2.zero,
+                new Vector2(w, edgeH), edge, false);
+
+            var btn = block.gameObject.AddComponent<Button>();
+            btn.targetGraphic = block;
+            DressButtonColors(btn);
+            if (onClick != null) btn.onClick.AddListener(() => { CrUiStyle.PlayClick(name); onClick(); });
+
+            CrUiStyle.Outlined(name + "Label", block.rectTransform, label, CrUiStyle.FontBody,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(w, 60f), TextAnchor.MiddleCenter);
+        }
+
+        /// <summary>当前页（★ D151 第二片：原版卡组页 / 收藏页是两个不同 clip，不是同一页的两段）。</summary>
+        private enum Page { Decks, Collection }
+
+        /// <summary>
+        /// Decks 页底部的**宣传区**（★ D151 第二片）。
+        /// <para>
+        /// <b>为什么有它</b>：原版 07 在底行之下的整片区域是一张**宣传插图** —— 两个人像 + 卡背 +
+        /// 两行大标题「百張卡牌 / 組建牌組」。本工程之前在这里放的是**卡池** ⇒ 用户 2026-09-24
+        /// 「你的UI都不是原版UI啊」的最大一条视觉差就来自这里。
+        /// </para>
+        /// <para>
+        /// ⚠️ <b>已知差异（D152）</b>：原版是**插图**（人物的画 + 卡背图 + 竖向渐变底）；
+        /// 本工程 ⛔ 没有该插图的图元 —— `.sc` 里卡组页对应元件是 `&lt;? 2769&gt;`（**无名** kind=`?`），
+        /// 定位不到具体帧 ⇒ 只落地**量得到的部分**：
+        /// ① 底板块（位置 <see cref="BannerTopY"/> / 高 <see cref="BannerH"/> / 色 <see cref="BannerPlateColor"/>）；
+        /// ② 两行大标题的**位置**（<see cref="BannerLine1Y"/> / <see cref="BannerLine2Y"/>）与读法
+        /// （白字 + 黑描边 = <see cref="CrUiStyle.Outlined"/>，与原版文字同一读法）。
+        /// ⛔ 不画不存在的插画、⛔ 不拿别的帧冒充。
+        /// </para>
+        /// </summary>
+        private void BuildBanner()
+        {
+            var layer = UIFactory.CreateNode("BannerLayer", _content);
+            _bannerLayer = layer.gameObject;
+
+            UIFactory.CreateBoxRect("BannerPlate", layer, At(0f, BannerTopY),
+                new Vector2(CrUiStyle.DesignW, BannerH), BannerPlateColor, false);
+
+            // ★ D151 第三片：字号改用 CrUiStyle.FontBanner（实测字高 196/192@1242 ⇒ 170@1080，E64）——
+            //   第二片沿用了 FontTitle=56，把原版占满半屏的两个大字画成了小字（用户「UI 不是原版」的一条）。
+            CrUiStyle.Outlined("BannerLine1", layer, "百张卡牌", CrUiStyle.FontBanner,
+                new Vector2(0f, 1f), new Vector2(0f, 1f),
+                At(0f, BannerLine1Y - 110f), new Vector2(CrUiStyle.DesignW, 220f), TextAnchor.MiddleCenter);
+            CrUiStyle.Outlined("BannerLine2", layer, "组建牌组", CrUiStyle.FontBanner,
+                new Vector2(0f, 1f), new Vector2(0f, 1f),
+                At(0f, BannerLine2Y - 110f), new Vector2(CrUiStyle.DesignW, 220f), TextAnchor.MiddleCenter);
+        }
+
+        /// <summary>
+        /// 切换页签的**可见内容**（★ D151 第二片）：Decks 页 → 宣传区；Collection 页 → 卡池。
+        /// <para>
+        /// ⚠️ <b>已知差异（D152）</b>：原版 Collection 页是**整屏替换**（`card_page_collection` 有自己的
+        /// `header` / `collection_title` / `sort`，<b>没有</b>编号行、<b>没有</b>卡阵）。本工程保留编号行与卡阵
+        /// 常驻，只换下半屏 —— 为的是**一屏内能把卡从卡池拖进卡阵**（原版是在卡组页点格子弹卡选器）。
+        /// 这条差异如实登记，⛔ 不假装一致。
+        /// </para>
+        /// </summary>
+        private void SetTab(Page page)
+        {
+            _page = page;
+            var showPool = page == Page.Collection;
+
+            if (_poolScroll != null) _poolScroll.gameObject.SetActive(showPool);
+            if (_poolLabel != null) _poolLabel.gameObject.SetActive(showPool);
+            if (_bannerLayer != null) _bannerLayer.SetActive(!showPool);
+
+            Game.Logger?.Info(Tag, $"[Deck] TAB-SWITCH page={page} poolVisible={showPool} bannerVisible={!showPool}");
+        }
+
+        /// <summary>
+        /// 编号行：1..5 五颗卡组号 + 「交换」「复制」两颗动作钮（原版 07 就是这 7 颗，步进 142.2）。
+        /// <para>
+        /// 底图用**原版图元**：选中的卡组号 = `ui_out` 300（金）+ `BorderButtonGold`；
+        /// 其余 = `ui_out` 166（蓝）+ <c>BlueCorner</c> + <c>ButtonBlueTint</c>。
+        /// </para>
+        /// </summary>
+        private void BuildDeckNumberRow()
+        {
+            for (var i = 0; i < DeckNumLabels.Length; i++)
             {
-                var index = i; // 闭包捕获：每个槽位记自己的下标
-                var pos = new Vector2(x0 + i * (SlotW + SlotGap), ySlots);
-                _slotCells.Add(CreateCell($"Slot{index}", _content, pos, new Vector2(SlotW, SlotH),
-                    () => OnSlotClicked(index), true));
+                var idx = i;
+                var selected = i == 0;                       // 本工程只有 1 套卡组 ⇒ 1 号是当前卡组
+                var size = new Vector2(NumBtnW, NumBtnH);
+                var pos = At(NumBtnX0 + i * NumBtnPitch, NumBtnY);
+
+                var block = selected
+                    ? CrUiStyle.Skin($"DeckNum{i}", _content, ResPaths.ButtonGold, 0,
+                        CrUiStyle.BorderButtonGold, new Vector2(0f, 1f), new Vector2(0f, 1f), pos, size,
+                        NumBtnOnColor, true)
+                    : CrUiStyle.Skin($"DeckNum{i}", _content, ResPaths.ButtonBlueCornerAlt,
+                        CrUiStyle.BlueCorner, Vector4.zero,
+                        new Vector2(0f, 1f), new Vector2(0f, 1f), pos, size,
+                        NumBtnColor, true, CrUiStyle.ButtonBlueTint);
+
+                var btn = block.gameObject.AddComponent<Button>();
+                btn.targetGraphic = block;
+                DressButtonColors(btn);
+                btn.onClick.AddListener(() => { CrUiStyle.PlayClick($"DeckNum{idx}"); OnDeckNumberClicked(idx); });
+
+                CrUiStyle.Outlined($"DeckNum{i}Label", block.rectTransform, DeckNumLabels[i],
+                    i < NumDeckCount ? CrUiStyle.FontBody : CrUiStyle.FontSmall,
+                    new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size, TextAnchor.MiddleCenter);
             }
         }
 
         /// <summary>
-        /// 卡池格子：整池一次建好（60 个格子），翻页只切 `SetActive` —— 不反复销毁重建节点。
-        /// 行容器用 <see cref="UIFactory.AnchoredTopLeft"/> 定位（左上角口径，与引擎控件一致）。
+        /// 底行：左 = **平均圣水** pill（原版位置 + 原版圣水图标 `ui_out` 99）；
+        /// 右 = **原版那 3 颗方形工具钮**（★ D151 第三片订正；几何全部实测 E61..E63）。
+        /// <para>
+        /// 三颗钮各自接**真功能**（⛔ 不画假按钮）：
+        /// ① 放大镜（`ResPaths.IconSearch` = `ui_out` 279，**原版同一件图元**）= 浏览卡牌（切 Collection 页）；
+        /// ② 保存（`_saveButton` 句柄保留 —— 在途时由 <see cref="SetSaveBusy"/> 真禁用）；③ 取消。
+        /// </para>
+        /// <para>
+        /// ⚠️ <b>已知差异（D153）</b>：原版钮 ②/cancel 位的图标是「卡组视图 / 菜单」，本工程
+        /// ⛔ 没有对应图元、对应功能也未实现 ⇒ 用**文字**占位（不是拿别的帧冒充图标）。
+        /// 版式（位置 / 尺寸 / 步进）已按原版实测落地。
+        /// </para>
         /// </summary>
-        private void BuildGrid(float yGrid)
+        private void BuildBottomRow()
         {
-            _gridRoot = UIFactory.CreateNode("PoolGrid", _content);
-            UIFactory.AnchoredTopLeft(_gridRoot, new Vector2(GridX, yGrid), new Vector2(GridW, GridH));
+            UIFactory.CreateBoxRect("AvgPill", _content, At(AvgPillX, BottomRowY),
+                new Vector2(AvgPillW, BottomRowH), AvgPillColor, false);
+            // 圣水水滴：原版 x40..110 / y1345..1430@1242 ⇒ 宽 ≈ 60.9@1080、顶边比 pill 高 5 ⇒ 用
+            // BottomRowH − 34 = 76.5 作宽（≈实测高 73.9），x 偏移 13 落在实测左缘 34.8@1080 附近。
+            CrUiStyle.AspectImage("AvgPillIcon", _content, ResPaths.IconElixirDrop, BottomRowH - 34f,
+                new Vector2(0f, 1f), new Vector2(0f, 1f),
+                At(AvgPillX + 13f, BottomRowY + 17f), CrUiStyle.FieldBg, false);
+            _avgElixir = CrUiStyle.Outlined("AvgPillValue", _content, "--", CrUiStyle.FontTitle,
+                new Vector2(0f, 1f), new Vector2(0f, 1f),
+                At(AvgPillX + 96f, BottomRowY + 8f),
+                new Vector2(AvgPillW - 96f - 8f, BottomRowH - 16f), TextAnchor.MiddleLeft);
 
-            for (var i = 0; i < 60; i++)
+            // ① 放大镜 = 浏览卡牌（原版同一件图元）
+            var browse = CrUiStyle.BlueButton("BrowseButton", _content, string.Empty,
+                At(BottomBtnX0, BottomRowY), new Vector2(BottomBtnW, BottomRowH), OnBrowseClicked);
+            CrUiStyle.AspectImage("BrowseButtonIcon", browse.rectTransform, ResPaths.IconSearch,
+                BottomBtnW * 0.66f, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Color.white, false);
+
+            // CR-F2：保存按钮句柄留下来 —— 在途时必须**真的禁用**（见 `SetSaveBusy`）。
+            _saveButton = CrUiStyle.BlueButton("SaveButton", _content, "保 存",
+                At(BottomBtnX0 + BottomBtnPitch, BottomRowY), new Vector2(BottomBtnW, BottomRowH),
+                OnSaveClicked).GetComponent<Button>();
+            CrUiStyle.BlueButton("CancelButton", _content, "取 消",
+                At(BottomBtnX0 + 2f * BottomBtnPitch, BottomRowY), new Vector2(BottomBtnW, BottomRowH),
+                OnCancelClicked);
+        }
+
+        /// <summary>
+        /// 已选卡组的 **4×2 大卡阵**（★ D151：原版版式；A1/A3/A4/A5/A6/A7）。
+        /// <para>
+        /// ⛔ <b>不再是一行 8 个小槽位</b>：原版 `07` 的卡组就是 4 列 × 2 行、每格 205×256（@1080），
+        /// 左边距 <see cref="GridLeftX"/> = 71.2（**不居中**：右边距 40.3 ≠ 左边距 71.2，这是原版实测）。
+        /// </para>
+        /// <para>
+        /// ★ D146：每格除了「点一下 = 移除」，还挂 <see cref="CardDragHandle"/> —— 用户第 7 条
+        /// 「编辑卡组不能拖动」正是说这里。卡阵**不参与滚动**（<c>AllowScroll = false</c>）⇒ 手势只有一种归属 = 拖卡。
+        /// </para>
+        /// </summary>
+        private void BuildSlots()
+        {
+            var count = SlotCount;
+
+            // 落位判定要用（见 HitTestSlot）：卡阵几何建完就不再变，所以存字段而不是每次现算。
+            _slotX0 = GridLeftX;
+            _slotYTop = GridTopY;
+            _slotStepX = CardStepX;
+            _slotStepY = CardStepY;
+
+            for (var i = 0; i < count; i++)
             {
-                var slotInPage = i % PageSize;
-                var col = slotInPage % Columns;
-                var row = slotInPage / Columns;
+                var index = i;                                       // 闭包捕获：每个槽位记自己的下标
+                var col = i % Columns;
+                var row = i / Columns;
+                var pos = At(GridLeftX + col * CardStepX, GridTopY + row * CardStepY);
+                _slotCells.Add(CreateCell($"Slot{index}", _content, pos, new Vector2(CardW, CardH), index, true));
+            }
+        }
+
+        /// <summary>
+        /// 卡池 = **可按住拖动滚动的列表**（★ D146：取代原来的「上一页 / 下一页」两颗按钮）。
+        ///
+        /// <para>
+        /// <b>结构</b>：<c>PoolScroll</c>（<see cref="ScrollRect"/> + <see cref="RectMask2D"/>，
+        /// 高 = <see cref="PoolViewportH"/>）→ <c>PoolContent</c>（高 = <see cref="PoolContentH"/> = 15 行）
+        /// → 60 个格子。格子一次性建好（不虚拟化：60 个节点在竖版 UI 里不构成负担），
+        /// 超出卡池长度的格子切 `SetActive`。
+        /// </para>
+        /// <para>
+        /// <b>为什么转发手势而不是自己搬 content</b>：<see cref="CardDragHandle"/> 在纵向占优时把
+        /// `OnBeginDrag` / `OnDrag` / `OnEndDrag` 转给这个 <see cref="ScrollRect"/>（它自己的
+        /// `public virtual` 入口）⇒ 惯性 / 回弹 / 边界全部走既有实现，⛔ 不重造轮子。
+        /// </para>
+        /// <para>
+        /// ⚠️ <b>本项目自定值</b>：<see cref="ScrollElasticity"/> / <see cref="ScrollDeceleration"/>
+        /// 与原版客户端的真实手感参数**无出处**（原版资源里没有滚动条配置），已登记 `策划/差异登记.tsv` D146。
+        /// </para>
+        /// </summary>
+        private void BuildGrid()
+        {
+            var viewport = UIFactory.CreateNode("PoolScroll", _content);
+            UIFactory.AnchoredTopLeft(viewport, At(GridLeftX, PoolTopY), new Vector2(GridW, PoolViewportH));
+
+            _poolScroll = viewport.gameObject.AddComponent<ScrollRect>();
+            // 遮罩挂在**同一个**节点上（它就是自己的 viewport）：`RectMask2D` 裁的是自己的子节点，
+            // 而子节点只有 `PoolContent` ⇒ 效果 = 视口裁剪，且不需要多一层空节点。
+            viewport.gameObject.AddComponent<RectMask2D>();
+
+            _poolContent = UIFactory.CreateNode("PoolContent", viewport);
+            UIFactory.AnchoredTopLeft(_poolContent, Vector2.zero, new Vector2(GridW, PoolContentH));
+
+            _poolScroll.viewport = viewport;
+            _poolScroll.content = _poolContent;
+            _poolScroll.horizontal = false;
+            _poolScroll.vertical = true;
+            _poolScroll.movementType = ScrollRect.MovementType.Elastic;
+            _poolScroll.elasticity = ScrollElasticity;
+            _poolScroll.inertia = true;
+            _poolScroll.decelerationRate = ScrollDeceleration;
+            _poolScroll.scrollSensitivity = 1f;
+
+            for (var i = 0; i < MaxPoolCells; i++)
+            {
+                var col = i % Columns;
+                var row = i / Columns;
                 var pos = new Vector2(col * CardStepX, -row * CardStepY);
                 var index = i;
-                _cells.Add(CreateCell($"Card{index}", _gridRoot, pos, new Vector2(CardW, CardH),
-                    () => OnPoolCellClicked(index), false));
+                _cells.Add(CreateCell($"Card{index}", _poolContent, pos, new Vector2(CardW, CardH), index, false));
             }
+        }
+
+        /// <summary>编号行的 7 个标签（原版 07：1..5 = 卡组号，后两颗 = 交换 / 复制卡组）。</summary>
+        private static readonly string[] DeckNumLabels = { "1", "2", "3", "4", "5", "交换", "复制" };
+
+        /// <summary>前几颗是**卡组号**（用大字号）；其后的动作钮用小字号。</summary>
+        private const int NumDeckCount = 5;
+
+        /// <summary>
+        /// 点第 N 颗卡组号 / 动作钮。
+        /// <para>
+        /// ⛔ 本工程服务端**只有一套卡组** ⇒ 2..5 与「交换 / 复制」无法实现。
+        /// 这里**不静默**：给一句玩家能读懂的原因（而不是"点了没反应"）。
+        /// </para>
+        /// </summary>
+        private void OnDeckNumberClicked(int index)
+        {
+            if (index == 0)
+            {
+                SetStatus($"当前卡组：{_selected.Count} / {_maxSelected} 张", CrUiStyle.TextDim);
+                return;
+            }
+
+            Game.Logger?.Info(Tag, $"[Deck] DECK-SLOT-UNSUPPORTED index={index}（本工程只有 1 套卡组）");
+            SetStatus(index < NumDeckCount
+                    ? "本工程目前只支持 1 套卡组（服务端只存一套）—— 用第 1 个号就够了"
+                    : "「交换 / 复制卡组」要等多卡组支持，本工程暂未实现",
+                CrUiStyle.Accent);
+        }
+
+        /// <summary>点 Decks 页签（原版：回到卡组视图）。本工程卡阵与卡池同屏 ⇒ 这里把卡池滚回顶部。</summary>
+        private void OnDecksTabClicked()
+        {
+            SetTab(Page.Decks);
+            SetStatus($"Decks：按住卡阵里的卡拖动可换位；拖出卡阵即移除（当前 {_selected.Count}/{_maxSelected} 张）",
+                CrUiStyle.TextDim);
+        }
+
+        /// <summary>
+        /// 底行第 1 颗工具钮（放大镜）—— **浏览卡牌**：与 Collection 页签同一个动作（切页并把卡池滚回顶部）。
+        /// <para>为什么单独一个处理函数：原版这颗钮是"卡牌浏览/搜索"的入口，⛔ 不是"保存/取消"的别名，
+        /// 所以它复用 <see cref="OnCollectionTabClicked"/> 的语义而**不**复用它的状态文案。</para>
+        /// </summary>
+        private void OnBrowseClicked()
+        {
+            SetTab(Page.Collection);
+            if (_poolScroll != null) _poolScroll.verticalNormalizedPosition = 1f;
+            SetStatus($"浏览卡牌：卡池共 {PoolRows} 行；按住上下拖动翻看，把卡拖到上面的卡阵即选入",
+                CrUiStyle.TextDim);
+        }
+
+        /// <summary>
+        /// 点 Collection 页签（★ D151 第二片：原版是**另一个整页** `card_page_collection`）。
+        /// 本工程把卡池显示出来（下半屏），编号行与卡阵常驻 ⇒ 一屏内可把卡从卡池拖进卡阵。
+        /// </summary>
+        private void OnCollectionTabClicked()
+        {
+            SetTab(Page.Collection);
+            if (_poolScroll != null) _poolScroll.verticalNormalizedPosition = 1f;
+            SetStatus($"Collection = 卡池（共 {PoolRows} 行）：按住上下拖动翻看，把卡拖到上面的卡阵即选入",
+                CrUiStyle.TextDim);
+        }
+
+        /// <summary>
+        /// 刷新底行左边那颗 pill 的**平均圣水**读数（原版 07 是 "3.8"）。
+        /// <para>⛔ 不用 <c>ToString("0.0")</c>：某些区域设置下小数点是逗号 ⇒ 用整数十分位自己拼，输出恒为 ASCII。</para>
+        /// </summary>
+        private void UpdateAvgElixir()
+        {
+            if (_avgElixir == null) return;
+            if (_selected.Count == 0)
+            {
+                _avgElixir.text = "--";
+                return;
+            }
+
+            var sum = 0;
+            for (var i = 0; i < _selected.Count; i++)
+            {
+                var card = FindCard(_selected[i]);
+                if (card != null) sum += card.elixir;
+            }
+
+            var tenths = Mathf.RoundToInt((float)sum / _selected.Count * 10f);
+            _avgElixir.text = $"{tenths / 10}.{tenths % 10}";
         }
 
         /// <summary>槽位数 = 卡组张数（夹到 <see cref="DefaultSlotCount"/>：槽位是在 OnOpen 里按张数建好的，张数变了不重建节点）。</summary>
         private int SlotCount => Mathf.Clamp(_maxSelected > 0 ? _maxSelected : DefaultSlotCount, 1, DefaultSlotCount);
 
         /// <summary>
-        /// 建一个可点的格子：原版白色卡片底（<see cref="ResPaths.SlotCard"/> 九宫格）+ 卡面 + 名字 + 圣水数字。
+        /// 建一个可交互的格子：原版白色卡片底（<see cref="ResPaths.SlotCard"/> 九宫格）+ 卡面 + 名字 + 圣水数字，
+        /// 并挂上 <see cref="CardDragHandle"/>（★ D146：按住拖动 —— 卡池格纵向拖 = 滚动列表，横向拖 = 拖出卡）。
         /// 底图不是纯色块，也不是把原图直接拉伸（九宫格切边 = 20，见 G3-量取.md C 段）。
         /// <para>
         /// <b>AP1 判定「卡组槽底 / 卡池格底」= <see cref="ResPaths.SlotCard"/>（`ui_out` 43，107×159）保持不变</b>：
@@ -392,7 +1171,9 @@ namespace CR.UI.Panels
         /// 本项目已落地的图元里**没有**成套的稀有度卡框 ⇒ 统一用白色卡底，登记在 `AP1-允许差异.md`。
         /// </para>
         /// </summary>
-        private Cell CreateCell(string name, Transform parent, Vector2 pos, Vector2 size, Action onClick, bool isSlot)
+        /// <param name="index">本格下标（卡池格 = 卡池下标；槽位 = 槽位下标）—— 拖放回调要用。</param>
+        /// <param name="isSlot">true = 已选槽位（手势只有"拖卡"，不滚动）；false = 卡池格（纵向拖 = 滚动列表）。</param>
+        private Cell CreateCell(string name, Transform parent, Vector2 pos, Vector2 size, int index, bool isSlot)
         {
             var cell = new Cell();
 
@@ -402,7 +1183,7 @@ namespace CR.UI.Panels
 
             var btn = cell.Chassis.gameObject.AddComponent<Button>();
             btn.targetGraphic = cell.Chassis;
-            if (onClick != null) btn.onClick.AddListener(() => onClick());
+            btn.onClick.AddListener(() => OnCellClicked(index, isSlot));
             // 四态一律以**白**为基准（常态 = 白 = 原版图元原色；hover/pressed 只在亮度上差一点）。
             // ⛔ 不用底色染整格 —— 底色会给原版卡片底加滤镜。
             var colors = btn.colors;
@@ -415,17 +1196,27 @@ namespace CR.UI.Panels
             colors.fadeDuration = CrUiStyle.ButtonFade;
             btn.colors = colors;
 
+            // ★ D146：同一个 GameObject 上挂手势组件（`CardDragHandle` 的类注释解释了为什么要"最深层的
+            //   IDragHandler 自己分流"、以及为什么"拖完还会触发一次 onClick"必须自己压掉）。
+            var drag = cell.Chassis.gameObject.AddComponent<CardDragHandle>();
+            drag.Scroll = isSlot ? null : _poolScroll;
+            drag.ScrollViewport = isSlot ? null : _poolContent == null ? null : (RectTransform)_poolContent.parent;
+            drag.AllowScroll = !isSlot;
+            drag.OnDragBegan = screen => BeginCardDrag(index, isSlot, screen);
+            drag.OnDragMoved = MoveCardDrag;
+            drag.OnDragEnded = screen => EndCardDrag(screen);
+
             // 卡面（素材到达后按帧号换成裁剪过的 Sprite；未登记帧号的卡这一格保持 null = 不画）
             cell.Art = UIFactory.CreatePanel(name + "Art", cell.Chassis.rectTransform, CrUiStyle.PanelBg, false);
-            // ⚠️ 修正（V4 取证实测 2026-09-21）：原实现**恒用** ArtW/ArtH = 188×239（按卡池格宽 206 定的）
-            // ⇒ 已选槽位（SlotW=96）里的卡面比槽位还宽：`Slot0Art` 实测 px=(-5.5,337)-(182.5,576)
-            //    **出画布 5.5px**（审计 ASSERT offCanvasNodes=1 FAIL）。按格宽派生即两处都对：
-            //    卡池格 206−18=188（与原值一致）、槽位 96−18=78。
-            // ⚠️ AQ1：内边距由 **9 改为 `ArtInsetX`（= 6，实测值）** —— 旧值 9 是自定值（4.39%），比原版 3.05% 大。
+            // ★ D146：卡面**满铺卡格**（左右内缩 0、距顶 0、高 = 格高）。
+            //   旧实现 `artH = artW × (CardArtBboxH / CardArtBboxW)` 是按**素材自身的宽高比**反推高的，
+            //   与卡格比例（A1 : A5 = 205.2 : 255.7）不同源 ⇒ 卡面比卡格矮一截、底部露出一条白卡底，
+            //   这正是用户第 7 条「图片和框也不完整重合」。满铺后卡框（原版是**压在卡面之上**的图元）
+            //   自然盖在卡面边缘。依据 = `.ai-tmp/test/D146-ref07-card1.png` 的逐像素放大图。
             var artW = size.x - 2f * ArtInsetX;
-            var artH = artW * (CrUiStyle.CardArtBboxH / CrUiStyle.CardArtBboxW);
-            UIFactory.Place(cell.Art.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -ArtTop), new Vector2(artW, artH));
+            var artH = size.y - ArtTop;
+            UIFactory.Place(cell.Art.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(ArtInsetX, -ArtTop), new Vector2(artW, artH));
             cell.Art.gameObject.SetActive(false);
 
             // 圣水水滴（原版图标）+ 数字
@@ -436,21 +1227,30 @@ namespace CR.UI.Panels
                     CrUiStyle.FieldBg, false);
             }
 
-            // 卡格底是**原版白色卡底**（43）⇒ 格上的字必须用**暗色**，否则白字压白卡 = 看不见
-            // （AP1 首版实机实测；AM2 在 24_设置 亮面上给过同一结论）。
-            cell.Elixir = UIFactory.CreateLabel(name + "Elixir", cell.Chassis.rectTransform, string.Empty,
-                CrUiStyle.FontSmall, new Vector2(BadgeX + (isSlot ? 0f : BadgeW), -(ArtTop + 2f)),
-                new Vector2(BadgeH + 20f, BadgeH), TextAnchor.MiddleLeft, CrUiStyle.TextOnLight);
+            // ★ D146：卡面已**满铺**卡格 ⇒ 格上的字不再压在白卡底上，而是压在**卡面**上
+            // ⇒ 必须换成原版 UI 标准的「白字 + 黑描边」（`CrUiStyle.Outlined`）。
+            // 旧实现用 `TextOnLight`（暗字）是因为当年卡面内缩、字压在白卡底上；
+            // 现在字直接压在彩色卡面上 ⇒ 暗字在深色卡面上根本读不出来（用户第 7 条「ui 也巨丑」的一项）。
+            cell.Elixir = CrUiStyle.Outlined(name + "Elixir", cell.Chassis.rectTransform, string.Empty,
+                CrUiStyle.FontSmall, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(BadgeX + (isSlot ? 0f : BadgeW), -(ArtTop + 2f)),
+                new Vector2(BadgeH + 20f, BadgeH), TextAnchor.MiddleLeft);
 
-            // 名字带（原版卡的 "Level 11" 带位置；本项目没有卡等级 ⇒ 显示中文名）
-            cell.Name = UIFactory.CreateLabel(name + "Name", cell.Chassis.rectTransform, string.Empty,
-                CrUiStyle.FontSmall, new Vector2(0f, -(size.y - NameBandH)),
-                new Vector2(size.x, NameBandH), TextAnchor.MiddleCenter, CrUiStyle.TextOnLight);
+            // 名字带（原版卡的 "Level 11" 带位置；本项目没有卡等级 ⇒ 显示中文名）—— 同上，白字黑描边。
+            cell.Name = CrUiStyle.Outlined(name + "Name", cell.Chassis.rectTransform, string.Empty,
+                CrUiStyle.FontSmall, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(0f, -(size.y - NameBandH)),
+                new Vector2(size.x, NameBandH), TextAnchor.MiddleCenter);
 
             if (cell.Chassis.GetComponent<Button>() == null)
             {
                 // 非预期分支：AddComponent 没挂上 ⇒ 格子点不动且无线索。
                 Game.Logger?.Error(Tag, $"格子 {name} 上没有 Button 组件，点选会失效");
+            }
+            if (cell.Chassis.GetComponent<CardDragHandle>() == null)
+            {
+                // 非预期分支：手势组件没挂上 ⇒ 「按住拖动」整条链断在这里，而界面上完全看不出来。
+                Game.Logger?.Error(Tag, $"格子 {name} 上没有 CardDragHandle 组件，按住拖动会失效（用户第 7 条）");
             }
             return cell;
         }
@@ -458,7 +1258,132 @@ namespace CR.UI.Panels
         /// <summary>原版白色卡片底（<see cref="ResPaths.SlotCard"/>，107×159）的九宫格切边：四边各 20（实测，见 G3-量取.md）。</summary>
         private static readonly Vector4 BorderCard = new Vector4(20f, 20f, 20f, 20f);
 
+        // ───────────────────────── 拖动幽灵卡（★ D146） ─────────────────────────
+
+        /// <summary>
+        /// 建**唯一一个**跟着指针走的半透明卡（反复复用，⛔ 不为每次拖动新建节点）。
+        ///
+        /// <para>
+        /// <b>为什么需要它</b>：用户第 5 条「放卡没有卡模型 透明的那种」说的是对局出牌，
+        /// 但卡组编辑里同一个缺陷也在：按住卡片拖动时，如果手指下什么都没有，玩家无法确认
+        /// "我正在拖哪一张、它有多大"。原版拖放时手指下就是**那张卡面本身**（半透明）。
+        /// </para>
+        /// <para>
+        /// <b>挂在哪儿 / 为什么</b>：挂在**面板根**（不是弹窗亮面体里）—— 根是整屏，
+        /// 幽灵卡拖到弹窗外也能看见；而且它是根节点的**最后一个**子节点 ⇒ 画在最上层，
+        /// 不会被弹窗或卡池的任何图元盖住。锚点/轴心都取中心，位置由
+        /// <see cref="MoveGhost"/> 直接写世界坐标（不依赖 `anchoredPosition` 口径）。
+        /// </para>
+        /// </summary>
+        private void BuildGhost()
+        {
+            var root = (RectTransform)transform;
+            _ghost = UIFactory.CreatePanel("DragGhost", root, CrUiStyle.PanelBg, false);
+            UIFactory.Place(_ghost.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(CardW, CardH));
+            _ghost.gameObject.SetActive(false);
+        }
+
+        /// <summary>把幽灵卡换成源格那张卡面并显示；取不到卡面时**留痕**（退成半透明纯色块）与 <c>HudPanel</c> 同口径。</summary>
+        private void ShowGhost(Cell cell, int cardId, Vector2 screen)
+        {
+            if (_ghost == null) return;
+
+            var sprite = (cell != null && cell.Art != null && cell.Art.gameObject.activeSelf)
+                ? cell.Art.sprite : null;
+
+            _ghost.sprite = sprite;
+            _ghost.type = Image.Type.Simple;
+            _ghost.preserveAspect = false;
+            _ghost.color = new Color(1f, 1f, 1f, GhostAlpha);
+
+            // 幽灵卡与源格**同尺寸**（卡池拖出的就是那张大卡，槽位里拖的就是那个小卡）。
+            if (cell != null && cell.Chassis != null)
+            {
+                _ghost.rectTransform.sizeDelta = cell.Chassis.rectTransform.sizeDelta;
+            }
+
+            _ghost.gameObject.SetActive(true);
+            MoveGhost(screen);
+
+            if (sprite == null && !_ghostArtWarned)
+            {
+                _ghostArtWarned = true;
+                Game.Logger?.Warn(Tag,
+                    $"幽灵卡拿不到卡面（card={CardName(cardId)}）⇒ 退成半透明纯色块。"
+                    + "可能原因：该卡在帧号表里是**已知缺口**（`CrUiStyle.IsCardArtKnownGap`）、"
+                    + "或 `ui_spells_out` 素材还没被导入为 Sprite（本条只报一次）");
+            }
+        }
+
+        /// <summary>
+        /// 把幽灵卡移到指针处。屏幕坐标 → **世界**坐标后直接写 `position` —— 这是
+        /// `RectTransformUtility` 专门为此提供的入口，对 Overlay / Screen Space - Camera 两种画布都成立；
+        /// ⛔ 不自己拿 `anchoredPosition` 去凑（锚点/轴心口径不同会整体偏一次，画布模式不同偏的量还不一样）。
+        /// </summary>
+        private void MoveGhost(Vector2 screen)
+        {
+            if (_ghost == null) return;
+            var root = (RectTransform)transform;
+            var cam = UiPointConvertCamera();
+            if (RectTransformUtility.ScreenPointToWorldPointInRectangle(root, screen, cam, out var world))
+            {
+                _ghost.rectTransform.position = world;
+            }
+        }
+
+        private void HideGhost()
+        {
+            if (_ghost != null) _ghost.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// 屏幕点 ↔ 画布矩形 / 世界点 换算要用的相机。
+        ///
+        /// <para>
+        /// <b>⛔ 按画布模式取，不是"取一台相机就完事"</b>：常驻画布是 `ScreenSpaceOverlay`
+        /// （引擎 `Runtime/Presentation/UI.cs` 里 `canvas.renderMode = RenderMode.ScreenSpaceOverlay`），
+        /// 它的世界坐标**就是屏幕像素**；而 <see cref="RectTransformUtility"/> 收到**非空**相机时
+        /// 会把屏幕点当成"相机视锥里的一个方向"再投到画布平面上 ⇒ 两者相差一次相机投影，
+        /// 命中判定**恒为 false**（`HudPanel.UiPointConvertCamera` 的注释记录了同一根因的实机读数：
+        /// 手牌按下时 `HitTestHand` 返回 -1 ⇒ 拖放整条链根本不进入）。
+        /// Overlay ⇒ `null`；ScreenSpaceCamera / WorldSpace 才用画布自己的 `worldCamera`。
+        /// </para>
+        /// </summary>
+        private Camera UiPointConvertCamera()
+        {
+            var canvas = GetComponentInParent<Canvas>();
+            if (canvas == null || canvas.renderMode == RenderMode.ScreenSpaceOverlay) return null;
+            return canvas.worldCamera;
+        }
+
         // ───────────────────────── 交互 ─────────────────────────
+
+        /// <summary>
+        /// 格子的**点击**（卡池格 / 槽位共用）。★ D146：第一件事是问 <see cref="CardDragHandle"/>：
+        /// 「这次点击是不是一次拖动的尾巴？」
+        ///
+        /// <para>
+        /// <b>为什么必须问</b>：uGUI 只在 <c>pointerEvent.pointerPress != pointerEvent.pointerDrag</c> 时
+        /// 才清 <c>eligibleForClick</c>（`PointerInputModule.cs:388-397`）；本项目的格子把 `Button` 与
+        /// `CardDragHandle` 挂在**同一个 GameObject** 上 ⇒ 两者相等 ⇒ 拖完**仍会**触发这次 onClick，
+        /// 表现为"拖动换位之后又顺手把这张卡移除/加入了"。
+        /// 又因为 `ReleaseMouse`（`StandaloneInputModule.cs:206-228`）的顺序是**先 click、后 endDrag**，
+        /// 所以标记只能在 <see cref="CardDragHandle.OnDrag"/> 期间打上，由这里读一次即清。
+        /// </para>
+        /// </summary>
+        private void OnCellClicked(int index, bool isSlot)
+        {
+            if (CardDragHandle.ConsumeClickSuppressed())
+            {
+                // 期望分支（每次成功拖动都会走一次）：留痕便于数"压掉了几次误点击"。
+                Game.Logger?.Info(Tag, $"[Deck] DRAG-SWALLOW-CLICK index={index} from={(isSlot ? "slot" : "pool")}");
+                return;
+            }
+
+            if (isSlot) OnSlotClicked(index);
+            else OnPoolCellClicked(index);
+        }
 
         private void OnPoolCellClicked(int index)
         {
@@ -480,6 +1405,326 @@ namespace CR.UI.Panels
             Toggle(_selected[slotIndex]);
         }
 
+        // ───────────────────────── 按住拖动（★ D146） ─────────────────────────
+        //
+        // 用户第 7 条原话：「编辑卡组不能拖动，配卡组竟然是点击上下页，不是按住拖动」。
+        // 这里实现的就是原版那套手势：
+        //   · 卡池格：**纵向**拖 = 滚动卡池（转给 ScrollRect，见 `CardDragHandle`）；**横向**拖 = 把卡拖出来。
+        //   · 落点在**卡阵**（上方 4×2）里 ⇒ 选入（空格）/ 替换（已占用格）/ 换位（该卡已在卡组里）。
+        //   · 卡阵里的卡拖到**卡阵之外** ⇒ 从卡组移除。
+        //   · 卡阵里的卡在格与格之间拖 ⇒ 换位（`MoveSlot`）。
+        // 全过程都有一条 `[Deck] DRAG-*` 的 ASCII 留痕（数值类判据：拖 1 次 = 恰好 1 条对应记录）。
+
+        private void BeginCardDrag(int index, bool isSlot, Vector2 screen)
+        {
+            var cardId = -1;
+            if (isSlot)
+            {
+                if (index < 0 || index >= _selected.Count) return;    // 空槽位：没有可拖的东西
+                cardId = _selected[index];
+            }
+            else
+            {
+                if (_pool == null || index < 0 || index >= _pool.Length || _pool[index] == null) return;
+                cardId = _pool[index].id;
+            }
+
+            _dragActive = true;
+            _dragCardId = cardId;
+            _dragIndex = index;
+            _dragFromSlot = isSlot;
+
+            var cell = CellAt(index, isSlot);
+            ShowGhost(cell, cardId, screen);
+            SetCellDragging(cell, true);
+
+            Game.Logger?.Info(Tag, $"[Deck] DRAG-BEGIN from={(isSlot ? "slot" : "pool")} index={index} card={cardId}");
+            SetStatus($"拖动「{CardName(cardId)}」中…松手即落位（拖到卡阵 = 选入/换位；拖出卡阵 = 移除）",
+                CrUiStyle.Accent);
+        }
+
+        private void MoveCardDrag(Vector2 screen)
+        {
+            if (!_dragActive) return;              // OnDragMoved 理论上不会早于 OnDragBegan，但这里不赌
+            MoveGhost(screen);
+        }
+
+        private void EndCardDrag(Vector2 screen)
+        {
+            if (!_dragActive) return;
+            _dragActive = false;
+
+            var fromSlot = _dragFromSlot;
+            var fromIndex = _dragIndex;
+            var cardId = _dragCardId;
+            _dragIndex = -1;
+            _dragCardId = -1;
+            _dragFromSlot = false;
+
+            SetCellDragging(CellAt(fromIndex, fromSlot), false);
+            HideGhost();
+
+            var target = HitTestSlot(screen);
+            if (target >= 0)
+            {
+                if (fromSlot) MoveSlot(fromIndex, target);
+                else DropPoolCardToSlot(cardId, target);
+                return;
+            }
+
+            if (fromSlot)
+            {
+                RemoveFromSlot(fromIndex);
+                return;
+            }
+
+            // 卡池的卡拖到卡阵之外 = 取消（原版同：松手在空白处不改变卡组）。
+            Game.Logger?.Info(Tag, $"[Deck] DRAG-CANCEL card={cardId}（松手不在卡阵上）");
+            SetStatus($"已取消（把「{CardName(cardId)}」拖到上面的卡阵里才会选入）", CrUiStyle.TextDim);
+        }
+
+        /// <summary>
+        /// **运行时**自检「按住拖动」的事件路径（★ D151）。
+        ///
+        /// <para>
+        /// <b>为什么必须有它</b>：已有的取证 `.ai-tmp/test/AX1-evidence.txt` 是驱动脚本把
+        /// <c>ped.pointerDrag</c> **直接写死**成卡的 GameObject、再 <c>ExecuteEvents.Execute</c> 出来的
+        /// —— 那**绕过了 uGUI 的射线选取**，只证明"回调链本身通"，**没有证明"手指按在卡上时事件会派给卡"**。
+        /// 这正是用户 2026-09-24 那句「编辑卡组到底能不能拖动还不知道呢？」的直接答案。
+        /// </para>
+        /// <para>
+        /// <b>判据（走真实射线）</b>：对每一个**可见**卡格，取其矩形中心当屏幕点 →
+        /// <see cref="EventSystem.RaycastAll"/> 拿到排序后的命中 → 取最靠前那个 GameObject →
+        /// 按 uGUI 的派发规则 <c>ExecuteEvents.GetEventHandler&lt;IDragHandler&gt;</c>（沿父链冒泡、取最深的处理器）
+        /// 求出"事件会派给谁" → 判它**是不是那张卡自己**。
+        /// ⛔ 判据写成"等于卡"而不是"非空"：后者在"卡上盖了一层吃了射线的图元"时会**假绿**。
+        /// </para>
+        /// <para>
+        /// 失败时打印**挡在前面的是谁**（完整节点路径）—— 这是这条判据最有价值的部分：将来若有人在卡面上
+        /// 加了一层 <c>raycastTarget = true</c> 的图元，日志会直接点名它，不用再猜。
+        /// 两种结果都落一条 <c>[Deck] DRAGPATH-*</c> 的 ASCII 留痕（数值类判据：<c>ok == checked</c> ⇒ PASS）。
+        /// </para>
+        /// </summary>
+        private void VerifyDragPath()
+        {
+            var es = EventSystem.current;
+            if (es == null)
+            {
+                Game.Logger?.Error(Tag,
+                    "[Deck] DRAGPATH-NOES：场景里没有 EventSystem ⇒ 点击 / 拖动**一个都不会派发**"
+                    + "（这不是本面板的问题，是场景缺件）");
+                return;
+            }
+
+            // 布局必须先落定：这一步之前 RectTransform 的宽高可能还是 0 ⇒ 射线打不到任何东西（假红）。
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)transform);
+
+            var cam = UiPointConvertCamera();
+            var ped = new PointerEventData(es);
+            var hits = new List<RaycastResult>();
+            var checkedCount = 0;
+            var okCount = 0;
+
+            for (var pass = 0; pass < 2; pass++)
+            {
+                var isSlot = pass == 0;
+                var list = isSlot ? _slotCells : _cells;
+                for (var i = 0; i < list.Count; i++)
+                {
+                    var cell = list[i];
+                    if (cell == null || cell.Chassis == null) continue;
+                    if (!cell.Chassis.gameObject.activeInHierarchy) continue;   // 卡池里被 SetActive(false) 的格子不判
+                    if (isSlot && i >= _selected.Count) continue;               // 空槽位：没有可拖的东西，不判
+
+                    var rt = cell.Chassis.rectTransform;
+                    var center = RectTransformUtility.WorldToScreenPoint(cam, rt.TransformPoint(rt.rect.center));
+
+                    ped.position = center;
+                    hits.Clear();
+                    es.RaycastAll(ped, hits);
+                    checkedCount++;
+
+                    var top = hits.Count > 0 ? hits[0].gameObject : null;
+                    var handler = top != null ? ExecuteEvents.GetEventHandler<IDragHandler>(top) : null;
+                    if (handler == cell.Chassis.gameObject)
+                    {
+                        okCount++;
+                        continue;
+                    }
+
+                    Game.Logger?.Error(Tag,
+                        $"[Deck] DRAGPATH-BLOCKED {cell.Chassis.name} 中心=({center.x:0},{center.y:0}) "
+                        + $"命中={NodePath(top != null ? top.transform : null)} "
+                        + $"拖动处理器={NodePath(handler != null ? handler.transform : null)} "
+                        + "⇒ 按在这张卡上事件**不会**派给卡（查遮挡层是不是 raycastTarget = true）");
+                }
+            }
+
+            var verdict = checkedCount == okCount ? "PASS" : "FAIL";
+            if (checkedCount == 0)
+            {
+                // 非预期分支：一个可见卡格都没有 ⇒ `checked == ok == 0` 会**假绿**，必须单独判。
+                Game.Logger?.Error(Tag, "[Deck] DRAGPATH-EMPTY：没有任何可见卡格可判 ⇒ 这次自检无效（不是 PASS）");
+                return;
+            }
+            Game.Logger?.Info(Tag,
+                $"[Deck] DRAGPATH-SUMMARY checked={checkedCount} ok={okCount} blocked={checkedCount - okCount} verdict={verdict}");
+        }
+
+        /// <summary>把 Transform 打成 <c>A/B/C</c>（日志里要能一眼看出"挡在前面的是谁"）。⛔ 不是给玩家看的。</summary>
+        private static string NodePath(Transform t)
+        {
+            if (t == null) return "null";
+            var s = t.name;
+            var p = t.parent;
+            var guard = 0;
+            while (p != null && ++guard < 32)
+            {
+                s = p.name + "/" + s;
+                p = p.parent;
+            }
+            return s;
+        }
+
+        /// <summary>
+        /// 指针落在第几**格**卡阵；-1 = 不在卡阵上（松手 = 取消 / 移除）。
+        ///
+        /// <para>
+        /// <b>口径（★ D151 改）</b>：卡阵从「一行 8 个小槽位」变成原版的 **4×2 大卡格**之后，
+        /// 落位判定也换了：把屏幕点换算到**面板根（整屏）的局部坐标**，再对每一格取
+        /// **格中心**，落在"中心 ± 半格 ×(1+<see cref="SlotSnapPadK"/>) " 之内且**最近**的那一格即命中。
+        /// </para>
+        /// <para>
+        /// <b>为什么不用 <c>RectangleContainsScreenPoint</c> 逐格判</b>：原版手感是"拖到那一带就吸附"，
+        /// 严格按格判会要求像素级对准，松手稍偏就"什么都没发生"。K = 0.35 ⇒ 格与格中间那条缝仍然判给
+        /// 更近的一格，而格**外**的一圈也算"落在这格上"。
+        /// ⚠️ 吸附半径是本项目自定值（原版资源里没有手势参数），登记在 `策划/差异登记.tsv` D146。
+        /// </para>
+        /// </summary>
+        private int HitTestSlot(Vector2 screen)
+        {
+            if (_content == null || _slotCells.Count == 0) return -1;
+
+            var cam = UiPointConvertCamera();
+            Vector2 p;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(_content, screen, cam, out p))
+            {
+                return -1;
+            }
+
+            // `_content` = 面板根（整屏）⇒ 局部原点 = 屏幕**左上角**、y 向下为负（`At` 的取负口径）。
+            // 第 i 格的中心 = ( _slotX0 + col×_slotStepX + CardW/2 , −(_slotYTop + row×_slotStepY + CardH/2) )
+            var padX = CardW * 0.5f * (1f + SlotSnapPadK);
+            var padY = CardH * 0.5f * (1f + SlotSnapPadK);
+
+            var best = -1;
+            var bestD = float.MaxValue;
+            for (var i = 0; i < _slotCells.Count; i++)
+            {
+                var cx = _slotX0 + (i % Columns) * _slotStepX + CardW * 0.5f;
+                var cy = -(_slotYTop + (i / Columns) * _slotStepY + CardH * 0.5f);
+                var dx = Mathf.Abs(p.x - cx);
+                var dy = Mathf.Abs(p.y - cy);
+                if (dx > padX || dy > padY) continue;         // 落在这一格的吸附圈外
+                var d = dx * dx + dy * dy;
+                if (d < bestD)
+                {
+                    bestD = d;
+                    best = i;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>已选卡组内部换位（原版：按住卡阵里的一张卡拖到另一格上）。</summary>
+        private void MoveSlot(int from, int to)
+        {
+            if (from < 0 || from >= _selected.Count) return;
+            to = Mathf.Clamp(to, 0, _selected.Count - 1);
+            if (from == to)
+            {
+                Game.Logger?.Info(Tag, $"[Deck] DRAG-MOVE-NOOP slot={from}（原位松手）");
+                SetStatus($"「{CardName(_selected[from])}」没动（当前 {_selected.Count}/{_maxSelected} 张）",
+                    CrUiStyle.TextDim);
+                return;
+            }
+
+            var id = _selected[from];
+            _selected.RemoveAt(from);
+            _selected.Insert(to, id);
+            RefreshSlots();
+            RefreshCells();
+            Game.Logger?.Info(Tag, $"[Deck] DRAG-MOVE from={from} to={to} card={id}");
+            SetStatus($"「{CardName(id)}」已移动到第 {to + 1} 位（当前 {_selected.Count}/{_maxSelected} 张）",
+                CrUiStyle.TextDim);
+        }
+
+        /// <summary>把卡池里的一张卡拖进卡阵：已在卡组里 = 换位；落在空格 = 选入；落在已占用格 = 替换。</summary>
+        private void DropPoolCardToSlot(int cardId, int slotIndex)
+        {
+            var existing = _selected.IndexOf(cardId);
+            if (existing >= 0)
+            {
+                // 这张卡已经在卡组里 ⇒ 语义是"把它挪到这一格"（原版同）。
+                MoveSlot(existing, slotIndex);
+                return;
+            }
+
+            if (slotIndex < _selected.Count)
+            {
+                var replaced = _selected[slotIndex];
+                _selected[slotIndex] = cardId;
+                RefreshSlots();
+                RefreshCells();
+                Game.Logger?.Info(Tag, $"[Deck] DRAG-REPLACE slot={slotIndex} out={replaced} in={cardId}");
+                SetStatus($"「{CardName(replaced)}」被「{CardName(cardId)}」替换掉（当前 {_selected.Count}/{_maxSelected} 张）",
+                    CrUiStyle.TextDim);
+                return;
+            }
+
+            if (_selected.Count >= _maxSelected)
+            {
+                Game.Logger?.Info(Tag, $"[Deck] DRAG-REJECT card={cardId}（卡组已满 {_maxSelected} 张）");
+                SetStatus($"最多只能带 {_maxSelected} 张 —— 先把卡阵里的卡拖到下方卡池上移除一张", CrUiStyle.ErrorText);
+                return;
+            }
+
+            _selected.Add(cardId);
+            RefreshSlots();
+            RefreshCells();
+            Game.Logger?.Info(Tag, $"[Deck] DRAG-ADD slot={_selected.Count - 1} card={cardId}");
+            SetStatus($"已选入「{CardName(cardId)}」（当前 {_selected.Count}/{_maxSelected} 张）", CrUiStyle.TextDim);
+        }
+
+        /// <summary>把卡阵里的卡拖出卡阵 = 从卡组移除（原版：拖出卡组区域即移除）。</summary>
+        private void RemoveFromSlot(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex >= _selected.Count) return;
+            var id = _selected[slotIndex];
+            _selected.RemoveAt(slotIndex);
+            RefreshSlots();
+            RefreshCells();
+            Game.Logger?.Info(Tag, $"[Deck] DRAG-REMOVE slot={slotIndex} card={id}");
+            SetStatus($"已移除「{CardName(id)}」（当前 {_selected.Count}/{_maxSelected} 张）", CrUiStyle.TextDim);
+        }
+
+        /// <summary>取某格（卡池下标 / 槽位下标）；越界返回 null（调用方都得容忍 null）。</summary>
+        private Cell CellAt(int index, bool isSlot)
+        {
+            var list = isSlot ? _slotCells : _cells;
+            if (index < 0 || index >= list.Count) return null;
+            return list[index];
+        }
+
+        /// <summary>标记 / 取消某格"正在被拖走"（卡面半透明，见 <see cref="Cell.Dragging"/>）。</summary>
+        private static void SetCellDragging(Cell cell, bool dragging)
+        {
+            if (cell == null) return;
+            cell.Dragging = dragging;
+            ApplyArtTint(cell);
+        }
+
         private void Toggle(int cardId)
         {
             var at = _selected.IndexOf(cardId);
@@ -494,7 +1739,7 @@ namespace CR.UI.Panels
 
             if (_selected.Count >= _maxSelected)
             {
-                SetStatus($"最多只能带 {_maxSelected} 张 —— 先点上面的已选槽位移除一张再加", CrUiStyle.ErrorText);
+                SetStatus($"最多只能带 {_maxSelected} 张 —— 先点槽位里的卡移除一张、或把它拖到卡池里再加", CrUiStyle.ErrorText);
                 return;
             }
 
@@ -507,21 +1752,8 @@ namespace CR.UI.Panels
                 CrUiStyle.TextDim);
         }
 
-        private void OnPrevPage()
-        {
-            if (_page <= 0) { SetStatus("已经是第一页", CrUiStyle.TextDim); return; }
-            _page--;
-            RefreshCells();
-            RefreshPageLabel();
-        }
-
-        private void OnNextPage()
-        {
-            if (_page >= PageCount - 1) { SetStatus("已经是最后一页", CrUiStyle.TextDim); return; }
-            _page++;
-            RefreshCells();
-            RefreshPageLabel();
-        }
+        // ★ D146：`OnPrevPage` / `OnNextPage` / `PageCount` 已整段删除 —— 用户第 7 条
+        // 「配卡组竟然是点击上下页，不是按住拖动」。翻页由 `PoolScroll`（ScrollRect）承担。
 
         /// <summary>
         /// 保存：**客户端先校验**（张数 / 不重复 / 都在卡池里），不合法就**一个字节都不发**，
@@ -622,10 +1854,13 @@ namespace CR.UI.Panels
             }
             RefreshCells();
             RefreshSlots();   // 卡池到达前选中的槽位显示的是占位文案，这里补上真名
-            // ⚠️ 修正（V4 取证实测 2026-09-21）：这里漏了页签行 —— `OnOpen` 里 `RefreshPageLabel` 跑在
-            // 卡池到达**之前**（那时 `_pool` 还是 null）⇒ 卡池到货后页签一直停在「卡池：共 0 张 · 第 1/1 页」，
+            // ⚠️ 修正（V4 取证实测 2026-09-21）：这里漏了卡池行 —— `OnOpen` 里 `RefreshPoolLabel` 跑在
+            // 卡池到达**之前**（那时 `_pool` 还是 null）⇒ 卡池到货后那行一直停在「共 0 张」，
             // 而屏幕上明明画着 60 张卡（V4 截图实测到的可见错数）。补一行即可与真实卡池一致。
-            RefreshPageLabel();
+            RefreshPoolLabel();
+
+            // ★ D146：卡池重新到达 ⇒ 回到列表顶部（否则换过卡池后玩家停在半空，看起来像"卡池空了"）。
+            if (_poolScroll != null) _poolScroll.verticalNormalizedPosition = 1f;
         }
 
         /// <summary>
@@ -752,10 +1987,18 @@ namespace CR.UI.Panels
 
             if (_selectedLabel != null)
             {
-                _selectedLabel.text = $"已选 {_selected.Count} / {_maxSelected}（点槽位移除）";
+                _selectedLabel.text = $"已选 {_selected.Count} / {_maxSelected}（点一下移除；按住卡片拖动可换位）";
             }
+
+            // ★ D151：底行 pill 的「平均圣水」跟着卡组走（原版 07 那颗 pill 的读数就是它）。
+            UpdateAvgElixir();
         }
 
+        /// <summary>
+        /// 卡池格子刷新。★ D146：**不再分页** —— 整池 60 个格子按卡池长度切 `SetActive`，
+        /// 可见的那 2 行由 <see cref="ScrollRect"/> 的视口 + <see cref="RectMask2D"/> 裁出来
+        /// （旧实现靠 `i / PageSize != _page` 把非当前页整片关掉，这才是"点上下页"能成立的前提）。
+        /// </summary>
         private void RefreshCells()
         {
             var count = _pool?.Length ?? 0;
@@ -764,7 +2007,7 @@ namespace CR.UI.Panels
                 var cell = _cells[i];
                 if (cell == null || cell.Chassis == null) continue;
 
-                if (i >= count || i / PageSize != _page)
+                if (i >= count)
                 {
                     cell.Chassis.gameObject.SetActive(false);
                     continue;
@@ -802,8 +2045,9 @@ namespace CR.UI.Panels
             if (cell.Elixir != null)
             {
                 cell.Elixir.text = card.elixir.ToString();
-                // 压在白卡底上 ⇒ 未选 = 亮面上的暗字；已选 = 金色强调（原版卡面的圣水数字是彩色的）
-                cell.Elixir.color = selected ? CrUiStyle.Accent : CrUiStyle.TextOnLight;
+                // ★ D146：卡面满铺后这些字压在**卡面**上（白字黑描边，见 `CreateCell`）⇒ 未选 = 白字；
+                // 已选 = 金色强调（原版卡面的圣水数字本身是彩色的）。
+                cell.Elixir.color = selected ? CrUiStyle.Accent : CrUiStyle.TextColor;
             }
             LoadArt(cell, card.key);
         }
@@ -815,7 +2059,9 @@ namespace CR.UI.Panels
             if (cell.Name != null)
             {
                 cell.Name.text = label;
-                cell.Name.color = CrUiStyle.TextOnLightDim;   // 压白卡底 ⇒ 亮面上的**次要**暗字
+                // 空格子 = 露出原版白色卡底（卡面已 `SetActive(false)`）⇒ 这里的字要**暗色**，
+                // 靠描边那一层不要紧（描边色是黑的，暗字加黑描边在白卡底上仍然清楚）。
+                cell.Name.color = CrUiStyle.TextOnLightDim;
             }
             if (cell.Elixir != null)
             {
@@ -827,6 +2073,19 @@ namespace CR.UI.Panels
                 cell.Art.color = Color.white;
                 cell.Art.gameObject.SetActive(false);
             }
+        }
+
+        /// <summary>
+        /// 把 <see cref="Cell.Tint"/>（选中态）与 <see cref="Cell.Dragging"/>（正在被拖走）叠成卡面的实际色。
+        /// ⛔ 必须收敛到这一个方法：卡面 Sprite 是**异步**到货的（见 <see cref="LoadArt"/> 的回调），
+        /// 两处各写一份必然漂移 —— 一处只贴 Tint、一处只贴 alpha，拖动时"刚选中的卡被拖起来又不透明了"。
+        /// </summary>
+        private static void ApplyArtTint(Cell cell)
+        {
+            if (cell == null || cell.Art == null) return;
+            var c = cell.Tint;
+            if (cell.Dragging) c.a = DraggedArtAlpha;
+            cell.Art.color = c;
         }
 
         /// <summary>
@@ -863,8 +2122,10 @@ namespace CR.UI.Panels
                 if (cell.Art == null) return;
                 cell.Art.sprite = sprite;
                 cell.Art.type = Image.Type.Simple;
-                cell.Art.preserveAspect = false;   // 裁剪后的 rect 已是素材自身比例，再按比例缩会再留边
-                cell.Art.color = cell.Tint;        // ★ 素材异步到货 ⇒ 贴回当前状态色（见 Cell.Tint 的注释）
+                // ★ D146：素材已按 alpha 包围盒裁过、`.meta` 的 rect 也改成整幅（见
+                //   `.ai-tmp/hosts/crop_card_art.py`）⇒ 卡面本身就填满卡格，⛔ 不要再按比例缩（会再留边）。
+                cell.Art.preserveAspect = false;
+                ApplyArtTint(cell);               // ★ 素材异步到货 ⇒ 贴回当前状态色（见 Cell.Tint / Cell.Dragging）
             });
         }
 
@@ -919,14 +2180,23 @@ namespace CR.UI.Panels
             Game.Logger?.Warn(Tag, message + "（本条只报一次；已登记进 策划/验收表.md §3「允许的差异」）");
         }
 
-        private void RefreshPageLabel()
+        /// <summary>
+        /// 卡池那一行说明。
+        /// <para>
+        /// ⚠️ <b>D151 更正</b>：旧注释写着「`Decks | Collection` 的页签带…本项目不做页签」
+        /// —— <b>那句话已经过时</b>：本片把 Tab 带按原版位置画出来了（<see cref="BuildTab"/>），
+        /// 两个页签都可点（行为见 <see cref="OnDecksTabClicked"/> / <see cref="OnCollectionTabClicked"/>）。
+        /// 这行文字仍然只报"共几张 + 已选几张 + 怎么翻看"，⛔ 不出现「第 N/M 页」（本项目已无分页）。
+        /// </para>
+        /// </summary>
+        private void RefreshPoolLabel()
         {
-            if (_pageLabel == null) return;
+            if (_poolLabel == null) return;
             var count = _pool?.Length ?? 0;
-            _pageLabel.text = $"卡池：共 {count} 张 · 第 {_page + 1}/{PageCount} 页（每页 {PageSize} 张）";
+            _poolLabel.text = count > 0
+                ? $"卡池：共 {count} 张 · 已选 {_selected.Count}/{_maxSelected}（按住卡片上下拖动翻看，共 {PoolRows} 行）"
+                : $"卡池：加载中…（已选 {_selected.Count}/{_maxSelected}）";
         }
-
-        private int PageCount => Mathf.Max(1, Mathf.CeilToInt((_pool?.Length ?? 0) / (float)PageSize));
 
         /// <summary>类型名（`CardInfo.type`：0=部队 1=法术 2=建筑，见 `Def/ProtoDef.cs`）。</summary>
         private string TypeName(int type)

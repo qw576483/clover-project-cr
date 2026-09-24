@@ -196,13 +196,17 @@ namespace CR.Def
     [Serializable]
     public class BattleEvent
     {
-        public int kind;                 // 0=出牌 1=生成 2=死亡 3=塔毁 4=圣水满 5=塔激活
+        public int kind;                 // 0=出牌 1=生成 2=死亡 3=塔毁 4=圣水满 5=塔激活 6=塔开火
         public int card_id;
         public int x_milli;
         public int y_milli;
         public int entity_id;
         public int team;
         public string text;
+        // 只在 kind=6（塔开火）时有意义：投射物速度，单位 = 格/分钟（D145）。
+        // 服务端对"该塔没有投射物 / 投射物表里没有速度"的行写 0 ⇒ 0 表示
+        // "无飞行段"，客户端只播枪口闪光、不播飞行轨迹。
+        public int proj_speed;
     }
 
     [Serializable]
@@ -256,5 +260,17 @@ namespace CR.Def
         /// `projectile_key` 为空时为 0。
         /// </summary>
         public int proj_speed;
+
+        /// <summary>
+        /// **法术卡**的作用半径，单位 = milli-tile（1 格 = 1000）；非法术卡为 0
+        /// （服务端 `CardInfo.AoeRadiusMilli`，json tag **`aoe_radius_milli`**，
+        /// 数值出处 = `spell.tsv` 的 `radius_mt` 列）。
+        /// <para>
+        /// 用法：拖出法术时落点半径圈的半格数 = <c>aoe_radius_milli / 1000f</c>。
+        /// ⛔ 不许在客户端写死一个"法术半径"常量 —— 10 张法术各不相同
+        /// （万箭齐发 1.4 格 … 雷电/毒药 3.5 格），一刀切会让玩家照着圈放却打空。
+        /// </para>
+        /// </summary>
+        public int aoe_radius_milli;
     }
 }

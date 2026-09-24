@@ -232,7 +232,7 @@ func (b *Battle) PlayCard(team Team, cardID, xMilli, yMilli int32) error {
 		if deployMs <= 0 {
 			deployMs = def.DeployMs
 		}
-		b.spawnGroup(team, def, card.ID, xMilli, yMilli, card.UnitN, card.UnitRadiusMilli, deployMs)
+		b.spawnGroup(team, def, card.ID, xMilli, yMilli, card.UnitN, card.UnitRadiusMilli, deployMs, card.UnitStaggerMs)
 	}
 	return nil
 }
@@ -340,17 +340,30 @@ func (b *Battle) stepBuildings() {
 				continue
 			}
 		}
-		if e.Def.SpawnKey == "" || e.Def.SpawnIntervalMs <= 0 {
+		// ★ 2026-09-23 重写（差异登记 D142/D147）：三个字段的语义按官方数据 +
+		// 参考实现 `cr_sim/engine/battle.py::_phase_run_spawners` 的文档字符串逐字对齐 ——
+		//   `SpawnPauseTime`（本表的 SpawnIntervalMs）= **波间隔**（哥布林小屋 10000 /
+		//        野蛮人小屋 14000 / 骷髅墓碑 3500 / 女巫 7000）；
+		//   `SpawnNumber`（SpawnN）                    = **每波个数**；
+		//   `SpawnInterval`（SpawnStaggerMs）          = **波内错开**的 ms（小屋 500）。
+		// 旧实现把 `SpawnInterval`（500 ms）当成波周期，于是哥布林小屋在 29 s 生命期里
+		// 吐了 **174 只**（原版约 6 只，29×）。
+		//
+		// 参考里还有两条硬规则，这里一并落地：
+		//   · 没落地（还在 deploy 中）的建筑不产兵；
+		//   · **没有 `SpawnPauseTime` 就只是一波**，不是"无限快"（参考原文：
+		//     "No SpawnPauseTime means one wave, not an infinitely fast one."）
+		//     ⇒ 用 spawnDone 标记一次性，而不是把周期退回 1 tick。
+		if e.Def.SpawnKey == "" || e.spawnDone {
 			continue
 		}
-		if e.Def.SpawnLimit > 0 && e.spawnedCount >= e.Def.SpawnLimit {
+		if e.deploying() {
 			continue
 		}
 		e.spawnTimerMs -= MSecPerTick
 		if e.spawnTimerMs > 0 {
 			continue
 		}
-		e.spawnTimerMs += e.Def.SpawnIntervalMs
 		def, ok := b.cfg.Table.Unit(e.Def.SpawnKey)
 		if !ok || def == nil {
 			continue
@@ -359,15 +372,53 @@ func (b *Battle) stepBuildings() {
 		if n < 1 {
 			n = 1
 		}
-		if e.Def.SpawnLimit > 0 && e.spawnedCount+n > e.Def.SpawnLimit {
-			n = e.Def.SpawnLimit - e.spawnedCount
+		// spawn_limit 卡的是**场上存活子代数**，⛔ 不是累计生成数：
+		// 参考 `room = spawn_limit - len(living)`。0 = 不卡（三个小屋的官方值都是 0）。
+		if e.Def.SpawnLimit > 0 {
+			room := int32(e.Def.SpawnLimit) - int32(b.livingSpawnChildren(e))
+			if room <= 0 {
+				b.rescheduleSpawn(e)
+				continue
+			}
+			if room < n {
+				n = room
+			}
 		}
-		if n <= 0 {
-			continue
+		born := b.spawnGroup(e.Team, def, e.CardID, e.xMilli, e.yMilli, n,
+			e.Def.SpawnRadiusMilli, def.DeployMs, e.Def.SpawnStaggerMs)
+		for _, u := range born {
+			e.spawnChildren = append(e.spawnChildren, u.ID)
 		}
-		b.spawnGroup(e.Team, def, e.CardID, e.xMilli, e.yMilli, n, e.Def.SpawnRadiusMilli, def.DeployMs)
 		e.spawnedCount += n
+		b.rescheduleSpawn(e)
 	}
+}
+
+// livingSpawnChildren counts how many of a building's children are still on
+// the board (参考 `_spawn_children` 的存活过滤).
+func (b *Battle) livingSpawnChildren(e *entity) int {
+	if len(e.spawnChildren) == 0 {
+		return 0
+	}
+	kept := e.spawnChildren[:0]
+	for _, id := range e.spawnChildren {
+		c := b.byID[id]
+		if c != nil && c.alive {
+			kept = append(kept, id)
+		}
+	}
+	e.spawnChildren = kept
+	return len(kept)
+}
+
+// rescheduleSpawn sets the timer for the next wave, or marks a one-shot
+// spawner as spent.
+func (b *Battle) rescheduleSpawn(e *entity) {
+	if e.Def.SpawnIntervalMs > 0 {
+		e.spawnTimerMs += e.Def.SpawnIntervalMs
+		return
+	}
+	e.spawnDone = true
 }
 
 // stepKingActivation advances the lazy king towers' countdowns. It runs before
@@ -453,6 +504,12 @@ func (b *Battle) stepAttacks() {
 		if h.attacker == nil || h.attacker.Def == nil {
 			continue
 		}
+		// ★ D145：塔开火 —— 发一条 EvTowerShoot（塔不在快照 entities 里，客户端
+		// 除此之外没有"这一帧这座塔开火了"的信息源）。
+		// 近战塔（无投射物行）也发：客户端只播枪口闪光、不飞弹道（由 ProjSpeed==0 表达）。
+		if h.attacker.Kind == KindTower {
+			b.emitTowerShoot(h.attacker)
+		}
 		// A ranged attacker fires a projectile; a melee one lands the blow.
 		if h.attacker.Def.ProjectileKey != "" {
 			b.fireProjectile(h.attacker, h.target, h.damage)
@@ -460,6 +517,27 @@ func (b *Battle) stepAttacks() {
 		}
 		b.applyHit(h)
 	}
+}
+
+// emitTowerShoot appends the EvTowerShoot event for one tower shot (D145).
+//
+// ProjSpeed 取该塔投射物行的 `SpeedTilesPerMinute`（格/分钟）；投射物行缺失 /
+// 该塔本来是近战（无投射物）时为 0，客户端据此只播枪口闪光、不飞弹道。
+func (b *Battle) emitTowerShoot(t *entity) {
+	speed := int32(0)
+	if t.Def.ProjectileKey != "" {
+		if p, ok := b.cfg.Table.Unit(t.Def.ProjectileKey); ok && p != nil {
+			speed = p.SpeedTilesPerMinute
+		}
+	}
+	b.events = append(b.events, Event{
+		Kind:      EvTowerShoot,
+		EntityID:  t.ID,
+		XMilli:    t.xMilli,
+		YMilli:    t.yMilli,
+		Team:      int32(t.Team),
+		ProjSpeed: speed,
+	})
 }
 
 // stepProjectiles flies every shot and resolves arrivals.
@@ -470,8 +548,21 @@ func (b *Battle) stepProjectiles() {
 	kept := b.projectiles[:0]
 	for _, p := range b.projectiles {
 		if b.advanceProjectile(p) {
-			if t := b.entityByID(p.targetID); t != nil && t.alive {
-				src := b.entityByID(p.ownerID)
+			src := b.entityByID(p.ownerID)
+			t := b.entityByID(p.targetID)
+			// ★ 2026-09-23 增：**落点溅射**（差异登记 D142）。官方把溅射半径放在
+			// 投射物行的 `radius` 上（法师 1500 / 屠夫 1000 / 滚石 1800 / 炸弹兵 1500 /
+			// 公主 2000 / 火精灵 2300 …），旧实现的 `aoe_radius_mt` 列全 0 ⇒ 这些卡的
+			// 溅射一发不剩。中心取**到达点** (p.x,p.y)，⛔ 不是开火点：目标中途死亡时
+			// 落点就是它最后的位置，这是 advanceProjectile 的既有语义。
+			if p.aoeRadius > 0 {
+				var skip *entity
+				if t != nil && t.alive {
+					b.damageEntity(t, p.damage, src)
+					skip = t
+				}
+				b.splashDamage(src, p.x, p.y, p.aoeRadius, p.damage, skip)
+			} else if t != nil && t.alive {
 				b.damageEntity(t, p.damage, src)
 			}
 			continue
@@ -540,34 +631,47 @@ func (b *Battle) stepMovement() {
 	}
 }
 
-// resolveCollisions separates every overlapping pair, a fixed number of
-// relaxation passes per tick.
+// resolveCollisions separates every overlapping pair.
+//
+// 每 tick 先把所有重叠对的分离位移按**向量**累加到各实体头上
+// （`accumulateSeparation`），再统一按"每 tick 位移上限"收缩后落地
+// （`applySeparation`，额度见 `separationStepLimitMilli`；落地前还会按
+// **同伴数取平均**做欠松弛，推导见 combat.go 头部 `collisionPasses` 注释）。
+//
+// ⚠️ 为什么不再是"固定 N 轮、每轮逐对立即施加"（2026-09-24 改）：
+// 逐对立即施加时，被夹在两只同伴中间的单位会先被一侧推 +d、再被另一侧推 −d，
+// 两次位移不抵消（还被标量额度裁掉反向那份）⇒ 永久 limit cycle。
+// 改成"向量累加 + 取平均"后反向推力自然抵消、耦合增益恒为 0.5；
+// 剩余的收敛交给**逐 tick** 的松弛（每 tick 一轮），不再需要 tick 内多轮。
 func (b *Battle) resolveCollisions() {
 	all := b.allEntities()
-	for pass := 0; pass < collisionPasses; pass++ {
-		moved := 0
-		for i := 0; i < len(all); i++ {
-			a := all[i]
-			if !a.alive || a.deploying() {
+	d := make([]sepDelta, len(all))
+	nbr := make([]int32, len(all))
+	for i := 0; i < len(all); i++ {
+		a := all[i]
+		if !a.alive || a.deploying() {
+			continue
+		}
+		for j := i + 1; j < len(all); j++ {
+			c := all[j]
+			if !c.alive || c.deploying() {
 				continue
 			}
-			for j := i + 1; j < len(all); j++ {
-				c := all[j]
-				if !c.alive || c.deploying() {
-					continue
-				}
-				// Air and ground are separate layers.
-				if a.flying != c.flying {
-					continue
-				}
-				if separate(b.arena, a, c) {
-					moved++
-				}
+			// Air and ground are separate layers.
+			if a.flying != c.flying {
+				continue
+			}
+			if accumulateSeparation(a, c, &d[i], &d[j]) {
+				nbr[i]++
+				nbr[j]++
 			}
 		}
-		if moved == 0 {
-			break
+	}
+	for i, e := range all {
+		if !e.alive || e.deploying() {
+			continue
 		}
+		applySeparation(b.arena, e, d[i], int(nbr[i]))
 	}
 }
 

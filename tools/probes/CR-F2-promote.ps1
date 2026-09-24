@@ -1,5 +1,5 @@
 ﻿# ★ CR-F2S 2026-09-23：**升格入口**（judgement asset）。把一件产物从"一次性/工作区"升格到"保留区"，
-#   并往 append-only 账本 `transitions.tsv` 记一行**六列**。⛔ 不做"悄悄覆盖"。
+#   并往 append-only 账本 `promotions.tsv` 记一行**六列**。⛔ 不做"悄悄覆盖"。
 #
 # 硬规则（与 team-lead 裁定一致）：
 #   · **目标已存在 ⇒ 停手报错**（exit 3），⛔ 不覆盖、⛔ 不写账本行、目标字节一个都不改；
@@ -18,7 +18,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Target,
     [string]$Actor = 'CR-F2S',
     [switch]$DeleteSource,
-    [string]$Ledger = 'C:\Work\Server\f-v2\clover-project-cr\tools\probes\transitions.tsv',
+    [string]$Ledger = 'C:\Work\Server\f-v2\clover-project-cr\tools\probes\promotions.tsv',
     [string]$ProjectRoot = 'C:\Work\Server\f-v2\clover-project-cr'
 )
 $ErrorActionPreference = 'Stop'

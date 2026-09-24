@@ -201,14 +201,27 @@ namespace CR.View
         // ───────────────── 素材实测常量（**只描述素材，不描述游戏几何**） ─────────────────
 
         /// <summary>
-        /// 用作底图的**帧号**（⛔ 不是数组下标 —— 多子图 PNG 会让下标整体偏移，取帧一律走
-        /// <see cref="FindFrameByNumber"/>）。实测理由见类注释二：**唯一**与 18×32 格自洽的一帧
-        ///（两条通路 x 落 3.5/14.5 格、河心落格 16、广场落格 6.5）。
+        /// 【D130 后已**改名换义**】带蓝色水面的那一帧的帧号（= <b>6</b>，`atlasgenerator_texture_rgb565`）。
+        /// <para>
+        /// CR-V1 时期本常量叫「底图帧」（那时地面与河面都从 f006 取，见类注释二/六）。D130 起地面改由
+        /// **帧 22 的六段地层**铺（见 <see cref="BlueFieldPyTop"/> 上方的长注释），本帧**只再承担河面**
+        /// ⇒ 语义就是 <see cref="WaterFrameNumber"/>，两者同值（⛔ 保留本名不删 —— 类注释二/六与 `策划/`
+        /// 文档按它引用「f006 唯一与 18×32 自洽」这条历史结论）。
+        /// </para>
         /// </summary>
         public const int GroundFrameIndex = 6;
 
+        // ⛔⛔ 以下 5 组常量（RiverWater* / Bridge* / ArtPxPerTileX / ArtFieldLeftPx）**已停用
+        //    （D130，2026-09-23）**，**保留不删**（team-lead 裁定五条之 5；类注释二/六与 `策划/` 文档
+        //    按名字引用它们）。
+        //    **停用原因**：河面与桥板在 D130 改成
+        //      · 河面 ← <see cref="WaterFrameNumber"/>（帧 6）的行 [806, 853]、横向 px 207.6..；
+        //      · 桥板 ← 帧 22 的行 [583, 692] × 列 [215, 295]（见 BridgePlankPxLeft）。
+        //    下面这组的 py 量法（805..852 取整口径、桥板列 224..296）是 CR-V1 的旧口径，与 D130 的新
+        //    窗口**差几像素**；新代码⛔ 一律走新常量，不要再接本组。
+
         /// <summary>
-        /// 河道取像素的窗口上沿：**底图帧自己**（<see cref="GroundFrameIndex"/> = f006）自带水面的画布 py = <b>805</b>。
+        /// 【已停用（D130）】河道取像素的窗口上沿：**底图帧自己**（<see cref="GroundFrameIndex"/> = f006）自带水面的画布 py = <b>805</b>。
         /// <para>
         /// <b>⛔ 为什么不再用 f022 的「河道带」（CR-T6 逐区对照的实测结论）</b>：f022 的水面在画布 py <b>536..583</b>，
         /// 而上一版裁的是 py <b>577..606</b> —— 整个窗口落在水面**之下**，取到的是水岸的**褐色泥土 + 石块**
@@ -222,6 +235,8 @@ namespace CR.View
         /// 与 <see cref="ArtPxPerTileX"/> / <see cref="ArtFieldLeftPx"/> 同源）⇒ 横向取"场地那一段"（格 0..18）后
         /// **河与桥一次成形**，⛔ 不需要另建"桥"节点、⛔ 不需要自造桥面。
         /// </para>
+        /// <para>D130 起改用 <see cref="WaterPyTop"/>..<see cref="WaterPyBottom"/>（806..853）与
+        /// <see cref="WaterPxLeft"/>（207.6），本常量只作历史记录。</para>
         /// </summary>
         public const float RiverWaterPyTop = 805f;
 
@@ -282,7 +297,16 @@ namespace CR.View
         /// <summary>【已停用】f006 画布上场地内容的顶边 py = 696。见上方停用说明。</summary>
         public const float ArtContentTopPx = 696f;
 
-        // ────────── 完整半场地面：**帧 22（`training_area_bg`）**，本片（CR-V1）改用 ──────────
+        // ──── 完整半场地面：**帧 22（`training_area_bg`）**，CR-V1 改用，**D130 已停用本组（保留不删）** ────
+        //
+        // ⛔⛔ **D130 裁定（2026-09-23）**：本组（`NearGroundFieldLeftPx` / `NearGroundFieldRightPx` /
+        //    `NearGroundRearEdgePy` / `NearGroundPxPerTileY` / `NearGroundTopPy`）**已停用，保留不删**
+        //    （类注释二/五与 `策划/` 文档按名字引用它们）。注意**停用的是"一条裁条"这个做法，不是帧号**：
+        //    `NearGroundFrameNumber = 22` **D130 仍在用**（D130 的六段地层都取自它）。
+        //    停用原因 = `NearGroundTopPy`(646)..`NearGroundRearEdgePy`(1642) 这条窗口**跨过了画布的透明缝**
+        //    （画布行 1076..1082），实机就是两条横向黑缝 —— 根因与正确铺法见 `BlueFieldPyTop` 上方的 D130 长注释。
+        //
+        // ★ 以下为 CR-V1 原文（保留作历史与出处记录）：
         //
         // ★ 为什么不再用 f006 的「2 段透视映射」当地面（本片实测，脚本 `tools/probes/cr-v1-calib-tex_.py` /
         //   `tools/probes/cr-v1-waterprof.py`）：
@@ -308,26 +332,288 @@ namespace CR.View
         //   参考规格 §2「RED 侧 = BLUE 侧 y → 32 − y」）⇒ 格 0..15 的镜像落在格 17..32。
         //   这样地面**只有一张原版画布、一个缩放比**，不再有「2 段之间压缩率跳变」。
 
-        /// <summary>完整半场地面的**帧号**：`training_area_bg`（= `frame_022`，⛔ 不是数组下标）。</summary>
+        /// <summary>完整半场地面的**帧号**：`training_area_bg`（= `frame_022`，⛔ 不是数组下标）。**D130 仍在用**。</summary>
         public const int NearGroundFrameNumber = 22;
 
-        /// <summary>f022 场地左沿（画布 x，= 格 0）——实测草地 bbox x 99..912（18 格）。</summary>
+        /// <summary>【已停用（D130）】f022 场地左沿——D130 改用 <see cref="GroundFieldLeftPx"/>（同为 99）。</summary>
         public const float NearGroundFieldLeftPx = 99f;
 
-        /// <summary>f022 场地右沿（画布 x，= 格 18）。</summary>
+        /// <summary>【已停用（D130）】f022 场地右沿（实测草地 bbox 右沿 912）——D130 改用 <see cref="GroundFieldRightPx"/>（918.8）。</summary>
         public const float NearGroundFieldRightPx = 912f;
 
-        /// <summary>f022 后沿（画布 y，= 格 0）——实测内容最底 py 1642。</summary>
+        /// <summary>【已停用（D130）】f022 后沿 py 1642 —— D130 改用 <see cref="RedFieldPyBottom"/>（1600）/ <see cref="BlueBackPyBottom"/>（996）。</summary>
         public const float NearGroundRearEdgePy = 1642f;
 
-        /// <summary>f022 纵向像素/格 = **66.4**（后沿 1642 ↔ 格 0；与河带 py 578..612 互证，残差 ≤ 2 px）。</summary>
+        /// <summary>【已停用（D130）】f022 纵向像素/格 66.4 —— D130 六段各自定标（见 <see cref="BlueFieldPyTop"/>）。</summary>
         public const float NearGroundPxPerTileY = 66.4f;
 
         /// <summary>
-        /// f022 裁条上沿（画布 y）= 格 <see cref="GameConst.RiverTopTile"/>（15.0）⇒ py = 1642 − 66.4 × 15 = **646**。
-        /// 河带（格 15..17）不在这一条里 —— 它由 <see cref="BuildRiver"/> 用 f006 的水带单独铺。
+        /// 【已停用（D130，保留不删）】f022 裁条上沿（画布 y）= 格 <see cref="GameConst.RiverTopTile"/>（15.0）⇒ py = 1642 − 66.4 × 15 = **646**。
+        /// <para>D130 的实测证伪：py 646..1642 这条窗口**跨过了画布行 1076..1082 的透明缝**（根因见
+        /// <see cref="BlueFieldPyTop"/> 上方的长注释）⇒ 实机是两条横向黑缝。新代码⛔ 不要再接它。</para>
         /// </summary>
         public static float NearGroundTopPy => NearGroundRearEdgePy - NearGroundPxPerTileY * GameConst.RiverTopTile;
+
+        // ══════════ ★★ D130 地面真实层配方（用户判词 6「地图不对，路连不上」）★★ ══════════
+        //
+        // ★ 根因（判据脚本 `tools/probes/cr-d130-rows.py`，可复跑；数字见下方长注释）：
+        //   `training_area_bg`（= clip 48 ⇒ 帧号 22）这一张画布的 alpha **不是一条连续带**，用逐行
+        //   alpha 扫描量得 **3 段实心 + 2 段透明缝**（本片实测，`.ai-tmp/test/d130x/` 的 row-profile）：
+        //     · 行 0..55     56 行    （后沿带：草边 + 王台后半 + 外沿草须）
+        //     · 行 56..491  436 行    ← **透明缝**（画布留白）
+        //     · 行 492..996  505 行   （远岸草末端 + 河面占位带 + 泥带 + 木栏 + 近岸半场）
+        //     · 行 997..1075  79 行   （只剩左侧草须装饰，⛔ 不是场地内容）
+        //     · 行 1076..1082  7 行   ← **透明缝**
+        //     · 行 1083..1600 518 行  （远岸半场：王台 + 车道 + 公主台 + 车道 + 近岸草）
+        //   旧实现（CR-V1）是
+        //     `MakeCrop("GroundNear/Far", ground, 99, NearGroundTopPy(=646), 912, 1642, …)`
+        //   —— 把行 646..1642 **跨过那道 7 行的缝（1076..1082）整条裁下来**，⇒ 实机上就是两条
+        //   横向黑缝（一条 = 缝被拉伸、一条 = 把「近岸带」当成了半场内容）。**取像素窗口跨缝**，
+        //   不是素材缺失。证伪旧口径：`NearGroundTopPy`(=646)..`NearGroundRearEdgePy`(=1642) 这 996 行里，
+        //   646..996 落在实心段内、1076..1082 正是缝 —— 整条裁必然穿缝。
+        //
+        // ★ 正确铺法 = **按实测锚点把 帧 22 切 6 段铺**（本片实测 + 离线逐块复现，判据资产在
+        //   `.ai-tmp/test/d130x/`；量取脚本 `tools/probes/cr-d130-rows.py` 可复跑）。
+        //
+        //   ① 帧 22 这一张画布**不是**「一条连续带」也不是「两个半场块」—— 它是一张**贴图集**：把
+        //      同一条河 + 两岸按**屏幕上下顺序**拼成一条连续带（本片实测：带内 492..996 **逐行都是
+        //      实心**、且远岸车道末端 / 水面 / 泥带 / 木栏 / 车道 / 公主台 / 王台在**同一批列**上
+        //      严丝合缝 ⇒ 是"屏幕空间的连续渲染"，不是任意装箱）。逐行量取（`cr-d130-rows.py`）：
+        //        · 行 0..55     后沿带（草边 + 王台后半 + 外沿草须；`f022_topstrip_x4.png` 目视）
+        //        · 行 56..491   **透明缝**（画布留白，非场地内容）
+        //        · 行 492..535  远岸草 + 车道末端
+        //        · 行 536..583  **水面带**（蓝像元只露在场地左右之外 px 32..113 / 913..972 —
+        //                       因为场地那一格是"先铺草再叠水"的占位；⛔ 这 48 行的**高度
+        //                       恰等于** 帧 6 的水面带 805..852 的 48 行 ⇒ 它就是水位的原位）
+        //        · 行 583..606  河岸泥带（均色 RGB(124,114,89)，`MUD` 行 583..606）
+        //        · 行 604..668  木质栏栅（两束竖板，列 224..296 / 328..400）
+        //        · 行 607..996  近岸半场（公主台 748..844 中心 796、横路 908..924、王台 940..988）
+        //        · 行 997..1075  79 行只剩左沿草须装饰（⛔ 不是场地）
+        //        · 行 1076..1082 **透明缝**
+        //        · 行 1083..1600 远岸半场（王台 1083..1125 中心 1104、公主台 1227..1323 中心 1275、
+        //                       车道 1339..1579、近岸草到 1600）
+        //      ⇒ 泥带与木栏的**画布行比水面更大**，而这条带是屏幕连续渲染（上=远岸、下=近岸）
+        //        ⇒ 泥带与木栏属于**近岸 = BLUE 半场一侧**（在河面**之下**）。这是原版素材自己的
+        //        结构，本片照抄；⛔ 不要再按"参考图 03 的泥带在河之上"去翻它 —— `策划/参考图/03`
+        //        是**另一张竞技场**（它的泥带只有几像素、无灰石、无木栏、桥面带蓝箍），与本素材
+        //        的「灰石 + 木栏」不是同一套美术。
+        //
+        //   ② **纵向不是等比的**：帧 22 的「画布行 → 格」在两处斜率差 2 倍（本片实测）：
+        //        · 河/近岸一带 ≈ **24..27 行/格**（水面 536..583 共 48 行 = 河的 2 格 ⇒ 24 行/格）
+        //        · 后沿/塔一带 ≈ **48 行/格**（帧 22 王台中心 964 与公主台中心 796 差 168 行，
+        //          而 `KingTowerTileY`(3) 与 `PrincessTowerTileY`(6.5) 差 3.5 格 ⇒ 48 行/格；
+        //          帧 6 的同一量法：公主台中心 1039 → 王台中心 1203，164 行 ÷ 3.5 格 = 46.9 行/格 ✔）
+        //      ⇒ **单条等比裁条不可能同时把「河岸在 15/17」与「塔台在 6.5/3」摆对**。旧实现
+        //        （492..996 → 0..17.5，28.8 行/格）实测就把 BLUE 的王台压到格 0.7..1.9（应 2.5..3.5）
+        //        —— 塔会悬在台子之外。故本片**在公主台上下沿处打断**（那里是实心台面，斜率突变看不出来）：
+        //        · BLUE 段①：帧 22 行 [536, 748] → 格 y [7.5, 17.0]（212 行 ÷ 9.5 格 = 22.3 行/格）
+        //        · BLUE 段②：帧 22 行 [748, 996] → 格 y [2.33, 7.5]（248 行 ÷ 5.17 格 = 48.0 行/格
+        //          ⇒ 公主台 748..844 占格 5.5..7.5（中心 6.5 = `PrincessTowerTileY`）、
+        //             王台 940..988 占格 2.5..3.5（中心 3.0 = `KingTowerTileY`）✔）
+        //        · BLUE 段③：帧 22 行 [0, 55]    → 格 y [0, 2.33]（后沿带，草须朝下 ⇒ 底边）
+        //        · RED  段①：帧 22 行 [1323, 1600] → 格 y [17.0, 24.5]（277 行 ÷ 7.5 格 = 36.9 行/格）
+        //        · RED  段②：帧 22 行 [1083, 1323] → 格 y [24.5, 29.43]（240 行 ÷ 4.93 格 = 48.7 行/格
+        //          ⇒ 公主台 1227..1323 占格 24.5..26.5（中心 25.5 = 32 − 6.5）、
+        //             王台 1083..1125 占格 28.55..29.43（中心 29.0 = 32 − 3）✔）
+        //        · RED  段③：帧 22 行 [0, 55]    → 格 y [29.43, 32]（同一条后沿带，`flipY=true`
+        //          ⇒ 草须朝上 = 顶边；同一条素材按上下沿各用一次，因为原版场地是 180° 旋转对称）
+        //      六段合起来 **0..32 无缝无叠**（边界：0 / 2.33 / 7.5 / 17 / 24.5 / 29.43 / 32）。
+        //      段间像素连续（上一段的末行 = 下一段的首行）、只换斜率 ⇒ 不产生接缝（用户判词 6 的
+        //      「接缝」= 旧实现**跨过 1076..1082 那道透明缝**整条裁，见上方根因）。
+        //      ⛔ 打断点必须落在**实心台子边缘**（748 / 1323）：本片第一版落在 844（台子底沿），
+        //      离线复核（`cr-d130-render-recipe.py`）量得 BLUE 公主台被拉成 3.58 格（应 ≈2 格）。
+        //
+        //   ③ 河面仍取 **帧 6** 行 [806, 853] → 格 y [15, 17]（帧 22 场地内的「水面占位」是草，
+        //      不能当水用；帧 6 是唯一**在场地宽度内**画出蓝色渐变的层，出处见 `WaterFrameNumber`）。
+        //      水面 sortingOrder 高于两层半场 ⇒ 段①的 536..583 占位行正好被盖住，不露草。
+        //   ④ 木栏（帧 22 行 604..668 × 列 224..296 / 328..400）**不另做 sprite** —— 它本来就在
+        //      段①的像素里（落格 y 12.1..14.5，紧贴泥带下方），即"近岸木栏"。
+        //      **过河桥面**另取一条窄条（帧 22 行 604..692 × 列 215..295，= 左车道那一束竖板 +
+        //      其下方草），按 `BridgeCxATile`/`BridgeCxBTile` 在两条车道各落一次（见 `BuildRiver`）。
+        //      实测：帧 6 的水带 806..853 在两条车道处**仍是纯水**（列 345..390 / 846..892 取均色 =
+        //      rgb(0,134,154) 左右，与中段水色同族）⇒ 桥面**不可能**从帧 6 取，必须来自帧 22 的竖板。
+        //
+        // ★ 横向定标出处（本片实测）：帧 22 两条车道中心画布 px **259 / 760**，间距 501 px =
+        //   `BridgeCxBTile`(14.5) − `BridgeCxATile`(3.5) = 11 格 ⇒ **45.545 px/格**；
+        //   格 x=0 ⇔ px 99（= 259 − 3.5 × 45.545），右沿 = 99 + 18 × 45.545 = 918.8
+        //   （与实测草地 bbox 右沿 912 互证，差 0.15 格）。六段**共用同一个横向窗口** ⇒ 上下半场的
+        //   车道在格 x 上严格对齐（旧实现用 `flipY` 镜像**同一条**裁条 ⇒ 近岸带被翻到远半场，
+        //   河两侧的路因此接不上 —— 用户判词「路连不上」的第二个成因）。
+
+        // ── 地面六段：帧 22 画布上的 py 带 → 格 y 区间（全部升序；每段出处见上方 D130 长注释 ②） ──
+
+        /// <summary>地面横向像素/格（帧 22 口径）= **45.545**（车道中心 259/760 间距 501 px ÷ 11 格）。</summary>
+        public const float GroundPxPerTileX = 45.545f;
+
+        /// <summary>格 x=0 对应的帧 22 画布 px = **99**（= 259 − 3.5 × 45.545）。</summary>
+        public const float GroundFieldLeftPx = 99f;
+
+        /// <summary>格 x=<see cref="GameConst.ArenaTilesW"/> 对应的帧 22 画布 px = 918.8。</summary>
+        public const float GroundFieldRightPx = GroundFieldLeftPx + GameConst.ArenaTilesW * GroundPxPerTileX;
+
+        /// <summary>【BLUE 段①】河面占位带上沿（帧 22 画布行）= 536（= 格 y 17.0 = 河的上沿）。</summary>
+        public const float BlueFieldPyTop = 536f;
+
+        /// <summary>【BLUE 段①下沿 / 段②上沿】公主台**顶**沿（帧 22 画布行）= 748（= 格 y 7.5）。
+        /// <para>打断点必须落在**台子边缘**（实心台面），换斜率才看不出来；落在台子中间会把台子拉长
+        /// —— 本片先落在 844（台子底沿），离线复核（`cr-d130-render-recipe.py`）量得 BLUE 公主台
+        /// 被拉成 3.58 格（应 ≈2 格）⇒ 改成落在顶沿 748。</para></summary>
+        public const float BluePrincessPyTop = 748f;
+
+        /// <summary>【BLUE 段①】落位上界格 = 17.0（= <see cref="GameConst.RiverBottomTile"/> 的镜像侧河沿）。</summary>
+        public const float BlueFieldTileTop = 17.0f;
+
+        /// <summary>【BLUE 段①/② 交界格】= 7.5（公主台 748..844 全落在段② ⇒ 占格 5.5..7.5，中心 6.5 = `PrincessTowerTileY`）。</summary>
+        public const float BluePrincessTileTop = 7.5f;
+
+        /// <summary>【BLUE 段②下沿】半场内容末行（帧 22 画布行）= 996（行 997 起只剩左侧草须装饰）。</summary>
+        public const float BlueBackPyBottom = 996f;
+
+        /// <summary>【BLUE 段②/③ 交界格】= 2.33（王台 940..988 落在格 2.5..3.5 ⇒ 中心 3.0 = `KingTowerTileY`）。</summary>
+        public const float BlueBackTileLow = 2.33f;
+
+        /// <summary>【后沿带】帧 22 画布行 [0, 55]：草边 + 王台后半 + 外沿草须（上下两个半场共用）。</summary>
+        public const float BackEdgePyTop = 0f;
+
+        /// <inheritdoc cref="BackEdgePyTop"/>
+        public const float BackEdgePyBottom = 55f;
+
+        /// <summary>【BLUE 段③ 落位上界格】= 2.33（= <see cref="BlueBackTileLow"/>）。</summary>
+        public const float BackEdgeTileLow = 2.33f;
+
+        /// <summary>【RED 段③ 落位上界格】= 32（场地顶）。</summary>
+        public const float BackEdgeTileTop = 32f;
+
+        /// <summary>【RED 段①】远岸半场内容末行（帧 22 画布行）= 1600（= 格 y 17.0，河的上沿）。
+        /// <para>⛔ 不是 1634：本片实测（`cr-d130-render-recipe.py` 离线复核抓到黑带后复量）——
+        /// 场地列 px 99..918 内行 1600 还有 803 个不透明像元，行 **1601 起骤降到 ~20 个**
+        /// （只剩场地左沿的草须装饰）。取到 1634 会在河上方留一条 0.5 格的**透明黑带**
+        /// （本片第一版就是这个错，离线图 `recipe-live.png` 一眼可见）。</para></summary>
+        public const float RedFieldPyBottom = 1600f;
+
+        /// <summary>【RED 段①上沿 / 段②下沿】公主台**底**沿（帧 22 画布行）= 1323（= 格 y 24.5）。</summary>
+        public const float RedPrincessPyBottom = 1323f;
+
+        /// <summary>【RED 段①/② 交界格】= 24.5（公主台 1227..1323 全落在段② ⇒ 占格 24.5..26.5，中心 25.5 = 32−6.5）。</summary>
+        public const float RedPrincessTileBottom = 24.5f;
+
+        /// <summary>【RED 段②上沿】王台顶沿（帧 22 画布行）= 1083（= 块内容的第 1 行）。</summary>
+        public const float RedBackPyTop = 1083f;
+
+        /// <summary>【RED 段②/③ 交界格】= 29.43（王台 1083..1125 落在格 28.55..29.43 ⇒ 中心 29.0 = 32 − `KingTowerTileY`）。</summary>
+        public const float RedBackTileTop = 29.43f;
+
+        /// <summary>
+        /// 河面所用**帧号** = <b>6</b>（`atlasgenerator_texture_rgb565`）—— 本帧集里**唯一**带蓝色水面的层。
+        /// <para>
+        /// <b>出处（本片逐层量取，`tools/probes/cr-d130-arena-layers.py` + 行/列剖面）</b>：
+        /// 帧 22（`training_area_bg`）**本身不带场地内的蓝水** —— 它的蓝色像素只落在**场地左右之外**
+        /// （画布 px 33..97 与 900..972 两小段）；场地内那一段是「近岸草 + 木栏/灰石 + 桥板」。
+        /// 帧 6 的水面行 **806..853**（47 行），横向 px 207.6..1027（= 格 0..18），均色自上而下
+        /// **RGB(0,127,141) → RGB(0,166,205)**（带渐变）⇒ 与用户判词「原版深蓝带渐变」一致。
+        /// </para>
+        /// </summary>
+        public const int WaterFrameNumber = 6;
+
+        /// <summary>河面裁条左沿（帧 6 画布 px）= 207.6（= 车道中心 367 − 3.5 × 45.545）。</summary>
+        public const float WaterPxLeft = 207.6f;
+
+        /// <summary>河面裁条上沿（帧 6 画布行）= 806。</summary>
+        public const float WaterPyTop = 806f;
+
+        /// <summary>河面裁条下沿（帧 6 画布行）= 853（47 行高）。</summary>
+        public const float WaterPyBottom = 853f;
+
+        /// <summary>桥板裁条左沿（帧 22 画布 px）= 223（左车道那一束竖木板的外沿；`lead-d130b-bands.py` 实测列 223..298）。</summary>
+        public const float BridgePlankPxLeft = 223f;
+
+        /// <summary>桥板裁条右沿（帧 22 画布 px）= 298（束宽 75 px = 1.65 格；原版实机桥宽 ≈1.55 格）。</summary>
+        public const float BridgePlankPxRight = 298f;
+
+        /// <summary>桥面裁条上沿（帧 22 画布行）= 604 —— 竖板束的第一行（tan 剖面行 604..668）。
+        /// <para>⛔ 不许再往前取到 583：583..606 是**河岸泥带**（`MUD` 行 583..606），取进去会在河面上
+        /// 叠出一条棕色横带（旧 583 口径的缺陷，本片 D130 修正）。</para></summary>
+        public const float BridgePlankPyTop = 604f;
+
+        /// <summary>桥面裁条下沿（帧 22 画布行）= **668**（竖板束"满宽"的末行；669..684 只剩锯齿状板尾）。
+        /// <para>⛔ 不是 692：692 会把板下 24 行**草**也裁进去，在落位格被压成 2.7 格的同时
+        /// 把一段草铺到水带下沿上（旧口径的缺陷）。604..668 = 64 行 = **2.87 格**（段① 定标 22.3158），
+        /// 与落位跨度 14.57..17.43（2.86 格）**1:1 对齐**，不再压缩。</para></summary>
+        public const float BridgePlankPyBottom = 668f;
+
+        /// <summary>桥板落位下界格（格 y）= 14.57。</summary>
+        public const float BridgePlankTileBottom = 14.57f;
+
+        /// <summary>桥板落位上界格（格 y）= 17.43（跨过河面 15..17，两端各搭上岸 0.43 格）。</summary>
+        public const float BridgePlankTileTop = 17.43f;
+
+        // ══════════ ★★ D130b（用户判词 6「地图不对，路连不上，乱七八糟」）★★ ══════════
+        //
+        // ★ 本片的定量依据（`tools/probes/lead-d130b-bands.py`，只读可复跑；原始读数见
+        //   `.ai-tmp/test/D130b-bands.out.txt`）——把 frame_022 的**河岸带**与**桥板**彻底分开：
+        //   · 水带（河面占位）= 行 **536..583**，共 **48 行**；`GameConst.RiverTopTile..RiverBottomTile`
+        //     = 2 格 ⇒ **24.0 行/格**；段① 的落位定标（行 536 ↔ 格 17.0，行 748 ↔ 格 7.5）给出
+        //     **22.316 行/格**。两者一致到 7%（同一批行、同一张画布）⇒ 段① 的纵向定标可信。
+        //   · **原"河岸带"（行 575..612）—— 结论已改：它不是泥岸带，是「泥 + 成片竖木板」的一整件**
+        //     （逐行剖面 `tools/probes/lead-d130b-rowscan.py` → `.ai-tmp/test/D130b-rowscan.out.txt`：
+        //      rows 570..574 = 纯草 GRASS 0.98 / 木 0；rows 579..605 = WOOD 0.44..0.86，且木色列遍布全宽）。
+        //     ⛔ 本片**不用**它（撤销记录见下方 ③）。上一轮把它当"泥岸带"是**看漏了木色列**。
+        //   · **桥板（跨河桥面）** = 行 **604..668**（64 行 ÷ 22.316 = **2.87 格**），两束各 3 条竖板，
+        //     列 **223..298**（左束，心 260.5 = 格 3.54 = `BridgeCxATile`）与列 **327..402**
+        //     （右束，心 364.5 = 格 5.83）。
+        //     ⇒ **板长 2.87 格 > 河宽 2 格** —— 这正是"桥面跨河、两端各搭上岸 0.43 格"的长度。
+        //     ⇒ 结论（本片第 ② 条的判据来源）：**桥面必须由这束板只在两条车道上各落一次**，
+        //       而段① 里"按贴图集原位"也画了一次（落格 11.08..13.95）—— 那一次是**贴图集残留**，
+        //       实机上表现为场地正中一堵"木板墙"（用户判词「乱七八糟」）。
+        //   · 对照原版实机：`策划/基线图/03_对局_1320x2868.jpg`（河区拼图
+        //     `.ai-tmp/test/d130x/LEAD-orig-river-montage.png` 第 1 格）—— 原版木桥**跨在水面上**，
+        //     两岸是草，**没有**第二份"垂进草地的木板"；桥心正对车道。⇒ 与上面的判据一致。
+        //
+        // ★ 本片只做三件事（⛔ 不动塔区、⛔ 不动横向定标）：
+        //   ① **桥板归位**：`BridgePlankPyBottom` 由 692 收到 **668**（原 692 把板下 24 行**草**也裁进去，
+        //      在"桥板被垂直压缩到 2.7 格"的同时把一段草铺到了水带下沿上）；落格由 14.6..17.3 改为
+        //      **14.57..17.43**（对称跨河、两端各搭 0.43 格）；板宽改成实测列 223..298。
+        //   ② **抹掉段① 的贴图集残留**：把 rows 686..748 这段**干净草地（含两条车道，无木板、无泥带）**
+        //      按段① 自己的定标（22.3158 行/格）向上复制两份，覆盖格 y **9.44..15.00**
+        //      ⇒ 场地正中不再有"木板墙"，车道从公主台一路贯通到河沿。
+        //      ⛔ 本条**不**用"同段草地补丁列"那种写法：`lead-d130b-bands.py` 的 Q2 段实测
+        //      **rows 604..668 / 600..670 / 583..615 三档都无"每行都是草"的列区间**（原始读数见
+        //      `.ai-tmp/test/D130b-bands.out.txt` 尾段），按"纯草列"取源会铺出一条杂色带。
+        //   ③ **河岸带：本片最终「不做」**（原方案见下方撤销记录）—— 水带下沿以上直接保留敌方半场草地。
+
+        // ★★ 第 ③ 条的撤销记录（2026-09-23 20:5x；实机证据在案。⛔ 不改史，只追加）：
+        //   撤销前：`GroundRedBank` = `MakeCrop(源 frame_022 rows 575..612 → 格 13.59..15.25, flipY)`。
+        //   实机 census（新 DLL）：`GroundRedBank | order=3 | yTop 815.4..915.0` —— 确实落在水的上沿以上，
+        //   方向是对的（旧 DLL 对照图上是"上 0.000 / 下 0.234"，新版翻成"上 0.235 / 下 0.000"）。
+        //   但**判据与肉眼同时报异常**：水带上方多出一整片**成束竖木板**
+        //   （`tools/probes/lead-d130b-live-verdict.py` 在实机图上量：上格 WOOD=0.675）。
+        //   追到源（`tools/probes/lead-d130b-banksrc.py` + `lead-d130b-rowscan.py`，读数落
+        //   `.ai-tmp/test/D130b-banksrc.out.txt` / `D130b-rowscan.out.txt`）：
+        //     rows 575..612 整段 **WOOD=0.547**，木色列**遍布全宽** `(118,135)(169,220)…(731,865)`；
+        //     而 rows 570..574 才是纯草（GRASS=0.98、木 0）⇒ 这条带是「**泥 + 成片竖木板**」的一整件，
+        //     **不是**"泥岸带"（上一轮把它当泥岸带，是**看漏了木色列**）。
+        //   **原版训练营**水上沿以上（`策划/基线图/03_对局_1320x2868.jpg`，出图
+        //   `.ai-tmp/test/d130x/LEAD-ref03-upperbank-2x.png`）实测 = **草 + 约 0.2 格宽棕色泥岸 + 白色浪花线**，
+        //   **没有任何木板**。⇒ 违反铁律 1（原版没有 ⇒ 不加）⇒ 本片**撤销**此叠层。
+        //   撤销后：水边直接露出敌方半场草地（`GroundRedNear` 已铺满格 7.5..15.0），两岸恢复"草对草"。
+        //   ⚠️ **已知差异（登记，本片未做）**：原版水边那条 ≈0.2 格宽的棕色泥岸与浪花线，本实现没有。
+        //      要补必须做"只取泥/石、排除木色列"的像素级遮罩（= 新实现），不在本片范围。
+
+        /// <summary>【段① 定标】纵向行/格 = (748−536)/(17.0−7.5) = **22.3158**（`lead-d130b-bands.py` 实测水带 48 行 = 2 格 ⇒ 24.0 行/格，两者差 7% 以内 ⇒ 段① 定标可信）。</summary>
+        public const float BlueRowsPerTile = (BluePrincessPyTop - BlueFieldPyTop) / (BlueFieldTileTop - BluePrincessTileTop);
+
+        /// <summary>【覆盖带】干净源带的上沿（帧 22 画布行）= 686 —— 该带（686..748）内**每行都无木板**
+        /// （`lead-d130b-bands.py` 实测：木板尾行到 684，685 起只剩车道 739-782 的土色）。</summary>
+        public const float GapSrcPyTop = 686f;
+
+        /// <summary>【覆盖带】干净源带的下沿（帧 22 画布行）= 段① 带的下沿 748（= <see cref="BluePrincessPyTop"/>）。</summary>
+        public const float GapSrcPyBottom = BluePrincessPyTop;
+
+        /// <summary>【覆盖带】上界格 = 15.0 —— **= 河面的下沿**（再往上那 0.25 格归河面管辖，被 shape 盖住）。</summary>
+        public const float GapTileHigh = GameConst.RiverTopTile;
+
+        /// <summary>【覆盖带】下界格 = 9.44 = <see cref="GapTileHigh"/> − 2 × 单份跨格数（两份向上复制，见 <see cref="GapSrcPyTop"/> 的说明）。</summary>
+        public const float GapTileLow = GapTileHigh - 2f * ((GapSrcPyBottom - GapSrcPyTop) / BlueRowsPerTile);
 
         // ⛔ 以下 2 个「段界」**已停用（CR-V1 拍②，2026-09-23）**，**保留不删**（team-lead 裁定五条之 5）：
         //    它们只服务 `MakeSegment`（f006 两段透视映射），地面已在 `BuildArt()` 换成 f022 完整半场
@@ -407,6 +693,67 @@ namespace CR.View
         /// <summary>同上（红方）：`StarTower_top_red`(clip 233) = rec 7。</summary>
         public const int RedPrincessTopFrame = 7;
 
+        // ───────────────── 阵亡废墟（D133：用户判词「塔阵亡没废墟」）─────────────────
+        //
+        // ★ 出处（判据脚本 `tools/probes/cr-d133-tower-ruin.py`，可复跑；输出
+        //   `.ai-tmp/test/CR-D133-tower-ruin.txt` / `.json`）：把 `building_tower_v215.sc` 的
+        //   **36 个 export 全表 + 62 条 clip 全表** 按语义关键词（destroy/ruin/rubble/dead/break…）过一遍，
+        //   命中的**只有 3 条**（其余 33 个 export 全是皮肤/部件，与摧毁无关）：
+        //     · clip 301 `Tower_destroyed_ground1` → childTable sid **208** → 记录序 **207**（PNG 407×471）
+        //     · clip 298 `Tower_destroyed_ground2` → childTable sid **206** → 记录序 **205**（PNG 407×471）
+        //     · clip 297 `Tower_2v2_destroyed`     → childTable sid **205** → 记录序 **204**（PNG 407×471）
+        //   （sid≠记录序：本 `.sc` 从 sid 115 起记录序 = sid−1，见 `策划/塔与建筑动画表.md` §二 的同一口径。）
+        //   三条 clip 的 placement 表**都是 1 帧 1 层、matrix=65535（无矩阵）、ct=65535** ⇒ 废墟是**单层贴图、
+        //   画在 407×471 画布原位**（与塔体各层**同一张画布**）⇒ 本文件不自造偏移/缩放，只按画布坐标对位。
+        //   **204 是 2v2 专用**（`Tower_2v2_destroyed`；2v2 另有一套 `2vs2_platform` rec 208-210 与
+        //   `2vs2_*_tower_top` rec 11/206）⇒ 本工程 1v1 ⛔ 不用 204。
+        //
+        // ★★ 关键判定：这两帧是**按队伍**分开的（蓝 = 207 / 红 = 205），**不是**按塔型分开的。
+        //   三条互相独立的证据（§F 与 `tools/probes/cr-d133-rubble-compose.py` 的产物都可复跑）：
+        //     ① **数量**：1v1 只有两帧废墟，却要覆盖 {蓝王, 红王, 蓝公, 红公} 四种组合 —— 两帧只能覆盖
+        //        **一个维度**。阵营色在塔体 art 里是**烘焙**的（本文件顶部 CR-T1b 段：rec211 r−b=+32.7 红、
+        //        rec213 r−b=−3.3 中性偏蓝），而两帧废墟的均色几乎相同（205 r−b=**+42.8** / 207 r−b=**+40.7**，
+        //        都是中性暖色石木色）⇒ 废墟 art **不带阵营色**，"按队伍分帧 + 两型塔共用"在画面上自洽
+        //        （碎石本来也不该分蓝红）。
+        //     ② **命名惯例（同一文件内 6 组互证）**：本 `.sc` 里 `_01` = **BLUE**、`_02` = **RED** ——
+        //        `kingtower_goldrush_01` 取蓝段 rec 30-47/99-161、`_02` 取红段 15-28/30-97；
+        //        `kingtower_pump_01/02`、`kingtower_gemrush_01/02`、`kingtower_xmas_01/02` 同形；
+        //        四组 `princesstower_*_01_top`(rec 高) / `_02_top`(rec 低) 也与 `StarTower_top_blue`(rec 8) >
+        //        `StarTower_top_red`(rec 7) 同序 ⇒ `ground1`(207) = 蓝、`ground2`(205) = 红。
+        //     ③ **地脚线（与宽度无关的独立量）**：量每张 art 的"墙基下沿"（该行宽度骤降的那一行，§F 的
+        //        逐行宽度剖面）—— 王塔 rec213 = **292** / rec211 = **292**；公主塔 rec10 = **276** /
+        //        rec9 = **276**；两帧废墟 = **275**(205) / **270**(207)。⇒ 两帧废墟都落在**公主塔的地脚线**
+        //        上（差 1~6 px），没有一帧贴王塔的地脚线（差 16~22 px）⇒ 它们**不是"一王一公"**，
+        //        而是同一型塔的两个队伍变体。
+        //        （同向的第二把尺：废墟 alpha 紧框最大宽 205=**172** / 207=**159**，公主塔 art 最大宽
+        //         **171**、王塔 **197.5** ⇒ 两帧都更贴公主塔。⚠️ "王=205 / 公=207"那种按塔型配法在"最大宽 /
+        //         本型 art 最大宽"这个比值上看似更自洽（离散 0.059 vs 0.201），但那要先假设"两帧不同型"，
+        //         是循环论证 ⇒ 不作为依据，只登记。）
+        //   ⇒ **本工程按队伍取帧**：team 0(BLUE) = 207、team 1(RED) = 205；**国王塔与公主塔共用同一帧**
+        //     （废墟挂在该塔根下 ⇒ 自动继承该塔根自己的缩放 1.7 / 1.65，本文件不再另加 localScale）。
+        //
+        // ⚠️ 已知缺口（登记，不假装解决）：`.sc` 里**没有王塔专属废墟**（若有，按本文件命名法应叫
+        //   `KingTower_destroyed` / `StarTower_destroyed`）。王塔复用公主塔尺寸的废墟是**唯一可用素材下的
+        //   近似**；`策划/基线图/` 与 `策划/参考图/`（03/04/05/06/08/09/10/20/21/22/23 逐图裁过，产物
+        //   `.ai-tmp/test/CR-D133-towerband-top.png` / `-bot.png`）**没有一张含已阵亡的塔**（对局图都在开局）
+        //   ⇒ 无法用基线图交叉核对 ⇒ 登记为**待实机复核**。
+        //
+        // ⛔ 不许用旧皮肤 / 2v2 皮肤帧当常态（`kingtower_goldrush_*` 等，见文件顶部 CR-T1 的坑）；
+        //    ⛔ 也不许把 204（2v2）拿来当 1v1 的废墟。
+
+        /// <summary>BLUE 阵亡废墟帧 = **207**（`Tower_destroyed_ground1`，clip 301 → 记录序 207）。出处见上方长注释。</summary>
+        public const int BlueTowerRubbleFrame = 207;
+
+        /// <summary>RED 阵亡废墟帧 = **205**（`Tower_destroyed_ground2`，clip 298 → 记录序 205）。出处见上方长注释。</summary>
+        public const int RedTowerRubbleFrame = 205;
+
+        /// <summary>
+        /// 废墟层的节点名前缀 —— 建在**塔根**下（`TowerView.SetTowerLayersEnabled` 要按"引用"把它排除，
+        /// 否则整座塔藏掉时会把废墟也一起关掉，废墟永远不亮）。
+        /// 多子精灵时第一块用 `Rubble`、其余用 `Rubble_i`。
+        /// </summary>
+        public const string RubbleLayerName = "Rubble";
+
         /// <summary>BLUE 国王（塔上坐着的人物）：`KingTower_blue` 的 `king_idle`(clip 252) 首帧 rec 101。</summary>
         public const int BlueKingSeatFrame = 101;
 
@@ -431,33 +778,64 @@ namespace CR.View
         public const string PrincessOccupantSpriteDir = "chr_princess_out";
 
         /// <summary>
-        /// 我方（BLUE）公主塔乘员：`princess_tower_idle1_7`（clip 973）= rec **498**（公主 + 弩，**视角 7**）。
+        /// 我方（BLUE）公主塔乘员：`princess_tower_idle1_3`（clip 981）= rec **502**（公主 + 弩，**视角 3**）。
         /// <para>
         /// <b>两套 + 9 视角</b>（`chr_princess_v215.sc` 的 Export 表，`tools/probes/cr-t1b-occupant.py` 复跑）：
         /// `princess_tower_idle1_1..9` = rec **504,503,502,501,500,499,498,497,496**；
         /// `princess_tower_red_idle1_1..9` = rec **8,7,6,5,4,3,2,1,0**（逐帧配色统计证明蓝/红两套，见下）。
+        /// 两套**逐视角 bbox 完全相同**（`cr-t1b-occupant.py` 输出里 B_n 与 R_n 的 bbox 逐项一致）⇒ 红/蓝
+        /// 只是染色、几何同一套 ⇒ **面向只能靠"选哪个视角"区分**。
         /// </para>
         /// <para>
-        /// <b>为什么取视角 7（CR-T1e 收敛）</b>：上一轮用视角 1 = **斜躺/侧朝**（主 agent 读图判"斜躺"）。
-        /// 本轮把 18 张出成带帧号的联络图并与原版 G2/G5 大图对照（`.ai-tmp\test\CR-T1e-idle-views.png` +
-        /// `CR-T1e-pick.png`），按原版的三个特征核：**头在上 / 身在下 / 弩横在身前** ⇒ 视角 7 = rec 498（蓝）、
-        /// rec 2（红）；视角 1（rec 504/8）那两张的弩朝侧后、身子横过来，与参考图不符。
+        /// <b>★ D140 修正（用户第 1 条「我方公主塔 朝向不对」）</b>：原版里**两侧乘员朝向相反**——
+        /// · 我方（蓝）：**背对镜头（朝敌方）**。出处 = `策划/参考图/03_对局_1320x2868.jpg` 右下（我方）
+        ///   公主塔裁切（`.ai-tmp/test/D140-r03-occ-tight.png`、带网格的 `D140-occ-grid.png`）：只看得见
+        ///   **后脑勺**——深色头发一团 + 头侧一块淡蓝披风，**没有脸**；双臂向左伸、**金色编织弩弦**斜过身前。
+        /// · 敌方（红）：**面朝镜头（朝我方）**。出处 = `04_对局` 左上（敌方）公主塔裁切
+        ///   （`.ai-tmp/test/D140-r04-red-princess-L.png`）：**脸可见**（深发 + 面庞），弩横在身前。
+        /// ⇒ 规律 = **每个阵营的乘员都朝敌方**（我方→上、敌方→下）。同一规律在**王塔**上也成立且是
+        ///   per-team 美术：`KingTower_blue`(clip 308) rec101 = 王的**背面**（蓝披风 + 金冠箍，实机复核
+        ///   `.ai-tmp/test/D140-towers-zoom.png` 与参考图 `D140-r04-blue-king.png` 一致）、
+        ///   `KingTower_red`(clip 307) rec16 = **正面**（脸可见，`D140-r04-red-king.png`）。⇒ 王塔本来就对、
+        ///   只有公主塔两侧取了**同一个**视角 7（面朝镜头）才会"我方那座是反的"。
         /// </para>
         /// <para>
-        /// ⛔ 颜色仍必须取对套：rec 498 属蓝套（`princess_tower_idle1_7`），rec 2 属红套
+        /// <b>为什么是视角 3（rec 502）而不是视角 1（rec 504）</b>：
+        /// ① 机械量（`cr-d140-occview.py` 的"脸部亮肤像素"分类器，口径 <c>r&gt;150 &amp; g&gt;100 &amp; b&gt;=80 &amp;
+        ///    (r−b)∈[20,90] &amp; lum&gt;=170</c>，只统计轮廓上 45% 的头部区）：
+        ///    9 个视角里 **视角 3 = 1 px（全最小）**、视角 1 = 8、视角 7（面朝镜头）= 62
+        ///    ⇒ 视角 3 是**最彻底背对镜头**的那一张。
+        /// ② 形状：把 9 张出成逐张 8× 大图（`.ai-tmp/test/D140-big502.png` 等）与 `D140-occ-grid.png` 逐特征核——
+        ///    参考图里她的**左臂/弩臂向左横伸**、**金色编织弦斜过身前**、头侧一块淡蓝，这三条**只在视角 3**
+        ///    同时成立；视角 1 是"弩箭朝正上方竖着一根"（参考图里没有），视角 4 是"弩臂朝右上"。
+        /// </para>
+        /// <para>
+        /// ⚠️ 自我否证记录：本片先做过一版"高通相关"数值判据（`cr-d140-occview.py` 首版），它**没通过正向
+        /// 对照**——把已知"面朝镜头"的**敌方红**参考喂进去，它挑的不是视角 7 ⇒ 该判据无效、已弃用（脚本
+        /// 保留 `正向对照` 分支，复跑会打印"✘ 判据无效"）。最终采用上面 ①② 两条。
+        /// </para>
+        /// <para>
+        /// ⛔ 颜色仍必须取对套：rec 502 属蓝套（`princess_tower_idle1_3`），rec 2 属红套
         /// （`princess_tower_red_idle1_7`）；两套的"偏红/偏蓝"计数见 `cr-t1b-occupant.py` 输出。
         /// </para>
         /// </summary>
-        public const int BluePrincessOccupantFrame = 498;
+        public const int BluePrincessOccupantFrame = 502;
 
         /// <summary>
-        /// 敌方（RED）公主塔乘员：`princess_tower_red_idle1_7`（clip 973 的对位）= rec **2**（红衣公主 + 弩，
-        /// **视角 7**）。与蓝方取同一视角（见 <see cref="BluePrincessOccupantFrame"/> 的判定）。
+        /// 敌方（RED）公主塔乘员：`princess_tower_red_idle1_7`（clip 753）= rec **2**（红衣公主 + 弩，
+        /// **视角 7 = 面朝镜头**）。
         /// <para>
-        /// <b>为什么是视角 7</b>：9 个视角是**绕塔的 9 个朝向**，把 18 张（两套各 9）出成带帧号的联络图
-        /// （`.ai-tmp\test\CR-T1e-idle-views.png`）+ 与原版 G2/G5 的大图对照（`CR-T1e-pick.png`）后，逐张核
-        /// "头在上、身在下、弩横在身前"这一组特征：视角 1（rec 504/8）是**侧朝/斜躺**（上一轮主 agent 判"斜躺"的原因），
-        /// 视角 7（rec 498/2，bbox 145,66,235,164）才是正朝镜头的那一张。
+        /// <b>★ D140：红方**刻意**与蓝方取**不同**视角</b>（蓝方 = 视角 3 / rec 502 = 背对镜头）。
+        /// 原版规律 = **每个阵营的乘员都朝敌方** ⇒ 敌方（红）朝我方（镜头）＝ 面朝镜头。
+        /// 出处 = `策划/参考图/04_对局_1320x2868.jpg` 左上（敌方）公主塔裁切
+        /// （`.ai-tmp/test/D140-r04-red-princess-L.png`）：**脸可见**（深发 + 面庞 + 红披风），弩横在身前；
+        /// 同图 `05` 的敌方塔一样。⛔ 所以这两行**必须取不同的帧号**，把它们改成同一个数就是"某一侧朝向反了"。
+        /// </para>
+        /// <para>
+        /// <b>为什么是视角 7（CR-T1e 收敛，D140 复核后仍成立）</b>：把 18 张（两套各 9）出成带帧号的联络图
+        /// （`.ai-tmp\test\CR-T1e-idle-views.png`）+ 与原版的大图对照（`CR-T1e-pick.png`），按原版的三个特征核
+        /// "头在上 / 身在下 / 弩横在身前"：视角 7（rec 498/2，bbox 145,66,235,164）是正朝镜头的那一张。
+        /// D140 另用"脸部亮肤像素"分类器复核：视角 7 = **62 px**（9 视角里第 2 多），确认它带脸 ⇒ 给敌方 ✔。
         /// </para>
         /// </summary>
         public const int RedPrincessOccupantFrame = 2;
@@ -624,7 +1002,12 @@ namespace CR.View
         /// （rec 498 / 2，bbox 高 97 px）后，同塔尺并排逐格看 **0.85 / 1.00 / 1.13** 三档
         /// （`.ai-tmp\test\CR-T1i-osweep.png`）：1.00~1.13 最接近原版、0.85 明显偏小 ⇒ **保持 1.13**
         /// （⛔ 不为了"看着更准"改成自定值）。
+        /// <para>
+        /// ⚠️ <b>D140 复核</b>：蓝方帧号改为视角 3（rec 502，bbox <c>(154,74,248,172)</c> ⇒ 宽 94 px、高 98 px）
+        /// 后与本轮定标用的 rec 498（bbox <c>(145,66,235,164)</c> ⇒ 90×98）**尺寸几乎相同**（宽 +4、高 +0）
+        /// ⇒ 本缩放值继续成立，不需要跟着改。缩放口径是"乘员框高 / 垛口结构宽"，与具体视角无关。
         /// </para>
+        /// </summary>
         /// </summary>
         public const float PrincessOccupantScale = 1.13f;
 
@@ -730,24 +1113,73 @@ namespace CR.View
             ApplyTowerTeam(1, teamB);
         }
 
+        /// <summary>
+        /// 原版地面**纵向压缩系数**（0.75）。出处：`策划/参考图/20_对局_1080x1920.jpg` 实测 —— 场地 32 格
+        /// 纵向占 rows 140..1580（= 1440 px ⇒ **45 px/格**），横向 18 格占 x 0..1079（= 1080 px ⇒ **60 px/格**）；
+        /// 独立交叉校验：河带（恒 2 格）实测 rows 866..913、中线 889.5，按"顶沿 172 + 16 格 × 45"回算得 **892**（差 2.5 px）。
+        /// ⇒ 原版把地面画成 **屏上 4:3 的矩形格**（横向拉伸 4/3 ⇔ 纵向压缩 3/4）。原版是斜视相机，本实现是正交平视，
+        /// 故用**非等比正交投影**复现同一屏占比（见 <see cref="SetupCamera"/>）。
+        /// </summary>
+        public const float GroundCompressY = 0.75f;
+
+        /// <summary>
+        /// 场地**底沿**在屏幕上的行号（自上而下，**1080×1920 基准**）。
+        /// 出处同上：原版草地底沿实测 rows **1574..1615**（左/右干净草带 1574/1576、中央含王台 1615），取 **1580**。
+        /// 作用：把"战斗区不被出牌区盖住"写成一条**可失败的判据** —— 本实现出牌区（`Hand0..Hand3`）上沿 = 1614（见
+        /// `.ai-tmp/test/D130-arena-report.md` §7.5 E），底沿 1580 < 1614 ⇒ 留 34 px，用户第 1 条「出牌区挤压战斗区」消除。
+        /// </summary>
+        public const float GroundBottomRowPx = 1580f;
+
+        /// <summary>行号口径的基准屏高（<see cref="GroundBottomRowPx"/> 用它换算成比例，从而与设备分辨率无关）。</summary>
+        public const float FrameBasisHeightPx = 1920f;
+
         /// <summary>相机设置：竞技场 18×32 格、竖屏构图。</summary>
         /// <remarks>
         /// <b>为什么这样取</b>：世界单位 = 格、竞技场中心在原点、y 大 = RED 后方（`GameConst` 的坐标约定）。
         /// 正交尺寸 = 视野半高。要**完整**看到 32 格高 ⇒ 半高 ≥ 16；要看到 18 格宽 ⇒ 半高 ≥ 9/aspect。
         /// 取两者的大者，于是竖屏（aspect &lt; 0.5625）时铺满高度、横屏时退化为左右留白（露出竞技场外的草地，不裁单位）。
-        /// <b>⛔ 不走 `Game.Camera`</b>：`docs/client-api-reference.md` 的 §2/§5 只列出 `Game.Camera` 的类型，
-        /// **没有成员签名**，照"不猜 API"的规矩不用它，直接摆 `Camera`（场景里已有一台正交相机，见 `SceneBuilder`）。
+        /// <para>
+        /// <b>★ 取景订正（用户第 1 条「出牌区挤压战斗区，我记得好像是分离的」）</b>：原实现让 18×32 场地**恰好铺满整屏**
+        /// （半高 16 时 32 格 = 1920 px），于是场地底沿 = 屏幕底沿，**下方国王塔整层落在出牌区之后**（实测塔外框
+        /// rows 1622.7..1771.6 vs 出牌区上沿 1614 ⇒ 被盖 306 px ≈ 5.1 格）。
+        /// 原版不是这样：它把地面纵向压到 **0.75**（<see cref="GroundCompressY"/>），场地只占 1440 px，底沿停在
+        /// <see cref="GroundBottomRowPx"/> = 1580，**出牌区上沿之下没有战斗区**。
+        /// ⇒ 本方法改为**非等比正交投影**：半宽 = 9 格（18 格铺满画宽）、半高 = 16 / 0.75 = 21.333 格
+        /// （32 格占 1440 px），再平移相机把场地底沿放到第 1580 行。
+        /// <b>为什么用投影矩阵而不是缩放内容根</b>：投影矩阵参与 `ScreenToWorldPoint` ⇒ 点击落点/落位指示仍然自洽；
+        /// 若改缩放 `BattleContent`，则屏幕→世界不再反映该压缩，点哪丢哪会错位。
+        /// </para>
+        /// <b>⛔ 不走 `Game.Camera`：理由是"**不需要**"，不是"文档没写"</b> ——
+        /// ⚠️ 本条注释原先写的是"`docs/client-api-reference.md` 的 §2/§5 只列出 `Game.Camera` 的类型、
+        /// 没有成员签名，照'不猜 API'的规矩不用它"。**该理由已过期**：引擎现在有完整签名
+        /// （`Runtime/Core/PresentationContracts.cs` 的 `ICameraManager`，`Runtime/Presentation/Camera.cs` 是实现）。
+        /// **现在成立的真实理由**（2026-09-24 经 sinkup5 盘点复核）：本工程是 **2D 正交固定相机** ——
+        /// 竞技场 18×32 格、相机**不跟随任何目标**、无震屏、无边界约束、且投影是**非等比**的
+        /// （见上面的 `Matrix4x4.Ortho`）。引擎 `ICameraManager` 的能力面（Follow / Shake / SetBounds / FOV /
+        /// 视线）在这里**一个都用不上**；而"非等比正交投影 + 相机平移"这条引擎**没有**（引擎缺口 E-7）
+        /// ⇒ 即便接上引擎相机，这两步仍只能自己写。因此直接摆 `Camera`
+        /// （场景里已有一台正交相机，见 `Editor/SceneBuilder.cs` 的 `AddCamera`）。
         /// </remarks>
         public static void SetupCamera(Camera cam)
         {
             if (cam == null) return;
             cam.orthographic = true;
             var aspect = cam.aspect > 0.01f ? cam.aspect : 0.5625f; // 0.5625 = 9:16 竖屏
-            cam.orthographicSize = Mathf.Max(GameConst.ArenaTilesH * 0.5f,
-                GameConst.ArenaTilesW * 0.5f / aspect);
+            // 半宽固定 9 格 = 18 格铺满画宽；半高 = 16 / 0.75 ⇒ 纵向 45 px/格、横向 60 px/格（原版实测比例）。
+            var halfW = GameConst.ArenaTilesW * 0.5f;
+            var halfH = GameConst.ArenaTilesH * 0.5f / GroundCompressY;
+            // 比场地（压后 aspect = 9/21.333 ≈ 0.4219）更窄的屏：保宽、露出更多高（沿用原"竖屏铺满宽度"的意图）。
+            if (aspect < halfW / halfH) halfH = halfW / aspect;
+            cam.orthographicSize = halfH; // 仅作对外读数（渲染由下面的投影矩阵决定）
+            var zN = cam.nearClipPlane > 0f ? cam.nearClipPlane : 0.3f;
+            var zF = cam.farClipPlane > zN ? cam.farClipPlane : 1000f;
+            cam.projectionMatrix = Matrix4x4.Ortho(-halfW, halfW, -halfH, halfH, zN, zF);
+            // 平移相机：令场地底沿（世界 y = −ArenaTilesH/2）落在第 GroundBottomRowPx 行。
+            //   row = (cy + halfH − worldY) / (2·halfH) · H  ⇒  cy = frac·2·halfH − halfH − ArenaTilesH/2
+            var frac = GroundBottomRowPx / FrameBasisHeightPx;
+            var cy = frac * (2f * halfH) - halfH - GameConst.ArenaTilesH * 0.5f;
             cam.transform.rotation = Quaternion.identity;
-            if (cam.transform.position.z >= 0f)
-                cam.transform.position = new Vector3(0f, 0f, -10f);
+            cam.transform.position = new Vector3(0f, cy, -10f);
         }
 
         // ─────────────────────────── 底图 ───────────────────────────
@@ -777,108 +1209,139 @@ namespace CR.View
                 return;
             }
 
-            // ★ 按**帧号**取，不是数组下标（与 D1 修过的塔帧同族缺陷）：
-            //   多子图 PNG 会让下标整体偏移，见 FindFrameByNumber 的注释。
-            var src = FindFrameByNumber(frames, GroundFrameIndex);
-            if (src == null || src.texture == null)
-            {
-                Game.Logger?.Warn(LogTag,
-                    $"底图帧按帧号取不到（帧号 {GroundFrameIndex}，共 {frames.Length} 个 Sprite）⇒ 只有纯色底图");
-                return;
-            }
+            // ★ D130：地面/河面/桥板**各自按帧号取**（⛔ 不按数组下标 —— 多子图 PNG 会让下标整体偏移，
+            //   见 FindFrameByNumber 的注释）。取不到时**各层自己留痕、各自降级**（不再因一帧缺失就整片放弃：
+            //   地面帧 22 缺了仍有河面，河面帧 6 缺了仍有地面）。
 
-            // RED 层先画（sortingOrder 小 = 在下），BLUE 层后画（盖住重叠区）。理由见类注释三。
-            const int orderRed = SortingOrder.ArenaBase + 1;
-            const int orderBlue = SortingOrder.ArenaBase + 2;
+            // ★★ D130：不再用 f006 的两段透视映射，也不再跨缝裁 f022 的一条 —— 改成
+            //   **帧 22 切六段地层 + 帧 6 的河面 + 帧 22 的过河桥面**（根因与出处见 BlueFieldPyTop 上方的长注释）★★
+            const int orderBlueHalf = SortingOrder.ArenaBase + 1; // BLUE 半场（下）先画：重叠区被 RED 半场压
+            const int orderRedHalf = SortingOrder.ArenaBase + 2;  // RED 半场（上）
+            // D130b 叠层（覆盖残留桥板 + 镜像河岸带）：必须**高于两层半场、低于水面**——镜像河岸带落在
+            // 格 16.75..18.41，横跨 BLUE/RED 两段；残留桥板覆盖落在格 11.08..13.95（BLUE 段内）。
+            const int orderGroundOverlay = SortingOrder.ArenaBase + 3;
+            const int orderWater = SortingOrder.ArenaBase + 4;    // 河面压在两层半场与叠层之上
+            const int orderBridge = SortingOrder.ArenaBase + 5;   // 桥面压在河面之上
 
-            // ★★ CR-V1：地面改由 **帧 22（`training_area_bg`）的完整半场**铺（出处 / 标定见 NearGround* 常量上方的长注释）★★
-            //   · 为什么换：f006 是带透视的画布（近段 58.3 px/格、远段 22 px/格），把远段铺到 15.8 格上 ⇒ 纵向放大
-            //     **2.59×** ⇒ 棋盘格被抹平，观感是"整片一个绿色"（用户判词「地面是纯色草地」）。
-            //     f022 的地面是 **66.4 px/格**，铺到 60 px/格 是**缩小 0.90×**。
-            //     ⚠️ 「2.59× / 0.90×」是**算出来的**；「棋盘格清晰」是**预期** —— 本改动**未编译、未实机**
-            //     （CR-V1 交付时无活编辑器）⇒ ⛔ 不许把这一行读成"已观感验证"。
-            //   · RED 半场不再另画 f006 的镜像段，而是**同一条 f022 裁条 + flipY**（竞技场中心对称，参考规格 §2）
-            //     ⇒ 地面只有一张原版画布、一个缩放比，不再有"2 段之间压缩率跳变"。
-            //   · ⛔ 镜像只许表达一次（类注释五「双翻转陷阱」）：落位格区间**永远升序**（localScale.y 恒为正），
-            //     镜像只由 flipY 表达。
             var ground = FindFrameByNumber(frames, NearGroundFrameNumber);
             if (ground == null || ground.texture == null)
             {
                 Game.Logger?.Warn(LogTag,
-                    $"完整地面帧按帧号取不到（帧号 {NearGroundFrameNumber}，共 {frames.Length} 个 Sprite）⇒ 地面只由纯色底图承担");
+                    $"地面帧按帧号取不到（帧号 {NearGroundFrameNumber}，共 {frames.Length} 个 Sprite）⇒ 地面只由纯色底图承担");
             }
             else
             {
-                // 横向只取 f022 的**场地那一段**画布（格 0..18 = px 99..912）；⛔ 不取场地外的装饰与留白。
-                MakeCrop("GroundNear", ground, NearGroundFieldLeftPx, NearGroundTopPy, NearGroundFieldRightPx, NearGroundRearEdgePy,
-                    0f, GameConst.ArenaTilesW, 0f, GameConst.RiverTopTile, orderBlue);
-                // RED 远半场：同一条裁条 + flipY（格 y → 32 − y ⇒ 格 0..15 落在格 17..32）。
-                MakeCrop("GroundFar", ground, NearGroundFieldLeftPx, NearGroundTopPy, NearGroundFieldRightPx, NearGroundRearEdgePy,
-                    0f, GameConst.ArenaTilesW, GameConst.RiverBottomTile, GameConst.ArenaTilesH, orderRed, true);
+                // 横向 = 场地那一段（格 0..18 ⇔ px 99..918.8），⛔ 不取场地外的留白与装饰；六段共用它
+                // ⇒ 上下半场的车道在格 x 上严格对齐。每段的 py 带 / 落位格出处见 BlueFieldPyTop 上方长注释 ②。
+                //
+                // ① BLUE 段①：行 [536, 748] → 格 y [7.5, 17.0]（河面占位带 + 泥带 + 木栏 + 车道）
+                MakeCrop("GroundBlueRiver", ground, GroundFieldLeftPx, BlueFieldPyTop, GroundFieldRightPx, BluePrincessPyTop,
+                    0f, GameConst.ArenaTilesW, BluePrincessTileTop, BlueFieldTileTop, orderBlueHalf);
+                // ② BLUE 段②：行 [748, 996] → 格 y [2.33, 7.5]（公主台 + 横路 + 王台；48.0 行/格
+                //    ⇒ 公主台 5.5..7.5 中心 6.5、王台 2.5..3.5 中心 3.0）
+                MakeCrop("GroundBlueBack", ground, GroundFieldLeftPx, BluePrincessPyTop, GroundFieldRightPx, BlueBackPyBottom,
+                    0f, GameConst.ArenaTilesW, BlueBackTileLow, BluePrincessTileTop, orderBlueHalf);
+                // ③ BLUE 段③：行 [0, 55] → 格 y [0, 2.33]（后沿带；草须朝下 ⇒ 底边；⛔ 不 flipY）
+                MakeCrop("GroundBlueEdge", ground, GroundFieldLeftPx, BackEdgePyTop, GroundFieldRightPx, BackEdgePyBottom,
+                    0f, GameConst.ArenaTilesW, 0f, BackEdgeTileLow, orderBlueHalf);
+                // ④ RED 段①：行 [1323, 1600] → 格 y [17.0, 24.5]（近岸草 + 车道）
+                MakeCrop("GroundRedNear", ground, GroundFieldLeftPx, RedPrincessPyBottom, GroundFieldRightPx, RedFieldPyBottom,
+                    0f, GameConst.ArenaTilesW, GameConst.RiverBottomTile, RedPrincessTileBottom, orderRedHalf);
+                // ⑤ RED 段②：行 [1083, 1323] → 格 y [24.5, 29.43]（公主台 + 横路 + 王台；48.7 行/格
+                //    ⇒ 公主台 24.5..26.5 中心 25.5、王台中心 29.0 = 32 − `KingTowerTileY`）
+                MakeCrop("GroundRedBack", ground, GroundFieldLeftPx, RedBackPyTop, GroundFieldRightPx, RedPrincessPyBottom,
+                    0f, GameConst.ArenaTilesW, RedPrincessTileBottom, RedBackTileTop, orderRedHalf);
+                // ⑥ RED 段③：行 [0, 55] → 格 y [29.43, 32]（同一条后沿带，flipY ⇒ 草须朝上 = 顶边）
+                MakeCrop("GroundRedEdge", ground, GroundFieldLeftPx, BackEdgePyTop, GroundFieldRightPx, BackEdgePyBottom,
+                    0f, GameConst.ArenaTilesW, RedBackTileTop, BackEdgeTileTop, orderRedHalf, flipY: true);
+
+                // ══════════ ★★ D130b 叠层（判据/出处见 D130b 常量块与上方长注释）★★ ══════════
+                // ① 覆盖带：把 rows {GapSrcPyTop}..{GapSrcPyBottom} 这段**干净草地（含两条车道）**按段① 自己的
+                //    定标（BlueRowsPerTile = 22.3158 行/格）**向上复制两份**，盖住格 y {GapTileLow}..{GapTileHigh}
+                //    —— 这一段原本是贴图集里的「河岸泥带 + 成束竖木板」（段① 按原位铺出来的"木板墙"）。
+                //    ⇒ 覆盖后：车道从公主台贯通到河沿；我方河沿不再有泥带（泥带按原版搬到水的上方，见 ②）。
+                var gapSpan = (GapSrcPyBottom - GapSrcPyTop) / BlueRowsPerTile;   // 单份跨格数 ≈ 2.78
+                MakeCrop("GroundBlueGapUpper", ground, GroundFieldLeftPx, GapSrcPyTop, GroundFieldRightPx, GapSrcPyBottom,
+                    0f, GameConst.ArenaTilesW, GapTileHigh - gapSpan, GapTileHigh, orderGroundOverlay);
+                MakeCrop("GroundBlueGapLower", ground, GroundFieldLeftPx, GapSrcPyTop, GroundFieldRightPx, GapSrcPyBottom,
+                    0f, GameConst.ArenaTilesW, GapTileHigh - 2f * gapSpan, GapTileHigh - gapSpan, orderGroundOverlay);
+                // ② **河岸带：撤销，不铺** —— 原方案的 `GroundRedBank` 已删除，理由见上方「★ 第 ③ 条的撤销记录」：
+                //    frame_022 rows 575..612 是「泥 + 成片竖木板」的一整件（WOOD=0.547、木色列遍布全宽），
+                //    而原版训练营水上沿以上是**草 + 约 0.2 格泥岸、无木板**。水边直接露出敌方草地。
             }
 
             Game.Logger?.Info(LogTag,
-                $"竞技场底图合成完成：地面帧号={NearGroundFrameNumber} 源={Name(ground)} 半场=2" +
-                $"（BLUE 格0..{GameConst.RiverTopTile} / RED 格{GameConst.RiverBottomTile}..{GameConst.ArenaTilesH} flipY）" +
-                $" 裁条=画布 x {NearGroundFieldLeftPx}..{NearGroundFieldRightPx} py {NearGroundTopPy:F0}..{NearGroundRearEdgePy}" +
-                $"（{NearGroundPxPerTileY}px/格(y)，渲染 60px/格 ⇒ 纵向 {60f / NearGroundPxPerTileY:F2}×）" +
-                $" | 河面帧号={GroundFrameIndex} 源={src.name} 见 BuildRiver");
+                $"竞技场底图合成完成（D130 六段铺法）：地面帧号={NearGroundFrameNumber} 源={Name(ground)}" +
+                $" BLUE=py {BlueFieldPyTop}..{BluePrincessPyTop}→格 {BluePrincessTileTop}..{BlueFieldTileTop}" +
+                $" + py {BluePrincessPyTop}..{BlueBackPyBottom}→格 {BlueBackTileLow}..{BluePrincessTileTop}" +
+                $" + py {BackEdgePyTop}..{BackEdgePyBottom}→格 0..{BackEdgeTileLow}" +
+                $" | RED=py {RedPrincessPyBottom}..{RedFieldPyBottom}→格 {GameConst.RiverBottomTile}..{RedPrincessTileBottom}" +
+                $" + py {RedBackPyTop}..{RedPrincessPyBottom}→格 {RedPrincessTileBottom}..{RedBackTileTop}" +
+                $" + py {BackEdgePyTop}..{BackEdgePyBottom}→格 {RedBackTileTop}..{BackEdgeTileTop}（flipY）" +
+                $" | 横向=格 0..{GameConst.ArenaTilesW} ⇔ 画布px {GroundFieldLeftPx}..{GroundFieldRightPx:F1}（{GroundPxPerTileX}px/格）" +
+                $" | D130b 叠层：覆盖带 源行 {GapSrcPyTop}..{GapSrcPyBottom}×2 → 格 y {GapTileLow:F2}..{GapTileHigh:F1}" +
+                $"（抹掉贴图集残留的「泥带+竖木板」）" +
+                $" | 河岸带=撤销不铺（原版水上沿以上是草+窄泥岸、无木板；见 D130b 撤销记录）" +
+                $" | 河面/桥见后续 RiverWater/BridgeLeft/BridgeRight 日志");
 
-            // 河道 = **底图帧自己（f006）自带的水面带**；桥 = **f022 的桥面木板**（f006 没画桥）。见类注释六。
-            BuildRiver(src, frames);
+            // 河道 = 帧 6 的蓝色水带；桥 = 帧 22 的桥板。见 BuildRiver。
+            BuildRiver(frames, orderWater, orderBridge);
         }
 
-        // ────────── 河道：底图帧自带的水面带（原版像素；见类注释六） ──────────
+        // ────────── 河道：帧 6 的蓝色水带 + 帧 22 的桥板（原版像素；见类注释六与 D130 长注释） ──────────
 
         /// <summary>
-        /// 铺河道与两座桥：**水**取自底图帧自己（<see cref="GroundFrameIndex"/> = f006）自带的水面带，
-        /// **桥面木板**取自 <see cref="BridgeFrameNumber"/>（f022，见该常量的注释）。
-        /// 两者都铺满格 <c>0..<see cref="GameConst.ArenaTilesW"/></c>（水）/ 桥心 ± 半宽，
-        /// 纵向严格 <c><see cref="GameConst.RiverTopTile"/>..<see cref="GameConst.RiverBottomTile"/></c>。
-        /// <para>
-        /// <b>上一版错在哪（见类注释六）</b>：河道裁的是 f022 的 py 577..606 —— 那是 f022 的**褐色泥土岸**
-        /// （实测均色 RGB(148,124,91)），画面因此成了"棕色土带 + 几块石头"。
-        /// </para>
+        /// 铺河道与两座桥：**水**取自 <see cref="WaterFrameNumber"/>（帧 6）自带的水面带，
+        /// **桥板**取自 <see cref="NearGroundFrameNumber"/>（帧 22）左车道那一束竖木板。
+        /// 水铺满格 <c>0..<see cref="GameConst.ArenaTilesW"/></c>，纵向严格
+        /// <c><see cref="GameConst.RiverTopTile"/>..<see cref="GameConst.RiverBottomTile"/></c>；
+        /// 桥板按 <see cref="BridgePlankTileBottom"/>..<see cref="BridgePlankTileTop"/> 跨河落位。
         /// </summary>
-        /// <param name="ground">底图帧（<see cref="GroundFrameIndex"/> 对应的 Sprite，整幅画布）。</param>
-        /// <param name="frames">整个竞技场目录的帧（用来按帧号取 <see cref="BridgeFrameNumber"/>）。</param>
-        private void BuildRiver(Sprite ground, Sprite[] frames)
+        /// <param name="frames">整个竞技场目录的帧（用来按帧号取 WaterFrameNumber / NearGroundFrameNumber）。</param>
+        /// <param name="orderWater">河面的 sortingOrder。</param>
+        /// <param name="orderBridge">桥板的 sortingOrder。</param>
+        private void BuildRiver(Sprite[] frames, int orderWater, int orderBridge)
         {
             // 河的纵向 = 河本身（格 15..17，2 格高）：⛔ 只许来自 GameConst。
             var riverTop = GameConst.RiverTopTile;
             var riverBottom = GameConst.RiverBottomTile;
-            var orderRiver = SortingOrder.ArenaBase + 3; // 高过底图两段（ArenaBase+1/+2），低过 ArenaDeco/Tower
-            var orderBridge = orderRiver + 1;            // 桥画在河上
 
-            // ① 水：横向窗口与 MakeSegment **同一算式**（场地那一段画布，格 0..18）。
-            var pxLeft = ArtFieldLeftPx;
-            var pxRight = ArtFieldLeftPx + GameConst.ArenaTilesW * ArtPxPerTileX;
-            if (ground == null || ground.texture == null)
-            {
-                Game.Logger?.Warn(LogTag, "河道：底图帧为空 ⇒ 不铺水面");
-            }
-            else
-            {
-                MakeCrop("RiverWater", ground, pxLeft, RiverWaterPyTop, pxRight, RiverWaterPyBottom,
-                    0f, GameConst.ArenaTilesW, riverTop, riverBottom, orderRiver);
-            }
-
-            // ② 两座桥：中心 x 与宽度只许来自 GameConst（桥心 3.5 / 14.5，宽 = 2 × 半宽 = 2 格）；
-            //    裁剪窗口 = 该帧左车道位那组木板（见 BridgeFrameNumber）。
-            var half = GameConst.BridgeHalfTile;
-            var bridge = FindFrameByNumber(frames, BridgeFrameNumber);
-            if (bridge == null || bridge.texture == null)
+            // ① 水：横向窗口用**帧 6 自己的原点**（格 0..18 ⇔ px 207.6..1027.4）—— ⛔ 不是帧 22 的
+            //    px 99：帧 6 与帧 22 是两张画布，各自的车道中心不同列（帧 6 = 367/868，帧 22 = 259/760，
+            //    间距都是 501 px ⇒ 同一 45.545 px/格，只是画布留白不同）。出处：`tools/probes/cr-d130-water-xcal.py`
+            //    （帧 6 水带 805..852，左沿水色起于 px ~200）+ `cr-d130-lane-rowscan.py`。
+            var pxLeft = WaterPxLeft;
+            var pxRight = WaterPxLeft + GameConst.ArenaTilesW * GroundPxPerTileX;
+            var water = FindFrameByNumber(frames, WaterFrameNumber);
+            if (water == null || water.texture == null)
             {
                 Game.Logger?.Warn(LogTag,
-                    $"桥帧按帧号取不到（帧号 {BridgeFrameNumber}，共 {(frames == null ? 0 : frames.Length)} 个 Sprite）" +
-                    " ⇒ 只铺水面、不铺桥（原版桥面木板像素就在该帧，见类注释六）");
+                    $"河面帧按帧号取不到（帧号 {WaterFrameNumber}，共 {(frames == null ? 0 : frames.Length)} 个 Sprite）⇒ 不铺水面");
             }
             else
             {
-                MakeCrop("BridgeLeft", bridge, BridgePxLeft, BridgePyTop, BridgePxRight, BridgePyBottom,
-                    GameConst.BridgeCxATile - half, GameConst.BridgeCxATile + half, riverTop, riverBottom, orderBridge);
-                MakeCrop("BridgeRight", bridge, BridgePxLeft, BridgePyTop, BridgePxRight, BridgePyBottom,
-                    GameConst.BridgeCxBTile - half, GameConst.BridgeCxBTile + half, riverTop, riverBottom, orderBridge);
+                MakeCrop("RiverWater", water, pxLeft, WaterPyTop, pxRight, WaterPyBottom,
+                    0f, GameConst.ArenaTilesW, riverTop, riverBottom, orderWater);
+            }
+
+            // ② 两座桥：中心 x 只许来自 GameConst（桥心 3.5 / 14.5）；桥板宽 = 裁条像素宽 ÷ 45.545 px/格。
+            //    裁剪窗口 = 帧 22 左车道那一束竖木板（见 BridgePlankPxLeft 的出处）。
+            var half = (BridgePlankPxRight - BridgePlankPxLeft) / GroundPxPerTileX * 0.5f;
+            var planks = FindFrameByNumber(frames, NearGroundFrameNumber);
+            if (planks == null || planks.texture == null)
+            {
+                Game.Logger?.Warn(LogTag,
+                    $"桥板帧按帧号取不到（帧号 {NearGroundFrameNumber}，共 {(frames == null ? 0 : frames.Length)} 个 Sprite）" +
+                    " ⇒ 只铺水面、不铺桥");
+            }
+            else
+            {
+                MakeCrop("BridgeLeft", planks, BridgePlankPxLeft, BridgePlankPyTop, BridgePlankPxRight, BridgePlankPyBottom,
+                    GameConst.BridgeCxATile - half, GameConst.BridgeCxATile + half,
+                    BridgePlankTileBottom, BridgePlankTileTop, orderBridge);
+                MakeCrop("BridgeRight", planks, BridgePlankPxLeft, BridgePlankPyTop, BridgePlankPxRight, BridgePlankPyBottom,
+                    GameConst.BridgeCxBTile - half, GameConst.BridgeCxBTile + half,
+                    BridgePlankTileBottom, BridgePlankTileTop, orderBridge);
             }
 
             // 断言（只报一次）：水与桥各自的原版来源 + 落位格。
@@ -886,10 +1349,11 @@ namespace CR.View
             {
                 _riverAssertLogged = true;
                 Game.Logger?.Info(LogTag,
-                    $"河道断言：水面 源={Name(ground)}（帧号 {GroundFrameIndex}）画布px x{pxLeft}..{pxRight}" +
-                    $" py{RiverWaterPyTop}..{RiverWaterPyBottom} → 格 x0..{GameConst.ArenaTilesW} y{riverTop}..{riverBottom}（order={orderRiver}）" +
-                    $" | 桥面 源={Name(bridge)}（帧号 {BridgeFrameNumber}）px x{BridgePxLeft}..{BridgePxRight} py{BridgePyTop}..{BridgePyBottom}" +
-                    $" → 左桥中心格 {GameConst.BridgeCxATile} / 右桥中心格 {GameConst.BridgeCxBTile}，各宽 {2f * half} 格（order={orderBridge}）");
+                    $"河道断言：水面 源={Name(water)}（帧号 {WaterFrameNumber}）画布px x{pxLeft}..{pxRight:F1}" +
+                    $" py{WaterPyTop}..{WaterPyBottom} → 格 x0..{GameConst.ArenaTilesW} y{riverTop}..{riverBottom}（order={orderWater}）" +
+                    $" | 桥板 源={Name(planks)}（帧号 {NearGroundFrameNumber}）px x{BridgePlankPxLeft}..{BridgePlankPxRight}" +
+                    $" py{BridgePlankPyTop}..{BridgePlankPyBottom} → 左桥中心格 {GameConst.BridgeCxATile} / 右桥中心格 {GameConst.BridgeCxBTile}，" +
+                    $"各宽 {2f * half:F2} 格，落格 y {BridgePlankTileBottom}..{BridgePlankTileTop}（order={orderBridge}）");
             }
         }
 
@@ -1135,6 +1599,7 @@ namespace CR.View
 
             var n = 0;
             Sprite body = null;
+            Transform muzzle = null;   // ★ D145：炮口层（Princess / Turret），见 TowerView._muzzle
             var sb = new List<string>();
             for (var i = 0; i < recipe.Length; i++)
             {
@@ -1153,7 +1618,12 @@ namespace CR.View
                 //   PrincessOccupantLocalPx 的算式与出处。
                 if (isOccupant && body != null && sp != null)
                     off = PrincessOccupantLocalPx(body, sp, spec.Scale);
-                n += TowerLayer(go.transform, spec.Name, sp, SortingOrder.Tower + i, off, spec.Scale, ppu) ? 1 : 0;
+                var built = TowerLayer(go.transform, spec.Name, sp, SortingOrder.Tower + i, off, spec.Scale, ppu);
+                // ★ D145：记下**炮口层**的 Transform（公主塔 = 乘员层 Princess；国王塔 = 炮塔层 Turret）。
+                //   取到的就是原版配方里那一层的世界坐标，⛔ 不编"炮口高度"的常数。
+                if (built && (spec.Name == "Princess" || spec.Name == "Turret"))
+                    muzzle = go.transform.Find(spec.Name);
+                n += built ? 1 : 0;
                 sb.Add(spec.Name + "=" + Name(sp));
             }
 
@@ -1170,9 +1640,62 @@ namespace CR.View
                     $"bodyRect={(body == null ? "-" : body.rect.width + "×" + body.rect.height)}");
             }
 
-            // 塔的血条：宽 1.6 格、离地 2.4 格（国王塔的塔顶比公主塔高，血条统一取高处，避免压在塔身上）。
-            var bar = WorldHpBar.Create(go.transform, isKing ? 1.8f : 1.4f, 0.16f, isKing ? 2.6f : 2.0f, LogTag + (isKing ? ".KingHp" : ".PrinHp"));
-            _towers.Add(new TowerView(team, isKing, xTile, yTile, FindLayerRenderer(go.transform), bar));
+            // ★ 阵亡废墟层（D133）：**建塔时就预建好、初始 disabled**，塔被摧毁那一刻才亮（见 TowerView.Apply）。
+            //   层序 = `SortingOrder.Tower − 1`（废墟是"贴地残骸"，压在塔体各层之下、仍高于场地 0/10）；
+            //   位置 = **按画布坐标**对齐塔体（算式见 CanvasOffsetPx）；缩放 = 1×（`.sc` 三条 destroyed
+            //   clip 的 placement 全是"1 帧 1 层 + 无矩阵"⇒ 画布原位、不缩放）。
+            //   ⚠️ 必须取该帧的**全部子精灵**（自动切片会把散落碎石切成独立子精灵，只取 `_0` 会画成一小块
+            //   石头 —— 本片第一轮实机就是这么错的，见回报）：`frame_207.png` 被切成 `_0`(29×27 一小块)
+            //   + `_1`(145×137 主体石堆)，只取 `_0` 那一小块在画面上就是一颗小石子。
+            var rubbleFrame = team == 0 ? BlueTowerRubbleFrame : RedTowerRubbleFrame;
+            var rubblePieces = FramesByNumber(frames, rubbleFrame);
+            var rubble = CreateRubbleLayers(go.transform, body, rubblePieces);
+            if (rubble.Length == 0)
+                Game.Logger?.Warn(LogTag,
+                    $"阵亡废墟帧取不到（帧号 {rubbleFrame}，共 {frames.Length} 个 Sprite）：" +
+                    $"team={team} isKing={isKing} ⇒ 该塔阵亡时只能整座藏掉（无废墟）");
+
+            // 塔的血条（D133 复核过的两条数；量法 = `tools/probes/cr-d133-tower-hpbar.py`，可复跑，
+            //   输出 `.ai-tmp/test/CR-D133-hpbar.txt`，视觉裁切 `CR-D133-bar-ruler.png`）：
+            //   · **宽**（local，会被塔根 scale 放大）：公主 1.4 / 国王 1.8 ⇒ 外宽（含 0.04 边框）2.376 / 3.13 格。
+            //     基线图 `策划/参考图/04_对局_1320x2868.jpg` 底部两座公主塔血条**填充**外宽实测
+            //     **199 / 200 px**（青色掩膜 `b>190 & g>140 & r<150 & b−r>70` 的 x 段 114..312 与 1068..1267，
+            //     行 1984..2012）÷ **86.77 px/格** = **2.29 格** ⇒ 我们 2.376 格只宽 3.5%，宽度**不动**。
+            //   · **高**：原 0.16 ⇒ 填充 22.9 px / 外高 27.9 px（同口径），比原版矮 ≈21%。
+            //     原版**填充高** = **29 px**（行 1984..2012）、**外高（含深蓝描边）= ≈34 px**（条两端各 6 列的中位数：
+            //     左条 1986..2017=32 px / 右条 1982..2017=36 px）。两条口径各自反解出的 local 高**重合**：
+            //       · 填充口径：`h × 1.65 = 29/86.77` ⇒ h = **0.2025**
+            //       · 外高口径：`(h + 0.035) × 1.65 = 34/86.77` ⇒ h = **0.2025**
+            //     （两者重合不是巧合被凑出来的：原版描边总厚 ≈5 px，而我们引擎 `Bg = height + 0.035` 在
+            //      1.65 缩放下正好是 `0.035 × 1.65 × 86.77 = 5.0 px` ⇒ 两条尺量的是同一件事，互为旁证。）
+            //     若改用 03 图那条 91.5 px/格 口径，两条尺给 h = 0.192 / 0.190 ⇒ 取值带 **[0.190, 0.2025]**，
+            //     本片取 **0.20**：回代填充 **28.6 px** / 外高 **33.6 px** vs 原版 29 / 34（各差 1.4% / 1.2%）。
+            //     px/格 的算法：**同图**两座公主塔血条中心距 954.5 px（x 段中心 213.0 与 1167.5）÷ 两座公主塔的
+            //     格距 **11 格**（`GameConst.BridgeCxATile` 3.5 ↔ `BridgeCxBTile` 14.5）= **86.77 px/格**。
+            //     ⚠️ 该口径下场地 18 格 = 1562 px > 图宽 1320 ⇒ **基线图是放大过的局部**（03 图 91.5 口径同理），
+            //     所以只用于"同图内的比例"，不用于绝对格数。
+            //   · **离地高度（2.0 / 2.6 格）本片未动**：它要先把 04 图的 y 定标到格（属取景/地面口径，arena-fix 片），
+            //     不在本片边界内 ⇒ 见回报的"未做项"。
+            //   · **排序层（D133 实机链复核出来的第三个缺陷，也是"塔血条一条都看不见"的直接原因）**：
+            //     引擎 `WorldHpBar.Create` 的 `sortingOrder` **默认 0**（`clover-client-unity-engine/
+            //     Runtime/Presentation/UIWidgets.cs:1063` 写明"刻意保持 0 = 修复前行为"，业务侧必须自己传
+            //     大值，否则被自己的精灵盖住 —— 见该类注释「① 缺陷」）。本片原来**不传**，于是血条两个 Quad
+            //     停在 0；而场地底图的两半是 `SortingOrder.ArenaBase + 1 / +2`（= **1 / 2**，见本文件
+            //     `BuildArt` 的 `orderBlueHalf` / `orderRedHalf`）⇒ **底图后画、把血条整块盖死**，机械读数上
+            //     `hpQuadOn=2`（两个 Quad 都 enabled）而渲染帧上一条都没有。
+            //     实机取证：`.ai-tmp/test/D133-evidence.txt` step 3（6 座塔满血、hpQuadOn=2）与同链的
+            //     `.ai-tmp/screenshots/D133-tower-hpbar-cam.png`：帧里没有任何塔条（放大裁切
+            //     `.ai-tmp/test/D133-chain2-hpbar-zoom.png` 同一现象）。
+            //     ⇒ 此处**显式传 `SortingOrder.HpBar`（= 2000）**，与单位血条同口径（先例
+            //     `UnitView.cs:216` 的 `WorldHpBar.Create(..., SortingOrder.HpBar)`）；塔体 50 < 2000 <
+            //     特效 3000 ⇒ 压在塔之上、特效之下。
+            //   ⚠️ 原版塔血条还带**数字**（基线图 04 的 `1740`）与**左侧等级徽章**（同一张 04 的放大裁切
+            //     `.ai-tmp/test/CR-D133-bar-ruler.png` 里"1740"与金色徽章都在条上）——我们的 `WorldHpBar`
+            //     是两个纯色 Quad（引擎 `UIWidgets.cs` 的 `Build`），无文本/徽章，且工程里**没有字体资源**
+            //     ⇒ 本片修不了 ⇒ 见回报 BLOCKED + 登记 `策划/差异登记.tsv` D125。
+            var bar = WorldHpBar.Create(go.transform, isKing ? 1.8f : 1.4f, 0.20f,
+                isKing ? 2.6f : 2.0f, LogTag + (isKing ? ".KingHp" : ".PrinHp"), SortingOrder.HpBar);
+            _towers.Add(new TowerView(team, isKing, xTile, yTile, FindLayerRenderer(go.transform), bar, rubble, muzzle));
         }
 
         /// <summary>
@@ -1287,6 +1810,114 @@ namespace CR.View
             return int.TryParse(parts[parts.Length - 2], out frameNo);
         }
 
+        /// <summary>
+        /// 按帧号取该帧的**全部子精灵**（按子序号升序）—— ⛔ 废墟必须用这个，不能只用
+        /// <see cref="FindFrameByNumber"/>（那支只取 `SUB == 0`）。
+        /// <para>
+        /// <b>为什么必需</b>：工程里的塔 PNG 是 Unity **自动切片**（Sprite Mode = Multiple）导入的，
+        /// 一张 `frame_NNN.png` 可能切成多张子精灵，而**废墟本来就是散的** ⇒ 自动切片会把零落的碎石切成
+        /// 独立子精灵。实测（`tools/probes/cr-d133-tower-ruin.py` §F 的 meta 段）：`frame_207.png`
+        /// = `frame_207_0`（29×27 的一小块）+ `frame_207_1`（145×137 主体石堆）；
+        /// `frame_204.png` = `_0`(23×22) + `_1`(209×151)。只取 `_0` ⇒ 实机上"废墟"是一颗小石子
+        /// （本片第一轮就是这么错的，见回报）。
+        /// </para>
+        /// <para>
+        /// 返回顺序按子序号，⛔ 不依赖 `LoadAll` 的返回顺序（那是扁平化列表，顺序不保证可复现）。
+        /// </para>
+        /// </summary>
+        private static Sprite[] FramesByNumber(Sprite[] frames, int frameNo)
+        {
+            if (frames == null) return new Sprite[0];
+            var cap = 0;
+            for (var i = 0; i < frames.Length; i++)
+            {
+                var s = frames[i];
+                if (s == null) continue;
+                if (!TryParseFrameName(s.name, out var no, out var sub) || no != frameNo) continue;
+                if (sub + 1 > cap) cap = sub + 1;
+            }
+            if (cap == 0) return new Sprite[0];
+            var slots = new Sprite[cap];
+            var n = 0;
+            for (var i = 0; i < frames.Length; i++)
+            {
+                var s = frames[i];
+                if (s == null) continue;
+                if (!TryParseFrameName(s.name, out var no, out var sub) || no != frameNo) continue;
+                if (slots[sub] == null) n++;      // 同一子序号重复出现时不重复计数（防御，正常不会发生）
+                slots[sub] = s;
+            }
+            var outArr = new Sprite[n];
+            var k = 0;
+            for (var i = 0; i < slots.Length; i++)
+                if (slots[i] != null) outArr[k++] = slots[i];
+            return outArr;
+        }
+
+        /// <summary>
+        /// 废墟一块子精灵相对**塔体裁剪框中心**的画布像素偏移（x 右为正、y **上**为正，Unity 贴图口径）。
+        /// <para>
+        /// <b>为什么是"裁剪框中心相减"</b>：Unity 把每张子精灵的**裁剪框中心**放在节点的原点上
+        /// （工程里塔 PNG 全是自动切片 ⇒ `sprite.rect` = alpha 紧框，锚点 = 该框中心；本文件已在前墙/
+        /// 乘员两处复核过这个口径：`frame_010_0` 的框中心 x = 115 + 173/2 = **201.5**，与代码常量
+        /// <see cref="PrincessCavityCxPx"/> = 202.5 相差 1 px）。塔体层放在 localPosition 0 ⇒ 塔体的
+        /// 裁剪框中心就是塔根原点。于是"把废墟那块放到它在 407×471 画布上的原位"= 让它的框中心落在
+        /// `塔体框中心 + 本偏移`，即 <c>localPosition = 本偏移 / ppu</c>（ppu 换算与
+        /// <see cref="TowerLayer"/> 同一口径）。
+        /// </para>
+        /// <para>
+        /// ⚠️ 废墟与塔体**同一张 407×471 画布**（三张废墟 PNG 实测都是 407×471，见
+        /// `tools/probes/cr-d133-rubble-compose.py` 的断言）⇒ 两张图的 `rect` 可以直接相减。
+        /// </para>
+        /// </summary>
+        private static Vector2 CanvasOffsetPx(Sprite body, Sprite piece)
+        {
+            var br = body.rect;
+            var pr = piece.rect;
+            return new Vector2(pr.x + pr.width * 0.5f - (br.x + br.width * 0.5f),
+                               pr.y + pr.height * 0.5f - (br.y + br.height * 0.5f));
+        }
+
+        /// <summary>
+        /// 预建一座塔的**阵亡废墟层**（初始 <c>enabled = false</c>，塔被摧毁时才亮 —— 见
+        /// <see cref="TowerView.Apply"/>）。
+        /// <para>
+        /// 层序统一 = <c>SortingOrder.Tower − 1</c>（49）：废墟是"贴地残骸"，压在场地的
+        /// <see cref="SortingOrder.ArenaBase"/>(0) / <see cref="SortingOrder.ArenaDeco"/>(10) 之上；
+        /// 塔阵亡时塔体各层会被关掉，所以废墟不需要与塔体争层序。
+        /// </para>
+        /// <para>多块子精灵：第 1 块挂在 <see cref="RubbleLayerName"/> 节点上，其余挂在 `Rubble_i` 子节点上
+        /// （都按 <see cref="CanvasOffsetPx"/> 各自对位，因此散块之间的相对位置与画布一致）。</para>
+        /// <returns>实际建出来的渲染器数组（空数组 = 素材缺失，调用方 Warn）。</returns>
+        /// </summary>
+        private static SpriteRenderer[] CreateRubbleLayers(Transform parent, Sprite body, Sprite[] pieces)
+        {
+            if (parent == null || body == null || pieces == null || pieces.Length == 0) return new SpriteRenderer[0];
+            var list = new List<SpriteRenderer>(pieces.Length);
+            GameObject host = null;
+            for (var i = 0; i < pieces.Length; i++)
+            {
+                var sp = pieces[i];
+                if (sp == null) continue;
+                if (host == null)
+                {
+                    host = new GameObject(RubbleLayerName);
+                    host.transform.SetParent(parent, false);
+                }
+                var go = i == 0 ? host : new GameObject(RubbleLayerName + "_" + i);
+                if (i != 0) go.transform.SetParent(host.transform, false);
+                var ppu = sp.pixelsPerUnit > 0.01f ? sp.pixelsPerUnit : SpriteBank.FallbackPixelsPerUnit;
+                var off = CanvasOffsetPx(body, sp);
+                go.transform.localPosition = new Vector3(off.x / ppu, off.y / ppu, 0f);
+                var r = go.AddComponent<SpriteRenderer>();
+                r.sprite = sp;
+                r.sortingOrder = SortingOrder.Tower - 1;
+                r.enabled = false;
+                list.Add(r);
+            }
+            return list.ToArray();
+        }
+
         private void ApplyTowerTeam(int team, TowerState[] states)
         {
             if (states == null) return;
@@ -1329,6 +1960,30 @@ namespace CR.View
             return null;
         }
 
+        /// <summary>
+        /// 按**服务端塔 id**取该塔的**炮口世界坐标**（差异登记 D145）。
+        /// <para>
+        /// 用途：服务端开火事件 <c>EvTowerShoot</c> 的载荷里 <c>entity_id</c> 是塔 id、坐标是**塔根**；
+        /// 弹道要从塔顶那门弩/炮出发才对得上原版画面，而塔不在快照的 <c>entities</c> 里（见
+        /// <see cref="TowerView"/> 的类注释）⇒ 只能这样对号。
+        /// </para>
+        /// <para>
+        /// 返回 false 的两种情形（调用方用事件载荷的塔根坐标兜底）：① id 还没被任何快照登记过
+        /// （<see cref="TowerView.Apply"/> 才写 id）；② 该塔的炮口层素材缺失。
+        /// </para>
+        /// </summary>
+        public bool TryTowerMuzzle(int towerId, out Vector2 world)
+        {
+            for (var i = 0; i < _towers.Count; i++)
+            {
+                var t = _towers[i];
+                if (t.Id != towerId) continue;
+                return t.TryMuzzle(out world);
+            }
+            world = default(Vector2);
+            return false;
+        }
+
         private void ClearGenerated()
         {
             for (var i = 0; i < _towers.Count; i++) _towers[i].Destroy();
@@ -1365,6 +2020,35 @@ namespace CR.View
 
             private readonly SpriteRenderer _renderer;
             private readonly WorldHpBar _bar;
+
+            /// <summary>
+            /// **炮口**层（公主塔 = 乘员层 `Princess`；国王塔 = 炮塔层 `Turret`）的 Transform。
+            /// <para>
+            /// 用途（差异登记 D145）：服务端开火事件 <c>EvTowerShoot</c> 只在载荷里给**塔根**坐标，
+            /// 而弹道/枪口闪光应该从**塔顶那门弩/炮**出发 —— 这一层的世界坐标就是**从原版 art 的
+            /// 层配方直接得到的**（见 <see cref="ArenaView.BluePrincessRecipe"/> 等），
+            /// ⛔ 不需要在这里编一个"炮口高度"的常数。
+            /// 取不到（素材缺失 / 塔只画血条）时兜底 = 塔体层，事件照播。
+            /// </para>
+            /// </summary>
+            private readonly Transform _muzzle;
+
+            /// <summary>
+            /// 服务端给的塔 id（`TowerState.id`）—— 用来把开火事件 <c>EvTowerShoot.entity_id</c>
+            /// 认到具体哪一座塔（塔不在快照的 `entities` 里，只能这样对号）。
+            /// </summary>
+            public int Id { get; private set; }
+
+            /// <summary>
+            /// 阵亡废墟层的渲染器（D133）。**初始 disabled**，塔被摧毁时才全部 <c>enabled = true</c>。
+            /// <para>
+            /// 是**数组**而不是单个渲染器：废墟帧可能被自动切片成多张子精灵（`frame_207.png` = 2 张，
+            /// 见 <see cref="ArenaView.FramesByNumber"/>）⇒ 只亮一块就是"一颗小石子"。
+            /// </para>
+            /// <para>⛔ 它们**不参与** <see cref="SetTowerLayersEnabled"/> 的全量开关 —— 见该方法的口径说明。</para>
+            /// </summary>
+            private readonly SpriteRenderer[] _rubbleRenderers;
+
             private int _lastHp = -1;
             private int _lastMaxHp = -1;
             private bool _destroyed;
@@ -1372,7 +2056,8 @@ namespace CR.View
             /// <summary>该塔当前是否存活（`BattleViewRoot` 拿它做部署合法性预校验）。</summary>
             public bool Alive { get; private set; } = true;
 
-            public TowerView(int team, bool isKing, float tileX, float tileY, SpriteRenderer renderer, WorldHpBar bar)
+            public TowerView(int team, bool isKing, float tileX, float tileY, SpriteRenderer renderer,
+                WorldHpBar bar, SpriteRenderer[] rubbleRenderers, Transform muzzle = null)
             {
                 Team = team;
                 IsKing = isKing;
@@ -1380,41 +2065,127 @@ namespace CR.View
                 TileY = tileY;
                 _renderer = renderer;
                 _bar = bar;
+                _rubbleRenderers = rubbleRenderers ?? new SpriteRenderer[0];
+                _muzzle = muzzle != null ? muzzle : (renderer != null ? renderer.transform : null);
+            }
+
+            /// <summary>
+            /// 炮口世界坐标（见 <see cref="_muzzle"/>）。取不到层时返回 false，调用方用事件载荷的塔根坐标兜底。
+            /// </summary>
+            public bool TryMuzzle(out Vector2 world)
+            {
+                if (_muzzle == null)
+                {
+                    world = default(Vector2);
+                    return false;
+                }
+                world = _muzzle.position;
+                return true;
             }
 
             /// <summary>用服务端的一条塔状态刷新。</summary>
             public void Apply(TowerState s)
             {
+                // 塔 id 先记（幂等早退也不能漏 —— 开火事件要靠它对号到这座塔）。
+                Id = s.id;
+                // ★ D133 改：**阵亡是终态**（本视图实例不再被后续"复活"快照改回去）。
+                //   为什么必须显式写这一条（**实机读数，不是假想**）：本片实机链把某座塔注入成
+                //   `alive=false` 之后，**下一帧的即时快照又按 alive=true 把同一座塔推了一遍**（服务端
+                //   并不知道我们注入了什么），于是 `_bar.SetVisible(true)` 把血条点了回来，而塔体各层
+                //   仍是隐藏的 ⇒ 画面同时出现"废墟 + 血条"，自相矛盾。原始读数
+                //   （`.ai-tmp/test/D133-evidence.txt`，同一链同一座塔）：
+                //     step 5（注入后 ≈30 ms）：bodyEnabled=False rubbleEnabled=True hpQuadOn=0 hpQuadOff=2
+                //     step 7（注入后 ≈1.5 s）：bodyEnabled=False rubbleEnabled=True hpQuadOn=2 hpQuadOff=0
+                //   CR 的塔不会复活；且塔视图**不池化**（不是 `UnitView` 那种复用对象 —— `ArenaView`
+                //   重建时 `ClearGenerated()` 会 `Destroy()` 整座塔再重造）⇒ 终态锁只作用在一个场地实例的
+                //   一生之内，是安全的。
+                //   ⛔ 不采用"按最后一条快照镜像"的写法：那会让注入出来的阵亡态在下一帧被撤掉，
+                //   判据（阵亡 ⇒ 废墟亮 / 塔体灭 / 血条灭）就**不再是一个稳定状态**，也没法用过程断言复核。
+                if (_destroyed)
+                {
+                    Alive = false;
+                    return;
+                }
+
                 Alive = s.alive;
-                if (s.hp == _lastHp && s.max_hp == _lastMaxHp && _destroyed == !s.alive) return;
+                // 幂等：存活且血量/上限都没变 ⇒ 不重复写（存档视角的原地刷新）。阵亡态必须走完全流程，
+                // 所以这里不带 `_destroyed == !s.alive` 那一项（上面已经保证只有"未销毁"才会走到这里）。
+                if (s.alive && s.hp == _lastHp && s.max_hp == _lastMaxHp) return;
                 _lastHp = s.hp;
                 _lastMaxHp = s.max_hp;
 
                 if (_bar != null)
                 {
                     _bar.SetHp(s.hp, s.max_hp);
-                    // 满血不显示（与单位一致）；摧毁后血条与塔身一起藏掉。
-                    _bar.SetVisible(s.alive && s.max_hp > 0 && s.hp > 0 && s.hp < s.max_hp);
+                    // ★ D133 改：**满血也显示**（原版塔血条是常显）。
+                    //   反面取证 —— 基线图 `策划/参考图/04_对局_1320x2868.jpg` 底部两座公主塔各 `1740`
+                    //   （= 满血同值）**血条仍是完整满格条**（青色掩膜 x 段 114..312 与 1068..1267 整段着色，
+                    //   行 1984..2012；放大裁切 `.ai-tmp/test/CR-D133-bar-ruler.png` 可直接看）；
+                    //   `20_对局_1080x1920.jpg` 里**四座塔条同时可见**（`3996`/`1204`/`2170`/`2381`，
+                    //   每条左侧带 `Lv15` 金色等级牌）且与多个单位条同屏（裁图
+                    //   `.ai-tmp/test/CR-D133-shot20-bars.png`，上下两半分别裁自 y 150..300 与 1170..1320）。
+                    //   ⇒ 只在"空血 / 阵亡"时藏（阵亡后原版也不留条）。
+                    _bar.SetVisible(s.alive && s.max_hp > 0 && s.hp > 0);
                 }
 
-                if (!s.alive && !_destroyed)
+                if (!s.alive)
                 {
-                    _destroyed = true;
-                    // ⚠️ 素材里没有可靠的"摧毁态"帧下标（214 帧只认出了 4 个塔本体帧，见常量注释），
-                    // 所以摧毁时**藏掉整座塔的所有层**（塔体 / 国王 / 炮塔 / 公主）而不是画废墟 ——
-                    // ⛔ 只藏 Body 层会把国王与炮塔孤零零留在场上（本片叠层后新增的坑，必须一起藏）。
-                    SetAllLayersEnabled(false);
+                    _destroyed = true; // 终态锁（上面 Apply 开头就靠它挡住"复活"快照）
+                    // ★ D133 改：**不再把整座塔藏掉了事** —— 改成"塔体各层藏掉 + 亮出废墟层"。
+                    //   帧号出处 = `BlueTowerRubbleFrame` / `RedTowerRubbleFrame` 常量上的长注释
+                    //   （`building_tower_v215.sc` 的 clip 297/298/301，判据脚本 `tools/probes/cr-d133-tower-ruin.py`）。
+                    //   ⛔ 旧注释写的"素材缺摧毁态下标"是**错的前提**：废墟帧一直在盘上（`frame_204/205/207`），
+                    //      只是从没有代码取过它（原文见本片 D133 回报）。
+                    SetTowerLayersEnabled(false);
+                    SetRubbleEnabled(true);
                     Game.Logger?.Info(LogTag,
-                        $"塔被摧毁：team={Team} king={IsKing} 位置=({TileX:F1},{TileY:F1})（全部层已隐藏；素材缺摧毁态下标，未画废墟）");
+                        $"塔被摧毁：team={Team} king={IsKing} 位置=({TileX:F1},{TileY:F1})" +
+                        $"（塔体各层已隐藏；废墟层已亮 {_rubbleRenderers.Length} 块 = {RubbleSpriteNames()}）");
                 }
             }
 
+            /// <summary>废墟各块的精灵名（日志用；空 = 素材缺失）。</summary>
+            private string RubbleSpriteNames()
+            {
+                if (_rubbleRenderers.Length == 0) return "缺（帧取不到）";
+                var sb = new System.Text.StringBuilder();
+                for (var i = 0; i < _rubbleRenderers.Length; i++)
+                {
+                    if (i > 0) sb.Append('+');
+                    var r = _rubbleRenderers[i];
+                    sb.Append(r == null || r.sprite == null ? "缺" : r.sprite.name);
+                }
+                return sb.ToString();
+            }
+
+            /// <summary>亮 / 藏**全部**废墟块（块数由素材切片决定，见 <see cref="ArenaView.FramesByNumber"/>）。</summary>
+            private void SetRubbleEnabled(bool enabled)
+            {
+                for (var i = 0; i < _rubbleRenderers.Length; i++)
+                    if (_rubbleRenderers[i] != null) _rubbleRenderers[i].enabled = enabled;
+            }
+
+            /// <summary>该渲染器是不是本塔的废墟块（按**引用**判，⛔ 不靠名字匹配）。</summary>
+            private bool IsRubble(SpriteRenderer r)
+            {
+                for (var i = 0; i < _rubbleRenderers.Length; i++)
+                    if (_rubbleRenderers[i] == r) return true;
+                return false;
+            }
+
             /// <summary>
-            /// 一次性开关这座塔**所有层**的渲染器（塔体 / 国王 / 炮塔 / 公主各是一层，见
+            /// 一次性开关这座塔**塔体各层**的渲染器（塔体 / 国王 / 炮塔 / 公主各是一层，见
             /// <see cref="ArenaView.TowerLayer"/>）。层集合从塔根节点现取，不缓存数组 ——
             /// 层是 <see cref="ArenaView.AddTower"/> 建完就固定的，重建时整个 <c>Towers</c> 根会重造。
+            /// <para>
+            /// <b>D133 的口径变更（回归坑）</b>：原来是 <c>GetComponentsInChildren&lt;SpriteRenderer&gt;(true)</c>
+            /// 的**全量**开关，而废墟层（<see cref="ArenaView.RubbleLayerName"/>）也挂在**同一个塔根**下
+            /// ⇒ 摧毁时会被一起关掉（废墟永远不亮）。本方法改成**显式排除全部废墟块**
+            /// （<see cref="IsRubble"/> 按引用排除，不靠名字匹配）；除它们以外仍是全量开关，所以
+            /// "只藏 Body 会把国王/炮塔留在场上"的老坑仍然被覆盖。
+            /// </para>
             /// </summary>
-            private void SetAllLayersEnabled(bool enabled)
+            private void SetTowerLayersEnabled(bool enabled)
             {
                 if (_renderer == null) return;
                 var root = _renderer.transform.parent;
@@ -1425,7 +2196,7 @@ namespace CR.View
                 }
                 var layers = root.GetComponentsInChildren<SpriteRenderer>(true);
                 for (var i = 0; i < layers.Length; i++)
-                    if (layers[i] != null) layers[i].enabled = enabled;
+                    if (layers[i] != null && !IsRubble(layers[i])) layers[i].enabled = enabled;
             }
 
             /// <summary>拆掉这座塔（出图/重建时）。</summary>

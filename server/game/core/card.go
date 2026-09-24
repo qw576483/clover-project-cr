@@ -89,8 +89,40 @@ type UnitDef struct {
 	SpawnKey         string
 	SpawnN           int32
 	SpawnRadiusMilli int32
-	SpawnIntervalMs  int32
-	SpawnLimit       int32
+	// SpawnIntervalMs is the **gap between waves** (`SpawnPauseTime` in the
+	// official data: Goblin Hut 10000, Barbarian Hut 14000, Tombstone 3500,
+	// Witch 7000). Zero means a one-shot spawner, not a fast one -- see
+	// stepBuildings.
+	SpawnIntervalMs int32
+	// SpawnStaggerMs is the stagger **within** a wave (`SpawnInterval` in the
+	// official data; 500 ms on every hut). Wave member i lands at
+	// `DeployMs + i * SpawnStaggerMs`.
+	SpawnStaggerMs int32
+	// SpawnLimit caps the number of this building's **living** children, not
+	// the running total (参考 `_phase_run_spawners`).
+	SpawnLimit int32
+
+	// AoeRadiusMilli is the splash radius of an attack, hitbox-to-hitbox
+	// (参考 `cr_sim/engine/battle.py:1301-1310`). Source: 官方 `area_damage_radius`
+	// for characters (Valkyrie 2000 / Dark Prince 1100 / Mega Knight 1300) and
+	// 官方 `radius` for **projectile rows** (Wizard 1500 / Executioner 1000 /
+	// Bowler 1800 / Bomber 1500 / Princess 2000 / Fire Spirits 2300 …).
+	// 0 = single target.
+	AoeRadiusMilli int32
+
+	// JumpHeightMilli is how wide a stretch of water the unit can leap over
+	// (官方 `jump_height`, 4000 for Hog Rider / Prince / Dark Prince /
+	// Battle Ram; 0 elsewhere). JumpSpeedTilesPerMinute is the horizontal speed
+	// while airborne (官方 `jump_speed`, 160 on all four).
+	//
+	// ⚠ CONTRACT NOTE: the frozen column list (步骤文档 §4.2) has no jump
+	// column, yet 参考规格 §5 requires the river to be crossable only at the
+	// bridges **except** for units that jump. These two fields are therefore a
+	// **backward-compatible addition** (appending a column cannot break a
+	// named-field struct literal), and `isJumpingDef` falls back to the
+	// official jumper keys so the pool behaves correctly even with a 0.
+	JumpHeightMilli        int32
+	JumpSpeedTilesPerMin   int32
 
 	SpriteDir string
 
@@ -143,6 +175,39 @@ func isFlyingDef(def *UnitDef) bool {
 		return true
 	}
 	return officialFlyerKeys[strings.ToLower(def.Key)]
+}
+
+// officialJumperKeys are the unit keys the official data marks as able to jump
+// (`jump_enabled = true`) among this project's cards, lower-cased for
+// case-insensitive matching. Source: 原版资源/cr-api-data/docs/json/
+// cards_stats_characters.json -- Prince / HogRider / DarkPrince / Ram (the
+// mount of Battle Ram) all read `jump_enabled=true, jump_height=4000,
+// jump_speed=160`; every other row in the file reads false with height 0.
+var officialJumperKeys = map[string]bool{
+	"hog-rider":   true,
+	"hogrider":    true,
+	"prince":      true,
+	"dark-prince": true,
+	"darkprince":  true,
+	"battle-ram":  true,
+	"battleram":   true,
+	"ram":         true,
+}
+
+// isJumpingDef reports whether a unit can leap the river.
+//
+// The column wins where it is present, with the official key list as a
+// fallback so the pool behaves correctly even against a table generated before
+// `jump_height_mt` existed (the same belt-and-braces pattern `isFlyingDef`
+// uses).
+func isJumpingDef(def *UnitDef) bool {
+	if def == nil {
+		return false
+	}
+	if def.JumpHeightMilli > 0 {
+		return true
+	}
+	return officialJumperKeys[strings.ToLower(def.Key)]
 }
 
 // IsTower reports whether this def describes a crown tower.
@@ -200,6 +265,12 @@ type CardDef struct {
 	// UnitRadiusMilli is the ring radius the bodies are spread over.
 	UnitRadiusMilli int32
 	DeployDelayMs   int32
+	// UnitStaggerMs is the per-body deploy delay: body i lands at
+	// `DeployDelayMs + i * UnitStaggerMs`. Source: 官方 `summon_deploy_delay`,
+	// consumed the way the reference does
+	// (`cr_sim/engine/battle.py:659`: `deploy_ticks + index * summon_deploy_delay`)
+	// so a swarm materialises in sequence instead of all at once.
+	UnitStaggerMs int32
 	// Spell is non-nil only for spell cards.
 	Spell *SpellDef
 }

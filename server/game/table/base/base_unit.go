@@ -37,15 +37,18 @@ type BaseUnitRow struct {
 	SpawnKey string // 周期性召唤实体 key ← 官方 spawn_character
 	SpawnN int // 周期性召唤数量 ← 官方 spawn_number
 	SpawnRadiusMt int // 周期性召唤铺设半径 milli-tile ← 官方 spawn_radius
-	SpawnIntervalMs int // 周期性召唤间隔 ms ← 官方 spawn_interval（非零时取之，否则 spawn_pause_time）
-	SpawnLimit int // 场上召唤上限 ← 官方 spawn_limit
+	SpawnIntervalMs int // 周期性召唤**波间隔** ms ← 官方 spawn_pause_time（哥布林小屋 10000 / 野蛮人小屋 14000 / 骷髅墓碑 3500 / 女巫 7000；0 = 只有一波）
+	SpawnLimit int // 场上召唤上限（**存活子代数**上限）← 官方 spawn_limit
 	SummonKey string // 落点召唤实体 key（群体卡）← 本项目自定：本表内部行 key（与官方 cards_stats_troop.json:summon_character 同名）
 	SummonN int // 落点召唤数量 ← 本项目自定（口径同官方 summon_number）
-	SummonRadiusMt int // 落点环形铺设半径 milli-tile ← 本项目自定（口径同官方 summon_radius）
-	SummonDeployDelayMs int // 落点召唤的部署延迟 ms ← 本项目自定（口径同官方 summon_deploy_delay）
-	AoeRadiusMt int // 普攻溅射半径 milli-tile（0=无溅射）← 官方 area_damage_radius
+	SummonRadiusMt int // 落点环形铺设半径 milli-tile ← 本项目自定（口径同官方 summon_radius；0 = 由引擎按"相邻不重叠"铺开）
+	SummonDeployDelayMs int // 落点召唤的**逐个错开**部署间隔 ms ← 本项目自定（口径同官方 summon_deploy_delay；第 i 只 = 自身 deploy_time + i × 本值）
+	AoeRadiusMt int // 普攻溅射半径 milli-tile（0=无溅射）← 角色行为官方 area_damage_radius；**投射物行**为官方 cards_stats_projectile.json:radius（法师 1500 / 屠夫 1000 / 滚石 1800 …）
 	SpriteDir string // 素材目录名（本项目自定：参考规格 §6）
 	Flying int // 1=飞行单位（官方 cards_stats_characters.json 的 flying_height>0）；0=地面（建筑/塔/投射物恒 0）
+	SpawnStaggerMs int // 周期性召唤**波内错开**间隔 ms ← 官方 spawn_interval（小屋 500；0 = 一波同时出）
+	JumpHeightMt int // 可跳过的水域宽度 milli-tile ← 官方 jump_height（jump_enabled=true 的 4 张卡：野猪骑士/王子/黑暗王子/野蛮人攻城槌 = 4000；0 = 不能跳河）
+	JumpSpeed int // 跳跃期间水平速度（格/分钟）← 官方 jump_speed（同上 4 张卡 = 160；0 = 不跳）
 }
 
 // BaseUnitTable 表 "unit" 的只读容器（按主键索引）。
@@ -126,6 +129,9 @@ func (t *BaseUnitTable) Load(content string) error {
 		row.AoeRadiusMt = parseInt(cell(rec, 34))
 		row.SpriteDir = cell(rec, 35)
 		row.Flying = parseInt(cell(rec, 36))
+		row.SpawnStaggerMs = parseInt(cell(rec, 37))
+		row.JumpHeightMt = parseInt(cell(rec, 38))
+		row.JumpSpeed = parseInt(cell(rec, 39))
 		t.rows = append(t.rows, row)
 		t.index[row.Id] = row
 	}

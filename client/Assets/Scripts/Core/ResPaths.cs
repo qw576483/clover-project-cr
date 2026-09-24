@@ -810,6 +810,127 @@ namespace CR
         /// <summary>弹道帧数。</summary>
         public const int EffectArrowCount = 20;
 
+        // ───────────────────────── 法术命中特效（差异登记 D148）─────────────────────────
+        //
+        // 用户第 9 条「卡的实现没看到法术」的根因：法术卡走 `EvPlayCard` 事件，而客户端那条分支
+        // 只处理"远程卡"（`CardInfo.projectile_key` 非空）⇒ **法术卡 projectile_key 为空，
+        // 在 `PlayProjectileFlight` 开头就被 return 掉**，于是一张法术打下去，画面上什么都没有。
+        //
+        // 素材出处：`策划/单位动画分组表.md` 的 `effects` 小节（该文件是生成物，生成器
+        // `tools/probes/sc-as1-index.py`）。10 张法术**共用同一本图集** `effects_out`（612 帧），
+        // 每张只用其中一段连续帧 ⇒ 落地时只拷那一段（`Effects/{Spell,SpellBarrel}/`），
+        // 与既有 `Effects/Hit`（f050..f056）等目录同一约定。
+        // 落地脚本：`.ai-tmp/hosts/copy_spell_fx.py`（幂等，帧号与行号都写在脚本里）。
+
+        /// <summary>
+        /// 用途目录：法术命中特效（`effects_out` 图集里各法术那一段，画布 474×537）。
+        /// 目录里的帧 = 下列 9 张法术用到的**并集**（原版帧号即文件名 ⇒ 不会撞号）。
+        /// </summary>
+        public const string EffectSpell = "Spell";
+
+        /// <summary>
+        /// 用途目录：哥布林飞桶（**单独一本图集**，画布 122×116）。
+        /// 为什么不并进 <see cref="EffectSpell"/>：`SpriteBank.UnifiedCanvasAnchor` 按目录算并集锚点，
+        /// 两种画布混在一起锚点就算错了（见 `copy_spell_fx.py` 的说明）。
+        /// </summary>
+        public const string EffectSpellBarrel = "SpellBarrel";
+
+        /// <summary>火球命中（分组表 `:4710` `fireball` 帧列 `22 396-436` 里的连续段）。</summary>
+        public const int EffectFireballFirst = 396;
+
+        /// <summary>火球命中帧数（f396..f436）。</summary>
+        public const int EffectFireballCount = 41;
+
+        /// <summary>万箭齐发落地（分组表 `:4864` `Arrow_enemy_ground_anim` 帧列 `498-504`）。</summary>
+        public const int EffectArrowsFirst = 498;
+
+        /// <summary>万箭齐发帧数（f498..f504）。</summary>
+        public const int EffectArrowsCount = 7;
+
+        /// <summary>狂暴法术生效（分组表 `:4752` `rage_effect` 帧列 `97 206-211` 里的连续段）。</summary>
+        public const int EffectRageFirst = 206;
+
+        /// <summary>狂暴帧数（f206..f211）。</summary>
+        public const int EffectRageCount = 6;
+
+        /// <summary>火箭命中（分组表 `:5249` `projectile_rocket` 帧列 `536-595`）。</summary>
+        public const int EffectRocketFirst = 536;
+
+        /// <summary>火箭帧数（f536..f595）。</summary>
+        public const int EffectRocketCount = 60;
+
+        /// <summary>冰冻法术生效（分组表 `:4712` `freeze_effect` 帧列 `73-79`）。</summary>
+        public const int EffectFreezeFirst = 73;
+
+        /// <summary>冰冻帧数（f073..f079）。</summary>
+        public const int EffectFreezeCount = 7;
+
+        /// <summary>
+        /// 雷电法术（分组表 `:4740` `lightning` 帧列 `172-179`）。
+        /// ⚠️ 与 <see cref="EffectZapFirst"/> **是同一段像素帧** —— 分组表 `:4741` 的 `zap` 帧列同为
+        /// `172-179`。这是原版的真实情况（两段动画共用同一组图元），⛔ 不为了"看起来不同"而改帧。
+        /// </summary>
+        public const int EffectLightningFirst = 172;
+
+        /// <summary>雷电帧数（f172..f179）。</summary>
+        public const int EffectLightningCount = 8;
+
+        /// <summary>电击法术（分组表 `:4741` `zap` 帧列 `172-179`）。见 <see cref="EffectLightningFirst"/> 的说明。</summary>
+        public const int EffectZapFirst = 172;
+
+        /// <summary>电击帧数（f172..f179）。</summary>
+        public const int EffectZapCount = 8;
+
+        /// <summary>伤害药水法术（分组表 `:4816` `poison` 帧列 `263-293`）。</summary>
+        public const int EffectPoisonFirst = 263;
+
+        /// <summary>毒药帧数（f263..f293）。</summary>
+        public const int EffectPoisonCount = 31;
+
+        /// <summary>滚木（分组表 `:4750` `log` 帧列 `180-187`）。</summary>
+        public const int EffectTheLogFirst = 180;
+
+        /// <summary>滚木帧数（f180..f187）。</summary>
+        public const int EffectTheLogCount = 8;
+
+        /// <summary>
+        /// 哥布林飞桶（分组表 `:6205` `spell_goblin_barrel` 帧列 `0 2-12`）。
+        /// 帧**不连续**（f000 之后跳到 f002）：落地目录里只放了该组用到的 12 帧
+        /// （f000 + f002..f012）⇒ 顺序播 12 帧即等于该组，见 `copy_spell_fx.py`。
+        /// </summary>
+        public const int EffectGoblinBarrelFirst = 0;
+
+        /// <summary>哥布林飞桶帧数（该组 12 帧）。</summary>
+        public const int EffectGoblinBarrelCount = 12;
+
+        // ───────────────────────── 落点范围指示（差异登记 D143）─────────────────────────
+        //
+        // 用户第 4 条「放卡没有进度条（原版是转圈的）」的根因：`PlacementIndicator` 过去用
+        // `CreateDiscSprite()` **自制**一张圆盘贴图，并断言「解包素材里没有落点指示图」。
+        //
+        // ⛔ 那句断言是**错的**：`策划/单位动画分组表.md` 的 `effects` 小节里有原版的
+        // 法术范围指示图元，且**分我方/敌方两种形态**（见下）。同族的 `spell_zap_radius`
+        // （:4780）/ `spell_rage_radius`（:4778）/ `spell_poison_radius`（:4776）/
+        // `spell_freeze_radius`（:4769）**帧列全都是 `221`** ⇒ 原版所有法术共用同一张环，
+        // 靠**缩放**适配各自半径 —— 这正是"落点指示"的实现方式。
+        // 落地脚本：`.ai-tmp/hosts/copy_spell_fx.py`（`RANGE_RING` 一节）。
+
+        /// <summary>
+        /// 用途目录：落点范围指示（`effects_out` 里那两张范围图元）。目录里只有 2 帧：
+        /// f221（我方，白环）与 f294（敌方，红边盘）。
+        /// </summary>
+        public const string EffectRangeRing = "RangeRing";
+
+        /// <summary>
+        /// **我方**落点范围环：分组表 `:4777` `spell_radius` 帧列 `221`（外径 ≈124 px 的细白圆环）。
+        /// </summary>
+        public const int EffectRangeRingFriendly = 221;
+
+        /// <summary>
+        /// **敌方**落点范围盘：分组表 `:4815` `Poison` 帧列 `294`（深色圆盘 + 红边 + 外圈刻度）。
+        /// </summary>
+        public const int EffectRangeRingHostile = 294;
+
         // ───────────────────────── 内部 ─────────────────────────
 
         /// <summary>

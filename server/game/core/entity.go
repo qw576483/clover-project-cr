@@ -114,9 +114,25 @@ type entity struct {
 	lifeMsLeft   int32
 	spawnTimerMs int32
 	spawnedCount int32
+	// spawnChildren are the ids this building has produced, kept so the
+	// `spawn_limit` check counts **living** children rather than a running
+	// total (cr_sim/engine/battle.py::_phase_run_spawners: `room = spawn_limit
+	// - len(living)`).
+	spawnChildren []int32
+	// spawnDone marks a one-shot spawner (a row with `spawn_character` but no
+	// `spawn_pause_time`) as spent. The reference sets its timer to -1 for
+	// exactly this case, because "no SpawnPauseTime means one wave, not an
+	// infinitely fast one" -- a Goblin Giant otherwise produced 242 Spear
+	// Goblins in five seconds.
+	spawnDone bool
 
 	// flying mirrors Def' air/ground layer for collision and pathing.
 	flying bool
+	// jumps marks a unit that may leap the river (官方 jump_enabled: 野猪骑士 /
+	// 王子 / 黑暗王子 / 野蛮人攻城槌). It is **not** flying: the unit is still a
+	// ground target and still blocked by buildings -- the only difference is
+	// that the water band does not stop it (see canCrossWater).
+	jumps bool
 }
 
 // pos returns the entity's position in milli-tiles.
@@ -158,11 +174,23 @@ func (e *entity) immovable() bool {
 func (e *entity) setAnim(a int32) { e.anim = a }
 
 // faceToward points the entity at a point.
+//
+// facing 只有两个取值（-1 左 / 1 右，entity.go 的 `facing` 字段 + snapshot.go
+// 的 `Facing`），所以「正上 / 正下」方位（x 与自身相等）在左右轴上**没有信息**
+// —— 原版（及 cr-sim，见 原版资源/cr-sim/cr_sim/engine/actions.py:763 的注释：
+// facing 只用来按队伍镜像生成偏移，不存在"精确朝向角"）对这种情况没有给出角度。
+// 旧实现在这一分支里**什么都不做** ⇒ 保留上一次的朝向；后果是"上一次朝自己半场
+// 却对着正上方目标"的单位会**保持背身**（我方验收断言 C3：近战单位对"同 x 正上方
+// 目标"时朝向必须指向目标，不得保持背身）。
+// 口径（本项目补正）：x 相等时回退到"面向敌方半场"——与出生朝向同一基准
+// `facingFor`（combat.go:395-401，蓝=+1 / 红=-1），保证朝向永远不是"背对目标半场"。
 func (e *entity) faceToward(x int32) {
 	if x < e.xMilli {
 		e.facing = -1
 	} else if x > e.xMilli {
 		e.facing = 1
+	} else {
+		e.facing = facingFor(e.Team)
 	}
 }
 
@@ -176,8 +204,12 @@ func (e *entity) clearRoute() {
 }
 
 // routeTo builds and installs a route to a goal point.
+//
+// 传 `canCrossWater()` 而不是 `flying`：**能跳河的单位也不走桥**（官方 jump_enabled
+// 的四张卡跳过的水域宽度 4000 > 河道全宽 2000）。二者在其它方面完全不同（跳河单位仍是
+// 地面目标、仍被建筑阻挡），差异只体现在水位这一步。
 func (e *entity) routeTo(a *Arena, goalX, goalY int32) {
-	e.nav.waypoints = routeWaypoints(a, e.xMilli, e.yMilli, goalX, goalY, e.flying)
+	e.nav.waypoints = routeWaypoints(a, e.xMilli, e.yMilli, goalX, goalY, e.canCrossWater())
 	e.nav.idx = 0
 	e.nav.fromX, e.nav.fromY = e.xMilli, e.yMilli
 	e.nav.travelledFine = 0

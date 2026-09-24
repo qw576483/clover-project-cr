@@ -102,18 +102,34 @@ namespace CR.UI.Panels
         //     ④ `策划/基线图/索引.md:25` 早就把 20 记为"**未取证**；仅作『扫过顶部未见冠数/暂停』的旁证"。
         //   ⇒ 20 归入"另一版本/模式"，⛔ 不作几何基线（相关素材 `frame_547` 留档但**不接线**，见 `ResPaths`）。
 
-        /// <summary>单卡宽 <b>140</b>。出处：D11「单卡宽 / 卡间距 = 140 / 3」（18 图 gaps 扫描；
-        /// 18 = 主 agent 裁定的唯一几何基线，理由见本段上方）。</summary>
-        private const float CardW = 140f;
+        /// <summary>单卡宽 <b>136</b>。★ D131 改（旧值 140）。
+        /// <para>
+        /// <b>出处 = 18 图直接量取</b>（`18_对局HUD_1080x1920.jpg` = 唯一几何基线，1080×1920 与本画布同尺寸
+        /// ⇒ 像素值即画布值）：对每列在 y1640..1779 上做「蓝度 B−R &lt; 45」多数表决，取**卡体外沿**（含卡框那圈
+        /// 深色边）的进出点 ⇒ 卡1 x143..278、卡2 x286..421、卡4 x571..706 三张都 = <b>136</b>
+        /// （卡3 x430..562 = 133，受卡面内容干扰）。复跑：`tools/probes/cr-d131-hud-measure.py`。
+        /// </para>
+        /// <para>
+        /// <b>为什么推翻 D11 的「140 / 3」</b>：`策划/参考图/几何量取.md:60` 的 D11 出处列写的是
+        /// 「**由 D9/D10**」⇒ 它不是量取值，而且与自己的输入不自洽（D9=144 / D10=704 ⇒ 整排 560，
+        /// 而 4×140+3×3 = 569）—— 该不一致就是已登记的 D54「手牌整排右端 +9px」。
+        /// </para>
+        /// </summary>
+        private const float CardW = 136f;
 
-        /// <summary>单卡高 <b>171</b> = D12 卡顶 y=1614 → 卡底 y=1785（1785−1614）。</summary>
+        /// <summary>单卡高 <b>171</b> = D12 卡顶 y=1614 → 卡底 y=1785（1785−1614）。
+        /// ★ D131 复核（x=350 逐行：卡外沿 y1614..1784）⇒ 171 ✔ 差值 0。</summary>
         private const float CardH = 171f;
 
-        /// <summary>卡间距 <b>3</b>。出处：D11（同上，18 图 gaps 扫描）。</summary>
-        private const float CardGap = 3f;
+        /// <summary>卡间距 <b>7</b>。★ D131 改（旧值 3）。
+        /// 出处 = 18 图实测的**卡缝**（纯竞技场蓝）x279..285 / 422..429 / 563..570 = 7 / 8 / 8 px，
+        /// 且卡左沿实测 143 / 286 / 430 / 571 ⇒ 步距 142.7 − 卡宽 136 = <b>7</b>（与三处卡缝读数同量级）。</summary>
+        private const float CardGap = 7f;
 
         /// <summary>
-        /// 手牌 4 张整排宽 = 4×136 + 3×4.67 = <b>558</b>（= 20 图直接量到的 705−147 = 558 ✔ 自洽）。
+        /// 手牌 4 张整排宽 = 4×136 + 3×7 = <b>565</b>。★ D131 改（旧文档注释写的 558 是 CR-T2e 退回 20 图口径时的
+        /// 遗留值，与代码早已不符，随本次一并改正）。整排实占 = 左边 144 + 565 = 709 vs 18 图实测右沿 706~707
+        /// （差 ≤ 3px，JPEG 模糊级）。
         /// </summary>
         private const float HandBarW = HandSlots * CardW + (HandSlots - 1) * CardGap;
 
@@ -170,8 +186,80 @@ namespace CR.UI.Panels
         /// <summary>圣水条右端 x = <b>1044</b>（右留白 1080−1044 = 36）。出处：D4（18 图 dump row y=1819）。</summary>
         private const float ElixirBarRight = 1044f;
 
-        /// <summary>圣水条宽 = 右端 − 左端 = 1044 − 88 = <b>956</b>（由 D4/D5 算得）。</summary>
+        /// <summary>圣水条宽 = 右端 − 左端 = 1044 − 88 = <b>956</b>（由 D4/D5 算得）。
+        /// ⚠️ D131 复核：D4 的 1044 与 18 图实测的条右外沿 1045 差 1px ✔（在容差内）；
+        /// 但 D5 的 88 是「**徽章遮挡后的可见起点**」（D5 原文），**不是槽的真左沿** —— 真左沿见
+        /// <see cref="ElixirTickGridLeft"/>（= 103，由 9 条刻度最小二乘反解，残差 ≤ 1.3px）。</summary>
         private const float ElixirBarW = ElixirBarRight - ElixirBarLeft;
+
+        // ── 圣水条的 10 格刻度（★ D131 新增：消解 D66「刻度已登记键但未绘制」） ──
+        //
+        // 原版结构（出处 `策划/战斗HUD素材索引.md` §3.1）：`elixir_bar`(clip 1080) 的子元件里
+        // **`d1`…`d9` 共 9 个，同属 clip 909、落地帧 = `ui_out` 160（1×1），原文注明「10 格刻度分隔
+        // （原版同一 clip 复用 9 次）」** ⇒ 9 条分隔线把条分成 **10 格**，一格 = 1.0 圣水。
+        // 索引 §2.1 第 2 条明说「坐标/缩放未解出 ⇒ 摆放尺寸要等坐标解出或按原版截图量」
+        // ⇒ 本片按基线图量取（下面每个常量都带量法）。
+
+        /// <summary>
+        /// 圣水条**刻度栅格左端** x = <b>103</b>（第 0 格的左沿）。★ D131 新增。
+        /// <para>
+        /// <b>为什么不是 <see cref="ElixirBarLeft"/>(88)</b>：18 图 y=1820 逐点实测 x94 (255,33,238) /
+        /// x98 (185,28,177) / x100 (107,0,107) 都还是**圣水徽章的亮边与深色描边**（徽章心 x=63、宽 60 ⇒
+        /// 圆身到 x93，亮边一直盖到 ~102）⇒ 88 只是"条从徽章后面露出来的地方"，槽的真左沿被盖住了，
+        /// 只能用刻度栅格反解。
+        /// </para>
+        /// <para>
+        /// <b>量法</b>（`18_对局HUD_1080x1920.jpg`，像素值即画布值）：逐列做「列均值 y1802..1837 对
+        /// 移动中值基线(k=40)」的差，取每条暗线最深的那一列 ⇒ 9 条刻度中心
+        /// x = 198 / 289.5 / 384 / 479 / 572 / 666 / 759 / 853 / 947（k=1..9；k=1 落在**品红填充内**，
+        /// k=2 = 填充(2 圣水)的右沿，k=3..9 在空槽暗底区）；对 (k, x) 做最小二乘
+        /// ⇒ 截距 <b>103.32</b>、斜率 <b>93.72</b>、9 点最大残差 1.3px，取 <b>103</b> / 93.72。
+        /// 交叉验证：① 自动检测出的 7 条暗线（198/384/479/666/759/853/947）**全部**落在这条栅格 ±2px 内；
+        /// ② 填充 2 圣水的右沿应 = 第 2 格右沿 = 103.32+2×93.72 = 290.8（18 图实测 289~290 ✔）；
+        /// ③ 末格右沿 = 103.32+10×93.72 = 1040.5（= 条右端 1044 再减去端头件的占位）。
+        /// 复跑脚本：`tools/probes/cr-d131-hud-measure.py`。
+        /// </para>
+        /// </summary>
+        private const float ElixirTickGridLeft = 103f;
+
+        /// <summary>圣水条**每格宽** = <b>93.72</b>（1 格 = 1.0 圣水）。出处：见
+        /// <see cref="ElixirTickGridLeft"/> 的 9 点最小二乘斜率。</summary>
+        private const float ElixirTickStep = 93.72f;
+
+        /// <summary>圣水条**刻度栅格宽** = 10 格 × <see cref="ElixirTickStep"/> = <b>937.2</b>。
+        /// ★ D131 新增：填充与刻度共用它 ⇒ 每 1.0 圣水正好铺满 1 格。</summary>
+        private const float ElixirTickGridW = ElixirTickStep * 10f;
+
+        /// <summary>填充区在轨道内的**左偏移** = 栅格左端 − 条左端 = 103 − 88 = <b>15</b>。</summary>
+        private const float ElixirFillInsetLeft = ElixirTickGridLeft - ElixirBarLeft;
+
+        /// <summary>
+        /// 刻度分隔线宽 <b>4</b>。出处：18 图 9 条刻度在**半深**处的横向宽度实测 3~5px
+        /// （k=8 那条半深覆盖 x944..948 = 5px；k=3 那条 x383..385 = 3px）⇒ 取 4。
+        /// 原版图元本身是 1×1（<see cref="ResPaths.ElixirBarTick"/>）⇒ 宽高由放置矩阵给，
+        /// 而索引 §2.1 明说矩阵未解出 ⇒ 按基线量取，⛔ 不猜。
+        /// </summary>
+        private const float ElixirTickW = 4f;
+
+        /// <summary>
+        /// 刻度分隔线高 = 条高 − 上下各 6px = 44 − 12 = <b>32</b>。出处：18 图列剖面（x=947 对邻列 x=941）
+        /// 的暗线纵向范围实测 y1803..1834 = 32px，而条外框是 y1798..1841（高 44）⇒ 上下各让 ~6px 内边。
+        /// </summary>
+        private const float ElixirTickH = ElixirBarH - 12f;
+
+        /// <summary>
+        /// 刻度分隔线的**不透明度** = <b>0.30</b>（★ 还原"原版怎么画刻度"，不是随手调色）。
+        /// <para>
+        /// 18 图实测：刻度处 = 底色 × ≈0.85（空槽 (32,48,82)→(28,41,73)；品红填充 (207,39,212)→(169,27,175)），
+        /// 即一层 ~15% 的**暗**覆盖。uGUI 默认混合做不出乘算 ⇒ 用原版帧 `frame_160` 的自色 (35,35,35)
+        /// 配 α = 0.30 逼近：空槽合成 ≈ (33,44,68) vs 实测 (28,41,73)、满条合成 ≈ (155,34,159)
+        /// vs 实测 (169,27,175)，两处每通道差 ≤ 14/255。
+        /// </para>
+        /// </summary>
+        private static readonly Color ElixirTickTint = new Color(1f, 1f, 1f, 0.30f);
+
+        /// <summary>刻度线取不到图时的兜底色（同 <see cref="ElixirTickTint"/> 的等效暗覆盖）。</summary>
+        private static readonly Color ElixirTickFallback = new Color(0.14f, 0.14f, 0.14f, 0.30f);
 
         /// <summary>圣水徽章（水滴底 + 数字）直径 <b>60</b>。出处：D7（18 图 bb mag：心 (63,1815)、径 60）。</summary>
         private const float ElixirBadgeD = 60f;
@@ -526,9 +614,18 @@ namespace CR.UI.Panels
 
         /// <summary>上一次打印「本局手牌帧号表」时的手牌组成（`_handIds` 拼串）—— 只在真的变了时才打印。</summary>
         private string _handSigLogged;
-        private bool _noCameraWarned;
-        private bool _poolMissingWarned;
-        private bool _nonOrthoWarned;
+        // ★ 「只告警一次」的四处（无相机 / 非正交 / 池缺失 / 无 timeline）里，
+        //   前三处生命周期 = **进程级**（实例字段从不重置，且这三条说的是"环境/装配缺陷"，
+        //   跨面板重开也不该再刷屏）⇒ 改用引擎的 `LogThrottle.WarnOnce`（`Runtime/Core/LogThrottle.cs:164`），
+        //   ⛔ 不再自持 `_noCameraWarned` / `_nonOrthoWarned` / `_poolMissingWarned` 三个字段。
+        //
+        // ⚠️ 但**保留** `_noTimelineWarned`：它在 `OnStarted` 里有 `_noTimelineWarned = false;`
+        //   （"新一局：时间线还没到，重新留痕"）⇒ 是**每局重置**语义，而 `LogThrottle.*Once` 是
+        //   **进程级**（`LogThrottle.Reset()` 是全量清 ⇒ 会连带清掉别的系统的限频记录，是越界副作用）
+        //   ⇒ 换成 WarnOnce 会让"第 2 局又没时间线"这件事静默。这与 `BattleManager` 的
+        //   `_seqWarned / _roomWarned / _seqJumpWarned` 同一条理由（那三处也**必须保留**）。
+
+        /// <summary>`start.timeline == null` 只报一次 —— **每局重置**（见 `OnStarted`），⛔ 不换 `WarnOnce`。</summary>
         private bool _noTimelineWarned;
 
         /// <summary>倒计时最后 <see cref="CountdownWarnMs"/> 毫秒的滴答：上一声播在"剩余第几秒"（-1 = 还没进窗口）。</summary>
@@ -702,17 +799,29 @@ namespace CR.UI.Panels
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(textX, -36f), new Vector2(textW, 62f), TextAnchor.MiddleCenter);
 
-            // 阶段（常规 / 加时 / 已结束）：顶部居中（原版该处是场景区，本项目自定：原版无此文字条）。
+            // 阶段（常规 / 加时 / 已结束）：顶部居中、**冠数徽章之下**（原版该处是场景区，本项目自定：原版无此文字条）。
+            // ⛔ 2026-09-23 修「顶部文字压在冠数徽章上」：CR-V2 把冠数徽章从左上搬到**顶部正中**后，
+            //    徽章实占 px x 476..516 / y −4..36（出处 18 图 purple bbox，双源交叉验证见
+            //    `.ai-tmp/test/CR-V2-sep.out.txt:97`；节点树读数见 `ab2-audit-step4.txt:13`），
+            //    而本行原 `-10` ⇒ px y 10..40 ⇒ **与徽章重叠 26px**（实机 `CR-LIVE-hud.png` 上
+            //    「常规时间」四字直接压在紫徽 + 金星上）。徽章坐标是**量取来的**、⛔ 不让位 ⇒
+            //    让这一行让位：px y 10..40 → **px y 44..74**（徽章底边 y=36 之下留 8px 缝）。
+            //    阶段/状态两行是本项目自定件（验收表 D34 已登记「多出 Phase/Status 两行」），
+            //    ⛔ 不动任何量取来的几何（TimerBox 冻结几何、徽章位、手牌、圣水条）。
             _phaseText = UIFactory.CreateText("Phase", _root, string.Empty, CrUiStyle.FontSmall,
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);
             UIFactory.Place(_phaseText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -10f), new Vector2(420f, 30f));
+                new Vector2(0f, -44f), new Vector2(420f, 30f));
 
             // 状态行（提示 / 服务端拒因）：阶段下一行。本项目自定（原版无此文字条）。
+            // ⛔ 同上让位：原 `-44` 正是阶段行现在的位置 ⇒ 下移到 `-78`（px y 78..108）。
+            // 宽度 900 → 680 是为了**不压右上计时板**：计时板 TimerBox 实占 px x 882..1080 / y 0..100
+            //   （`ab2-audit-step4.txt:35`），900 居中 ⇒ x 90..990，与板在 x 882..990 上相交；
+            //   680 居中 ⇒ x 200..880 ⇒ 与计时板零相交（状态行会显示服务端拒因，不许被板压住）。
             _statusText = UIFactory.CreateText("Status", _root, string.Empty, CrUiStyle.FontSmall,
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);
             UIFactory.Place(_statusText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -44f), new Vector2(900f, 30f));
+                new Vector2(0f, -78f), new Vector2(680f, 30f));
         }
 
         private void BuildElixir()
@@ -727,10 +836,20 @@ namespace CR.UI.Panels
                 new Vector2(ElixirBarLeft, ElixirBarBottom), new Vector2(ElixirBarW, ElixirBarH),
                 CrUiStyle.FieldBg, false);
 
+            // ★ D131 新增：**填充区**（正好占刻度栅格那一块，见 `ElixirTickGridLeft`）。
+            //   为什么必须有这一层：`UIFactory.SetBarWidth` 是按**父节点宽度**的比例摆填充的
+            //   （`UIWidgetControls.cs:238-246`：`anchorMax.x = p`、`offsetMin/Max` 归零）⇒ 填充若直接挂在
+            //   轨道（956 宽）上，2/10 时右沿 = 88 + 191.2 = 279，而 18 图实测 = 289~290（差 ~11px）。
+            //   挂进"左沿 102、宽 937.6"的容器后：2/10 右沿 = 102 + 0.2×937.6 = 289.5 ✔
+            //   ⇒ 每 1.0 圣水 = 正好 1 格（用户判词「一个圣水不是一个格子吗」），同时消解已登记的 D58。
+            var fillArea = UIFactory.CreateNode("ElixirFillArea", track.rectTransform);
+            UIFactory.Place(fillArea, new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(ElixirFillInsetLeft, 0f), new Vector2(ElixirTickGridW, ElixirBarH));
+
             // ⛔ 不用无 sprite 的 `Image.fillAmount` 画进度（sprite 空时它走实心四边形分支、静默失效，
             //    见 `UIWidgetControls.cs:232-238`）；用引擎给的 `SetBarWidth`。
             // 锚点/轴心 (0,0) + 尺寸零 = 与 `LoadingPanel` 完全相同的口径（那是已验证可跑的条目填充写法）。
-            var fill = CrUiStyle.NineSlice("ElixirFill", track.rectTransform, ResPaths.ElixirBarFill, BorderNone,
+            var fill = CrUiStyle.NineSlice("ElixirFill", fillArea, ResPaths.ElixirBarFill, BorderNone,
                 new Vector2(0f, 0f), new Vector2(0f, 0f), Vector2.zero, Vector2.zero,
                 CrUiStyle.Accent, false);
             _elixirFill = fill.rectTransform;
@@ -749,6 +868,24 @@ namespace CR.UI.Panels
 
             CrUiStyle.AspectImage("ElixirFillEnd", fill.rectTransform, ResPaths.ElixirBarFrame, ElixirEndW,
                 new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, CrUiStyle.Accent);
+
+            // ★ D131 新增：**10 格刻度分隔**（消解 D66「刻度素材已登记键但未绘制」）。
+            //   原版结构 = `elixir_bar`(clip 1080) 的子元件 **`d1`…`d9` 共 9 个**（同属 clip 909、
+            //   落地帧 `ResPaths.ElixirBarTick` = `ui_out/160`，1×1），原文注明「**10 格**刻度分隔
+            //   （原版同一 clip 复用 9 次）」⇒ 在第 1..9 格的分界各画一条，把条正好分成 10 格。
+            //   出处：`策划/战斗HUD素材索引.md` §2 的 `⇒ elixir_bar → clip 1080 → 子元件表` 与 §3.1 表
+            //   `d1…d9` 行 + §4 落地表（`Bars/ui_out frame_160`）。
+            //   挂 **track**（⛔ 不挂 fill）⇒ 位置/宽度不随圣水值变化；在 fill 之后创建 ⇒ 压在填充之上
+            //   （原版满条时也数得出 10 段 —— 用户判词就是"满格时能数出 10 段"）。
+            //   位置 = 栅格左沿 + k×格宽（量法与残差见 `ElixirTickGridLeft`）；宽/高/不透明度见同名常量。
+            for (var k = 1; k < 10; k++)
+            {
+                CrUiStyle.Skin($"ElixirTick{k}", track.rectTransform, ResPaths.ElixirBarTick, 0, BorderNone,
+                    new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f),
+                    new Vector2(ElixirFillInsetLeft + k * ElixirTickStep, 0f),
+                    new Vector2(ElixirTickW, ElixirTickH),
+                    ElixirTickFallback, false, ElixirTickTint);
+            }
 
             // 圣水徽章（大圣水图标）：位置/直径**不改** —— 心 (63,1815)、径 60（出处 §1.3 D7，G4 片的量取值）。
             // ★ AQ2 换帧（只换素材，⛔ 不动几何）：改用 `ResPaths.IconElixirBarLeft`（`ui_out/159`，94×115）——
@@ -1116,6 +1253,17 @@ namespace CR.UI.Panels
                 _ghost.preserveAspect = false;
                 _ghost.color = sprite != null ? GhostColor : GhostColorFallback;
                 _ghost.gameObject.SetActive(true);
+                // 卡面取不到时**必须留痕**：否则现象是"拖卡时手指下只有一块半透明白色方块"，
+                // 看起来就像"放卡没有卡模型"（用户第 5 条的原话），而日志里一条线索都没有。
+                if (sprite == null && !_ghostArtFallbackWarned)
+                {
+                    _ghostArtFallbackWarned = true;
+                    var key = card != null ? card.key : ("id=" + cardId);
+                    Game.Logger?.Warn(Tag,
+                        $"幽灵卡拿不到卡面（card={key} slot={slot}）⇒ 退成半透明纯色块。" +
+                        "可能原因：卡面帧号表没有这张卡（`CrUiStyle.TryGetCardArtFrame` 返回 false）、" +
+                        "或 `ui_spells_out` 素材没落地（只报一次）");
+                }
             }
             MoveGhost(screen);
 
@@ -1222,22 +1370,18 @@ namespace CR.UI.Panels
             var cam = UIFactory.UICamera();
             if (cam == null)
             {
-                if (!_noCameraWarned)
-                {
-                    _noCameraWarned = true;
-                    Game.Logger?.Warn(Tag,
-                        "UIFactory.UICamera() 返回 null（主相机缺失且场景里没有启用的相机）：" +
-                        "拖放出牌的落点无法换算，⛔ 不发请求（宁可让玩家看到提示，也不发一个坐标错误的请求）");
-                }
+                // 只报一次（进程级）：引擎 `LogThrottle.WarnOnce`。
+                LogThrottle.WarnOnce(Tag, "hud.ui.camera.missing",
+                    "UIFactory.UICamera() 返回 null（主相机缺失且场景里没有启用的相机）：" +
+                    "拖放出牌的落点无法换算，⛔ 不发请求（宁可让玩家看到提示，也不发一个坐标错误的请求）");
                 return Vector2.zero;
             }
 
-            if (!cam.orthographic && !_nonOrthoWarned)
+            if (!cam.orthographic)
             {
-                _nonOrthoWarned = true;
                 // 非预期分支：竞技场相机应当是正交（`IsoLayout.ScreenToWorldOnGround` 的前提）。
                 // 留痕（现象是"落点随视角/距离漂移"，很难猜）。
-                Game.Logger?.Warn(Tag,
+                LogThrottle.WarnOnce(Tag, "hud.ui.camera.nonortho",
                     $"主相机 {cam.name} 不是正交相机，落点换算可能整体偏移（IsoLayout 的前提是正交）");
             }
 
@@ -1259,12 +1403,25 @@ namespace CR.UI.Panels
         private const int CardTypeSpell = 1;
 
         /// <summary>
-        /// 落点指示半径（格）。⚠️ `CardInfo` 里**没有**碰撞半径字段（协议未下发），
-        /// 所以按类型给固定值 —— 这是**表现近似**，只影响那个圈画多大，**不影响任何裁决**
+        /// 落点指示半径（格）**兜底值**。⚠️ `CardInfo` 里没有部队的碰撞半径字段（协议未下发），
+        /// 所以部队用固定 1 格 —— 这是**表现近似**，只影响那个圈画多大，**不影响任何裁决**
         /// （放置合法性由服务端判，客户端这个圈只是"看起来能不能放"）。
+        /// <para>
+        /// **法术不再走这里**：法术半径 = 服务端下发的 `CardInfo.aoe_radius_milli`
+        /// （出处 `spell.tsv` 的 `radius_mt`，10 张各不相同）。<see cref="PlacementRadiusTilesSpell"/>
+        /// 只在"卡池还没到 / 该行缺半径"时兜底，并在日志里留痕（⛔ 它不是原版数值）。
+        /// </para>
         /// </summary>
         private const float PlacementRadiusTilesDrop = 1.0f;
+
+        /// <summary>法术圈半径的**兜底**值（格）。正常路径用 `CardInfo.aoe_radius_milli`，见上。</summary>
         private const float PlacementRadiusTilesSpell = 3.0f;
+
+        /// <summary>「法术半径缺值、退到兜底常量」只告警一次。</summary>
+        private bool _spellRadiusFallbackWarned;
+
+        /// <summary>「幽灵卡拿不到卡面、退成纯色块」只告警一次。</summary>
+        private bool _ghostArtFallbackWarned;
 
         /// <summary>「表现层根未建」只告警一次（避免每帧刷屏）。</summary>
         private bool _noBattleViewWarned;
@@ -1304,7 +1461,25 @@ namespace CR.UI.Panels
             var card = FindCard(_dragCardId);
             var isSpell = card != null && card.type == CardTypeSpell;
             var tile = view.ScreenToTile(screen);
-            view.ShowPlacement(tile, isSpell ? PlacementRadiusTilesSpell : PlacementRadiusTilesDrop, isSpell);
+            // 法术圈的半径**必须用服务端下发的真实作用半径**（`CardInfo.aoe_radius_milli`
+            // ← `spell.tsv` 的 `radius_mt`）：10 张法术半径各不相同（万箭齐发 1.4 格 …
+            // 雷电/毒药 3.5 格），写死一个常量会让玩家照着圈放却打空。
+            // ⚠️ 只有"卡池还没到 / 该行缺半径"（`aoe_radius_milli <= 0`）才退到旧常量兜底，
+            // 并留痕一次 —— 兜底值**不是**原版数值，只是不让圈消失。
+            var spellRadius = PlacementRadiusTilesSpell;
+            if (isSpell && card.aoe_radius_milli > 0)
+            {
+                spellRadius = card.aoe_radius_milli / 1000f;
+            }
+            else if (isSpell && !_spellRadiusFallbackWarned)
+            {
+                _spellRadiusFallbackWarned = true;
+                Game.Logger?.Warn(Tag,
+                    $"法术卡 card={(card != null ? card.key : "?")} 的 aoe_radius_milli=" +
+                    $"{(card != null ? card.aoe_radius_milli : -1)}（<=0）⇒ 落点圈半径退到兜底常量 " +
+                    $"{PlacementRadiusTilesSpell} 格（**不是原版数值**）。检查服务端 CardInfo 是否下发了 aoe_radius_milli（只报一次）");
+            }
+            view.ShowPlacement(tile, isSpell ? spellRadius : PlacementRadiusTilesDrop, isSpell);
         }
 
         /// <summary>
@@ -1780,14 +1955,10 @@ namespace CR.UI.Panels
         {
             if (card == null)
             {
-                if (!_poolMissingWarned)
-                {
-                    _poolMissingWarned = true;
-                    // 非预期分支：卡池没到（`BattleManager` 的补发也拿不到）⇒ 只能显示 id。
-                    Game.Logger?.Warn(Tag,
-                        "卡池还没到达（Events.Deck.PoolLoaded 没收到），手牌只能显示卡 id；" +
-                        "正常流程下 BattleManager 会在进对局时补发一次卡池");
-                }
+                // 非预期分支：卡池没到（`BattleManager` 的补发也拿不到）⇒ 只能显示 id。只报一次（进程级）。
+                LogThrottle.WarnOnce(Tag, "hud.card.pool.missing",
+                    "卡池还没到达（Events.Deck.PoolLoaded 没收到），手牌只能显示卡 id；" +
+                    "正常流程下 BattleManager 会在进对局时补发一次卡池");
                 return $"卡 id={id}";
             }
 

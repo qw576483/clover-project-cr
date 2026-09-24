@@ -39,15 +39,18 @@ type UnitRow struct {
 	SpawnKey            string // 周期性召唤实体 key
 	SpawnN              int    // 周期性召唤数量
 	SpawnRadiusMt       int    // 周期性召唤铺设半径 milli-tile
-	SpawnIntervalMs     int    // 周期性召唤间隔 ms
-	SpawnLimit          int    // 场上召唤上限
+	SpawnIntervalMs     int    // 周期性召唤**波间隔** ms（官方 spawn_pause_time；0 = 只有一波）
+	SpawnLimit          int    // 场上召唤上限（存活子代数）
 	SummonKey           string // 落点召唤实体 key（群体卡）
 	SummonN             int    // 落点召唤数量
 	SummonRadiusMt      int    // 落点环形铺设半径 milli-tile
-	SummonDeployDelayMs int    // 落点召唤的部署延迟 ms
+	SummonDeployDelayMs int    // 落点召唤的**逐个错开**部署间隔 ms
 	AoeRadiusMt         int    // 普攻溅射半径 milli-tile（0=无溅射）
 	SpriteDir           string // 素材目录名
 	Flying              int    // 1=飞行单位（官方 flying_height>0）；0=地面（建筑/塔/投射物恒 0）
+	SpawnStaggerMs      int    // 周期性召唤波内错开间隔 ms（官方 spawn_interval）
+	JumpHeightMt        int    // 可跳过的水域宽度 milli-tile（官方 jump_height）
+	JumpSpeed           int    // 跳跃期间水平速度（格/分钟，官方 jump_speed）
 }
 
 // UnitTable 表 "unit" 的只读容器（按主键 id + 按实体 key 双索引）。
@@ -99,7 +102,8 @@ func (t *UnitTable) Load(content string) error {
 		"projectile_key", "death_spawn_key", "death_spawn_n", "death_damage", "death_aoe_radius_mt",
 		"life_ms", "spawn_key", "spawn_n", "spawn_radius_mt", "spawn_interval_ms", "spawn_limit",
 		"summon_key", "summon_n", "summon_radius_mt", "summon_deploy_delay_ms", "aoe_radius_mt",
-		"sprite_dir", "flying"); err != nil {
+		"sprite_dir", "flying",
+		"spawn_stagger_ms", "jump_height_mt", "jump_speed"); err != nil {
 		return err
 	}
 
@@ -149,6 +153,9 @@ func (t *UnitTable) Load(content string) error {
 			AoeRadiusMt:         c.int(rec, "aoe_radius_mt"),
 			SpriteDir:           c.str(rec, "sprite_dir"),
 			Flying:              c.int(rec, "flying"),
+			SpawnStaggerMs:      c.int(rec, "spawn_stagger_ms"),
+			JumpHeightMt:        c.int(rec, "jump_height_mt"),
+			JumpSpeed:           c.int(rec, "jump_speed"),
 		}
 		if c.err != nil {
 			return c.err

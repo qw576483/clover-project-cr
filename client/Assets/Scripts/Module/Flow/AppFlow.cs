@@ -176,6 +176,29 @@ namespace CR.Module.Flow
             Game.Logger?.Info(Tag, "检测到新的事件总线（引擎重新 Launch），流程重装订阅与站点注册");
             RegisterStations();
             Subscribe();
+
+            // ★★ 换总线 = 引擎重新 Launch = **新会话**：站点状态机也是全新的，此刻停在引擎的初始态
+            //     （实测 `Game.Fsm.Current == "Launching"`）—— 也就是"没有任何站点在屏上"。
+            //     只重挂订阅就返回的话，流程**永远不会再动**：实测 2026-09-23 17:34 那次 Play，
+            //     17:34:20 打完 "网络已连接" 之后一行日志都没有，`[UI]` 的 7 个层
+            //     （Background/Normal/Popup/Top/Toasts/FloatTexts/System）全空 = 纯深色空屏，
+            //     而且 `consoleErrors=0` —— 正是最难查的那类"静默"。所以这里必须补一次 `GoTo(Boot)`。
+            //
+            //   ⛔ 判据是"当前站点**在不在本流程的站点集里**"，不是"有没有换过总线"：
+            //     "从对局回主菜单"走的是**同一个引擎、同一条总线**（`Bootstrap.OnDestroy` 刻意
+            //     不调 `Game.Shutdown()`，见其注释），根本进不到本方法 ⇒ 不会把已登录的玩家弹回启动画面。
+            //     旧注释把"编辑器重新 Play"也算进"不能回启动画面"的场景，那是错的：重新 Play 时
+            //     引擎是新的、玩家根本没登录，回 Boot 站点才是对的（本行就是那条缺掉的推进）。
+            var cur = Game.Fsm?.Current;
+            var inOwnStation = cur == Stations.Boot || cur == Stations.Login || cur == Stations.Nickname
+                || cur == Stations.MainMenu || cur == Stations.Room || cur == Stations.Battle
+                || cur == Stations.Pause;
+            if (!inOwnStation)
+            {
+                Game.Logger?.Warn(Tag,
+                    $"换总线后 FSM 停在 '{cur}'（不在本流程的站点集内）⇒ 重新进 {Stations.Boot} 站点，避免永远空白屏");
+                GoTo(Stations.Boot);
+            }
         }
 
         // ═════════════════════════ 对外契约（agent-06/07/08 依赖这几个签名，⛔ 不许改） ═════════════════════════

@@ -37,12 +37,16 @@ namespace CR.View
     ///   **它只按真实时间前进，收到快照时绝不重置**。它渲染的是"服务端时间轴上的哪一毫秒"。
     ///   ⛔ 不写"每帧累加 `Time.deltaTime`"：那个值被 Unity 夹在 `Time.maximumDeltaTime`（默认 1/3 秒），
     ///   一次卡顿就让时钟**永久落后**（实测 1915~2108ms），于是 <c>t</c> 恒为 0、单位冻住不动。</item>
-    /// <item>**速率恒为 1**（纯被动跟随）。只有灾难级偏差（&gt; <see cref="CatchUpThresholdMs"/> = 3 个间隔）
-    ///   才用 <see cref="SteerRate"/> 做**有界**追帧。<b>为什么不再做稳态速率微调</b>：位置的导数就是速度，
-    ///   而"改时钟速度"= 直接改单位速度 ⇒ 只要速率被调制，单位就在**忽快忽慢**（实测 ±15% 调制下
-    ///   速度 cv 0.24~0.28）。用户对人眼感知最敏感的就是速度变化，所以校正绝不能走速率这条路。</item>
-    /// <item>**按渲染时钟**从 4 格快照历史里选"夹住时钟的那一对"（<see cref="SelectWindow"/>），
-    ///   渲染落后**最新快照 2 个间隔**（<see cref="RenderLagIntervals"/>）：
+    /// <item>**速率走有界比例修正**：<c>rate = clamp(1 + (落后量 − 目标)/目标 × <see cref="LagSteerGain"/>,
+    ///   1 ± <see cref="LagSteerMaxRate"/>)</c>（稳态 ±5%），偏差超过 <see cref="CatchUpThresholdMs"/> 时
+    ///   放开到 <see cref="CatchUpMaxRate"/> 做有界追帧。<b>为什么必须常开</b>：位置的导数就是速度，
+    ///   所以校正绝不能"瞬跳时钟"（那会让单位前跳一大截）；但也**不能完全不校正** —— 一旦落后量涨到
+    ///   超过快照历史的覆盖范围，`SelectWindow` 就只能夹到最旧一对、<c>t</c> 恒为 0，
+    ///   **插值静默失效**（实测 D134：7953 帧里 <c>t</c> 只有 3 帧取到中间值，其余非 0 即 1，
+    ///   单位实际是每 100 ms 跳一格）。5% 的速率调制只在那几秒存在（偏差衰减到 0 后速率自动回 1），
+    ///   换来的是插值永不失活。<b>为什么不用旧的 15% 档</b>：离线仿真里 15% 调制对应速度 cv 0.24~0.28。</item>
+    /// <item>**按渲染时钟**从 <c>HistSlots</c>（本项目 6 = 5 个间隔）格快照历史里选"夹住时钟的那一对"
+    ///   （<see cref="SelectWindow"/>），渲染落后**最新快照 2 个间隔**（<see cref="RenderLagIntervals"/>）：
     ///   <list type="bullet">
     ///   <item>手里始终多握一格快照 ⇒ 到达时刻抖 ±半个间隔也**推不动**正在渲染的窗口；</item>
     ///   <item>换窗口的时刻由时钟跨过时间戳决定（不是包到达）⇒ 边界只在 <c>t=1</c> 那一刻跨过，
@@ -68,7 +72,8 @@ namespace CR.View
     /// 单位看起来是"一格一格跳"；而"显示服务端时间轴上稍早一点的位置"在联机对战里没有可感知代价
     ///（对手看到的是同样的落后量），却把 10 Hz 变成视觉上的连续运动。
     /// <b>代价（明知）</b>：画面比服务端晚 <see cref="RenderLagIntervals"/> 个间隔（本项目 200ms）。
-    /// 这是"绝不前跳"+"绝不改速率"换来的代价，刻意如此：前跳会瞬间把单位推过头（甚至穿过墙）。
+    /// 这是"绝不前跳"换来的代价，刻意如此：前跳会瞬间把单位推过头（甚至穿过墙）。
+    /// 允许多付的只是**秒级的 ±5% 速率微调**（把落后量自己走回 200ms），不是位置瞬跳。
     ///
     /// <h4>四、塔的状态与部署合法性</h4>
     /// 塔不在快照的 `entities` 里（`Def/ProtoDef.cs:143` 注释），由 `towers_a` / `towers_b` 报告；
@@ -84,17 +89,69 @@ namespace CR.View
         /// <summary>同屏实体上限（超出只 Warn 一次并忽略新增，⛔ 不做"无上限增长"这种只有上线才炸的设计）。</summary>
         public const int MaxEntities = 512;
 
-        // ── 离散事件 kind：逐字对应 `Def/ProtoDef.cs:194`（`BattleEvent.kind` 的注释）
-        //    与服务端 `server/game/core/snapshot.go` 的 `Ev*` 常量（同一套编号）。──
+        // ── 离散事件 kind：逐字对应 `Def/ProtoDef.cs:199`（`BattleEvent.kind` 的注释；字段在 `:197-206` 的
+        //    `class BattleEvent` 里）
+        //    与服务端 `server/game/core/snapshot.go:4-11` 的 `Ev*` 常量（同一套编号）。──
 
         /// <summary>`kind == 0`：出牌（`EvPlayCard`）。</summary>
         private const int EventKindPlayCard = 0;
+
+        /// <summary>`kind == 1`：生成（`EvSpawn`）。服务端在 `spawnUnit` 里发射，带落点 + 实体 id
+        /// （`server/game/core/combat.go:389-391`）—— 本类用它播出牌落地表现（见 <see cref="PlayDeploy"/>）。</summary>
+        private const int EventKindSpawn = 1;
 
         /// <summary>`kind == 2`：死亡（`EvDeath`）。</summary>
         private const int EventKindDeath = 2;
 
         /// <summary>`kind == 3`：塔毁（`EvTowerDestroyed`）。</summary>
         private const int EventKindTowerDestroyed = 3;
+
+        /// <summary>`kind == 4`：圣水满（`EvElixirFull`）。表现层无特效帧（音效在 <see cref="BattleAudioView"/>）。</summary>
+        private const int EventKindElixirFull = 4;
+
+        /// <summary>`kind == 5`：塔激活（`EvTowerActivated`）。表现层无特效帧（音效在 <see cref="BattleAudioView"/>）。</summary>
+        private const int EventKindTowerActivated = 5;
+
+        /// <summary>`kind == 6`：**塔开火**（`EvTowerShoot`，服务端 `core.snapshot.go` 的 `EvTowerShoot`）。
+        /// 载荷 = 塔 id（`entity_id`）+ 塔根坐标（`x_milli/y_milli`）+ `team` + 投射物速度
+        /// （`proj_speed`，格/分钟；0 = 该塔没有投射物/表里没速度 ⇒ 只播枪口闪光）。
+        /// ⛔ 载荷里**没有目标** ⇒ 目标由客户端用最近一帧快照近似（见 <see cref="PlayTowerShot"/>）。</summary>
+        private const int EventKindTowerShoot = 6;
+
+        /// <summary>
+        /// 卡类型 = **法术**（`Def/ProtoDef.cs` 的 `CardInfo.type` 注释：`0=部队 1=法术 2=建筑`；
+        /// 与服务端 `server/game/core/card.go:38-42` 的 `CardTypeSpell = 1` 是同一套编号）。
+        /// 本类只用它做一件事：把出牌事件分流到法术特效（见 <see cref="PlayCardFx"/>）。
+        /// </summary>
+        private const int CardTypeSpell = 1;
+
+        // ── 出牌落地表现（`EvSpawn`）的原版素材 ──
+        //
+        // 素材帧号出处（⛔ 不许挑帧）：
+        //   `策划/单位动画分组表.md:5021` —— export `deploy_arrows_effect` / clip 354 / 60 fps /
+        //   timeline 16 条**全部指向同一像素帧 f119**（原始 PNG = `原版资源/cr-assets-png/assets/sc/effects_out/effects_sprite_119.png`）；
+        //   同表 `:4725` 的 `deploy_arrows`（clip 354）与它同 clip ⇒ 二者是同一段动画的两种导出名。
+        //   档位列 = **spawn**（`策划/单位动画分组表.md:5021`、"spawn" 分类）。
+        // 为什么不用另一个 spawn 候选 `filter_deploy_unit_*`（同表 `:5149-5153`，唯一像素帧 f258）：
+        //   f258 的像素内容 = **一个具体单位的彩色形象**（描出的是哥布林本体，非通用剪影/掩膜），
+        //   而 `filter_deploy_unit_default` / `filter_cold` / `filter_damage_*` / `filter_hologram` /
+        //   `filter_poison` … **十几个不同滤镜共用同一个 f258**（`策划/单位动画分组表.md:5143-5167`）
+        //   ⇒ f258 是"被叠加到单位身上的滤镜底图"，把它当**独立落地特效**播会在任意卡落点上画出一个哥布林。
+        //   故取 f119（真正的独立 spawn 特效：绿色上箭头）。
+
+        /// <summary>落地特效用途目录名（`ResPaths.EffectDir` 拼 `Sprites/Effects/Deploy`）。</summary>
+        private const string DeployFxDir = "Deploy";
+
+        /// <summary>落地特效起始帧（原版 f119；见上方出处块）。</summary>
+        private const int DeployFxFirst = 119;
+
+        /// <summary>
+        /// 落地表现时长（秒）。出处 = `策划/策划案/皇室战争参考规格.md:156`「落点后 `deploy_time`
+        /// （官方普遍 1000ms）才出现并可行动」⇒ 落地表现与部署延迟同长。
+        /// （该效果的自身时间轴长度 = 16 条 timeline ÷ 60 fps ≈ 0.267 s，见 `策划/单位动画分组表.md:5021`；
+        ///  因为 f119 是静止箭头，按自身 0.267 s 播会一闪而过，故取与 deploy 同长的 1 s。）
+        /// </summary>
+        private const float DeployFxSeconds = 1.0f;
 
         /// <summary>部署期（`deploy_ms &gt; 0`）的透明度 —— 原版未激活单位是半透明的。</summary>
         public const float DeployAlpha = 0.55f;
@@ -158,6 +215,137 @@ namespace CR.View
         /// <summary>本局已播的弹道条数（自检 / 验收用的日志计数）。</summary>
         private int _projectileShots;
 
+        /// <summary>未知 `kind` 只 Warn 一次（协议扩了 kind 而本类没跟上时一次留痕即可，⛔ 不静默、⛔ 不刷屏）。</summary>
+        private bool _unknownKindWarned;
+
+        /// <summary>战斗中开火弹道里"卡池没这张卡"只 Warn 一次。</summary>
+        private bool _fireCardMissingWarned;
+
+        /// <summary>战斗中开火弹道"找不到任何敌方实体"只 Warn 一次。</summary>
+        private bool _fireNoTargetWarned;
+
+        /// <summary>出牌弹道的施法者退化到国王塔中心只 Warn 一次。</summary>
+        private bool _casterFallbackWarned;
+
+        // ── 命中特效：协议没有「命中」事件，只能靠逐 id 比对前后两帧快照的 `hp` ──
+        //    （同 `BattleAudioView.OnSnapshot` 的做法，见该类 `:287-320` 的类注释：`Def/ProtoDef.cs:199`
+        //     只有 0..5 六种 kind，`kind==2` 只在死亡时发 ⇒ 非致死命中没有任何事件可挂。）
+
+        /// <summary>上一帧快照里每个实体的 `hp`（`entity_id → hp`）。</summary>
+        private Dictionary<int, int> _prevHp = new Dictionary<int, int>();
+
+        /// <summary>本帧 hp 的暂存（双缓冲：比完交换，⛔ 不每帧 new Dictionary）。</summary>
+        private Dictionary<int, int> _curHp = new Dictionary<int, int>();
+
+        /// <summary>上一帧快照里每个实体的 `anim`（`entity_id → anim`）—— 用来判"这一帧刚进入攻击档"。
+        /// 协议里没有"开火"事件（`server/game/core/combat.go:68-73` 只在挥砍那一 tick 把 anim 置 2），
+        /// 所以"战斗中开火"的唯一可得信号 = **anim 从非 2 跳到 2** 的上升沿。</summary>
+        private Dictionary<int, int> _prevAnim = new Dictionary<int, int>();
+
+        /// <summary>本帧 anim 的暂存（双缓冲）。</summary>
+        private Dictionary<int, int> _curAnim = new Dictionary<int, int>();
+
+        // ── 自检计数（供 EditMode 单测 / 实机 driver 读；判据 = "每次 hp 下降 ⇒ 恰好一次命中特效"）──
+
+        /// <summary>本局观察到的"某实体 hp 下降且**未死**"次数（= 应当播出的命中特效次数）。</summary>
+        public int HpDropObserved { get { return _hpDropObserved; } }
+
+        /// <summary>本局观察到"某实体 hp 降到 ≤0"的次数（由 `EvDeath` 的闪光分支负责，不计入命中特效）。</summary>
+        public int LethalDropObserved { get { return _lethalDropObserved; } }
+
+        /// <summary>本局真的播出去的命中特效次数。</summary>
+        public int HitFxPlayed { get { return _hitFxPlayed; } }
+
+        /// <summary>本局被丢掉的命中特效次数（同屏上限 / 素材目录为空）。
+        /// <b>自检断言</b>：<c>HitFxPlayed + HitFxSkipped == HpDropObserved</c>（不成立 = 有 hp 下降没播到特效 = 判红）。</summary>
+        public int HitFxSkipped { get { return _hitFxSkipped; } }
+
+        /// <summary>本局播出的出牌落地特效次数（= 收到的 `EvSpawn` 事件里成功播出的数量）。</summary>
+        public int DeployFxPlayed { get { return _deployFxPlayed; } }
+
+        /// <summary>本局因"攻击档"触发播出的战斗弹道条数。</summary>
+        public int BattleProjectileShots { get { return _battleShots; } }
+
+        /// <summary>
+        /// 本局因**出牌事件**（`EvPlayCard` + `proj_speed &gt; 0`）播出的弹道条数
+        /// （= <see cref="PlayProjectileFlight"/> 走到 `PlayFlight` 的次数）。
+        /// <para>与 <see cref="BattleProjectileShots"/> 分开计：那条 = "单位攻击"（`anim == 2` 反推），
+        /// 这条 = "出牌"（有事件可挂）—— 两者的触发源不同，合起来才覆盖任务 3 的两半要求。</para>
+        /// </summary>
+        public int CardProjectileShots { get { return _projectileShots; } }
+
+        /// <summary>
+        /// 本局收到的**塔开火**事件（`kind == 6` / `EvTowerShoot`）条数。
+        /// <para>判据：<c>TowerShots == 服务端日志里 EvTowerShoot 的条数</c>（塔开火链路端到端通的必要条件）。</para>
+        /// </summary>
+        public int TowerShots { get { return _towerShots; } }
+
+        /// <summary>本局从**塔开火事件**里真的播出弹道（`proj_speed &gt; 0`）的条数。</summary>
+        public int TowerShotFlights { get { return _towerShotFlights; } }
+
+        /// <summary>本局塔开火里因取不到炮口 / 无目标 / 无速度而只播枪口闪光（不播飞行段）的条数。</summary>
+        public int TowerShotMuzzles { get { return _towerShotMuzzles; } }
+
+        /// <summary>
+        /// 本局塔开火里**两段都没播出去**的次数（特效层同屏上限 / 素材目录为空）。
+        /// <para><b>自检断言</b>：<c>TowerShots == TowerShotFlights + TowerShotMuzzles + TowerShotSkipped</c>
+        /// （不成立 = 有开火事件没被任何一条路径处理 = 判红）。</para>
+        /// </summary>
+        public int TowerShotSkipped { get { return _towerShotSkipped; } }
+
+        /// <summary>
+        /// 本局收到的**法术卡出牌**事件（`EvPlayCard` 且 `CardInfo.type == 1`）条数 —— 差异登记 D148。
+        /// <para><b>自检断言</b>：<c>SpellCasts == SpellFxPlayed + SpellFxSkipped</c>
+        /// （不成立 = 有法术出牌没走到播放入口 = 判红）。</para>
+        /// </summary>
+        public int SpellCasts { get { return _spellCasts; } }
+
+        /// <summary>本局真的播出去的法术命中特效次数。</summary>
+        public int SpellFxPlayed { get { return _spellFxPlayed; } }
+
+        /// <summary>本局被丢弃的法术特效次数（卡池未到 / 这张法术还没接帧 / 特效层同屏上限 / 目录为空）。</summary>
+        public int SpellFxSkipped { get { return _spellFxSkipped; } }
+
+        /// <summary>命中特效的逐条日志上限（超过只计数）—— ⛔ 不刷屏，但计数仍然是全量的。</summary>
+        private const int HitLogLimit = 5;
+
+        private int _hpDropObserved;
+        private int _lethalDropObserved;
+        private int _hitFxPlayed;
+        private int _hitFxSkipped;
+        private int _deployFxPlayed;
+        private int _battleShots;
+        private int _towerShots;
+        private int _towerShotFlights;
+        private int _towerShotMuzzles;
+        private int _towerShotSkipped;
+        private int _spellCasts;
+        private int _spellFxPlayed;
+        private int _spellFxSkipped;
+
+        /// <summary>法术特效"这张法术还没接帧"只报一次（⛔ 不刷屏）。</summary>
+        private bool _spellFxUnknownWarned;
+
+        /// <summary>塔开火时"塔视图里找不到炮口层"只报一次（⛔ 不刷屏）。</summary>
+        private bool _towerMuzzleMissingWarned;
+
+        /// <summary>
+        /// **最近一帧快照的实体数组**（只读，用于塔开火事件里挑"最近敌方"）。
+        /// <para>
+        /// 为什么需要它：`EvTowerShoot`（`kind==6`）只带塔自己的位置和速度，**不带目标**
+        /// （服务端 `core.emitTowerShoot` 的载荷定义如此）⇒ 客户端要知道把弹道飞向哪里，
+        /// 只能拿最近一帧快照自己近似。事件与快照是不同的推送通道，事件可能略早于对应快照，
+        /// 故这里只当**近似**用（登记在报告里，和 <see cref="NearestEnemy"/> 的近似口径同源）。
+        /// </para>
+        /// </summary>
+        private EntitySnapshot[] _lastEntities;
+
+        /// <summary>每个实体上一次**成功播出**弹道的服务端时刻（毫秒）—— 用来按 `hit_speed` 排期。</summary>
+        private readonly Dictionary<int, float> _lastShotMs = new Dictionary<int, float>();
+
+        /// <summary>`_lastShotMs` 的清理暂存（⛔ 不在遍历中改字典）。</summary>
+        private readonly List<int> _shotPrune = new List<int>();
+
         /// <summary>
         /// **插值窗口（= 被渲染的那一对快照）**的起始索引。由 <see cref="SelectWindow"/> **按渲染时钟**
         /// 从 <see cref="_idxHist"/> 里选出，⛔ 不再"每收到一帧就换一对"（那是"还是抖动"的根因，见类注释三）。
@@ -168,10 +356,25 @@ namespace CR.View
         private Dictionary<int, EntitySnapshot> _curIndex = new Dictionary<int, EntitySnapshot>();
 
         /// <summary>
-        /// 快照历史槽数（最旧 … 最新）。取 4 = "渲染落后 2 个间隔" + 2 格冗余 ⇒ 到达时刻抖动
-        /// 小半个间隔也**换不掉**正在渲染的那一对（窗口只在时钟跨过时间戳时才动）。
+        /// 快照历史槽数（最旧 … 最新）。取 <b>6</b>：历史覆盖 <c>HistSlots-1 = 5</c> 个间隔（= 500 ms），
+        /// 而设计落后量只有 <see cref="RenderLagIntervals"/> = 2 个间隔（200 ms）⇒ 留 **3 个间隔**的余量。
+        /// <para>
+        /// ⛔ 这个余量**不是**可有可无的冗余，而是"插值能不能活着"的硬边界：`SelectWindow` 要求时钟落在
+        /// 历史区间内；时钟一旦跑到最旧那一格之前，就只能夹到最旧的一对 ⇒ <c>t</c> 恒为 0
+        /// （= 位置按快照周期阶梯跳、**插值静默失效**）。实测（D134 逐帧采样，7953 帧）：
+        /// <c>newest - renderMs</c> 稳定在 **417 ms**（= 4 个间隔），而当时 <c>HistSlots = 4</c> 只能覆盖
+        /// 3 个间隔 ⇒ 时钟整段跑在窗口之外，<c>t</c> 取值统计 = <b>0(5150 帧) / 1(2355 帧) / 中间值(仅 3 帧)</b>
+        /// ⇒ 单位实际是"每 100 ms 跳一格"，正是用户报的"又飘又抖"。取 6 之后余量 500 ms > 实测漂移量。
+        /// </para>
+        /// <para>
+        /// 余量的**源头**（为什么时钟会漂到 4 个间隔）：`ServerNowMs` 靠"最新快照时间戳 + 到达后的真实时间"
+        /// 外推，进入对战那一刻服务端会把积压快照**成批**下发（实测 0.12 s 内 newest 从 300 跳到 2750），
+        /// 于是时钟相对服务端时间轴一下落后 2 个多间隔；而稳态速率微调此前被**刻意关闭**（见类注释三·第 2 条），
+        /// 300 ms 以内不校正 ⇒ 这个落后量**永久留下**。现在两处一起修：本行加余量 + <see cref="SteerRate"/>
+        /// 恢复稳态微调（让它自己走回 200 ms）。
+        /// </para>
         /// </summary>
-        private const int HistSlots = 4;
+        private const int HistSlots = 6;
 
         /// <summary>各历史槽的服务端时间戳（毫秒），下标 0 最旧、<c>HistSlots-1</c> 最新。</summary>
         private readonly float[] _msHist = new float[HistSlots];
@@ -179,6 +382,8 @@ namespace CR.View
         /// <summary>各历史槽的实体索引（<c>id → EntitySnapshot</c>），与 <see cref="_msHist"/> 一一对应。</summary>
         private readonly Dictionary<int, EntitySnapshot>[] _idxHist =
         {
+            new Dictionary<int, EntitySnapshot>(),
+            new Dictionary<int, EntitySnapshot>(),
             new Dictionary<int, EntitySnapshot>(),
             new Dictionary<int, EntitySnapshot>(),
             new Dictionary<int, EntitySnapshot>(),
@@ -235,9 +440,11 @@ namespace CR.View
         /// 速率控制律（**纯函数**，便于离线断言 —— 见 `tools/probes/FlowProbe.SimulateController`）：
         /// 输入"时钟相对目标的偏差"（<c>目标值 - 时钟现值</c>，正 = 时钟落后了要加速），输出时钟该跑多快。
         /// <list type="bullet">
-        /// <item>偏差在一个快照间隔以内：±<see cref="LagSteerMaxRate"/> 之内线性微调（人眼无感）；</item>
-        /// <item>偏差超过 <see cref="CatchUpThresholdMs"/>：允许更大速率（落后太多时追赶、超前时放慢）。</item>
+        /// <item>偏差 ≤ <see cref="CatchUpThresholdMs"/>：±<see cref="LagSteerMaxRate"/>（5%）之内**按比例**
+        ///   微调（人眼无感），偏差越小修正越小、归零则速率回 1；</item>
+        /// <item>偏差超过阈值：放开到 <see cref="CatchUpMaxRate"/>（落后太多时追赶、超前时放慢）。</item>
         /// </list>
+        /// ⛔ 调用方必须**每帧都调**（<see cref="TickRender"/> 第 ② 步）—— 见类注释三·第 2 条。
         /// </summary>
         public static float SteerRate(float lagErrorMs)
         {
@@ -250,10 +457,14 @@ namespace CR.View
         /// <summary>是否正在做灾难级追赶（只用来"进入/退出各报一次"，⛔ 不刷屏）。</summary>
         private bool _catchingUp;
 
+        /// <summary>「渲染时钟掉出快照历史」告警的去重标志（进入掉窗报一次、回到窗内复位）。</summary>
+        private bool _outOfWindowWarned;
+
         /// <summary>
-        /// 追帧阈值：落后服务端超过这么多毫秒就启动"时钟快走"。
-        /// 取 3 个快照间隔（300ms）：正常波动（网络抖动 + 一帧渲染时间）远达不到，
-        /// 而一旦达到就说明**已经或即将永久冻结**（见 <see cref="CatchUpMaxRate"/> 的注释）。
+        /// 追帧阈值：落后服务端超过这么多毫秒就把速率放开到 <see cref="CatchUpMaxRate"/>。
+        /// 取 3 个快照间隔（300ms）—— ⛔ 它**只是"放开档位"的界线，不是"要不要校正"的开关**：
+        /// 300ms 以内同样在按比例校正（±5%），否则时钟会被成批到达的快照**永久**推到历史之外
+        /// （见 <see cref="HistSlots"/> 与 <see cref="TickRender"/> 的实测说明）。
         /// </summary>
         public const float CatchUpThresholdMs = 3f * GameConst.SnapshotIntervalMs;
 
@@ -281,15 +492,25 @@ namespace CR.View
 
         /// <summary>
         /// 稳态速率控制的增益：<c>rate = 1 + (落后量 - 目标) / 目标 × Gain</c>。
-        /// 取 0.5 = "偏差一个目标量时把速度改一半"，收敛快且不过冲振荡。
+        /// <para>
+        /// 取 <c>0.05</c> = <see cref="LagSteerMaxRate"/> ⇒ 偏差恰好一个目标量（200 ms）时刚好到满偏 5%，
+        /// 偏差更小就**按比例**变小（20 ms ⇒ 0.5%）。⛔ 不取旧的 0.5 —— 那个值让任何 ≥60 ms 的偏差都
+        /// **直接顶到满偏**，等于"要么不动、要么一直 5%"，闭环变成开关式而非比例式。
+        /// </para>
         /// </summary>
-        public const float LagSteerGain = 0.5f;
+        public const float LagSteerGain = LagSteerMaxRate;
 
         /// <summary>
-        /// 稳态速率允许的偏离（±15%）。人眼对"整体快/慢 15%"几乎没有感觉，但足以把时钟拉回目标
-        /// ⇒ 用**渐变**代替"瞬跳"（瞬跳正是用户报的"抖"）。
+        /// 稳态速率允许的偏离（±5%）。人眼对"整体快/慢 5%"没有感觉，但足以把时钟**平滑**拉回目标
+        /// （一阶收敛，时间常数 ≈ <c>目标量 / 满偏 = 200ms / 0.05 = 4 s</c>），⇒ 用**渐变**代替"瞬跳"
+        /// （瞬跳正是用户报的"抖"）。
+        /// <para>
+        /// ⛔ 不取旧值 0.15：那一档在离线仿真里的速度 cv 是 0.24~0.28（"速率被调制 = 速度脉动"）；
+        /// 5% 档对应的速度调制是 2.2 格/s × 5% = 0.11 格/s，且**只在必要的那几秒存在**（收敛到目标后
+        /// 偏差→0 ⇒ 速率自动回到 1）。这一档换回来的是"插值永不失效"，值。
+        /// </para>
         /// </summary>
-        public const float LagSteerMaxRate = 0.15f;
+        public const float LagSteerMaxRate = 0.05f;
 
         /// <summary>
         /// 追帧时时钟最多跑多快（1 = 最高 2× 真实时间）。
@@ -534,6 +755,32 @@ namespace CR.View
             _snapshotCount = 0;
             _overCapWarned = false;
             _projectileShots = 0;
+            _unknownKindWarned = false;
+            _fireCardMissingWarned = false;
+            _fireNoTargetWarned = false;
+            _casterFallbackWarned = false;
+            _hpDropObserved = 0;
+            _lethalDropObserved = 0;
+            _hitFxPlayed = 0;
+            _hitFxSkipped = 0;
+            _deployFxPlayed = 0;
+            _battleShots = 0;
+            _towerShots = 0;
+            _towerShotFlights = 0;
+            _towerShotMuzzles = 0;
+            _towerShotSkipped = 0;
+            _spellCasts = 0;
+            _spellFxPlayed = 0;
+            _spellFxSkipped = 0;
+            _spellFxUnknownWarned = false;
+            _towerMuzzleMissingWarned = false;
+            _lastEntities = null;
+            _prevHp.Clear();
+            _curHp.Clear();
+            _prevAnim.Clear();
+            _curAnim.Clear();
+            _lastShotMs.Clear();
+            _shotPrune.Clear();
             // 时间轴归零：`_renderMs = NaN` ⇒ 新的一局会在首个快照上重新对齐一次服务端时间戳。
             _prevMs = 0f;
             _currMs = 0f;
@@ -642,6 +889,13 @@ namespace CR.View
         {
             if (n == null) return;
             _myTeam = n.my_team;
+            // hp / anim 比对表必须清零：⛔ 不清会把上一局的 hp 与新局比对出**假命中**，
+            // 也会让上一局的 `anim==2` 与开局第一帧比出一个假"开火"（同 BattleAudioView.OnBattleStarted 的处置）。
+            _prevHp.Clear();
+            _curHp.Clear();
+            _prevAnim.Clear();
+            _curAnim.Clear();
+            _lastShotMs.Clear();
             if (!_built) RebuildIfWanted("Events.Battle.Started"); // 兜底：万一 StationChanged 没到（例如直接由服务端推送进对局）
             var regulation = n.timeline != null ? n.timeline.regulation_ms : 0;
             Game.Logger?.Info(LogTag,
@@ -694,6 +948,9 @@ namespace CR.View
             var slot = _idxHist[HistSlots - 1];
             slot.Clear();
             var list = s.entities;
+            // 留一份"最近实体名单"给塔开火事件用（事件通道不带目标，见 `_lastEntities` 的注释）。
+            // ⛔ 只存引用不拷贝：本类对它是只读的，拷贝反而每帧多一次分配。
+            _lastEntities = list;
             if (list != null)
             {
                 if (list.Length > MaxEntities && !_overCapWarned)
@@ -732,6 +989,10 @@ namespace CR.View
             }
 
             ApplyTowers(s);
+
+            // 协议没有「命中」/「开火」事件 ⇒ 这两类表现只能从快照反推（见 TrackCombatSignals）。
+            // ⚠️ 放在**入历史之后**：它用的是"本帧 vs 上一帧"，与插值历史无关。
+            TrackCombatSignals(s);
         }
 
         private void OnBattleEventNotify(BattleEventNotify n)
@@ -749,26 +1010,59 @@ namespace CR.View
                     $"pos=({e.x_milli / 1000f:F2},{e.y_milli / 1000f:F2}){(string.IsNullOrEmpty(e.text) ? "" : " text=" + e.text)}");
 
                 // ── 一次性特效接线（原版帧序列，见 `ResPaths` 的特效区段）──
-                // 位置一律取**事件自带**的 `x_milli/y_milli`：服务端在 `EvDeath`（`combat.go:428-431`）
-                // 与 `EvTowerDestroyed`（`combat.go:423-426`）里都填了**实体自己的位置** ⇒ 客户端无须另算。
-                if (_effects == null) continue;
+                // 位置一律取**事件自带**的 `x_milli/y_milli`：服务端在 `EvSpawn`（`combat.go:389-391`）、
+                // `EvDeath`（`combat.go:428-431`）与 `EvTowerDestroyed`（`combat.go:423-426`）里都填了
+                // **实体自己的位置** ⇒ 客户端无须另算。
                 switch (e.kind)
                 {
+                    case EventKindSpawn:
+                        // 出牌落地（`EvSpawn`）：在落点定格播原版 `deploy_arrows_effect`（f119）。
+                        // ⛔ 单位本身不在这里生成（"单位的真假一律以快照的 entities 为准"，见上文）。
+                        PlayDeploy(e);
+                        break;
+
                     case EventKindDeath:
                         // 命中 / 受击闪光：在死亡位置播 `Hit` 类原版帧序列（f050..f056）。
-                        _effects.Play(GameConst.MilliToWorld(e.x_milli, e.y_milli),
-                            ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount, EffectsView.WorldSize);
+                        // ⚠️ 只覆盖**致死**那一击；**非致死**命中由快照 hp 下降补播（见 OnSnapshot），
+                        // 两者互斥（非致死才走 hp 下降分支），⛔ 不会同一击播两次。
+                        if (_effects != null)
+                            _effects.Play(GameConst.MilliToWorld(e.x_milli, e.y_milli),
+                                ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount, EffectsView.WorldSize);
                         break;
 
                     case EventKindTowerDestroyed:
                         // 塔毁爆炸：在塔位置播 `Blast` 类原版帧序列（f418..f427）。
-                        _effects.Play(GameConst.MilliToWorld(e.x_milli, e.y_milli),
-                            ResPaths.EffectBlast, ResPaths.EffectBlastFirst, ResPaths.EffectBlastCount, EffectsView.WorldSize);
+                        if (_effects != null)
+                            _effects.Play(GameConst.MilliToWorld(e.x_milli, e.y_milli),
+                                ResPaths.EffectBlast, ResPaths.EffectBlastFirst, ResPaths.EffectBlastCount, EffectsView.WorldSize);
                         break;
 
                     case EventKindPlayCard:
-                        // 远程弹道：判定 = 该卡 `projectile_key` 非空（服务端随卡池下发，见 `Def/ProtoDef.cs`）。
-                        PlayProjectileFlight(e);
+                        // 出牌：**法术走法术特效、远程卡走弹道**（分流见 PlayCardFx）。
+                        PlayCardFx(e);
+                        break;
+
+                    case EventKindTowerShoot:
+                        // 塔开火（`EvTowerShoot`）：炮口闪光 + 有速度时飞一条弹道。
+                        PlayTowerShot(e);
+                        break;
+
+                    case EventKindElixirFull:
+                    case EventKindTowerActivated:
+                        // kind==4 圣水满 / kind==5 塔激活：**只有音效、没有特效帧**（`BattleAudioView` 播
+                        // `ElixirFull` / `TowerActivate`；`ResPaths` 的特效区段里没有对应用途目录）。
+                        // 显式列出这两个 case，是为了让下面的 `default` 只表示"**协议新增的未知 kind**"。
+                        break;
+
+                    default:
+                        // 非预期分支：协议新增了 kind 而本类没跟上 ⇒ 留痕一次（⛔ 不静默丢弃、⛔ 不刷屏）。
+                        // 对齐 `BattleAudioView.cs:241-248` 的写法。
+                        if (!_unknownKindWarned)
+                        {
+                            _unknownKindWarned = true;
+                            Game.Logger?.Warn(LogTag,
+                                $"收到未知的对局事件 kind={e.kind}（协议扩了 kind？本类未接）⇒ 不播特效（只报一次）");
+                        }
                         break;
                 }
             }
@@ -792,6 +1086,415 @@ namespace CR.View
         }
 
         /// <summary>
+        /// 出牌落地表现：在**事件自带落点**定格播原版 `deploy_arrows_effect`（f119，见上方出处块）。
+        /// <para>
+        /// ⛔ 单位本身不在这里生成 —— 单位的真假一律以快照的 `entities` 为准（同 <see cref="OnBattleEventNotify"/>
+        /// 的注释）；本方法只负责"特效层的那一下"。
+        /// </para>
+        /// </summary>
+        private void PlayDeploy(BattleEvent e)
+        {
+            if (_effects == null) return;
+            var world = GameConst.MilliToWorld(e.x_milli, e.y_milli);
+            var before = _effects.SpawnedTotal;
+            _effects.PlayHold(world, DeployFxDir, DeployFxFirst, EffectsView.WorldSize, DeployFxSeconds);
+            if (_effects.SpawnedTotal > before) _deployFxPlayed++;
+            Game.Logger?.Info(LogTag,
+                $"出牌落地特效：ent={e.entity_id} team={e.team} card={e.card_id} " +
+                $"落点=({world.x:F2},{world.y:F2}) 帧=f{DeployFxFirst}（{DeployFxDir}）定格={DeployFxSeconds:F2}s 本局累计={_deployFxPlayed}");
+        }
+
+        /// <summary>
+        /// 从**快照**里补两类"协议没有事件"的表现（位置一律取快照自带的实体坐标，⛔ 不另编）：
+        /// <list type="number">
+        /// <item><b>非致死命中</b>：逐 id 比对 `hp` 下降 ⇒ 在**受击者位置**播 `Hit` 闪光
+        ///   （做法与 <see cref="BattleAudioView.OnSnapshot"/> 同源：协议只有 0..5 六种 `kind`、
+        ///    `kind==2` 只在死亡时发 ⇒ 非致死命中没有事件可挂，见 `Def/ProtoDef.cs:199` /
+        ///    `server/game/core/snapshot.go:4-11`）。致死（hp≤0）**不在这里播** —— 那一击由
+        ///    `EvDeath` 分支负责（⛔ 同一击不许闪两次）。</item>
+        /// <item><b>战斗中开火</b>：逐 id 判"是否处在攻击档"（`anim == 2`）且该卡为远程
+        ///   （`CardInfo.projectile_key` 非空）⇒ 从**攻击者自己的位置**飞一条弹道。节拍 = 该单位的
+        ///   `hit_speed`（`UnitAnimTable.Table[dir].HitSpeedMs`，与 `UnitView` 播攻击档用的是同一份表），
+        ///   因为服务端的 `anim` 是**状态**不是边沿（`server/game/core/combat.go:68-73` 每次挥砍都置 2、
+        ///   站桩时 `battle.go:511-515` 又不动它）⇒ 只凭"上升沿"会漏掉后续每一次挥砍。</item>
+        /// </list>
+        /// </summary>
+        private void TrackCombatSignals(BattleSnapshot s)
+        {
+            var list = s.entities;
+            if (list == null) return;
+
+            _curHp.Clear();
+            _curAnim.Clear();
+            for (var i = 0; i < list.Length; i++)
+            {
+                var e = list[i];
+                if (e == null) continue;
+                _curHp[e.id] = e.hp;
+                _curAnim[e.id] = e.anim;
+
+                var world = GameConst.MilliToWorld(e.x_milli, e.y_milli);
+
+                // ① 非致死命中（hp 下降且未死）。
+                int prevHp;
+                if (_prevHp.TryGetValue(e.id, out prevHp) && e.hp < prevHp)
+                {
+                    if (e.hp > 0)
+                    {
+                        _hpDropObserved++;
+                        PlayHitFx(world, e);
+                    }
+                    else
+                    {
+                        // 致死一击：走 `EvDeath` 的闪光分支（见 OnBattleEventNotify），只在计数器上留痕。
+                        _lethalDropObserved++;
+                    }
+                }
+
+                // ② 战斗中开火（anim == 2 且到点）。
+                if (e.anim != UnitAnimTable.Attack) continue;
+                if (e.deploy_ms > 0) continue;              // 部署中不攻击（服务端 `acquirable()`：entity.go:149）
+
+                int prevAnim;
+                var rising = _prevAnim.TryGetValue(e.id, out prevAnim) && prevAnim != UnitAnimTable.Attack;
+
+                var dir = ResolveVisual(e).Dir;
+                if (string.IsNullOrEmpty(dir)) continue;
+                UnitAnimTable.Entry anim;
+                if (!UnitAnimTable.Table.TryGetValue(dir, out anim)) continue;
+                if (anim.HitSpeedMs <= 0) continue;         // 该目录无攻击节拍（表里记 0）⇒ 只信上升沿也没法排期
+
+                float lastShot;
+                var due = rising
+                    || !_lastShotMs.TryGetValue(e.id, out lastShot)
+                    || (s.server_ms - lastShot) >= anim.HitSpeedMs;
+                if (!due) continue;
+
+                if (PlayBattleShot(e, list, world)) _lastShotMs[e.id] = s.server_ms;
+            }
+
+            // 清理已离场的实体（⛔ 不用 `_prevAnim`：它是双缓冲的，这里直接按本帧名单剪）。
+            _shotPrune.Clear();
+            foreach (var kv in _lastShotMs)
+                if (!_curAnim.ContainsKey(kv.Key)) _shotPrune.Add(kv.Key);
+            for (var i = 0; i < _shotPrune.Count; i++) _lastShotMs.Remove(_shotPrune[i]);
+
+            var swapHp = _prevHp; _prevHp = _curHp; _curHp = swapHp;
+            var swapAnim = _prevAnim; _prevAnim = _curAnim; _curAnim = swapAnim;
+        }
+
+        /// <summary>
+        /// 在 <paramref name="world"/> 播一次 `Hit` 受击闪光。计数判据见类字段：`HitFxPlayed +
+        /// HitFxSkipped == HpDropObserved`（不成立 = 有 hp 下降没播到特效 = 判红）。
+        /// </summary>
+        private void PlayHitFx(Vector2 world, EntitySnapshot hurt)
+        {
+            if (_effects == null) return;
+            var before = _effects.SpawnedTotal;
+            _effects.Play(world, ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount, EffectsView.WorldSize);
+            if (_effects.SpawnedTotal > before)
+            {
+                _hitFxPlayed++;
+                if (_hitFxPlayed <= HitLogLimit)
+                    Game.Logger?.Info(LogTag,
+                        $"命中特效（非致死）：ent={hurt.id} team={hurt.team} hp={hurt.hp}/{hurt.max_hp} " +
+                        $"位置=({world.x:F2},{world.y:F2}) 前 n={HitLogLimit} 条逐条记录，其后只计数（本局累计={_hitFxPlayed}）");
+            }
+            else
+            {
+                _hitFxSkipped++;
+            }
+        }
+
+        /// <summary>
+        /// 战斗中开火：从**攻击者自己的位置**向"最近的合法敌方实体"飞一条原版弹道。
+        /// <para>
+        /// <b>目标怎么选</b>：镜像服务端的索敌口径 —— <c>acquireTarget</c> 取**最近**的合法目标
+        /// （`server/game/core/targeting.go:70-93`：先过 <c>canTarget</c>（不同队 / 存活 / 不在部署中 /
+        /// 空中地面匹配），再取 hitbox 间隙最小、id 小者优先）。客户端没有半径数据，用**中心距**近似
+        /// 取最近（本项目口径，登记在报告里）。
+        /// </para>
+        /// <para>
+        /// ⚠️ **契约缺口（登记 D48）**：协议里没有"开火"事件、`EvPlayCard` 的 `entity_id` 恒 0
+        /// （`server/game/core/battle.go:219-221`）⇒ 客户端既拿不到施法者、也拿不到真实目标，
+        /// 只能这样反推。正解 = 服务端为每次开火发一条带 `caster_entity_id` + `target_entity_id` 的事件
+        /// （本片 ⛔ 不改服务端协议）。
+        /// </para>
+        /// </summary>
+        /// <returns>真的播出去了才返回 true（用于记录该实体的下一次开火时刻）。</returns>
+        private bool PlayBattleShot(EntitySnapshot attacker, EntitySnapshot[] all, Vector2 from)
+        {
+            if (_effects == null) return false;
+
+            CardInfo card;
+            if (!_cards.TryGetValue(attacker.card_id, out card) || card == null)
+            {
+                if (!_fireCardMissingWarned)
+                {
+                    _fireCardMissingWarned = true;
+                    Game.Logger?.Warn(LogTag,
+                        $"开火弹道：卡 {attacker.card_id} 不在已收到的卡池里 ⇒ 判不出是否远程、跳过（只报一次）");
+                }
+                return false;
+            }
+            if (string.IsNullOrEmpty(card.projectile_key)) return false; // 近战：服务端直接 applyHit，没有弹道
+            if (card.proj_speed <= 0) return false;                     // 无速度 ⇒ 算不出飞行时长
+
+            var target = NearestEnemy(all, attacker);
+            if (target == null)
+            {
+                if (!_fireNoTargetWarned)
+                {
+                    _fireNoTargetWarned = true;
+                    Game.Logger?.Warn(LogTag,
+                        $"开火弹道：ent={attacker.id}（card={attacker.card_id}）在射程态但本帧找不到任何合法敌方实体 ⇒ 不播弹道（只报一次）");
+                }
+                return false;
+            }
+
+            var to = GameConst.MilliToWorld(target.x_milli, target.y_milli);
+            var dist = Vector2.Distance(from, to);
+            if (dist <= 0f) return false;
+            var seconds = dist * 60f / card.proj_speed; // 格 ÷ (格/分钟 ÷ 60)，与出牌弹道同一口径
+
+            var before = _effects.SpawnedTotal;
+            _effects.PlayFlight(from, to, ResPaths.EffectArrow, ResPaths.EffectArrowFirst, ResPaths.EffectArrowCount,
+                EffectsView.WorldSize, seconds);
+            if (_effects.SpawnedTotal <= before) return false;
+
+            _battleShots++;
+            Game.Logger?.Info(LogTag,
+                $"战斗中开火弹道：ent={attacker.id}（card={attacker.card_id} key={card.projectile_key}）" +
+                $"从攻击者位置=({from.x:F2},{from.y:F2}) 飞向最近敌方 ent={target.id} =({to.x:F2},{to.y:F2}) " +
+                $"距离={dist:F2}格 飞行={seconds:F3}s 本局累计={_battleShots}");
+            return true;
+        }
+
+        /// <summary>
+        /// 塔开火（`EvTowerShoot` / `kind == 6`）的一次性表现：**炮口闪光 + 有速度时飞一条弹道**。
+        ///
+        /// <para>
+        /// <b>与 <see cref="PlayBattleShot"/> 的分工</b>：那条是"从快照反推单位开火"（协议没有单位开火事件，
+        /// 见 D48）；这条是**服务端明确发来的**塔开火事件，位置与速度都是真值 —— 塔的射击链路
+        /// （国王塔 + 公主塔）正是用户报的第 6 条"没有攻击特效"。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>炮口怎么取</b>：优先问 <see cref="ArenaView.TryTowerMuzzle"/> —— 塔贴图里"炮塔"是**独立一层**
+        /// （`Princess` / `Turret`），用塔根坐标会把闪光画在塔底座、看起来像没开枪。取不到才退回事件自带的
+        /// 塔根坐标（`x_milli/y_milli`，服务端 `emitTowerShoot` 填的就是塔根）并**留痕一次**。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>目标怎么来</b>：事件载荷**只有塔自己**、没有目标（`Event.ProjSpeed` 的注释里写明）。
+        /// 故用**最近一帧快照**近似取"该塔阵营的最近合法敌方"，口径与 <see cref="NearestEnemy"/> 完全一致。
+        /// 快照还没到（进对局第一帧就开火）⇒ 取不到目标 ⇒ 只播枪口闪光，不编造飞行方向。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>速度口径</b>：`proj_speed` 单位 = 格/分钟，同官方 `cards_stats_projectile.json` 的 `speed`
+        /// ⇒ <c>飞行秒数 = 距离(格) × 60 / proj_speed</c>（与出牌弹道 / 单位开火同一口径）。
+        /// `proj_speed &lt;= 0`（该塔没有投射物或投射物表缺速度）⇒ 只播枪口闪光。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>计数自检</b>：<c>TowerShots == TowerShotFlights + TowerShotMuzzles + TowerShotSkipped</c>
+        /// —— 不成立 = 有开火事件没被任何一条路径处理（判红）。
+        /// </para>
+        /// </summary>
+        private void PlayTowerShot(BattleEvent e)
+        {
+            _towerShots++;
+
+            // ① 炮口位置：塔视图的炮口层 → 事件自带的塔根坐标（兜底 + 留痕）。
+            //    先填塔根坐标再让 TryTowerMuzzle 覆写：`out` 形参一定被方法赋值，这样即使
+            //    `_arena != null` 为假（短路、不调用方法）也不会留下"可能未赋值"的变量
+            //    —— 旧写法（先声明 `Vector2 muzzle;` 再用 `&&` 短路调用）在编辑器里是
+            //    `CS0165 Use of unassigned local variable 'muzzle'`。
+            Vector2 muzzle = GameConst.MilliToWorld(e.x_milli, e.y_milli);
+            var fromMuzzleLayer = _arena != null && _arena.TryTowerMuzzle(e.entity_id, out muzzle);
+            if (!fromMuzzleLayer && !_towerMuzzleMissingWarned)
+            {
+                _towerMuzzleMissingWarned = true;
+                Game.Logger?.Warn(LogTag,
+                    $"塔开火：塔 id={e.entity_id} 在塔视图里找不到炮口层（塔视图未建 / id 对不上）⇒ " +
+                    $"用事件自带的塔根坐标 ({muzzle.x:F2},{muzzle.y:F2}) 兜底（炮口闪光看起来会偏到塔底）（只报一次）");
+            }
+
+            if (_effects == null) { _towerShotSkipped++; return; }
+
+            // ② 目标：事件不带 ⇒ 用最近一帧快照近似（同 `NearestEnemy` 口径）。取不到就不编方向。
+            var target = _lastEntities == null
+                ? null
+                : NearestEnemy(_lastEntities, e.team, e.entity_id, e.x_milli, e.y_milli);
+
+            // ③ 炮口闪光：无论有没有飞行段都该有（这是"塔开了枪"的那一下）。
+            var beforeHit = _effects.SpawnedTotal;
+            _effects.Play(muzzle, ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount,
+                EffectsView.WorldSize);
+            var hitPlayed = _effects.SpawnedTotal > beforeHit;
+
+            // ④ 飞行段：只有"有速度 且 有目标 且 距离>0"三个条件齐了才飞。
+            if (e.proj_speed > 0 && target != null)
+            {
+                var to = GameConst.MilliToWorld(target.x_milli, target.y_milli);
+                var dist = Vector2.Distance(muzzle, to);
+                if (dist > 0f)
+                {
+                    var seconds = dist * 60f / e.proj_speed;
+                    var beforeFlight = _effects.SpawnedTotal;
+                    _effects.PlayFlight(muzzle, to, ResPaths.EffectArrow, ResPaths.EffectArrowFirst,
+                        ResPaths.EffectArrowCount, EffectsView.WorldSize, seconds);
+                    if (_effects.SpawnedTotal > beforeFlight)
+                    {
+                        _towerShotFlights++;
+                        Game.Logger?.Info(LogTag,
+                            $"塔开火弹道：塔 id={e.entity_id} team={e.team} 炮口=({muzzle.x:F2},{muzzle.y:F2})" +
+                            $"{(fromMuzzleLayer ? "" : "（兜底：塔根）")} 飞向最近敌方 ent={target.id} " +
+                            $"=({to.x:F2},{to.y:F2}) 距离={dist:F2}格 速度={e.proj_speed}格/分 飞行={seconds:F3}s " +
+                            $"本局累计：开火={_towerShots} 飞行={_towerShotFlights} 闪光={_towerShotMuzzles} 跳过={_towerShotSkipped}");
+                        return;
+                    }
+                }
+            }
+
+            // ⑤ 降级：只播枪口闪光（无速度 / 无目标 / 飞行素材为空）。两段都没播 = 计入跳过。
+            if (hitPlayed) _towerShotMuzzles++;
+            else _towerShotSkipped++;
+        }
+
+        /// <summary>
+        /// 本帧快照里离 <paramref name="self"/> 最近的**合法**敌方实体（镜像服务端 `canTarget` 的硬条件：
+        /// 不同队 / 存活（hp&gt;0）/ 不在部署中；`server/game/core/targeting.go:16-52, 76-93`）。
+        /// ⛔ 客户端没有半径 / 空中地面 / only_* 这些字段，故只做这几条可得条件（登记为近似口径）。
+        /// </summary>
+        private static EntitySnapshot NearestEnemy(EntitySnapshot[] all, EntitySnapshot self)
+        {
+            return NearestEnemy(all, self.team, self.id, self.x_milli, self.y_milli);
+        }
+
+        /// <summary>
+        /// 同上，但**不需要一个快照实体当"自己"** —— 供塔开火用（`EvTowerShoot` 的位置来自事件载荷，
+        /// 塔在快照里也可能已被查表删掉）。口径与快照重载逐条相同。
+        /// </summary>
+        private static EntitySnapshot NearestEnemy(EntitySnapshot[] all, int team, int selfId, int xMilli, int yMilli)
+        {
+            if (all == null) return null;
+            EntitySnapshot best = null;
+            float bestSq = 0f;
+            for (var i = 0; i < all.Length; i++)
+            {
+                var c = all[i];
+                if (c == null || c.id == selfId) continue;
+                if (c.team == team) continue;
+                if (c.hp <= 0) continue;
+                if (c.deploy_ms > 0) continue;                 // 服务端 `acquirable()`：部署中不可被选中
+                var dx = (float)(c.x_milli - xMilli);
+                var dy = (float)(c.y_milli - yMilli);
+                var d2 = dx * dx + dy * dy;
+                if (best == null || d2 < bestSq) { best = c; bestSq = d2; }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// 出牌事件（`EvPlayCard`）的表现**分流**：法术卡 → <see cref="PlaySpellFx"/>，
+        /// 其余（远程卡）→ <see cref="PlayProjectileFlight"/>。
+        ///
+        /// <para>
+        /// <b>为什么必须分流</b>（差异登记 D148）：这两条路的判据是**反的** ——
+        /// <see cref="PlayProjectileFlight"/> 只认"`projectile_key` 非空的远程卡"，
+        /// 而法术卡的 `projectile_key` **必然为空**（法术没有弹体）⇒ 一张法术打下去，
+        /// 在旧代码里会**在 `PlayProjectileFlight` 第一行就被 return 掉，画面上什么都没有**
+        /// （用户第 9 条「卡的实现没看到法术」）。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>判据取哪一列</b>：用 `CardInfo.type`（`Def/ProtoDef.cs`：`0=部队 1=法术 2=建筑`，
+        /// 与服务端 `core/card.go:38-42` 的 `CardTypeSpell = 1` 同一套编号），
+        /// ⛔ 不用"`projectile_key` 为空"当法术判据 —— 近战部队（骑士、皮卡）的 `projectile_key`
+        /// 也是空的，那样会把近战当法术播特效。卡池里查不到 `card_id` 时落回
+        /// <see cref="PlayProjectileFlight"/>（由它留那条"卡池没到"的痕）。
+        /// </para>
+        /// </summary>
+        private void PlayCardFx(BattleEvent e)
+        {
+            CardInfo card;
+            if (_cards.TryGetValue(e.card_id, out card) && card != null && card.type == CardTypeSpell)
+            {
+                PlaySpellFx(e, card);
+                return;
+            }
+            PlayProjectileFlight(e);
+        }
+
+        /// <summary>
+        /// 法术卡的命中表现：在**事件自带的落点**播该法术的原版帧序列（帧来源见 <see cref="SpellFxTable"/>）。
+        ///
+        /// <para>
+        /// <b>落点取真值</b>：`EvPlayCard` 的 `x_milli/y_milli` 就是玩家点的那一点
+        ///（服务端 `core/battle.go:219-221` 原样填），⛔ 不做任何"往塔中心靠"之类的降级。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>尺寸取原版 1:1</b>：传 <see cref="EffectsView.WorldSize"/> ⇒ `EffectsView` 里
+        /// `scale = size / WorldSize = 1` ⇒ 精灵按美术自己的像素尺寸（PPU=100）落位。
+        /// 这与既有 `Hit` / `Blast` / `Arrow` 三个用途目录同一口径，⛔ 不按"法术半径"另算一个缩放
+        /// （客户端没有半径数据；要按半径缩放得先让服务端随卡池下发，那是另一片）。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>计时自检</b>：<c>SpellCasts == SpellFxPlayed + SpellFxSkipped</c>
+        /// —— 不成立 = 有法术出牌没走到这里（判红）。
+        /// </para>
+        /// </summary>
+        private void PlaySpellFx(BattleEvent e, CardInfo card)
+        {
+            _spellCasts++;
+
+            SpellFxTable.Entry fx;
+            if (!SpellFxTable.TryGet(card.key, out fx))
+            {
+                _spellFxSkipped++;
+                if (!_spellFxUnknownWarned)
+                {
+                    _spellFxUnknownWarned = true;
+                    Game.Logger?.Warn(LogTag,
+                        $"法术卡 key=\"{card.key}\"（id={e.card_id}）在 SpellFxTable 里没有帧位 ⇒ 不播特效。" +
+                        "补法：在 策划/单位动画分组表.md 的 effects 小节查到该法术的分组，" +
+                        "按行号加进 SpellFxTable + ResPaths + .ai-tmp/hosts/copy_spell_fx.py（只报一次）");
+                }
+                return;
+            }
+
+            if (_effects == null) { _spellFxSkipped++; return; }
+
+            var world = GameConst.MilliToWorld(e.x_milli, e.y_milli);
+            var before = _effects.SpawnedTotal;
+            _effects.Play(world, fx.Use, fx.First, fx.Count, EffectsView.WorldSize);
+            if (_effects.SpawnedTotal > before)
+            {
+                _spellFxPlayed++;
+                Game.Logger?.Info(LogTag,
+                    $"法术命中特效：card={e.card_id} key={card.key} team={e.team} " +
+                    $"落点=({world.x:F2},{world.y:F2}) 帧=f{fx.First}..f{fx.First + fx.Count - 1}" +
+                    $"（{fx.Use}，{fx.Count} 帧）本局累计：出牌={_spellCasts} 播出={_spellFxPlayed} 跳过={_spellFxSkipped}");
+            }
+            else
+            {
+                // 非预期分支：素材目录没落地（帧文件缺失 / 没被 Unity 导入）⇒ 留痕并计数（⛔ 不静默丢）。
+                _spellFxSkipped++;
+                if (!_spellFxUnknownWarned)
+                {
+                    _spellFxUnknownWarned = true;
+                    Game.Logger?.Warn(LogTag,
+                        $"法术特效播不出去：用途目录 \"{fx.Use}\" 在 Resources 里取不到帧（首帧 f{fx.First}）⇒ " +
+                        "检查 .ai-tmp/hosts/copy_spell_fx.py 是否跑过、以及新 PNG 是否已被 Unity 导入（只报一次）");
+                }
+            }
+        }
+
+        /// <summary>
         /// 出牌 ⇒ 若该卡为远程（`CardInfo.projectile_key` 非空），从**施法者位置**飞到**落点**播一条原版弹道。
         ///
         /// <para>
@@ -802,10 +1505,12 @@ namespace CR.View
         /// </para>
         ///
         /// <para>
-        /// <b>⚠️「施法者位置」是降级值</b>：事件载荷（`BattleEvent`）只有单点 `x_milli/y_milli` + `team`，
-        /// 且 `EvPlayCard` 的 `entity_id` 恒为 0（`server/game/core/battle.go` 填 `EvPlayCard` 时未填 `EntityID`）
-        /// ⇒ **载荷里没有施法者**。故退化为「出牌方**本方国王塔中心**」（固定几何 `GameConst.KingTowerTileX/Y`，
-        /// 出处 `anchors.json`）。**落点 = 事件自带的 `x_milli/y_milli`（真值，未降级）。**
+        /// <b>「施法者位置」怎么取</b>：事件载荷（`BattleEvent`）只有单点 `x_milli/y_milli` + `team`，
+        /// 且 `EvPlayCard` 的 `entity_id` 恒为 0（`server/game/core/battle.go:219-221` 未填 `EntityID`）
+        /// ⇒ **载荷里没有施法者**。这里不再退化成"本方国王塔中心"（那是 D48 的降级，用户看到的是
+        /// "箭从塔里射出"），而是取**本方在落点附近最近的一个单位**（通常就是刚落下的那张卡自己）。
+        /// 都取不到（例如全场本方无单位）时才回退国王塔中心并**留痕**。
+        /// **落点 = 事件自带的 `x_milli/y_milli`（真值，未降级）。**
         /// </para>
         /// </summary>
         private void PlayProjectileFlight(BattleEvent e)
@@ -844,7 +1549,7 @@ namespace CR.View
                 return;
             }
 
-            var from = CasterWorld(e.team);
+            var from = CasterWorld(e.team, landing);
             var dist = Vector2.Distance(from, landing);
             var seconds = dist * 60f / card.proj_speed; // 格 ÷ (格/分钟 ÷ 60)
             if (seconds <= 0f)
@@ -859,16 +1564,48 @@ namespace CR.View
             _projectileShots++;
             Game.Logger?.Info(LogTag,
                 $"弹道 card={e.card_id} key={card.projectile_key} proj_speed={card.proj_speed}格/分钟 " +
-                $"施法者[本方国王塔·降级]=({from.x:F2},{from.y:F2}) 落点=({landing.x:F2},{landing.y:F2}) " +
+                $"施法者[本方最近单位，见 CasterWorld]=({from.x:F2},{from.y:F2}) 落点=({landing.x:F2},{landing.y:F2}) " +
                 $"距离={dist:F2}格 飞行={seconds:F3}s（={dist:F2}×60/{card.proj_speed}） 本局累计={_projectileShots}");
         }
 
         /// <summary>
-        /// 出牌方「施法者」世界位置 —— ⚠️ **降级值**（事件载荷不携带施法者，见 <see cref="PlayProjectileFlight"/>）：
-        /// 退化为**出牌方本方国王塔中心**（固定几何 `GameConst.KingTowerTileX/Y`，出处 `anchors.json`）。
+        /// 出牌方「施法者」世界位置。**优先 = 本方在 <paramref name="landing"/> 附近最近的一支单位**
+        /// （用当前插值窗口末尾那一帧快照的实体坐标；通常是刚落下的那张卡自己）；
+        /// 本方在该帧**一个单位都没有**时，才回退到**出牌方国王塔中心**（固定几何
+        /// `GameConst.KingTowerTileX/Y`，出处 `anchors.json`）并留痕一次。
+        ///
+        /// <para>
+        /// <b>为什么不再无条件用国王塔中心</b>：那是 D48 登记的降级值 —— 现象是"箭从本方塔里射出来"。
+        /// 事件载荷不带施法者（`BattleEvent` 只有单点 + `team`，`EvPlayCard` 的 `entity_id` 恒 0，
+        /// 见 `server/game/core/battle.go:219-221`），但快照里**有**本方实体的实时坐标 ⇒ 可以退而取
+        /// "离落点最近的本方单位"，比国王塔贴合实际。真正正解 = 服务端在事件里补 `caster_entity_id`（D48）。
+        /// </para>
         /// </summary>
-        private static Vector2 CasterWorld(int team)
+        private Vector2 CasterWorld(int team, Vector2 landing)
         {
+            EntitySnapshot best = null;
+            var bestSq = 0f;
+            foreach (var kv in _curIndex)
+            {
+                var c = kv.Value;
+                if (c == null || c.team != team || c.hp <= 0) continue;
+                var cw = GameConst.MilliToWorld(c.x_milli, c.y_milli);
+                var dx = cw.x - landing.x;
+                var dy = cw.y - landing.y;
+                var d2 = dx * dx + dy * dy;
+                if (best == null || d2 < bestSq) { best = c; bestSq = d2; }
+            }
+
+            if (best != null)
+                return GameConst.MilliToWorld(best.x_milli, best.y_milli);
+
+            if (!_casterFallbackWarned)
+            {
+                _casterFallbackWarned = true;
+                Game.Logger?.Warn(LogTag,
+                    $"出牌弹道：team={team} 在落点({landing.x:F2},{landing.y:F2})附近**找不到任何本方单位** ⇒ " +
+                    "施法者退化为本方国王塔中心（D48 的降级值）；若持续出现说明出牌与单位落地不在同一帧快照里（只报一次）");
+            }
             return GameConst.TileToWorld(GameConst.KingTowerTileX,
                 GameConst.MirrorTileYForTeam(GameConst.KingTowerTileY, team));
         }
@@ -899,18 +1636,50 @@ namespace CR.View
         }
 
         /// <summary>
-        /// **连续**的"服务端现在"（毫秒）：把**最新**快照的时间戳按"它到达后过了多少真实时间"外推。
+        /// **连续**的"服务端现在"（毫秒）：把**最新**快照的时间戳按"它到达后过了多少真实时间"外推，
+        /// 但外推量**有上限** <see cref="ServerNowExtrapCapMs"/>。
         /// <para>
         /// 用途只剩"灾难级偏差的恢复判据"（见 <see cref="TickRender"/> 第 ② 步）：
         /// 时钟的**稳态推进不引用它**，于是到达时刻的抖动（网络抖动、编辑器卡顿）不会通过它
         /// 调制渲染速度 —— 那正是"速度脉动"的传播路径，已实测（离线仿真：速率被 ±15% 调制时
         /// 速度 cv 0.24~0.28，而速率恒 1 时 cv 0.000）。
         /// </para>
+        /// <para>
+        /// <b>为什么必须给外推封顶</b>（2026-09-23 D134 实机取证）：快照**停推**（对局结束 / 断线 /
+        /// 服务端不再发）之后，下面是"`_newestMs` + 无限外推"，于是"服务端现在"**一直往前走**，
+        /// 渲染时钟就跟着它跑飞 —— 实测 `newest − renderMs` 中位数 = **−50785 ms**（时钟比最新快照
+        /// **超前 50.8 s**；时钟表里 12902 行有 **7891 行 `t` 被夹成 1.0**）。一旦快照恢复，
+        /// 时钟要按 ±5% 的速率把 50 s 的偏差拉回来要上千秒 ⇒ 那段时间单位全部冻在最后一帧。
+        /// 封顶后"没有新数据就不许发明时间"：停推时停在"最新 + 1 个间隔"，恢复到目标落后量的
+        /// 偏差只有几百毫秒，比例修正 1~2 秒内就收敛。
+        /// </para>
         /// </summary>
         private float ServerNowMs
         {
-            get { return _newestMs + (Time.realtimeSinceStartup - _arrivalReal) * 1000f; }
+            get
+            {
+                var extrap = (Time.realtimeSinceStartup - _arrivalReal) * 1000f;
+                return _newestMs + Mathf.Min(extrap, ServerNowExtrapCapMs);
+            }
         }
+
+        /// <summary>
+        /// "服务端现在"允许比最新快照**最多**超前多少毫秒（= 2 个快照间隔）。
+        /// 取 2 个间隔：正常的到达抖动（丢 1 个包 = 1 个间隔）必须能被外推吸收掉，
+        /// 而 ≥2 个间隔的沉默已经不是抖动、是"停推"，此时继续外推只会让时钟跑飞。
+        /// </summary>
+        private const float ServerNowExtrapCapMs = 2f * GameConst.SnapshotIntervalMs;
+
+        /// <summary>
+        /// 渲染时钟允许比**最新快照**最多超前多少毫秒（= 1 个快照间隔）。
+        /// 判据出处见 <see cref="TickRender"/> 第 ②′ 步：停推时时钟会一路跑飞（实测超前 50.8 s），
+        /// 而用 ±5% 速率把它拉回来要上千秒 ⇒ 单位长期冻住。取 1 个间隔 = 刚好够吸收"丢 1 个包"
+        /// 且不允许凭空多出更多"未来时间"。
+        /// </summary>
+        private const float ClockMaxLeadMs = 1f * GameConst.SnapshotIntervalMs;
+
+        /// <summary>时钟超前上限告警是否已报过（只报一次，⛔ 不刷屏）。</summary>
+        private bool _clockLeadCapped;
 
         /// <summary>
         /// **按渲染时钟选插值窗口**：在历史里找一对"夹住时钟"的快照 ⇒ 写 <see cref="_prevMs"/> /
@@ -979,10 +1748,15 @@ namespace CR.View
             //    所以用 realtimeSinceStartup 而不是 time 是安全的；将来若有真暂停，那时冻住时钟才对。
             var clock = RenderClockMs;
 
-            // ② 速率：**稳态恒为 1**（纯被动跟随，绝不用"改速度"去做校正 —— 改速度 = 速度脉动 = 抖）。
-            //    只有灾难级偏差（> 3 个间隔，实测只在长卡顿/断网重连后出现）才用有界速率追帧。
+            // ② 速率：**有界比例修正**（稳态 ±5%，灾难级偏差时放开到 <see cref="CatchUpMaxRate"/>）。
+            //    ⛔ 不再写成 `|err| > CatchUpThresholdMs ? SteerRate(err) : 1f` —— 那个门控 = "300 ms 以内
+            //    一律不校正"，而时钟的落后量一旦被成批到达的快照推过 300 ms（实测稳定在 417 ms）就**再也
+            //    回不来**：它会一直跑在快照历史之外 ⇒ SelectWindow 夹到最旧一对 ⇒ t 恒为 0 ⇒ **插值静默失效**
+            //    （D134 实测：7953 帧里 t 只有 3 帧取到中间值，单位每 100 ms 跳一格）。现在比例项常开，
+            //    偏差自己衰减到 0（一阶，τ≈4 s），插值窗口始终处于"被时钟跨过"的正常状态。
+            //    为什么走速率而不是"直接把时钟瞬跳到目标"：位置的导数就是速度，瞬跳 = 单位前跳一大截。
             var err = (ServerNowMs - TargetLagMs) - clock;
-            var rate = Mathf.Abs(err) > CatchUpThresholdMs ? SteerRate(err) : 1f;
+            var rate = SteerRate(err);
             if (!Mathf.Approximately(rate, _clockRate)) SetClockRate(rate, real);
             clock = RenderClockMs;
 
@@ -998,11 +1772,72 @@ namespace CR.View
                 _catchingUp = false;
                 Game.Logger?.Info(LogTag, $"渲染时钟已回到目标附近（偏离 {err:F0}ms）⇒ 速率回到 {rate:F2}×");
             }
+
+            // ②′ 时钟**超前上限**（"没有新数据就不许发明时间"）。
+            //    为什么必须有：快照**停推**（对局结束 / 断线 / 服务端不再推）之后时钟会跟着
+            //    `ServerNowMs` 一路往前走，而把 50 s 的偏差用 ±5% 的速率拉回来要上千秒
+            //    ⇒ 这段时间单位全部冻在最后一帧。实测（D134 第二轮逐帧表）：`newest − renderMs`
+            //    中位数 = **−50785 ms**（超前 50.8 s），12902 行里 7891 行 `t` 被夹成 1.0。
+            //    ⛔ 这个夹取**不产生画面跳变**：夹取前后 `clock` 都在最新快照之后 ⇒
+            //    `SelectWindow` 两边都把 `t` 夹成 1 ⇒ 位置完全相同（本来就冻着）。
+            //    ✅ 而且恢复是**立刻**的：上限挂在 `_newestMs` 上，快照一恢复 `_newestMs` 就前进，
+            //    上限跟着松开（不需要靠速率追）。
+            if (_histLen >= 1)
+            {
+                var leadCap = _newestMs + ClockMaxLeadMs;
+                if (clock > leadCap)
+                {
+                    if (!_clockLeadCapped)
+                    {
+                        _clockLeadCapped = true;
+                        Game.Logger?.Warn(LogTag,
+                            $"渲染时钟超前最新快照 {clock - _newestMs:F0}ms（上限 {ClockMaxLeadMs:F0}ms = " +
+                            $"{ClockMaxLeadMs / GameConst.SnapshotIntervalMs:F0} 个间隔）⇒ 就地锚回并保持；" +
+                            "成因：快照停推（对局结束 / 断线 / 服务端不再推）。⛔ 不是把时钟永久钉死：" +
+                            "上限跟着 `_newestMs` 走，快照一恢复立即松开（只报一次）");
+                    }
+                    // 就地锚回（锚在**绝对**值 leadCap 上，⛔ 不是 `SetClockRate` —— 那个会锚在
+                    // 未夹取的 `RenderClockMs` 上，等于没夹）。速率不动（仍是比例修正给的那个）。
+                    _clockBaseMs = leadCap;
+                    _clockBaseReal = real;
+                    clock = leadCap;
+                }
+                else if (clock < _newestMs - ClockMaxLeadMs)
+                {
+                    _clockLeadCapped = false;   // 回到正常范围 ⇒ 复位告警（下次停推还能再报一次）
+                }
+            }
             _renderMs = clock;
 
             // ③④ 按时钟选窗口 + 算 t：窗口边界只在 t=1 那一刻跨过 ⇒ 位置连续、速度恒定。
             var t = SelectWindow(_renderMs);
             _hasPrev = _histLen >= 2;
+
+            // ③′ 脱窗不变量（**必须留痕**）：`SelectWindow` 在时钟早于最旧快照时会夹到最旧一对、
+            //     使 `t` 恒为 0 —— 这一刻**插值已经死了**，但画面上只是"动得一顿一顿"，不会报任何错。
+            //     这是"最隐蔽的静默失效"，所以显式记一次（只报一次，⛔ 不刷屏）。
+            if (_histLen >= 2)
+            {
+                var oldest = _msHist[HistSlots - _histLen];
+                var newest = _msHist[HistSlots - 1];
+                if (_renderMs < oldest || _renderMs > newest)
+                {
+                    if (!_outOfWindowWarned)
+                    {
+                        _outOfWindowWarned = true;
+                        Game.Logger?.Warn(LogTag,
+                            $"渲染时钟 {_renderMs:F0}ms 掉出快照历史 [{oldest:F0}, {newest:F0}]ms " +
+                            $"（落后最新 {newest - _renderMs:F0}ms，历史覆盖 {HistSlots - 1} 个间隔 = " +
+                            $"{(HistSlots - 1) * GameConst.SnapshotIntervalMs}ms）⇒ 插值被夹成阶梯（t≡0/1）；" +
+                            $"速率 {_clockRate:F3}× 会把它拉回目标 {TargetLagMs:F0}ms（只报一次）");
+                    }
+                }
+                else
+                {
+                    _outOfWindowWarned = false;
+                }
+            }
+
             ApplyEntities(t);
         }
 
@@ -1034,14 +1869,40 @@ namespace CR.View
                 }
 
                 var world = GameConst.MilliToWorld(e.x_milli, e.y_milli);
+                // 朝向用的**基线位移**：从"历史里最旧的那个含该 id 的快照"量到位移（HistSlots=6 ⇒ 默认 5 个间隔
+                // = 500 ms），⛔ 不是只量**一个**间隔。
+                // 为什么必须拉长基线（2026-09-23 实测 D134-units.tsv id=9 帧 1903..1912，逐帧表）：
+                //   一队亡灵沿纵向推进时，真实前进是 y 方向 0.05~0.07 格/帧；但"互相推开"的解算器
+                //   在 x 方向持续给 ±0.03 格/帧 的**微推挤**。只量一个 100 ms 间隔时，两者同量级 ⇒
+                //   位移向量的极角在 45° 档位边界附近来回越界 ⇒ 视角档 8→7→8 各翻 3 帧 = 视觉上的
+                //   "抽搐"（判据 A4）。把基线拉到 500 ms 后，推挤是**往复**的、大部分互相抵消，
+                //   而行进是**单调**的、线性累积 ⇒ 极角稳定落在 8 档内。
+                // ⛔ 也不能交给 UnitView 自己按逐帧插值位置去推：服务端坐标是**毫格**量化的，
+                //    站立单位的逐帧位移在 ±0.002 格之间抖，方向会被量化噪声翻 180°
+                //   （实测见 UnitView.FacingMinMoveTiles 的注释与 D134-units.tsv id=320）。
+                var moveDir = Vector2.zero;
                 if (_hasPrev)
                 {
                     EntitySnapshot p;
                     if (_prevIndex.TryGetValue(e.id, out p) && p != null)
-                        world = Vector2.Lerp(GameConst.MilliToWorld(p.x_milli, p.y_milli), world, t);
+                    {
+                        var prevWorld = GameConst.MilliToWorld(p.x_milli, p.y_milli);
+                        var baselineWorld = prevWorld;
+                        for (var i = HistSlots - _histLen; i < HistSlots - 1; i++)
+                        {
+                            EntitySnapshot q;
+                            if (_idxHist[i].TryGetValue(e.id, out q) && q != null)
+                            {
+                                baselineWorld = GameConst.MilliToWorld(q.x_milli, q.y_milli);
+                                break;
+                            }
+                        }
+                        moveDir = world - baselineWorld;
+                        world = Vector2.Lerp(prevWorld, world, t);
+                    }
                 }
 
-                view.Apply(e, world, e.deploy_ms > 0 ? DeployAlpha : 1f);
+                view.Apply(e, world, e.deploy_ms > 0 ? DeployAlpha : 1f, moveDir);
             }
 
             // 回收：本帧快照里没有的实体（快照是全量 ⇒ 缺席 = 已消失）。
@@ -1055,6 +1916,7 @@ namespace CR.View
                 _units.Remove(_recycle[i]);
             }
         }
+
 
         private void ApplyTowers(BattleSnapshot s)
         {

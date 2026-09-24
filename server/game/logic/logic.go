@@ -72,20 +72,29 @@ func (l *gameLogic) mount(g *app.Game) {
 	// ★ MasterCaller 刻意留 nil（单进程部署：server_type=all，node_id 未配、etcd 不用，
 	// 引擎自己就打印 "cross-node object transfer disabled (single-node only)"）。
 	//
-	// 为什么不传 g：房间外壳只在「跨节点寻房主」时需要 CallMaster（注册/查询/移交 owner，
-	// 引擎内建号 6001 起），而这条路在本引擎上**走不通**（实测三处，逐条可复现）：
-	//   ① 没人注册 master 侧房间处理器时，master 回 "unknown msgID=6001"，
-	//      而 CallMaster 是同步等回包的 ⇒ 建房 handler 卡住不回包（客户端只看到超时）；
-	//   ② 补上注册也不行：`room.NewMasterHandlers(mg).Register()` 经 app.MasterGame.OnMsg
-	//      注册 6001，被门面自身的守卫拒绝并 panic ——
-	//      `app: business message id must be > 10000; got 6001`（引擎内建房间号撞上业务号下限）；
-	//   ③ 因此本工程唯一可用的形态就是「不接 master」：外壳里每一处 master 交互
-	//      （EnsureRoom 的 RegisterRoom / JoinRoom 的 EnsureOwner / DestroyRoom 的 UnregisterRoom /
-	//       Takeover 构造）都由 `if m.Owner != nil` / `if cfg.MasterCaller != nil` 守卫，
-	//      MasterCaller=nil 时全部跳过，房间生命周期与内核行为**完全不受影响**。
+	// ⚠️ **旧结论已失效（2026-09-24 复核）**：本注释原先逐字写着「本工程唯一可用的形态就是
+	// 不接 master」，理由②是「注册 6001 必 panic（business message id must be > 10000）」。
+	// **引擎已修** —— 三条逐处复核成立（均为 clover-server-engine 内的实际代码）：
+	//   ① `internal/domain/room/master_handlers.go` 的 `registerRoomMsg(...)` 已改走
+	//      `mg.InternalOnMsg(msgID, handler)` —— **保留号内部路径**，不再经业务的 `OnMsg`；
+	//      该处注释逐字写着「6001..6004 是引擎内建号，经业务路径会被『业务消息号必须 > 10000』的守卫拒绝」；
+	//   ② `internal/app/facade.go` 提供 `MasterGameFacade.InternalOnMsg(msgID, h)`（门面侧的内部号入口），
+	//      `MasterHandlerGame` 接口亦含 `InternalOnMsg`；
+	//   ③ `pkg/domain/room/README.md` 的「MasterHandlers」段给了正式接线：业务侧在 master 角色挂一次
+	//      `room.NewMasterHandlers(mg)`，并在 `room.Config` 里传 `MasterCaller: g`
+	//      （不传 = 整条跨节点接管链路被跳过）。
+	//
+	// **现在成立的真实约束（不是"接不上"，而是"用不上"）**：本工程是**单进程部署**
+	// （server_type=all、node_id 未配、etcd 不用）⇒ 根本不存在「跨节点寻房主」这件事，
+	// 接 master 只会平白多一条注册 / 查询链路与一个 master 角色，收益为 0。
+	// 外壳里每一处 master 交互（EnsureRoom 的 RegisterRoom / JoinRoom 的 EnsureOwner /
+	// DestroyRoom 的 UnregisterRoom / Takeover 构造）都由 `if m.Owner != nil` /
+	// `if cfg.MasterCaller != nil` 守卫 ⇒ MasterCaller=nil 时全部跳过，
+	// 房间生命周期与内核行为**完全不受影响**。
 	// 后果：跨节点接管（takeover）不启用 —— 单进程部署本来也用不上；
 	// roomKernel.ExportState / ImportState 仍按 Kernel 契约实现（未被调用）。
-	// 修法留给主 agent（引擎侧：让 master 门面放行引擎自己的内建房间号），修好后这里传 g 即可。
+	// ⇒ 将来若改为多节点部署：把这里的 `MasterCaller` 换成 `g`，并在 master 角色挂
+	// `room.NewMasterHandlers(mg)`（口径见上面 ③ 的 README 段）。
 	l.roomMod = room.NewModule(room.Config{
 		MasterCaller: nil,
 		Pusher:       func(pid string, msgID uint32, v any) error { return g.PushToPlayer(pid, msgID, v) },

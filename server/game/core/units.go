@@ -248,31 +248,143 @@ func ClampI32(v, lo, hi int32) int32 {
 	return v
 }
 
-// RingOffsets lays `count` units evenly on a circle of `radius` milli-tiles.
+// PackOffsets lays `count` units out in concentric rings so none overlap.
+// 逐字搬运参考实现 `原版资源/cr-sim/cr_sim/engine/fixed.py::pack_offsets`。
 //
-// Swarm cards do not drop their units on one point: `summon_radius` spaces them
-// out (参考规格 §5 群体卡). The trigonometry runs once here and is rounded to
-// whole milli-tiles immediately, so no float reaches the tick loop.
-func RingOffsets(count int, radius int32) [][2]int32 {
-	out := make([][2]int32, 0, count)
-	if count <= 0 {
-		return out
+// Some multi-unit cards ship no `SummonRadius` at all -- Skeleton Army
+// (fifteen units), Minions, Archers. A ring of one radius cannot hold fifteen
+// skeletons without overlap, and stacking them is not a state the board can
+// represent, so the layout is derived from how much room the units need:
+// rings spaced two radii apart, each holding as many as its circumference
+// allows. This is a derived default, not a value from the data.
+//
+// 为什么必须忠实搬运（2026-09-23 D134 逐帧表的实测，不是假想）：旧实现把
+// `summon_radius_mt<=0` 当"全放原点"（`archers` n=2 / `spear-goblins` n=3 /
+// `minions` n=3 / `skeleton-army` n=15 四张卡都是 0），同牌几只落在**完全相同的坐标**上，
+// 随后靠引擎的"互相推开"解算散开 —— `minions` 卡实测帧 2820..2822 两只坐标逐字相同
+// `(-5.5000, 2.5000)`，帧 2823..2826 在 4 帧内被推到相距 ~1.0 格（≈7 格/s，稳态
+// 1.5 格/s 的 5 倍）⇒ 观感就是"啪一下炸开"= 用户报的"苍蝇海抽搐"。
+//
+// 单环分支的半径是 `max(spacing, spacing / (2·sin(π/n)))`：`spacing/(2 sin)` 是"相邻恰好
+// 相切"的外接半径，`max` 兜住 n=2（两个单位并肩而不是背对背）。
+func PackOffsets(count int, unitRadiusMilli int32) [][2]int32 {
+	if count <= 1 || unitRadiusMilli <= 0 {
+		n := count
+		if n < 1 {
+			n = 1
+		}
+		out := make([][2]int32, n)
+		return out // 全为 (0,0)
 	}
-	if count == 1 || radius <= 0 {
+	spacing := 2 * float64(unitRadiusMilli)
+	if count <= 8 {
+		// A small group reads as a formation, not a blob: everyone on one ring
+		// sized so neighbours just touch.
+		radius := spacing
+		if r := spacing / (2 * math.Sin(math.Pi/float64(count))); r > radius {
+			radius = r
+		}
+		step := 2 * math.Pi / float64(count)
+		out := make([][2]int32, 0, count)
 		for i := 0; i < count; i++ {
-			out = append(out, [2]int32{0, 0})
+			out = append(out, [2]int32{
+				int32(math.Round(radius * math.Cos(step*float64(i)))),
+				int32(math.Round(radius * math.Sin(step*float64(i)))),
+			})
 		}
 		return out
 	}
+	out := make([][2]int32, 0, count)
+	out = append(out, [2]int32{0, 0})
+	for ring := 1; len(out) < count; ring++ {
+		radius := float64(ring) * spacing
+		capacity := int(2 * math.Pi * radius / spacing)
+		if capacity < 1 {
+			capacity = 1
+		}
+		take := capacity
+		if rest := count - len(out); rest < take {
+			take = rest
+		}
+		step := 2 * math.Pi / float64(take)
+		// Offset alternate rings so units do not line up spoke-on-spoke.
+		phase := 0.0
+		if ring%2 == 1 {
+			phase = step / 2
+		}
+		for i := 0; i < take; i++ {
+			out = append(out, [2]int32{
+				int32(math.Round(radius * math.Cos(phase+step*float64(i)))),
+				int32(math.Round(radius * math.Sin(phase+step*float64(i)))),
+			})
+		}
+	}
+	return out[:count]
+}
+
+// RingOffsets lays `count` units evenly on a circle of `radius` milli-tiles.
+// 逐字搬运参考实现 `cr_sim/engine/fixed.py::ring_offsets`。
+//
+// Swarm cards do not drop their units on one point: `SummonRadius` spaces them
+// out (参考规格 §5 群体卡). A single unit lands dead centre, and `radius<=0` is
+// also the centre (the caller is expected to have already decided packing --
+// see SummonLayout). The trigonometry runs once here and is rounded to whole
+// milli-tiles immediately, so no float reaches the tick loop.
+func RingOffsets(count int, radius int32, startEighth int) [][2]int32 {
+	if count <= 1 || radius <= 0 {
+		n := count
+		if n < 1 {
+			n = 1
+		}
+		out := make([][2]int32, n)
+		return out // 全为 (0,0)
+	}
 	step := 2 * math.Pi / float64(count)
+	phase := float64(startEighth) * math.Pi / 4
+	out := make([][2]int32, 0, count)
 	for i := 0; i < count; i++ {
-		angle := step * float64(i)
+		a := phase + step*float64(i)
 		out = append(out, [2]int32{
-			int32(math.Round(float64(radius) * math.Cos(angle))),
-			int32(math.Round(float64(radius) * math.Sin(angle))),
+			int32(math.Round(float64(radius) * math.Cos(a))),
+			int32(math.Round(float64(radius) * math.Sin(a))),
 		})
 	}
 	return out
+}
+
+// SummonLayout is where a multi-unit card's units land relative to the drop
+// point. 逐字搬运参考实现 `cr_sim/engine/battle.py::_summon_layout` 的**三分支**：
+//
+//  1. `total <= 1` ⇒ 原点。
+//  2. `radius <= 0`（卡没有 SummonRadius）⇒ `PackOffsets`。
+//  3. **给定半径装不下这个组**（`2πr < n·2R`）⇒ 仍然 `PackOffsets`。
+//     否则 `RingOffsets`。
+//
+// 第 3 条是旧实现漏掉的那一条（也是用户看到的"苍蝇海抽搐"的主根因）：`minion-horde` 的
+// `summon_radius_mt=600`（自定列 D22）配 n=6 只、身体半径 500 ⇒ 环周长 2π·600 = 3769
+// milli 装不下 6 只各自 1000 milli 的直径（6000 milli）⇒ 相邻只隔 **0.600 格**，而身体直径
+// 是 **1.000 格** ⇒ 落地即重叠、4 帧内被推开。参考实现对此的处置是"改 pack"而不是
+// "照单全收"。
+func SummonLayout(count int, radius, unitRadiusMilli int32) [][2]int32 {
+	if count <= 1 {
+		n := count
+		if n < 1 {
+			n = 1
+		}
+		out := make([][2]int32, n)
+		return out
+	}
+	if radius <= 0 {
+		return PackOffsets(count, unitRadiusMilli)
+	}
+	if unitRadiusMilli > 0 {
+		circumference := 2 * math.Pi * float64(radius)
+		need := float64(count) * 2 * float64(unitRadiusMilli)
+		if circumference < need {
+			return PackOffsets(count, unitRadiusMilli)
+		}
+	}
+	return RingOffsets(count, radius, 0)
 }
 
 // SpeedMilliPerSec converts an official `speed` (tiles per minute) into

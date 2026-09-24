@@ -420,6 +420,19 @@ namespace CR.Module.Settings
                 return;
             }
             Game.Quality.SetLevel(tier);
+
+            // ★ 改完画质档位必须**重新钉帧节奏**（引擎 `Runtime/Presentation/FramePacing.cs:24-26` 明写）：
+            //   `QualitySettings.SetQualityLevel` 会**按档位重置 vSyncCount** ⇒ 不重钉的话，
+            //   玩家一改画质档位，帧节奏就被无声改掉（现象 = 改完画质后画面开始抖），且没有任何报错。
+            //   ⛔ 只用引擎这三个静态入口；本工程不写第二份 `Application.targetFrameRate =`。
+            FramePacingPolicy.Recommend(out var fps, out var vSync, out var refreshHz);
+            var pinned = FramePacingPolicy.Pin(fps, vSync, out var readBackFps, out var readBackVSync, out var error);
+            Game.Logger?.Info(Tag, FramePacingPolicy.Describe(fps, vSync, $"改画质档位 {tier}", readBackFps, readBackVSync));
+            if (!pinned)
+                Game.Logger?.Warn(Tag,
+                    $"改画质档位后重钉帧节奏未完全生效（{error ?? "读回值与目标不一致"}）：" +
+                    $"目标 targetFrameRate={fps} vSyncCount={vSync} ⇒ " +
+                    $"读回 targetFrameRate={readBackFps} vSyncCount={readBackVSync}（readHz={refreshHz:0}）");
         }
 
         private static void ApplyFullscreen(bool fullscreen)

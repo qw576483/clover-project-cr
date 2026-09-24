@@ -148,6 +148,27 @@ namespace CR.App
             // ⑦ 面板供给者：**必须在第一次 Game.UI.Open 之前**装好，否则那一次会去
             //    `Resources/UI/{类名}` 找预制体并报 "Panel prefab not found"。
             PanelFactory.Install();
+
+            // ⑧ 帧节奏（引擎 `FramePacingPolicy`）：帧率上限恒定 + 垂直同步与显示器刷新率对齐。
+            //    ★ 为什么必须在进 Boot 站点之前钉：本工程是"每帧按 dt 插值推进"的表现链
+            //    （`View/BattleViewRoot.cs` 10Hz 权威快照 → 60FPS 插值），**帧间隔不匀会直接变成
+            //    画面推进不匀**。引擎 `Runtime/Presentation/FramePacing.cs` 的类注释记着真机 A/B：
+            //    vSync 关 + 硬性 60fps 在 100 Hz 面板上 ⇒ dt 8.5~62.6 ms（sd 5.0）、
+            //    相机每帧推进量 sd = 2.97 px、corr(纵向偏差, dt−均值) = 0.923 ⇒ 不匀就是帧时间造成的。
+            //    ⛔ 只用引擎这三个静态入口（Recommend / Pin / Describe）：本工程**不写第二份**
+            //    `Application.targetFrameRate =` 或 `QualitySettings.vSyncCount =`。
+            //    ⚠️ `vSyncCount > 0` 时平台忽略 `targetFrameRate` 属**预期**，⛔ 别当成"没生效"。
+            var refreshReadable = FramePacingPolicy.Recommend(out var pacingFps, out var pacingVSync, out var pacingHz);
+            var pacingPinned = FramePacingPolicy.Pin(pacingFps, pacingVSync,
+                out var readBackFps, out var readBackVSync, out var pacingError);
+            Game.Logger?.Info(Tag, FramePacingPolicy.Describe(pacingFps, pacingVSync, "启动", readBackFps, readBackVSync));
+            if (!refreshReadable)
+                Game.Logger?.Warn(Tag, $"刷新率读不到（无头 / 平台不提供，readHz={pacingHz:0}）⇒ 帧节奏走兜底口径");
+            if (!pacingPinned)
+                Game.Logger?.Warn(Tag,
+                    $"帧节奏 Pin 未完全生效（{pacingError ?? "读回值与目标不一致"}）：" +
+                    $"目标 targetFrameRate={pacingFps} vSyncCount={pacingVSync} ⇒ " +
+                    $"读回 targetFrameRate={readBackFps} vSyncCount={readBackVSync}");
         }
 
         private void OnApplicationQuit()

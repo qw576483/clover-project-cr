@@ -8,7 +8,45 @@ const (
 	EvTowerDestroyed int32 = 3
 	EvElixirFull     int32 = 4
 	EvTowerActivated int32 = 5
+
+	// EvTowerShoot = 塔开火（差异登记 D145、契约缺口 D48 的第一段闭合）。
+	//
+	// 为什么必须有这条事件：塔不在快照的 entities 里（见 TowerSnap 的注释），所以客户端
+	// **拿不到"这一帧某座塔开火了"** —— 旧协议下塔的弹道/枪口特效一点都播不出来
+	// （用户第 6 条「公主塔和国王塔没有攻击特效」）。
+	//
+// 载荷（复用 EvSpawn 那套字段，**只新增一个 `ProjSpeed`**）：
+//   EntityID = 开火那座塔的 id（与 TowerSnap.ID 同源，客户端据此对号到塔视图）
+//   XMilli/YMilli = **塔根**坐标（塔位置是固定几何，客户端另有炮口层的世界坐标，见
+//                   ArenaView.TryTowerMuzzle）
+//   Team     = 开火方
+//   ProjSpeed = 该塔投射物的速度（格/分钟；见 Event.ProjSpeed 的注释）
+//
+// ⛔ 载荷里**没有目标**：服务端知道目标，但为此再加一个字段要动 `BattleEvent`
+// （协议体）与客户端两侧；本片只闭合"塔开火了"这一半（D48 的另一半是单位开火，
+// 仍未闭合）。客户端用最近一帧快照的"最近合法敌方"近似目标。
+	EvTowerShoot int32 = 6
 )
+
+// Event is one discrete, one-shot client-visible occurrence.
+type Event struct {
+	Kind     int32 // see the Ev* constants
+	CardID   int32
+	XMilli   int32
+	YMilli   int32
+	EntityID int32
+	Team     int32
+	Text     string
+
+	// ProjSpeed 只在 EvTowerShoot 上有意义：该塔投射物的速度，单位 = **格/分钟**
+	// （与卡池下发的 CardInfo.proj_speed 同一口径 —— 两边都来自 unit 表的
+	// `SpeedTilesPerMinute`，见 core.ProjectileOf）。
+	//
+	// 为什么由服务端算好下发：塔**不是卡**，客户端的卡池索引（`_cards`）里没有它们的
+	// 投射物行 ⇒ 客户端自己查不到速度，就推不出飞行时长。⛔ 客户端不许为此写一个
+	// 自造的常量速度。
+	ProjSpeed int32
+}
 
 // TowerSnap is one crown tower's state.
 //
@@ -56,17 +94,6 @@ type Snapshot struct {
 
 	HandA, HandB []int32
 	NextA, NextB int32
-}
-
-// Event is one discrete, client-visible thing that happened.
-type Event struct {
-	Kind     int32 // see the Ev* constants
-	CardID   int32
-	XMilli   int32
-	YMilli   int32
-	EntityID int32
-	Team     int32
-	Text     string
 }
 
 // Snapshot renders the current state.

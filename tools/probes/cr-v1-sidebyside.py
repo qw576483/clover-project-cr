@@ -219,7 +219,12 @@ def main():
 
 # Pins recorded with the table.  A change here means "the input moved, so the table is STALE" --
 # that is the whole point: the check must be able to FAIL.
-PIN_OURS = "0159E8FDFA75C58D"          # .ai-tmp/screenshots/CR-V1-arena-nohud.png (shot 12:06:30)
+# 2026-09-23 17:43:58: pin re-recorded from A20AEDF66BED9BF9 after the arena frame was re-captured
+# by the CR-V1 chain on build CR.dll=7E1B2A2A42605EFC (the HudPanel overlap fix 17:13:44 plus the
+# AppFlow blank-screen fix 17:40:39 both landed in that assembly).  The PREVIOUS pin 0159E8FDFA75C58D
+# belonged to the 12:06:30 frame, i.e. before both fixes -- leaving it here would have made this
+# probe report the table as fresh while it actually described a superseded frame.
+PIN_OURS = "A20AEDF66BED9BF9"          # .ai-tmp/screenshots/CR-V1-arena-nohud.png (shot 17:43:58)
 PIN_ZONES = ["river band y", "water mean RGB", "grass above river mean RGB",
              "water thickness / lane spacing", "water thickness in TILES", "px per tile"]
 PIN_CAVEAT = "SAME RESOLUTION"          # the scale caveat must not be silently dropped from the header

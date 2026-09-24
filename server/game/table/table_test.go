@@ -73,8 +73,14 @@ func TestEmptyCellsPreserved(t *testing.T) {
 	// 逐行列宽 = 表头列宽（错列这一类故障的机械判据）。
 	lines := strings.Split(strings.TrimRight(readTSV(t, "unit.tsv"), "\n"), "\n")
 	want := len(strings.Split(lines[0], "\t"))
-	if want != 37 {
-		t.Fatalf("unit.tsv 表头应为 37 列，实际 %d", want)
+	// 37 → 40：2026-09-23 追加 3 列（差异登记 D142），**一律加在末尾**，
+	// 这样前面所有列的索引不变（`base_unit.go` 的 cell(rec, N) 与 `unit.go` 的列名映射
+	// 都不会被扰动 —— 加在中间才是真正危险的）：
+	//   spawn_stagger_ms ← 官方 spawn_interval（**波内错开**；旧实现把它当成了波间隔）
+	//   jump_height_mt   ← 官方 jump_height（跳河，野猪骑士/王子/黑暗王子/攻城槌）
+	//   jump_speed       ← 官方 jump_speed
+	if want != 40 {
+		t.Fatalf("unit.tsv 表头应为 40 列，实际 %d", want)
 	}
 	for i, line := range lines {
 		if got := len(strings.Split(line, "\t")); got != want {

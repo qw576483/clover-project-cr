@@ -1,4 +1,4 @@
-﻿# ★ CR-F2S 2026-09-23 判据资产：`CR-F2-promote.ps1`（升格入口）＋ `transitions.tsv`（append-only 账本）的自检。
+﻿# ★ CR-F2S 2026-09-23 判据资产：`CR-F2-promote.ps1`（升格入口）＋ `promotions.tsv`（append-only 账本）的自检。
 #
 # 验的三件事（每条都写明"能失败"的方式）：
 #   A 交付账本首块 = 已裁定的三行署名（逐字符 `-ceq`），列名行恰好 6 段 ⇒ 署名没有被改写／没有打错字；
@@ -7,12 +7,12 @@
 #   C 负控：对**已存在的目标**再升一次 ⇒ 停手报错（退出码非 0）＋ 账本**不加行** ＋ 目标字节**不变**；
 #     另一条负控：源不存在 ⇒ 同样停手、账本不加行。
 #
-# ⚠️ 自检跑在**临时账本**上（`-Ledger <sandbox>\ledger.tsv`），交付账本 `transitions.tsv` 只被【只读】核对：
+# ⚠️ 自检跑在**临时账本**上（`-Ledger <sandbox>\ledger.tsv`），交付账本 `promotions.tsv` 只被【只读】核对：
 #    append-only 的交付物里不留"指向一次性目录、事后又被删掉"的测试行。同一段代码、只差一个账本参数。
 param(
     [string]$Promote = 'C:\Work\Server\f-v2\clover-project-cr\tools\probes\CR-F2-promote.ps1',
-    [string]$Ledger = 'C:\Work\Server\f-v2\clover-project-cr\tools\probes\transitions.tsv',
-    [string]$DeliveredLedger = 'C:\Work\Server\f-v2\clover-project-cr\tools\probes\transitions.tsv',
+    [string]$Ledger = 'C:\Work\Server\f-v2\clover-project-cr\tools\probes\promotions.tsv',
+    [string]$DeliveredLedger = 'C:\Work\Server\f-v2\clover-project-cr\tools\probes\promotions.tsv',
     [string]$ProjectRoot = 'C:\Work\Server\f-v2\clover-project-cr',
     [switch]$ShowChildOutput
 )

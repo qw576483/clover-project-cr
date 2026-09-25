@@ -1,6 +1,6 @@
 package core
 
-// Animation states, matching EntitySnap.Anim (task doc §4.2).
+// Animation states, matching EntitySnap.Anim.
 const (
 	AnimIdle   int32 = 0
 	AnimWalk   int32 = 1
@@ -77,7 +77,7 @@ type nav struct {
 //
 // Projectiles and spell area effects are deliberately *not* entities: they are
 // never targeted and never collide, and EntitySnap.Kind only has room for
-// troop/building/tower (task doc §4.2).
+// troop/building/tower.
 type entity struct {
 	ID     int32
 	Kind   CardKind

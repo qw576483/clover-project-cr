@@ -110,7 +110,7 @@ func newTestTable() *fakeTable {
 		ProjectileKey: "KingProjectile",
 	}
 	// Projectile rows: core reads only the flight speed from them (the damage
-	// stays on the attacking unit -- task doc §5 投射物). Every shot is homing,
+	// stays on the attacking unit). Every shot is homing,
 	// which is the documented simplification.
 	t.units["TowerPrincessProjectile"] = &UnitDef{
 		ID: 301, Key: "TowerPrincessProjectile", Kind: KindProjectile,

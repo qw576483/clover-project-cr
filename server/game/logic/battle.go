@@ -123,7 +123,7 @@ func (l *gameLogic) startMatch(roomID string) error {
 	for i, pid := range targets {
 		n := notify
 		n.MyTeam = int32(seats[i])
-		if err := l.g.PushToPlayer(pid, def.PushBattleStart, n); err != nil {
+		if err := l.g.PushToPlayer(pushTarget(pid), def.PushBattleStart, n); err != nil {
 			logger.Warnf("logic: 推送开打失败 room=%s player=%s: %v", roomID, pid, err)
 		}
 	}
@@ -219,7 +219,7 @@ func (l *gameLogic) battleTick(roomID string) {
 	if len(events) > 0 {
 		payload := def.BattleEventNotify{Events: eventsToDef(events)}
 		for _, pid := range targets {
-			if err := l.g.PushToPlayer(pid, def.PushBattleEvent, payload); err != nil {
+			if err := l.g.PushToPlayer(pushTarget(pid), def.PushBattleEvent, payload); err != nil {
 				logger.Warnf("logic: 推送对局事件失败 room=%s player=%s: %v", roomID, pid, err)
 			}
 		}
@@ -228,7 +228,7 @@ func (l *gameLogic) battleTick(roomID string) {
 		payload := snapshotPayload(roomID, *snap)
 		for _, pid := range targets {
 			// 快照走高丢包容忍的 BestEffort（引擎在纯 TCP 且未绑 UDP 时自动降级为可靠发送）。
-			if err := l.g.PushToPlayer(pid, def.PushBattleSnapshot, payload, proto.DeliveryModeBestEffort); err != nil {
+			if err := l.g.PushToPlayer(pushTarget(pid), def.PushBattleSnapshot, payload, proto.DeliveryModeBestEffort); err != nil {
 				logger.Warnf("logic: 推送快照失败 room=%s player=%s: %v", roomID, pid, err)
 			}
 		}
@@ -256,7 +256,7 @@ func (l *gameLogic) finishMatch(roomID string, res core.Result, targets []string
 			HpRateA: res.HpRateA,
 			HpRateB: res.HpRateB,
 		}
-		if err := l.g.PushToPlayer(pid, def.PushBattleEnd, payload); err != nil {
+		if err := l.g.PushToPlayer(pushTarget(pid), def.PushBattleEnd, payload); err != nil {
 			logger.Warnf("logic: 推送结算失败 room=%s player=%s: %v", roomID, pid, err)
 		}
 		if res.Draw {

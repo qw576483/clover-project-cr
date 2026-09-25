@@ -47,6 +47,17 @@ func playerIDOf(c event.Ctx) string {
 	return pid
 }
 
+// pushTarget 返回网关（gwcore）可寻址的推送标识。
+//
+// 网关的 defaultRouter 先查 "p:"+target、再查 "a:"+target：`"p:"`（角色维度）索引只在
+// 逻辑服发出 GWControlBind 时才建立（见 clover-server-engine 的 `Ctx.SetPlayerID`，同一连接
+// 已登记过就不再发），`"a:"`（账号维度）索引则由网关在**每条登录回包**上重建。
+// 本工程的角色 ID 由账号派生（playerIDOf），两者一一对应 ⇒ 推送按账号维度寻址。
+// 未命中任何索引时网关不推也不报错（静默丢弃），所以这里必须选一条**每次登录都会重建**的键。
+func pushTarget(pid string) string {
+	return strings.TrimPrefix(pid, playerIDPrefix)
+}
+
 // loadPlayer 加载玩家档案，并把「结算时排队等待补记的战绩」补上。
 //
 // 战绩为什么不在结算时直接写：结算发生在对局 tick 里（定时器 goroutine），

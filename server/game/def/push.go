@@ -37,7 +37,7 @@ type RoomStateNotify struct {
 // BattleStartNotify 开打：对局配置。
 //
 // 与 docs/步骤文档.md §4.1 的载荷一并对齐：该表列了 `server_ms`，
-// 故本结构体保留之（任务书 §4.4 给出的字段全部在内，未删未改名）。
+// 故本结构体保留之（docs/步骤文档.md §4.1 给出的字段全部在内，未删未改名）。
 type BattleStartNotify struct {
 	RoomID   string         `json:"room_id"`
 	Seed     int64          `json:"seed"`

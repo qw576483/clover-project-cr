@@ -53,7 +53,7 @@ func (t Team) String() string {
 //
 // These are the only numbers allowed to be written in code: arena size, river
 // and bridge geometry, the elixir timeline and the king-tower activation delay
-// (task doc §4.1 / §7). Every unit, building and tower stat comes from the
+// Every unit, building and tower stat comes from the
 // CardTable instead.
 const (
 	// MilliTilePerTile is the fixed-point unit for positions and ranges:
@@ -258,12 +258,11 @@ func ClampI32(v, lo, hi int32) int32 {
 // rings spaced two radii apart, each holding as many as its circumference
 // allows. This is a derived default, not a value from the data.
 //
-// 为什么必须忠实搬运（2026-09-23 D134 逐帧表的实测，不是假想）：旧实现把
-// `summon_radius_mt<=0` 当"全放原点"（`archers` n=2 / `spear-goblins` n=3 /
-// `minions` n=3 / `skeleton-army` n=15 四张卡都是 0），同牌几只落在**完全相同的坐标**上，
-// 随后靠引擎的"互相推开"解算散开 —— `minions` 卡实测帧 2820..2822 两只坐标逐字相同
-// `(-5.5000, 2.5000)`，帧 2823..2826 在 4 帧内被推到相距 ~1.0 格（≈7 格/s，稳态
-// 1.5 格/s 的 5 倍）⇒ 观感就是"啪一下炸开"= 用户报的"苍蝇海抽搐"。
+// 为什么必须忠实搬运：`summon_radius_mt<=0` 不能当"全放原点"（`archers` n=2 /
+// `spear-goblins` n=3 / `minions` n=3 / `skeleton-army` n=15 四张卡都是 0）——
+// 那样同牌几只落在**完全相同的坐标**上，随后靠引擎的"互相推开"解算散开：
+// `minions` 卡两只坐标逐字相同 `(-5.5000, 2.5000)`，在 4 帧内被推到相距 ~1.0 格
+//（≈7 格/s，稳态 1.5 格/s 的 5 倍）⇒ 观感就是"啪一下炸开"（抽搐）。
 //
 // 单环分支的半径是 `max(spacing, spacing / (2·sin(π/n)))`：`spacing/(2 sin)` 是"相邻恰好
 // 相切"的外接半径，`max` 兜住 n=2（两个单位并肩而不是背对背）。

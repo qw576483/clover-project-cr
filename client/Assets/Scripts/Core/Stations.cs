@@ -28,10 +28,10 @@ namespace CR
         /// <summary>主菜单（`MainMenuPanel`，Main 场景）。卡组编辑 / 房间列表是它的子面板，不单独占站点。</summary>
         public const string MainMenu = "MainMenu";
 
-        /// <summary>房间内（`RoomPanel`，Main 场景）。由 agent-06 的 `Module/Room` 驱动。</summary>
+        /// <summary>房间内（`RoomPanel`，Main 场景）。由 `Module/Room` 驱动。</summary>
         public const string Room = "Room";
 
-        /// <summary>对局（`HudPanel`，Battle01 场景）。由 agent-07 的 `Module/Battle` 驱动。</summary>
+        /// <summary>对局（`HudPanel`，Battle01 场景）。由 `Module/Battle` 驱动。</summary>
         public const string Battle = "Battle";
 
         /// <summary>暂停（`PausePanel`，Battle01 场景，Popup 层）。对战**不真暂停**，只覆盖菜单。</summary>

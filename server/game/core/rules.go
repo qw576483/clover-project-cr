@@ -1,6 +1,6 @@
 package core
 
-// Victory conditions (参考规格 §3 胜负判定, task doc §5 胜负).
+// Victory conditions (参考规格 §3 胜负判定).
 //
 //  1. A destroyed king tower ends the match instantly: three crowns to the
 //     attacker.
@@ -10,7 +10,7 @@ package core
 //     crowns fall to each side's remaining tower HP as a fraction of its own
 //     maximum; still level is a genuine draw.
 
-// Result reasons (task doc §4.1).
+// Result reasons.
 const (
 	ReasonKingDestroyed = "king_destroyed"
 	ReasonTimeUpCrowns  = "time_up_crowns"

@@ -634,7 +634,7 @@ namespace CR.UI
 
         /// <summary>
         /// 官方 LOGO（`loading_out` 028，520×224「CLASH ROYALE」蓝底金冠）——
-        /// `BootPanel` 的标题图。⛔ 原来用文字"皇室战争"当 LOGO（用户 2026-09-20：「ui都是你乱拼的，不是原版的」）。
+        /// `BootPanel` 的标题图。⛔ 首页标题只许用这张原版 LOGO，不许用文字拼。
         /// </summary>
         public static string LogoOfficial { get { return ResPaths.UiFrame(ResPaths.UiIconsDir, SrcLoading, 28); } }
 
@@ -643,11 +643,10 @@ namespace CR.UI
 
         // ═══════════ 卡面（`ui_spells_out`）：帧号表 + 裁剪口径 —— 全工程唯一一处 ═══════════
         //
-        // <b>为什么必须收敛到一处（CR-T2，2026-09-22）</b>：这张「卡 key → 卡面帧号」表原先在
-        // `HudPanel` 与 `DeckEditPanel` **各存一份**（35 条 / 60 条），`HudPanel` 自己的注释还写着
-        // 「同值副本（两处必须同步）」。AO1 片把 `DeckEditPanel` 那份由 34 条扩到 60 条时**没同步**
-        // `HudPanel` ⇒ 对局手牌里 **24 张卡查不到帧号**，按降级口径只画「原版卡槽底 + 卡名」
-        // （玩家看到的就是用户报的「卡牌图片和框都对不上」）。
+        // <b>为什么必须收敛到一处</b>：这张「卡 key → 卡面帧号」表若在 `HudPanel` 与
+        // `DeckEditPanel` **各存一份**，两份条数不一致时对局手牌里会有一批卡
+        // 查不到帧号，按降级口径只画「原版卡槽底 + 卡名」
+        // （玩家看到的就是「卡牌图片和框都对不上」）。
         // ⇒ 结构上消除不同步的唯一办法 = 上收到本类**一处**；⛔ 两个面板都不许再存第二份。
         //
         // <b>表从哪来（⛔ 不是看图猜的）</b>：`策划/原版UI素材名称索引.md` **§3.5** —— 它登记的是原版

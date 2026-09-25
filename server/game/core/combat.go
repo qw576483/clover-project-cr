@@ -162,7 +162,7 @@ type projectile struct {
 // fireProjectile spawns a shot from src toward target.
 //
 // If the projectile key does not resolve in the table, the shot resolves in
-// place instead of being silently dropped: core has no logger (task doc §7),
+// place instead of being silently dropped: core has no logger,
 // and losing the damage would be a much worse failure than losing the travel
 // time. Every projectile key in the 60-card pool resolves, because
 // 战斗单位_cs carries the projectile rows (步骤文档 §4.2).
@@ -696,17 +696,16 @@ func applySeparation(a *Arena, e *entity, d sepDelta, neighbours int) bool {
 // budget: the furthest it may be pushed apart inside one tick, in milli-tiles.
 // Returns 0 = unbounded.
 //
-// 根因（2026-09-24 逐帧实机取证，`.ai-tmp/test/D134-units.tsv` id=45）：
-// 旧写法把重叠量在**一个 tick 内**全部分完 —— 实测服务端在 server_ms 45300→45400
-// 这一格把一只亡灵移动了 (0.461, 0.341) 格 = 0.573 格 = 5.73 格/s，而它**前**一格
-// 是 (0.051,-0.147)、**后**一格是 (0.057,-0.118) = 1.5 格/s ⇒ 单格 3.8 倍、方向还反了。
-// 客户端按 10Hz 快照做线性插值，两点直线在快照点处速度不连续 ⇒ 这一格被原样播成
-// "一帧冲 0.573 格"（= 用户报的「苍蝇海打人时抽搐 / 人物抖得厉害」）。
+// 为什么必须给上限：把重叠量在**一个 tick 内**全部分完时，服务端会在
+// server_ms 45300→45400 这一格把一只亡灵移动 (0.461, 0.341) 格 = 0.573 格 = 5.73 格/s，
+// 而它**前**一格是 (0.051,-0.147)、**后**一格是 (0.057,-0.118) = 1.5 格/s
+// ⇒ 单格 3.8 倍、方向还反了。客户端按 10Hz 快照做线性插值，两点直线在快照点处
+// 速度不连续 ⇒ 这一格被原样播成 "一帧冲 0.573 格"（= 观感"苍蝇海打人时抽搐 / 人物抖得厉害"）。
 //
-// 为什么修在这里而不是客户端插值：离线仿真用
+// 为什么在这里限而不是在客户端插值：离线仿真用
 // **真实快照点**重放「线性 vs centripetal Catmull-Rom」，A1 稳态速度尖峰比 1.923 → 2.185、
 // A1b 部署瞬态 3.09 → 4.05（都变差），只有 A2 改善 —— 任何**穿过快照点**的插值都躲不开
-// 这段位移，只会把峰值摊得更高；要平滑就必须引入滞后。⇒ 唯一无滞后的修法是让源头的
+// 这段位移，只会把峰值摊得更高；要平滑就必须引入滞后。⇒ 唯一无滞后的做法是让源头的
 // 逐 tick 位移有界。
 //
 // 上限取值的出处：该单位**自己走路**一个 tick 的距离 —— `Def.SpeedMilliPerSec` 是
@@ -719,8 +718,7 @@ func applySeparation(a *Arena, e *entity, d sepDelta, neighbours int) bool {
 //
 // ⚠️ 额度按**整个 tick 的位移向量模长**计（`applySeparation` 对累加后的
 // `sepDelta` 收缩一次），⛔ 不是"每对推力各裁一次"：后者在"被夹在两只同伴中间"
-// 时会把反向的那一份裁掉，实测产生永久的 ±15 milli / tick 振荡（见
-// `accumulateSeparation` 的复现记录）。
+// 时会把反向的那一份裁掉，产生永久的 ±15 milli / tick 振荡。
 func separationStepLimitMilli(e *entity) int32 {
 	if e == nil || e.Def == nil || e.Def.SpeedMilliPerSec <= 0 {
 		return 0 // 无速度定义（建筑 / 塔）⇒ 不限制，仍即时分开

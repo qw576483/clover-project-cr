@@ -97,6 +97,102 @@ namespace CR.View
         /// <summary>取不到帧时用的 1×1 白色占位精灵（懒建、全局共享）。</summary>
         private static Sprite _fallbackSprite;
 
+        /// <summary>血条离脚底的高度（格）—— 出处见 <see cref="Bind"/> 里创建血条那一处。</summary>
+        private const float HpBarYOffset = 1.6f;
+
+        /// <summary>
+        /// `spriteDir` → **逐单位缩放**（写在单位根的 `transform.localScale` 上）。
+        /// <para>
+        /// <b>出处（原版数据反解）</b>：官方 `.sc`（`原版资源/sc/chr_*_v215.sc`）的 shape 记录（tag `0x12`）
+        /// 同时给出两样东西 —— 形状多边形的外接框（**`.sc` 单位**）与同一多边形在图集上占的矩形（**px**）；
+        /// 两者之比 = 该单位「1 图集 px = 多少 `.sc` 单位」（记 `upp`，本表取**逐帧中位**）。
+        /// 换算常数 = **1000 `.sc` 单位/格**（证据：`building_tower_v215.sc` 的 1 格方块 rec1 = 1021 单位 /
+        /// 图集 52 px；PEKKA 多边形半宽 747 ≈ 官方 `collision_radius = 750` = 0.75 格）。
+        /// 本工程导入一律 `spritePixelsToUnits = 100`（= 100 图集 px/格），正确值是 `1000 / upp`
+        /// ⇒ 本表的值 = `upp / 10`。
+        /// </para>
+        /// <para>
+        /// 核验（闭环）：把本表的值乘回该单位 art 的紧框中位宽，得到的格宽与同一个 `.sc` 的多边形格宽
+        /// 逐单位吻合（37 个目录里 36 个的闭环比在 ±5% 内；逐目录读数见
+        /// `.ai-tmp/test/cr-scale-table.tsv` 的「闭环比」列）。
+        /// </para>
+        /// <para>
+        /// ⚠️ 只列 `chr_*_out`（部队）。建筑目录（`building_*_out`）**不在此列** —— 塔的缩放由
+        /// `ArenaView.TowerScale` / `ArenaView.PrincessTowerScale` 单独给出，再乘本表会二次放大。
+        /// 未列出的 `spriteDir`（含 `chr_balloon_out` —— 该 `.sc` 只有 10 条可用 shape，中位不可信）
+        /// 一律按 1.0。
+        /// </para>
+        /// <para>生成路径：`tools/probes/sc-placement.py`（解析 `.sc`）+ `.ai-tmp/test/cr-scale-table.py`（出表）。</para>
+        /// </summary>
+        private static readonly Dictionary<string, float> UnitSpriteScale =
+            new Dictionary<string, float>
+        {
+            { "chr_archer_out", 0.9904f },
+            { "chr_axe_man_out", 1.9833f },
+            { "chr_baby_dragon_out", 1.3115f },
+            { "chr_bandit_out", 1.9684f },
+            { "chr_barbarian_out", 1.2891f },
+            { "chr_bats_out", 0.9903f },
+            { "chr_battle_ram_out", 1.9782f },
+            { "chr_bomber_out", 0.9873f },
+            { "chr_bowler_out", 1.3083f },
+            { "chr_electro_wizard_out", 1.9726f },
+            { "chr_fire_firespirit_out", 1.0849f },
+            { "chr_giant_out", 1.7672f },
+            { "chr_giant_skeleton_out", 1.9626f },
+            { "chr_goblin_archer_out", 0.9859f },
+            { "chr_goblin_blowdart_out", 1.9763f },
+            { "chr_goblin_out", 1.1385f },
+            { "chr_hog_rider_out", 1.3094f },
+            { "chr_ice_spirits_out", 1.2836f },
+            { "chr_ice_wizard_out", 0.9911f },
+            { "chr_knight_out", 1.4417f },
+            { "chr_lava_hound_out", 1.3096f },
+            { "chr_lava_pups_out", 1.3029f },
+            { "chr_mega_knight_out", 1.3134f },
+            { "chr_mega_minion_out", 0.9916f },
+            { "chr_miner_out", 1.3072f },
+            { "chr_mini_pekka_out", 1.1883f },
+            { "chr_minion_out", 0.9897f },
+            { "chr_movingcannon_out", 2.1822f },
+            { "chr_musketeer_out", 1.3031f },
+            { "chr_pekka_out", 1.3103f },
+            { "chr_prince_out", 1.6341f },
+            { "chr_princess_out", 0.9903f },
+            { "chr_royal_giant_out", 1.7029f },
+            { "chr_skeleton_out", 0.9792f },
+            { "chr_valkyrie_out", 0.9862f },
+            { "chr_witch_out", 0.9918f },
+            { "chr_wizard_out", 1.3045f },
+        };
+
+        /// <summary>取该 `spriteDir` 的逐单位缩放（未列出 / 非正值 ⇒ 1.0）。见 <see cref="UnitSpriteScale"/>。</summary>
+        private static float SpriteScaleFor(string spriteDir)
+        {
+            float s;
+            return spriteDir != null && UnitSpriteScale.TryGetValue(spriteDir, out s) && s > 0f ? s : 1f;
+        }
+
+        /// <summary>
+        /// 把逐单位缩放写到单位根，并**抵消它对血条的影响**。
+        /// <para>
+        /// 血条挂在单位根下（`WorldHpBar.Create` 用 `localPosition = (0, yOffset, 0)`、两个 Quad 的尺寸
+        /// 也是局部单位）⇒ 父节点一缩放，血条的**世界尺寸与离地高度会一起跟着变**（大单位的血条又大又高）。
+        /// 这里按 `1 / scale` 反算回去，使血条的世界尺寸恒为 1.0×0.12 格、离脚底恒为
+        /// <see cref="HpBarYOffset"/> 格 —— 与单位缩放无关。
+        /// </para>
+        /// </summary>
+        private void ApplySpriteScale(string spriteDir)
+        {
+            var s = SpriteScaleFor(spriteDir);
+            transform.localScale = new Vector3(s, s, 1f);
+            if (_hpBar == null) return;
+            var bar = _hpBar.transform;
+            bar.localScale = new Vector3(1f / s, 1f / s, 1f);
+            var p = bar.localPosition;
+            bar.localPosition = new Vector3(p.x, HpBarYOffset / s, p.z);
+        }
+
         private SpriteRenderer _renderer;
         private WorldHpBar _hpBar;
         private string _spriteDir = string.Empty;
@@ -259,7 +355,10 @@ namespace CR.View
                 //（推导见 <see cref="SortingLayers.Overlay"/>）。不传的话 = 引擎默认 0
                 //（`UIWidgets.CreateQuad` 不写 `sortingOrder`）⇒ 血条被**自己单位的精灵**
                 //（<see cref="SortingLayers.Actor"/> = 1000+）盖住 —— 这是"血量看不见"的第二个原因。
-                _hpBar = WorldHpBar.Create(transform, 1.0f, 0.12f, 1.6f, LogTag + ".Hp", ArenaLayers.Instance.Overlay);
+                // ⚠️ 这里给的 1.0 / 0.12 / `HpBarYOffset` 都是**世界格**口径：单位根上的逐单位缩放
+                //（见 `UnitSpriteScale`）会乘进来，所以 `ApplySpriteScale` 会把这三项按 `1 / scale` 反算回去
+                // —— 血条的世界尺寸与离地高度因此与本单位的缩放无关。
+                _hpBar = WorldHpBar.Create(transform, 1.0f, 0.12f, HpBarYOffset, LogTag + ".Hp", ArenaLayers.Instance.Overlay);
                 _lastHp = -1;
                 _lastMaxHp = -1;
             }
@@ -287,6 +386,10 @@ namespace CR.View
                 else
                     AssertFrameMapping(isBuilding);
             }
+
+            // ★ 逐单位缩放（出处见 `UnitSpriteScale`）：必须在血条创建**之后** —— 它同时按 `1 / scale`
+            //   抵消父缩放对血条世界尺寸 / 离地高度的影响（见 `ApplySpriteScale`）。
+            ApplySpriteScale(_spriteDir);
 
             // 无任何可用帧段的目录（89 个里 44 个）保持"整目录循环"，只报一次（已登记差异，非静默降级）；
             // 部分档位不可用的目录在 ClipIndices 里按档位留痕。
@@ -367,7 +470,7 @@ namespace CR.View
             // 但**不能每次都照单接受**：服务端的 `anim` 是"瞬时"的 —— 一次挥砍只在挥砍那一 tick 置
             // `AnimAttack`（`server/game/core/combat.go:68-73`），下一 tick 就回 `AnimWalk`
             //（`battle.go:525/533/536-539`）。若每 tick 都切，就会出现"攻击 1 帧 → 走路从第 0 帧重来"，
-            // 单位看起来在原地**抽搐**（= 用户报的第 2 条"抖动"。苍蝇海攻击间隔 1s、攻击段 7 帧时最明显）。
+            // 单位看起来在原地**抽搐**（苍蝇海攻击间隔 1s、攻击段 7 帧时最明显）。
             // 滞回规则（同档不重播 + 攻击播完才让位）：
             //   ① 请求档 == 当前档 ⇒ 什么都不做（⛔ 绝不重新从 0 帧起播）；
             //   ② 当前档是 **attack 且还没播完** ⇒ 扣住不放（除 `AnimDie` —— 死亡无条件立即生效）；
@@ -473,7 +576,7 @@ namespace CR.View
         /// 也会因为插值窗口切换算出 ±2 毫格的位移；那个门槛会把这种**舍入噪声**当成真实移动方向，
         /// 于是朝向在 180° 两侧反复翻（逐帧实测：<c>id=320</c>
         /// frame 6062..6066 的 vstep 片段 <c>[4, 12, 12, 12, 4]</c>，而同期逐帧位移只有
-        /// <c>-0.002 格</c> —— 现象就是用户报的"人物又飘又抖"）。
+        /// <c>-0.002 格</c> —— 现象就是"人物又飘又抖"）。
         /// </para>
         /// <para>
         /// 取值 0.01 格 = **10 倍量化步长**，同时远低于最小真实移速对应的窗口位移

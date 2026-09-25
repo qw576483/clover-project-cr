@@ -11,7 +11,7 @@ namespace CR.UI.Panels
     /// <para>
     /// <b>依赖方向（契约 §1 硬线）</b>：本面板⛔**不许** `using CR.Module` —— 它只知道
     /// `Core/Events.cs` 的事件名与 `Core/Stations.cs` 的站点名：
-    /// 投降 → `Emit(Events.Battle.SurrenderRequest)`（处理者是 agent-07 的 `BattleManager`，
+    /// 投降 → `Emit(Events.Battle.SurrenderRequest)`（处理者是 `BattleManager`，
     /// 它持有 `room_id` 并发 `MsgDef.BattleSurrender`）；设置 → `Emit(Events.Flow.OpenSettingsRequest)`；
     /// 回主菜单 → `Emit(Events.Battle.ReturnToMainMenuRequest)`；继续 → `Emit(Events.Flow.StationEnterRequest, Stations.Battle)`。
     /// </para>
@@ -258,7 +258,7 @@ namespace CR.UI.Panels
                     Game.Logger?.Info(Tag, "已确认投降，请求对局模块发 MsgBattleSurrender");
                     SetStatus("已请求投降，等待服务端结算…（结算面板会自动出现）", CrUiStyle.Accent);
                     // ⛔ 这里**不**直接发 C2S：`Events.Battle.SurrenderRequest` 的处理者是
-                    //    agent-07 的 `BattleManager`（它持有 room_id）。面板再发一次就会重复请求。
+                    //    `BattleManager`（它持有 room_id）。面板再发一次就会重复请求。
                     Game.Event?.Emit(Events.Battle.SurrenderRequest);
                 },
                 () => SetStatus("已取消投降，对局继续。", CrUiStyle.TextOnLightDim),

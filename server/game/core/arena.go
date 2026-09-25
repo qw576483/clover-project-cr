@@ -1,6 +1,6 @@
 package core
 
-// Tower kinds used by TowerRef and TowerSnap (task doc §4.2: 0=公主塔 1=国王塔).
+// Tower kinds used by TowerRef and TowerSnap (0=公主塔 1=国王塔).
 const (
 	TowerKindPrincess int32 = 0
 	TowerKindKing     int32 = 1

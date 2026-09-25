@@ -420,7 +420,7 @@ namespace CR.Module.Battle
             Game.Event?.Emit(Events.Battle.Events, filtered);
         }
 
-        /// <summary>结算（`PushBattleEnd`，Reliable）→ 广播；面板由 agent-08 的 `ResultPanel` 负责。</summary>
+        /// <summary>结算（`PushBattleEnd`，Reliable）→ 广播；面板由 `ResultPanel` 负责。</summary>
         private void OnBattleEndPush(NetCtx ctx)
         {
             var result = ctx.Bind<BattleEndNotify>();

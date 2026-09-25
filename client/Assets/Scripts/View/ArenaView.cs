@@ -520,7 +520,7 @@ namespace CR.View
         /// <summary>河面裁条下沿（帧 6 画布行）= 853（47 行高）。</summary>
         public const float WaterPyBottom = 853f;
 
-        /// <summary>桥板裁条左沿（帧 22 画布 px）= 223（左车道那一束竖木板的外沿；`lead-d130b-bands.py` 实测列 223..298）。</summary>
+        /// <summary>桥板裁条左沿（帧 22 画布 px）= 223（左车道那一束竖木板的外沿；实测列 223..298）。</summary>
         public const float BridgePlankPxLeft = 223f;
 
         /// <summary>桥板裁条右沿（帧 22 画布 px）= 298（束宽 75 px = 1.65 格；原版实机桥宽 ≈1.55 格）。</summary>
@@ -571,7 +571,7 @@ namespace CR.View
         //   ② **抹掉段① 的贴图集残留**：把 rows 686..748 这段**干净草地（含两条车道，无木板、无泥带）**
         //      按段① 自己的定标（22.3158 行/格）向上复制两份，覆盖格 y **9.44..15.00**
         //      ⇒ 场地正中不再有"木板墙"，车道从公主台一路贯通到河沿。
-        //      ⛔ 本条**不**用"同段草地补丁列"那种写法：`lead-d130b-bands.py` 的 Q2 段实测
+        //      ⛔ 本条**不**用"同段草地补丁列"那种写法：Q2 段实测
         //      **rows 604..668 / 600..670 / 583..615 三档都无"每行都是草"的列区间**，
         //      按"纯草列"取源会铺出一条杂色带。
         //   ③ **河岸带：不做**（见下方撤销记录）—— 水带下沿以上直接保留敌方半场草地。
@@ -593,11 +593,11 @@ namespace CR.View
         //   ⚠️ **已知差异（登记，未做）**：原版水边那条 ≈0.2 格宽的棕色泥岸与浪花线，本实现没有。
         //      要补必须做"只取泥/石、排除木色列"的像素级遮罩（= 新实现），当前未做。
 
-        /// <summary>【段① 定标】纵向行/格 = (748−536)/(17.0−7.5) = **22.3158**（`lead-d130b-bands.py` 实测水带 48 行 = 2 格 ⇒ 24.0 行/格，两者差 7% 以内 ⇒ 段① 定标可信）。</summary>
+        /// <summary>【段① 定标】纵向行/格 = (748−536)/(17.0−7.5) = **22.3158**（实测水带 48 行 = 2 格 ⇒ 24.0 行/格，两者差 7% 以内 ⇒ 段① 定标可信）。</summary>
         public const float BlueRowsPerTile = (BluePrincessPyTop - BlueFieldPyTop) / (BlueFieldTileTop - BluePrincessTileTop);
 
         /// <summary>【覆盖带】干净源带的上沿（帧 22 画布行）= 686 —— 该带（686..748）内**每行都无木板**
-        /// （`lead-d130b-bands.py` 实测：木板尾行到 684，685 起只剩车道 739-782 的土色）。</summary>
+        /// （实测：木板尾行到 684，685 起只剩车道 739-782 的土色）。</summary>
         public const float GapSrcPyTop = 686f;
 
         /// <summary>【覆盖带】干净源带的下沿（帧 22 画布行）= 段① 带的下沿 748（= <see cref="BluePrincessPyTop"/>）。</summary>
@@ -1271,9 +1271,9 @@ namespace CR.View
                 $" + py {RedBackPyTop}..{RedPrincessPyBottom}→格 {RedPrincessTileBottom}..{RedBackTileTop}" +
                 $" + py {BackEdgePyTop}..{BackEdgePyBottom}→格 {RedBackTileTop}..{BackEdgeTileTop}（flipY）" +
                 $" | 横向=格 0..{GameConst.ArenaTilesW} ⇔ 画布px {GroundFieldLeftPx}..{GroundFieldRightPx:F1}（{GroundPxPerTileX}px/格）" +
-                $" | D130b 叠层：覆盖带 源行 {GapSrcPyTop}..{GapSrcPyBottom}×2 → 格 y {GapTileLow:F2}..{GapTileHigh:F1}" +
+                $" | 叠层：覆盖带 源行 {GapSrcPyTop}..{GapSrcPyBottom}×2 → 格 y {GapTileLow:F2}..{GapTileHigh:F1}" +
                 $"（抹掉贴图集残留的「泥带+竖木板」）" +
-                $" | 河岸带=撤销不铺（原版水上沿以上是草+窄泥岸、无木板；见 D130b 撤销记录）" +
+                $" | 河岸带=撤销不铺（原版水上沿以上是草+窄泥岸、无木板；见上方撤销记录）" +
                 $" | 河面/桥见后续 RiverWater/BridgeLeft/BridgeRight 日志");
 
             // 河道 = 帧 6 的蓝色水带；桥 = 帧 22 的桥板。见 BuildRiver。

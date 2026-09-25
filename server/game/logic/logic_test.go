@@ -87,7 +87,7 @@ func TestTableAdapterTowersAndSpeed(t *testing.T) {
 	if knight.Flying {
 		t.Fatalf("knight 被标成飞行单位（flying 列映射反了）")
 	}
-	// flying 列（agent-01b 补的）必须接进 core.UnitDef.Flying：
+	// flying 列必须接进 core.UnitDef.Flying：
 	// 若这条失败，先看配表列还在不在（在）与适配层的列名（"flying"）是否一致。
 	minion, ok := ct.Unit("Minion")
 	if !ok || minion == nil {

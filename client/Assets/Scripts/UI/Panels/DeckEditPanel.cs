@@ -550,6 +550,7 @@ namespace CR.UI.Panels
         // ═══════════════ 运行时状态 ═══════════════
 
         private bool _built;
+        private int _dragPathCheckFrame = -1;           // 拖放自检的预定帧（-1 = 没有待跑的自检，见 RequestDragPathCheck）
         private int _maxSelected;                       // 服务端卡组张数（来自 PanelArgs，见 ResolveMaxSelected）
 
         private CardInfo[] _pool;                       // 60 张卡池（可达 null：还没拉到）
@@ -644,9 +645,11 @@ namespace CR.UI.Panels
             RefreshSlots();
             RefreshCells();
             RefreshPoolLabel();
-            // 布局落定之后**走真实射线**自检一次「按住拖动」的事件路径。
-            //   放在最后：它要读已经算好的矩形（RefreshCells 决定哪些格子 SetActive）。
-            VerifyDragPath();
+            // ⛔ 这里**不**预定「按住拖动」的射线自检：本方法跑在订阅之前、卡池/卡组都还没到，
+            //   此刻 `_selected` 为空且 `RefreshCells` 会把 60 个卡池格全部 `SetActive(false)`
+            //   ⇒ 两个 pass 全部 `continue`、`checked == ok == 0` ⇒ 只会落一条 `DRAGPATH-EMPTY`（判据空转）。
+            //   预定点在**真的有可见卡格**的两处：`OnDeckChanged`（卡阵 8 格）与
+            //   `SetTab(Collection)`（卡池 60 格，此时卡池刚被 SetActive(true)）。判据本身一字未放宽。
             SetStatus("点一下卡池里的卡选进卡组；或者按住卡片拖动 —— 把卡拖到上面的卡阵即选入 / 换位，"
                 + "在卡阵里拖动即换位，把卡阵里的卡拖到下方卡池上即移除。最多 8 张、同一张只能带一次。",
                 CrUiStyle.TextDim);
@@ -655,6 +658,37 @@ namespace CR.UI.Panels
         public override void OnClose()
         {
             Unsubscribe();
+            _dragPathCheckFrame = -1;                   // 面板关了就别再跑自检（节点已被销毁）
+        }
+
+        /// <summary>
+        /// 拖放自检的**唯一**执行点：到期那一帧由 <c>Game.UI.Tick</c> 驱动（见 <see cref="RequestDragPathCheck"/>）。
+        /// </summary>
+        public override void OnUpdate(float dt)
+        {
+            if (_dragPathCheckFrame < 0 || Time.frameCount < _dragPathCheckFrame) return;
+            _dragPathCheckFrame = -1;
+            VerifyDragPath();
+        }
+
+        /// <summary>
+        /// 预定一次「按住拖动」自检，**真正跑在下一帧之后**（⛔ 不在同帧直接跑）。
+        ///
+        /// <para>
+        /// <b>为什么必须跨帧</b>：判据取 <c>EventSystem.RaycastAll</c> 的命中，而 uGUI 的
+        /// <c>GraphicRaycaster</c> 会跳过 <c>Graphic.depth == -1</c> 的图元 —— 包源码
+        /// <c>Library/PackageCache/com.unity.ugui@23caec89ae27/Runtime/UGUI/UI/Core/GraphicRaycaster.cs:316</c>：
+        /// 「-1 means it hasn't been processed by the canvas」，而 <c>depth</c> 由画布在**本帧末尾**的画布更新里写回。
+        /// 与本帧刚 <c>SetActive(true)</c>（卡池）或刚创建（面板）的图元同帧判 ⇒ 命中的必然是"上一个有合法 depth 的图元"
+        /// （实测：面板刚开那帧命中主菜单按钮，卡池刚激活那帧命中 PopupMask）⇒ 每一格都判成 BLOCKED。
+        /// 真人点击永远发生在之后的帧，跨帧之后量到的才是真指针路径。
+        /// </para>
+        /// <para>调用点：<see cref="OnDeckChanged"/>（卡阵）与 <see cref="SetTab"/> 的卡池页。</para>
+        /// </summary>
+        private void RequestDragPathCheck()
+        {
+            // +2：本帧的 `Button.onClick` / 数据回调可能仍排在画布更新之前 ⇒ 至少跨过一整次画布更新。
+            _dragPathCheckFrame = Time.frameCount + 2;
         }
 
         private void ResolveMaxSelected(object param)
@@ -833,8 +867,12 @@ namespace CR.UI.Panels
                 Vector4.zero, new Vector2(0f, 1f), new Vector2(0f, 1f), At(x, y), new Vector2(w, h),
                 fill, true, tint);
             // 顶部那条线：**盖在**圆角件之上（圆角件自身的高光在左上角，整条顶边要靠这一条补）。
-            UIFactory.CreateBoxRect(name + "Edge", block.rectTransform, Vector2.zero,
+            var edgeImg = UIFactory.CreateBoxRect(name + "Edge", block.rectTransform, Vector2.zero,
                 new Vector2(w, edgeH), edge, false);
+
+            // 句柄留给 SetTab：切页时要按新状态重染这两件（tint 落在底块 Image.color、线高落在顶线 sizeDelta）。
+            if (name == "TabDecks") { _tabDecksBlock = block; _tabDecksEdge = edgeImg; _tabDecksW = w; }
+            else if (name == "TabCollection") { _tabCollectionBlock = block; _tabCollectionEdge = edgeImg; _tabCollectionW = w; }
 
             var btn = block.gameObject.AddComponent<Button>();
             btn.targetGraphic = block;
@@ -884,8 +922,23 @@ namespace CR.UI.Panels
                 At(0f, BannerLine2Y - 110f), new Vector2(CrUiStyle.DesignW, 220f), TextAnchor.MiddleCenter);
         }
 
+        // 页签重染用的句柄（`BuildTab` 填）。选中态与未选中态是**两套**颜色 / 线高，
+        // 所以要拿得到底块的 `Image`（tint 落在 `Image.color` 上）与顶线的 `Image`（色 + 高）。
+        private Image _tabDecksBlock;
+        private Image _tabDecksEdge;
+        private Image _tabCollectionBlock;
+        private Image _tabCollectionEdge;
+        private float _tabDecksW;
+        private float _tabCollectionW;
+
         /// <summary>
-        /// 切换页签的**可见内容**：Decks 页 → 宣传区；Collection 页 → 卡池。
+        /// 切换页签的**可见内容 + 两颗页签的选中态外观**：Decks 页 → 宣传区；Collection 页 → 卡池。
+        /// <para>
+        /// 选中态外观与可见内容是**同一件事的两半**：原版用「抬起 / 沉下」表示当前在哪一页
+        /// （选中 = <see cref="TabOnTint"/> 底 + <see cref="TabEdgeH"/> 高 <see cref="TabOnEdgeColor"/> 亮线；
+        /// 未选中 = <see cref="TabOffTint"/> 底 + <see cref="TabOffEdgeH"/> 高 <see cref="TabOffEdgeColor"/> 暗带）。
+        /// 两态**必须不同**（出处 E65 / E66 / E67）—— 只换下半屏而不重染页签的话，玩家分不清当前在哪一页。
+        /// </para>
         /// <para>
         /// ⚠️ <b>已知差异（D152）</b>：原版 Collection 页是**整屏替换**（`card_page_collection` 有自己的
         /// `header` / `collection_title` / `sort`，<b>没有</b>编号行、<b>没有</b>卡阵）。本工程保留编号行与卡阵
@@ -902,7 +955,34 @@ namespace CR.UI.Panels
             if (_poolLabel != null) _poolLabel.gameObject.SetActive(showPool);
             if (_bannerLayer != null) _bannerLayer.SetActive(!showPool);
 
+            RestyleTabs(showPool);
+
             Game.Logger?.Info(Tag, $"[Deck] TAB-SWITCH page={page} poolVisible={showPool} bannerVisible={!showPool}");
+
+            // 卡池刚被 SetActive(true)：此刻卡池格才在层级里激活，拖放自检才有东西可判。
+            // 建面板那一次（`_built` 还是 false）不预定 —— 那时卡池格全未激活，判了只会得到 EMPTY。
+            if (_built && showPool) RequestDragPathCheck();
+        }
+
+        /// <summary>按当前页把两颗页签染成选中 / 未选中两态（明细见 <see cref="SetTab"/>）。</summary>
+        private void RestyleTabs(bool collectionSelected)
+        {
+            ApplyTabStyle(_tabDecksBlock, _tabDecksEdge, _tabDecksW, collectionSelected ? "off" : "on");
+            ApplyTabStyle(_tabCollectionBlock, _tabCollectionEdge, _tabCollectionW, collectionSelected ? "on" : "off");
+        }
+
+        /// <summary>
+        /// 把一颗页签染成一种状态：底块 tint + 顶线颜色 + 顶线高度（选中 = 亮线 3.5 高，未选中 = 暗带 10.4 高）。
+        /// 高度走 <c>sizeDelta</c>：顶线的锚点由建件时的默认值决定，改尺寸不会挪位置，只会改变厚度。
+        /// </summary>
+        private static void ApplyTabStyle(Image block, Image edge, float width, string state)
+        {
+            var on = state == "on";
+            if (block != null) block.color = on ? TabOnTint : TabOffTint;
+            if (edge == null) return;
+            edge.color = on ? TabOnEdgeColor : TabOffEdgeColor;
+            var rt = edge.rectTransform;
+            if (rt != null) rt.sizeDelta = new Vector2(width, on ? TabEdgeH : TabOffEdgeH);
         }
 
         /// <summary>
@@ -1519,6 +1599,7 @@ namespace CR.UI.Panels
             var hits = new List<RaycastResult>();
             var checkedCount = 0;
             var okCount = 0;
+            var offViewport = 0;
 
             for (var pass = 0; pass < 2; pass++)
             {
@@ -1533,6 +1614,15 @@ namespace CR.UI.Panels
 
                     var rt = cell.Chassis.rectTransform;
                     var center = RectTransformUtility.WorldToScreenPoint(cam, rt.TransformPoint(rt.rect.center));
+
+                    // 屏幕外的格子不进入判定：射线用的是屏幕坐标，被 ScrollRect 滚出视口的格子
+                    // 中心点根本不在屏上（实测 `中心=(937,-4778)`），`RaycastAll` 必然空手 ⇒ 那不是
+                    // "被遮挡"，是"指针到不了"。单独计数并打印，⛔ 不并进 blocked、也不当成 ok。
+                    if (center.x < 0f || center.x > Screen.width || center.y < 0f || center.y > Screen.height)
+                    {
+                        offViewport++;
+                        continue;
+                    }
 
                     ped.position = center;
                     hits.Clear();
@@ -1558,12 +1648,14 @@ namespace CR.UI.Panels
             var verdict = checkedCount == okCount ? "PASS" : "FAIL";
             if (checkedCount == 0)
             {
-                // 非预期分支：一个可见卡格都没有 ⇒ `checked == ok == 0` 会**假绿**，必须单独判。
-                Game.Logger?.Error(Tag, "[Deck] DRAGPATH-EMPTY：没有任何可见卡格可判 ⇒ 这次自检无效（不是 PASS）");
+                // 非预期分支：一个屏内可见卡格都没有 ⇒ `checked == ok == 0` 会**假绿**，必须单独判。
+                Game.Logger?.Error(Tag,
+                    $"[Deck] DRAGPATH-EMPTY：屏内没有任何可见卡格可判 ⇒ 这次自检无效（不是 PASS；offViewport={offViewport}）");
                 return;
             }
             Game.Logger?.Info(Tag,
-                $"[Deck] DRAGPATH-SUMMARY checked={checkedCount} ok={okCount} blocked={checkedCount - okCount} verdict={verdict}");
+                $"[Deck] DRAGPATH-SUMMARY checked={checkedCount} ok={okCount} blocked={checkedCount - okCount} "
+                + $"offViewport={offViewport} verdict={verdict}");
         }
 
         /// <summary>把 Transform 打成 <c>A/B/C</c>（日志里要能一眼看出"挡在前面的是谁"）。⛔ 不是给玩家看的。</summary>
@@ -1601,14 +1693,22 @@ namespace CR.UI.Panels
             if (_content == null || _slotCells.Count == 0) return -1;
 
             var cam = UiPointConvertCamera();
-            Vector2 p;
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(_content, screen, cam, out p))
+            Vector2 local;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(_content, screen, cam, out local))
             {
                 return -1;
             }
 
-            // `_content` = 面板根（整屏）⇒ 局部原点 = 屏幕**左上角**、y 向下为负（`At` 的取负口径）。
-            // 第 i 格的中心 = ( _slotX0 + col×_slotStepX + CardW/2 , −(_slotYTop + row×_slotStepY + CardH/2) )
+            // `RectTransformUtility` 返回的是**绕 `_content` 轴心**的局部坐标：面板根由运行时供给者
+            // `new GameObject(typeName, typeof(RectTransform))` 造出 ⇒ 轴心 (0.5,0.5)、世界位置 = 屏幕中心
+            // （实测 pivot=(0.50,0.50) / rect=(-540,-960,1080,1920) / worldPos=(540,960,0)）。
+            // 而下面那组格中心用的是**面板左上角为原点、y 向下为正**（`At()` 的口径）。
+            // ⇒ 必须先换算到同一套坐标，否则整片卡阵的吸附圈会平移 (+半宽, −半高)：
+            //   落在卡阵上的松手一律判成"不在卡阵上"（拖进卡阵没反应 / 卡阵内换位被判成移除）。
+            var p = new Vector2(local.x + _content.pivot.x * _content.rect.width,
+                _content.pivot.y * _content.rect.height - local.y);
+
+            // 第 i 格的中心 = ( _slotX0 + col×_slotStepX + CardW/2 , _slotYTop + row×_slotStepY + CardH/2 )
             var padX = CardW * 0.5f * (1f + SlotSnapPadK);
             var padY = CardH * 0.5f * (1f + SlotSnapPadK);
 
@@ -1617,7 +1717,7 @@ namespace CR.UI.Panels
             for (var i = 0; i < _slotCells.Count; i++)
             {
                 var cx = _slotX0 + (i % Columns) * _slotStepX + CardW * 0.5f;
-                var cy = -(_slotYTop + (i / Columns) * _slotStepY + CardH * 0.5f);
+                var cy = _slotYTop + (i / Columns) * _slotStepY + CardH * 0.5f;
                 var dx = Mathf.Abs(p.x - cx);
                 var dy = Mathf.Abs(p.y - cy);
                 if (dx > padX || dy > padY) continue;         // 落在这一格的吸附圈外
@@ -1878,6 +1978,12 @@ namespace CR.UI.Panels
 
             RefreshSlots();
             RefreshCells();
+
+            // 卡组一到，卡阵里的格子才真的有内容可拖 ⇒ 此刻的拖放自检才有东西可判。
+            // 放在 `OnOpen` 那一次是不行的：那时 `_selected` 还是空的、卡池也还没到，
+            // `VerifyDragPath` 的两个 pass 会全部 `continue` ⇒ 只会得到 `DRAGPATH-EMPTY`（自检空转）。
+            // 这里在 `_emittingSave` 提前返回**之前**预定：保存回包那条通道同样要能出判据。
+            RequestDragPathCheck();
 
             if (_emittingSave) return;
 

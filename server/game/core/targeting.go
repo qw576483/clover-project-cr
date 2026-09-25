@@ -64,16 +64,16 @@ func withinSight(attacker *entity, target *entity, extra int32) bool {
 // inAttackRange reports whether the target's hitbox gap is inside the
 // attacker's attack range.
 //
-// ★ 2026-09-24（差异登记 D141）：把整数边界与参考实现**逐字对齐**。
+// 整数边界与参考实现**逐字对齐**。
 // 参考 `cr-sim/cr_sim/engine/targeting.py::within_gap` 的原文推导是
 //
 //	gap = isqrt(d²) − ra − rt  ≤  reach
 //	⟺ isqrt(d²) ≤ reach + ra + rt      记 k = reach + ra + rt
 //	⟺ d² < (k + 1)²                    （对整数恒等：floor(√d²) ≤ k ⟺ d² < (k+1)²）
 //
-// 旧式 `d² < k²` 少了那个 `+1`，在"中心距**正好等于** k"这一格上比参考更严
+// ⛔ 不许写成 `d² < k²`：少了那个 `+1`，在"中心距**正好等于** k"这一格上比参考更严
 // 1 milli-tile（1/1000 格）。方向上是"更不容易命中"，不会造成"老远就打到"，
-// 但它是一处**无谓的差异**，本轮补齐。
+// 但那是一处无谓的差异，不必制造。
 //
 // ⛔ 不许再退化成"中心距 ≤ reach"（漏掉双方半径）或"半径加两遍"：
 // `range` 描述的是两个 hitbox 之间的空隙（参考 `gap_between` 的文档字符串：

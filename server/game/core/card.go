@@ -4,7 +4,7 @@ import "strings"
 
 // CardKind is the kind of a battle entity.
 //
-// Note the two different meanings in this file, both frozen by task doc §4.1:
+// Note the two different meanings in this file:
 //   - CardDef.Kind  : 0 = 部队 (troop), 1 = 法术 (spell), 2 = 建筑 (building)
 //   - UnitDef.Kind  : 0 = 部队, 1 = 建筑, 2 = 塔
 //   - EntitySnap.Kind (snapshot.go): 0 = 部队, 1 = 建筑, 2 = 塔
@@ -34,7 +34,7 @@ func (k CardKind) String() string {
 	}
 }
 
-// Card-type ids used by CardDef.Kind (task doc §4.1).
+// Card-type ids used by CardDef.Kind.
 const (
 	CardTypeTroop    int32 = 0
 	CardTypeSpell    int32 = 1
@@ -44,7 +44,7 @@ const (
 // UnitDef is a battle entity's stats, read from the 战斗单位_cs table.
 //
 // Every number here comes from the table; core never hard-codes an HP, a
-// damage, a speed, a range or a duration (task doc §7).
+// damage, a speed, a range or a duration.
 type UnitDef struct {
 	ID     int32
 	Key    string
@@ -129,14 +129,13 @@ type UnitDef struct {
 	// Flying marks an air unit: it ignores terrain and water entirely and is
 	// only attackable by units with AtkAir (参考规格 §5 移动 / 飞行).
 	//
-	// ⚠ CONTRACT NOTE: task doc §4.1's UnitDef field list has no flight flag,
-	// yet §5 requires flight and §6 requires TestFlyingUnitIgnoresRiver. The
-	// official data marks flight with `flying_height > 0`
-	// (cards_stats_characters.json; 18 rows), which is not part of the frozen
-	// column list either. This field is therefore a **backward-compatible
-	// addition** (appending a field cannot break a named-field struct literal),
-	// and isFlyingDef below falls back to the official flyer keys so the
-	// 60-card pool behaves correctly even if the flag is never supplied.
+	// ⚠ CONTRACT NOTE: the frozen UnitDef column list has no flight flag, and
+	// the official data marks flight with `flying_height > 0`
+	// (cards_stats_characters.json; 18 rows), which is not in that list either.
+	// This field is appended after the frozen columns (appending a field cannot
+	// break a named-field struct literal), and isFlyingDef below falls back to
+	// the official flyer keys so the 60-card pool behaves correctly even if the
+	// flag is never supplied.
 	Flying bool
 }
 
@@ -253,7 +252,7 @@ type CardDef struct {
 	ID     int32
 	Key    string
 	NameCN string
-	// Kind: 0 = 部队, 1 = 法术, 2 = 建筑 (task doc §4.1).
+	// Kind: 0 = 部队, 1 = 法术, 2 = 建筑.
 	Kind int32
 	// Rarity: 0 = 普通, 1 = 稀有, 2 = 史诗, 3 = 传说.
 	Rarity int32
@@ -278,7 +277,7 @@ type CardDef struct {
 // CardTable is the read-only view of the generated tables that core needs.
 //
 // core defines this interface itself so it never imports any generated code
-// (task doc §3): game/logic/ adapts the table output to it and hands it to
+// game/logic/ adapts the table output to it and hands it to
 // NewBattle.
 type CardTable interface {
 	// Card returns the card with this id.

@@ -9,17 +9,17 @@ namespace CR.UI.Panels
     /// 主菜单（`MainMenu` 站点，`Main` 场景，Normal 层）：卡组编辑 / 房间列表 / 人机对战 / 设置 / 退出。
     ///
     /// <para>
-    /// <b>本面板只负责"按钮存在 + 发事件"</b>：四个动作的**实现**分属其它片
-    /// （卡组编辑 = agent-08、房间列表 = agent-06、人机对战与对局 = agent-06/07），
+    /// <b>本面板只负责"按钮存在 + 发事件"</b>：四个动作的**实现**分属各模块
+    /// （卡组编辑 / 房间列表 / 人机对战与对局），
     /// 所以这里一律 `Emit(Events.Xxx.…Request)`，由各模块（或 `AppFlow`）订阅后执行。
     /// ⛔ 面板不 `using CR.Module` —— 这是契约 §1 的硬线，也是"按钮与链路解耦"的收益：
-    /// agent-06/07 接入时**不需要**动本文件。
+    /// 模块接入时**不需要**动本文件。
     /// </para>
     /// <para>
     /// <b>为什么"人机对战"走事件而不是直接调 <c>AppFlow.RequestStartAiBattle()</c></b>：
     /// 面板引不到 `CR.Module`（同上），所以由 `AppFlow` 订阅
     /// `Events.Battle.AiBattleRequest` 再调自己的 `RequestStartAiBattle()`
-    /// —— 契约里那个 public 方法就是 agent-06/07 的接入点，面板只是它的触发源之一。
+    /// —— 契约里那个 public 方法就是模块的接入点，面板只是它的触发源之一。
     /// </para>
     /// <para>
     /// <b>竖版排版</b>：画布 = <see cref="CrUiStyle.DesignW"/>×<see cref="CrUiStyle.DesignH"/>（1080×1920、

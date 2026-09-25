@@ -9,28 +9,28 @@ import (
 // centres (参考实现 `cr-sim/cr_sim/engine/targeting.py::gap_between` /
 // `within_gap`).
 //
-// 为什么单独钉这条（差异登记 D141）
-// ---------------------------------
-// 用户第 2 条报「部分卡攻击范围不对（大皮卡 可老远就打到我了）」。
-// 复核结论：**数据侧没有缺陷** ——
+// 为什么单独钉这条
+// ----------------
+// 「部分卡攻击范围不对（大皮卡 可老远就打到我了）」的一个可能来源已排除：
+// **数据侧没有缺陷** ——
 //   · `server/game/table/tsv/unit.tsv` 的 `range_mt` / `radius_mt` 与官方
 //     `原版资源/cr-api-data/docs/json/*.json` 的 `range` / `collision_radius`
 //     **逐行相等**（91 个数据行，0 处不等）。PEKKA 官方 `range=1200`、
 //     `collision_radius=750`，本表同值；公主塔官方 `collision_radius=1000`，
 //     本表同值（⛔ 不是某些记录里写的 1500 —— 1500 是
 //     `KingFootprintHalfMilli` 这个**部署区**常量，不是碰撞半径）。
-//   · `inAttackRange` 的算式与参考实现同构，**并且本轮把那个 `+1` 补齐**
+//   · `inAttackRange` 的算式与参考实现同构，含那个 `+1`
 //     （参考实现原文：`floor(sqrt(d2)) <= reach+ra+rt` ⟺ `d2 < (reach+ra+rt+1)^2`
-//     对整数恒等）。补齐前我们恰好在"整数距离正好等于上限"这一格上比参考
+//     对整数恒等）。少了它就会在"整数距离正好等于上限"这一格上比参考
 //     更严 1 subtile。
 //
 // 本测试的作用 = 把这条口径钉死并留证：命中判定的中心距上限 =
 // range + 攻击者半径 + 目标半径，**含上界**；越界 1 milli 必须为假（负控）。
 // 任何"把半径加两遍 / 把射程当净射程 / 把塔半径从 1000 改成 1500"的改动都会红。
 //
-// ⚠️ 残余（登记，未证实）：用户看到"老远"的另一可能来源是**视觉**——
-// 贴图尺寸与碰撞体尺寸并不相等（原版单位贴图比它的碰撞圆大），这条要另立片
-// 量两侧 art 的像素宽才能判定，本片不动。
+// ⚠️ 未证实的残余：观感上"老远"的另一可能来源是**视觉**——
+// 贴图尺寸与碰撞体尺寸并不相等（原版单位贴图比它的碰撞圆大），要量两侧 art
+// 的像素宽才能判定，本测试不覆盖。
 func TestAttackRangeGapSemantics(t *testing.T) {
 	// 官方数据（出处 = cr-api-data cards_stats_characters.json / cards_stats_building.json）
 	pekka := &UnitDef{Key: "pekka", Kind: KindTroop, RangeMilli: 1200, RadiusMilli: 750,

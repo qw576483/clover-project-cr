@@ -1,8 +1,8 @@
 // 本文件是**离线秒级断言**（`cd server && go test ./game/table/ -count=1`），
-// 把本轮修掉的两条配表缺陷钉成机械判据：
+// 把两条配表口径钉成机械判据：
 //
 //	① 表名英文化 ⇒ 访问器在包外可用。所以本文件刻意用 **包外测试包**（`package table_test`）：
-//	   旧的中文字段（`Cards{卡牌 …}`）在这里连写都写不出来 —— 那正是缺陷 1 的现象。
+//	   中文字段（`Cards{卡牌 …}`）在这里连写都写不出来。
 //	② 空单元格不能被吃掉。取 unit.tsv 里真实带空列的 archers 行（summon_key / death_spawn_key …）
 //	   断言它读出来是"空"而不是把后面的列左移进来，并顺带断言错列 / 缺列会**报错**而不是静默通过。
 package table_test
@@ -33,7 +33,7 @@ func TestLoadAllRowCounts(t *testing.T) {
 	if loaded["card"] != 60 || loaded["unit"] != 90 || loaded["spell"] != 10 {
 		t.Fatalf("逐表钩子行数应为 card=60 unit=90 spell=10，实际 %v", loaded)
 	}
-	// ★ 缺陷 1 的判据：下面这些访问器在**包外**必须能写出来（中文表名时它们写不出来，
+	// ★ 判据 ①：下面这些访问器在**包外**必须能写出来（中文表名时它们写不出来，
 	// 报 "cannot refer to unexported field"，反射也读不到）。
 	if c := table.Default.Card.Get(26010002); c == nil || c.Key != "archers" || c.NameEn != "Archers" {
 		t.Fatalf("table.Default.Card.Get(26010002) = %+v（应为 archers / Archers）", c)
@@ -48,7 +48,7 @@ func TestLoadAllRowCounts(t *testing.T) {
 		tbl.Card.Len(), tbl.Unit.Len(), tbl.Spell.Len())
 }
 
-// TestEmptyCellsPreserved 空单元格必须原样保留（缺陷 2 的判据）。
+// TestEmptyCellsPreserved 空单元格必须原样保留（判据 ②）。
 // archers 行在 unit.tsv 里有 2 个空单元格（death_spawn_key / spawn_key）：
 // 旧解析器（encoding/csv + TrimLeadingSpace=true）会把它们吃掉、后面的列集体左移，
 // 于是 summon_key 读成 "0"、summon_n 读成 100 —— 本断言就是钉死这件事。
@@ -91,7 +91,7 @@ func TestEmptyCellsPreserved(t *testing.T) {
 		row.SummonKey, row.SummonN, row.ProjectileKey, row.DeathSpawnKey, row.SpawnKey, len(lines)-1, want)
 }
 
-// TestLoadRejectsRaggedRow 少一列的行必须报错（⛔ 不许静默按空值处理 —— 那就是缺陷 2 的静默形态）。
+// TestLoadRejectsRaggedRow 少一列的行必须报错（⛔ 不许静默按空值处理 —— 那正是空单元格被吃掉的静默形态）。
 func TestLoadRejectsRaggedRow(t *testing.T) {
 	lines := strings.Split(strings.TrimRight(readTSV(t, "unit.tsv"), "\n"), "\n")
 	fields := strings.Split(lines[1], "\t")

@@ -1,9 +1,9 @@
 package core
 
-// AI 决策（agent-03）。
+// AI 决策。
 //
 // 纯逻辑：零引擎依赖、不引 logger（core 的约定 —— 非预期分支用返回值表达）。
-// 策略来自 docs/agents/agent-03-server-logic.md §5.4（够"像人"即可，不必最强）：
+// 策略口径（够"像人"即可，不必最强）：
 //
 //	① 对手地面部队越过桥进入己方半场 ⇒ 防守：用能打到它的最便宜手牌，
 //	   落点在自己塔前 / 桥头，离威胁 3~5 格；
@@ -17,7 +17,7 @@ package core
 // 所以 AI 没有任何后门，也没法落到非法位置。
 
 const (
-	// defendGapMilli 防守落点与威胁单位的距离（3.5 格，落在任务书要求的 3~5 格内）。
+	// defendGapMilli 防守落点与威胁单位的距离（本项目口径 3.5 格，落在 3~5 格内）。
 	defendGapMilli = 3500
 	// spellMinTargets 法术至少覆盖的敌方单位数。
 	spellMinTargets = 2
@@ -257,7 +257,7 @@ func decideDefense(b *Battle, team Team) (int32, int32, int32, bool) {
 		ax, ay = anchor.xMilli, anchor.yMilli
 	}
 	cands := make([][2]int32, 0, 8)
-	// 理想落点：从威胁处朝我方塔退 3~5 格（任务书 §5.4 ①）；逐个距离试，取第一个合法的。
+	// 理想落点：从威胁处朝我方塔退 3~5 格；逐个距离试，取第一个合法的。
 	for _, gap := range [5]int32{defendGapMilli, 3000, 4000, 4500, 5000} {
 		if x, y, ok := pointToward(threat.xMilli, threat.yMilli, ax, ay, gap); ok {
 			cands = append(cands, [2]int32{x, y})

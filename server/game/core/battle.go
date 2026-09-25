@@ -6,7 +6,7 @@ import (
 	"math/rand"
 )
 
-// Battle phases, matching Snapshot.Phase (task doc §4.2).
+// Battle phases, matching Snapshot.Phase.
 const (
 	PhaseNormal   int32 = 0
 	PhaseOvertime int32 = 1
@@ -15,7 +15,7 @@ const (
 
 // Sentinel errors returned by PlayCard / NewBattle.
 //
-// core has no logger (task doc §7): an unexpected branch is expressed as an
+// core has no logger: an unexpected branch is expressed as an
 // error here and as an Event where the client needs to see it.
 var (
 	ErrNoTable           = errors.New("core: CardTable is nil")
@@ -150,7 +150,7 @@ func NewBattle(cfg Config) (*Battle, error) {
 }
 
 // ---------------------------------------------------------------------------
-// Public accessors (task doc §4.1)
+// Public accessors
 // ---------------------------------------------------------------------------
 
 // Step advances the simulation by exactly one tick (50 ms).
@@ -177,7 +177,7 @@ func (b *Battle) Step() {
 	b.checkVictory()
 }
 
-// PlayCard is the single entry point for player input (task doc §4.1: ai.go
+// PlayCard is the single entry point for player input (ai.go
 // uses it too).
 func (b *Battle) PlayCard(team Team, cardID, xMilli, yMilli int32) error {
 	if !team.Valid() {

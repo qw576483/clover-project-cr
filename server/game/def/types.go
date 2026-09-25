@@ -2,7 +2,7 @@ package def
 
 // 本文件放**跨请求 / 推送共享**的协议类型（快照、时间线、房间信息等）。
 // 字段名与 docs/步骤文档.md §4.1 逐字一致；`BattleSnapshot` 与 `BattleStartNotify`
-// 的字段与 agent-02 的 `core.Snapshot` 对齐（见 docs/agents/agent-01-server-skeleton.md §4.4）。
+// 的字段与 `core.Snapshot` 对齐。
 
 // TowerState 一座塔的状态。
 type TowerState struct {
@@ -30,7 +30,7 @@ type EntitySnapshot struct {
 
 // BattleSnapshot 周期全量快照（10 Hz，BestEffort）。
 //
-// RoomID 是本片新增字段（客户端 `ProtoDef.BattleSnapshot.room_id` 同名同值）：
+// RoomID 与客户端 `ProtoDef.BattleSnapshot.room_id` 同名同值：
 // 客户端**必须**按它丢弃"不是本局房间"的帧 —— 否则旧房间的 tick 若还在推快照，
 // 它更大的 seq 会让客户端把新房的帧全判"倒退"丢掉（跨房间快照污染）。
 // 服务端先发字段即可：`JsonUtility` 忽略未知字段，旧客户端不会因此报错。
@@ -103,7 +103,7 @@ type RoomMember struct {
 //
 // 字段取自配表 `卡牌_cs`（server/game/table），服务端下发后客户端可直接渲染卡池。
 // 出处：docs/步骤文档.md §4.1 的 `GetCardPoolReply{cards[]}`（元素结构草案未在该表给出，
-// 本文件按下发给客户端所需的最小集确定，见 agent-01 回报「未决/新增定义」）。
+// 本文件按下发给客户端所需的最小集确定）。
 type CardInfo struct {
 	ID     int32  `json:"id"`
 	Key    string `json:"key"`

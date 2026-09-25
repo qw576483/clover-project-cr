@@ -11,7 +11,7 @@ package core
 // entity.advanceAlongRoute), which is what keeps positions from accumulating
 // rounding drift.
 //
-// No global A*: the original is lane pathing, not grid search (task doc §5).
+// No global A*: the original is lane pathing, not grid search.
 
 // routeWaypoints plans a route per 参考规格 §5 移动路径:
 // a ground unit goes start -> nearest bridge centre -> goal, and a same-side

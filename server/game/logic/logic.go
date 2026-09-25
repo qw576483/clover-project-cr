@@ -11,7 +11,7 @@
 //	battle.go  出牌 / 投降 / 主动同步 + 对局 tick + 快照与结算推送
 //	ai.go      主菜单「人机对战」入口 + 房间 AI 补位 + AI 卡组
 //
-// 契约出处：docs/步骤文档.md §4.1（消息号与协议）、docs/agents/agent-03-server-logic.md。
+// 契约出处：docs/步骤文档.md §4.1（消息号与协议）。
 package logic
 
 import (
@@ -34,7 +34,7 @@ type gameLogic struct {
 	aiDeckIDs []int32
 }
 
-// G 全局业务入口（与 agent-01 的占位同名，便于其他片引用）。
+// G 全局业务入口。
 var G = &gameLogic{}
 
 func init() {
@@ -97,7 +97,7 @@ func (l *gameLogic) mount(g *app.Game) {
 	// `room.NewMasterHandlers(mg)`（口径见上面 ③ 的 README 段）。
 	l.roomMod = room.NewModule(room.Config{
 		MasterCaller: nil,
-		Pusher:       func(pid string, msgID uint32, v any) error { return g.PushToPlayer(pid, msgID, v) },
+		Pusher:       func(pid string, msgID uint32, v any) error { return g.PushToPlayer(pushTarget(pid), msgID, v) },
 		NodeAddr:     g.Addr(),
 		Kernel:       &roomKernel{}, // ★ 业务侧内核（房间元数据 + 对局实例都在 registry 里）
 	})

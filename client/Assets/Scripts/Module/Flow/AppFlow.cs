@@ -70,6 +70,14 @@ namespace CR.Module.Flow
         /// <summary>连接轮询间隔（秒）。与引擎登录流程同一手法（轮询 + 总超时）。</summary>
         private const float ConnectPollSeconds = 0.1f;
 
+        /// <summary>
+        /// 等 `PushBattleStart` 的上限（秒）。取值依据：服务端在**同一次开打处理内**就把推送发出去
+        /// （`server/game/logic/battle.go:126` 的 `PushToPlayer(…, def.PushBattleStart, …)`），
+        /// 实测请求与推送落在同一秒 ⇒ 8 s 已是该延迟的百倍量级；超过它仍未到就按"这条推送丢了"处理。
+        /// 超时只是**放闸允许重试**，不改变闸本身"防重复请求"的语义（见 `_aiBattleInFlight`）。
+        /// </summary>
+        private const float AiBattlePushTimeoutSeconds = 8f;
+
         /// <summary>当前实例（跨场景存活，见类注释）。</summary>
         public static AppFlow Instance { get; private set; }
 
@@ -114,9 +122,18 @@ namespace CR.Module.Flow
         /// 闸的持有区间 = **从发请求到服务端 `PushBattleStart` 接手**（不是"到回包返回"）：
         /// 「回包已到、推送未到」之间仍留在主菜单站点、按钮仍可点，这段时间放开闸等于把连点漏洞留着。
         /// 推送一接手就转由 `_enteringBattle` 管（进图自有幂等），两条闸首尾相接、不重叠。
+        /// 推送若丢失，持有区间以 `AiBattlePushTimeoutSeconds` 为上限 —— 超时由
+        /// `ReleaseGateOnPushTimeoutAsync` 放闸并留痕，否则闸会一直持到会话结束。
         /// </para>
         /// </summary>
         private bool _aiBattleInFlight;
+
+        /// <summary>
+        /// 闸的代号，**每次置闸自增**（见 <see cref="SetAiBattleInFlight"/>）。用途：超时看门狗
+        /// （<see cref="ReleaseGateOnPushTimeoutAsync"/>）只许放**自己那一闸** —— 若期间推送已接手、
+        /// 或玩家已另起一局重新置闸，代号就变了，看门狗必须退场，⛔ 不碰新闸。
+        /// </summary>
+        private int _aiBattleGateSeq;
 
         private Action<string, string> _onLoginRequest;
         private Action<string, string> _onRegisterRequest;
@@ -933,6 +950,7 @@ namespace CR.Module.Flow
             }
 
             SetAiBattleInFlight(true, "start-request");
+            var gateSeq = _aiBattleGateSeq;
             var handedOff = false;
             try
             {
@@ -972,16 +990,38 @@ namespace CR.Module.Flow
                 // 成功 ⇒ 闸交给 `OnBattleStartPush` 放（"回包已到、推送未到"那一瞬连点仍被拦）。
                 if (!handedOff) SetAiBattleInFlight(false, "请求未成功，允许重试");
             }
+
+            // 成功路径的兜底：推送不到（服务端发了、客户端没收到）时闸不能一直持着 —— 见看门狗注释。
+            if (handedOff) await ReleaseGateOnPushTimeoutAsync(gateSeq);
+        }
+
+        /// <summary>
+        /// 等 `PushBattleStart` 的超时看门狗：`handedOff` 那一刻起到推送接手为止，闸由**推送**放
+        /// （`OnBattleStartPush`）。若这条推送永远不到（实测：服务端已开打、客户端一条推送都没有），
+        /// 闸会一直持到会话结束；而本工程关了域重载（`client/ProjectSettings/EditorSettings.asset` 的
+        /// `m_EnterPlayModeOptionsEnabled: 1` + `m_EnterPlayModeOptions: 1`）⇒ 静态单例 `Instance` 连同闸
+        /// 跨 Play 存活 ⇒ 同一编辑器会话里再点「人机对战」只会一直走 DUP-DROP 分支。
+        /// 这里等满 <see cref="AiBattlePushTimeoutSeconds"/> 仍未接手就放闸并留痕（非预期分支）。
+        /// </summary>
+        private async Task ReleaseGateOnPushTimeoutAsync(int gateSeq)
+        {
+            await Task.Delay((int)(AiBattlePushTimeoutSeconds * 1000f));
+            if (!_aiBattleInFlight || _aiBattleGateSeq != gateSeq) return;
+            SetAiBattleInFlight(false, "PushBattleStart 超时未到，放闸允许重试");
+            Game.Logger?.Warn(Tag,
+                $"[AiBattle] gate=TIMEOUT 回包已 ok 但等 PushBattleStart 已 {AiBattlePushTimeoutSeconds:0.#}s 仍未到 ⇒ 已放闸，可重新发起对局");
+            BattleStartFailed($"开打推送超时未到（已等 {AiBattlePushTimeoutSeconds:0.#}s）");
         }
 
         /// <summary>
         /// 人机对战在途闸的**唯一写入点**（置位 / 放闸都打一行，便于从日志复原"谁在什么时候放闸"）。
-        /// 值没变时不重复打，避免连点把日志刷满。
+        /// 值没变时不重复打，避免连点把日志刷满。置位时给闸一个新代号（见 <see cref="_aiBattleGateSeq"/>）。
         /// </summary>
         private void SetAiBattleInFlight(bool inFlight, string reason)
         {
             if (_aiBattleInFlight == inFlight) return;
             _aiBattleInFlight = inFlight;
+            if (inFlight) _aiBattleGateSeq++;
             // 标记用 ASCII（HOLD / RELEASE）⇒ 运行时日志可按"过程"计数（数值类判据，不看截图）。
             Game.Logger?.Info(Tag, $"[AiBattle] gate={(inFlight ? "HOLD" : "RELEASE")} reason={reason}");
         }

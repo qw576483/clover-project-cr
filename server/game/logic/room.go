@@ -829,7 +829,7 @@ func (l *gameLogic) pushRoomState(roomID string) {
 		// SelfPlayerID 是逐接收者的：同一个房间态推给不同玩家，「我是谁」不同。
 		// notify 是结构体值，这里改的是本轮迭代的副本，不会污染其它目标。
 		notify.SelfPlayerID = pid
-		if err := l.g.PushToPlayer(pid, def.PushRoomState, notify); err != nil {
+		if err := l.g.PushToPlayer(pushTarget(pid), def.PushRoomState, notify); err != nil {
 			logger.Warnf("logic: 推送房间状态失败 room=%s player=%s: %v", roomID, pid, err)
 		}
 	}
@@ -839,7 +839,7 @@ func (l *gameLogic) pushRoomState(roomID string) {
 func (l *gameLogic) pushRoomList() {
 	notify, targets := l.rooms.listNotify()
 	for _, pid := range targets {
-		if err := l.g.PushToPlayer(pid, def.PushRoomList, notify); err != nil {
+		if err := l.g.PushToPlayer(pushTarget(pid), def.PushRoomList, notify); err != nil {
 			logger.Warnf("logic: 推送房间列表失败 player=%s: %v", pid, err)
 		}
 	}
@@ -847,7 +847,7 @@ func (l *gameLogic) pushRoomList() {
 
 // ensureLobbyWatcher 为这条连接挂一个「大厅列表兜底推送」定时器。
 //
-// ★ 定时器 scope 的选取是本项目的一条硬约束（任务书 §5.3 / 引擎 StopTimerGroup 的语义）：
+// ★ 定时器 scope 的选取是本项目的一条硬约束（依据 = 引擎 StopTimerGroup 的语义）：
 //   - 随掉线自动清理的任务 ⇒ scope 必须**等于连接级 owner**（这里就是 c.Account()，
 //     引擎在硬掉线时调 StopTimerGroup(owner)，恰好把这条 watcher 一起清掉）；
 //   - 不能随掉线停的任务（对局 tick：对手还要接着打）⇒ 用带前缀的独立 scope
@@ -863,7 +863,7 @@ func (l *gameLogic) ensureLobbyWatcher(c event.Ctx) {
 	l.g.Timer.TimerGroup(owner).Every(lobbyWatcherName, lobbyWatcherInterval, func() {
 		pid := playerIDPrefix + owner
 		if notify, ok := l.rooms.flushLobby(pid); ok {
-			if err := l.g.PushToPlayer(pid, def.PushRoomList, notify); err != nil {
+			if err := l.g.PushToPlayer(pushTarget(pid), def.PushRoomList, notify); err != nil {
 				logger.Warnf("logic: 大厅列表兜底推送失败 player=%s: %v", pid, err)
 			}
 		}

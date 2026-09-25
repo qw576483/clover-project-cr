@@ -120,6 +120,10 @@ func (l *gameLogic) onAiBattleStart(c event.Ctx) error {
 		return nil
 	}
 
+	// 建号早于默认卡组规则的角色档案里 Deck 为空，先补一套（见 deck.go::ensureDefaultDeck），
+	// 否则下面 checkDeck 会把「没编过队」的玩家挡在门外。
+	l.ensureDefaultDeck(p, pid)
+
 	// 卡组：优先用请求里带的（客户端卡组页的选择），否则用档案里存的。
 	deck := req.Deck
 	if len(deck) != deckSize {

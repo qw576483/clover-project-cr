@@ -861,6 +861,42 @@ namespace CR
         /// <summary>弹道帧数。</summary>
         public const int EffectArrowCount = 20;
 
+        // ── 死亡特效（原版 die 档；差异登记见 `策划/差异登记.tsv`）──
+        //
+        // 出处：`策划/单位动画分组表.md:4697-4700` 的 `effects` 小节 —— die 档只有四个 export：
+        //   `Death_blue`（唯一像素帧 `52 62 65`）/ `Death_purple`（`52 63`）/
+        //   `death_ground`（`67-69`）/ `death_particle`（`50 66`），fps 全为 **30**。
+        // 这不是"挑帧"：`策划/单位帧段表.md` 逐目录核过 —— **89 个目录里 die 档全部"未找到"**
+        // （每单位没有自己的死亡动画）⇒ 原版的死亡表现就是这一族通用特效，蓝色族给蓝方、紫色族给红方。
+        // 三个用途目录各拷**该 export 自己的帧**，目录内按帧号升序 ⇒ `EffectsView.Play` 顺序播即该 export 的帧序。
+
+        /// <summary>用途目录：蓝方死亡特效（原版 `Death_blue`，唯一像素帧 52/62/65）。</summary>
+        public const string EffectDeathBlue = "Death/Blue";
+
+        /// <summary>用途目录：红方死亡特效（原版 `Death_purple`，唯一像素帧 52/63）。</summary>
+        public const string EffectDeathPurple = "Death/Purple";
+
+        /// <summary>用途目录：死亡地面扬尘（原版 `death_ground`，唯一像素帧 67-69）。</summary>
+        public const string EffectDeathGround = "Death/Ground";
+
+        /// <summary>蓝方死亡起始帧（原版 f052）。</summary>
+        public const int EffectDeathBlueFirst = 52;
+
+        /// <summary>蓝方死亡帧数（f052 / f062 / f065）。</summary>
+        public const int EffectDeathBlueCount = 3;
+
+        /// <summary>红方死亡起始帧（原版 f052）。</summary>
+        public const int EffectDeathPurpleFirst = 52;
+
+        /// <summary>红方死亡帧数（f052 / f063）。</summary>
+        public const int EffectDeathPurpleCount = 2;
+
+        /// <summary>死亡扬尘起始帧（原版 f067）。</summary>
+        public const int EffectDeathGroundFirst = 67;
+
+        /// <summary>死亡扬尘帧数（f067 / f068 / f069）。</summary>
+        public const int EffectDeathGroundCount = 3;
+
         // ───────────────────────── 法术命中特效（差异登记见 `策划/差异登记.tsv`）─────────────────────────
         //
         // 法术卡必须有独立命中特效的原因：法术卡走 `EvPlayCard` 事件，而客户端那条分支

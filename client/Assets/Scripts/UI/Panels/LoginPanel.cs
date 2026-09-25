@@ -107,6 +107,10 @@ namespace CR.UI.Panels
         private InputField _account;
         private InputField _password;
         private Text _status;
+
+        /// <summary>状态条底板（`ui_out` 014 板岩九宫格）。**只在有消息时可见** —— 见 <see cref="SetStatus"/>。</summary>
+        private Image _statusBar;
+
         private Image _loginButton;
         private Image _registerButton;
 
@@ -130,14 +134,8 @@ namespace CR.UI.Panels
             // 为什么不能只靠 `LoginFailed` 事件：那时面板还没打开，事件无人接收 ⇒ 玩家只看到一个
             // 干净的登录框、不知道刚才发生了什么。
             var carriedError = param as string;
-            if (!string.IsNullOrEmpty(carriedError))
-            {
-                SetStatus(carriedError, CrUiStyle.ErrorText);
-            }
-            else if (_status != null && string.IsNullOrEmpty(_status.text))
-            {
-                SetStatus("请输入账号与密码", CrUiStyle.TextDim);
-            }
+            SetStatus(string.IsNullOrEmpty(carriedError) ? null : carriedError,
+                string.IsNullOrEmpty(carriedError) ? CrUiStyle.TextDim : CrUiStyle.ErrorText);
         }
 
         public override void OnClose()
@@ -200,15 +198,17 @@ namespace CR.UI.Panels
             if (_account != null) _account.text = Cfg.Account.name_prefix + Cfg.Account.name_suffix;
             if (_password != null) _password.text = Cfg.Account.password;
 
-            // 状态行：先垫一条**板岩条**（原版"深色字段 + 亮字"的语言）再放状态色 ——
-            //   `TextDim` / `Accent` / `ErrorText` 三个状态色都是为暗底设计的，压亮面 (229,236,242)
-            //   对比度极低（主菜单上同一问题：状态字直接看不见）。
-            CrUiStyle.Skin("StatusBar", c, CrUiStyle.PopupFrameSlate, 24, Vector4.zero,
+            // 状态行：**没有消息时不占画面**（`LoginBoxBody` 上没有常驻空条），有消息时才垫上那条
+            //   **板岩条**（原版"深色字段 + 亮字"的语言）—— `TextDim` / `Accent` / `ErrorText`
+            //   三个状态色都是为暗底设计的，压亮面 (229,236,242) 对比度极低（主菜单上同一问题：
+            //   状态字直接看不见）⇒ 条与字必须同生同灭（见 `SetStatus`）。
+            _statusBar = CrUiStyle.Skin("StatusBar", c, CrUiStyle.PopupFrameSlate, 24, Vector4.zero,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, StatusY),
                 new Vector2(InnerW, StatusH), CrUiStyle.BandSlate, false);
             _status = UIFactory.CreateLabel("Status", c, string.Empty, CrUiStyle.FontSmall,
                 new Vector2(Pad + GapM, StatusY + GapM), new Vector2(InnerW - 2f * GapM, StatusH - 2f * GapM),
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);
+            SetStatus(null, CrUiStyle.TextDim);
 
             // 主按钮 = 原版蓝按钮（`ui_out` 165）+ 白字黑描边；次按钮 = 原版板岩（`ui_out` 014）。
             _loginButton = CrUiStyle.BlueButton("LoginButton", c, "登 录",
@@ -305,11 +305,19 @@ namespace CR.UI.Panels
             if (busy) SetStatus(text, CrUiStyle.Accent);
         }
 
+        /// <summary>
+        /// 写状态行。<paramref name="text"/> 为空 ⇒ 状态条与状态字**一起**隐藏（登录框上没有常驻空条）。
+        /// </summary>
         private void SetStatus(string text, Color color)
         {
-            if (_status == null) return;
-            _status.text = text ?? string.Empty;
-            _status.color = color;
+            var has = !string.IsNullOrEmpty(text);
+            if (_status != null)
+            {
+                _status.text = has ? text : string.Empty;
+                _status.color = color;
+                _status.gameObject.SetActive(has);
+            }
+            if (_statusBar != null) _statusBar.gameObject.SetActive(has);
         }
     }
 }

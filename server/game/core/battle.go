@@ -440,10 +440,12 @@ func (b *Battle) stepKingActivation() {
 	}
 }
 
-// updateTargets keeps or re-acquires each entity's target.
+// updateTargets re-acquires each entity's target as the nearest legal one
+// inside sight range (参考规格 §5 索敌).
 //
-// Targets are sticky: a unit does not re-choose every tick, it keeps its target
-// until that target dies or leaves sight range (参考规格 §5 索敌).
+// A unit that already holds that nearest target is left untouched, so its
+// attack windup survives; any other outcome writes a new targetID and the
+// attack cycle pays the first-hit delay again.
 func (b *Battle) updateTargets() {
 	candidates := b.allEntities()
 	for _, e := range candidates {
@@ -463,15 +465,16 @@ func (b *Battle) updateTargets() {
 			continue
 		}
 		cur := b.entityByID(e.targetID)
-		if !keepTarget(e, cur) {
-			cur = acquireTarget(e, candidates)
-			if cur == nil {
-				e.targetID = 0
-				e.st.disengage()
-				continue
-			}
-			e.targetID = cur.ID
+		best := acquireTarget(e, candidates)
+		if best == nil {
+			e.targetID = 0
+			e.st.disengage()
+			continue
 		}
+		if holdsTarget(e, cur, best) {
+			continue
+		}
+		e.targetID = best.ID
 	}
 }
 

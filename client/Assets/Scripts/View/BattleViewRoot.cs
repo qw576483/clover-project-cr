@@ -154,6 +154,16 @@ namespace CR.View
         /// </summary>
         private const float DeployFxSeconds = 1.0f;
 
+        /// <summary>
+        /// 落位标记（绿色上箭头 f119）的**同卡去重窗口**（秒）。
+        /// <para>
+        /// <b>本项目自定</b>：多单位卡片由服务端**逐单位**发 `EvSpawn`（同一 tick 内的若干条相隔 &lt; 10 ms），
+        /// 而原版玩家看到的落地标记是"这张卡在就位"这**一枚** ⇒ 窗口只需覆盖"同一批生成"。
+        /// 取 0.5 s 是为了容纳服务端分帧生成（例如召唤建筑的第二波小兵）。
+        /// </para>
+        /// </summary>
+        private const float DeployDedupeSeconds = 0.5f;
+
         /// <summary>部署期（`deploy_ms &gt; 0`）的透明度 —— 原版未激活单位是半透明的。</summary>
         public const float DeployAlpha = 0.55f;
 
@@ -264,6 +274,9 @@ namespace CR.View
         /// <summary>本局播出的出牌落地特效次数（= 收到的 `EvSpawn` 事件里成功播出的数量）。</summary>
         public int DeployFxPlayed { get { return _deployFxPlayed; } }
 
+        /// <summary>本局被"同一次出牌"去重掉的落位标记条数（多单位卡片的后续单位，见 `PlayDeploy`）。</summary>
+        public int DeployDupeSkipped { get { return _deployDupeSkipped; } }
+
         /// <summary>本局因"攻击档"触发播出的战斗弹道条数。</summary>
         public int BattleProjectileShots { get { return _battleShots; } }
 
@@ -315,6 +328,35 @@ namespace CR.View
         private int _hitFxPlayed;
         private int _hitFxSkipped;
         private int _deployFxPlayed;
+
+        /// <summary>
+        /// 本场画面（`Build()` 之后）已开始过的那一局的 `room_id` / `seed`（`BattleStartNotify` 自带）。
+        /// `null` = 本场画面还没开过局；判"是不是新的一局"的键，见 <see cref="OnBattleStarted"/>。
+        /// </summary>
+        private string _matchRoomId;
+
+        /// <summary>同上那一局的 `seed`（与 <see cref="_matchRoomId"/> 配对）。</summary>
+        private long _matchSeed = long.MinValue;
+
+        /// <summary>
+        /// 待预热精灵目录的那一局（<see cref="OnBattleStarted"/> 写下、<see cref="WarmBattleSprites"/> 消费）。
+        /// <para>
+        /// 为什么要留一手：`Events.Battle.Started` 在 **`Scene.Load` 之前**就发出（见 `Build()` 开头的注释），
+        /// 首次进图时它早于建场 ⇒ 预热只能在建场之后补做（那时资源后端已就绪）；同一场景连开下一局时
+        /// 画面已建好 ⇒ 当场就做。<c>null</c> = 没有待预热的局。
+        /// </para>
+        /// </summary>
+        private BattleStartNotify _warmNotify;
+
+        /// <summary>最近一条落位标记所用的卡 id（同卡去重的键，见 <see cref="PlayDeploy"/>）。</summary>
+        private int _lastDeployCardId;
+
+        /// <summary>最近一条落位标记的时刻（`Time.unscaledTime`，与 <see cref="DeployDedupeSeconds"/> 配对）。</summary>
+        private float _lastDeployTime = -999f;
+
+        /// <summary>被"同一次出牌"去重掉的落位标记条数（自检用，见 <see cref="DeployDupeSkipped"/>）。</summary>
+        private int _deployDupeSkipped;
+
         private int _battleShots;
         private int _towerShots;
         private int _towerShotFlights;
@@ -765,6 +807,9 @@ namespace CR.View
             _hitFxPlayed = 0;
             _hitFxSkipped = 0;
             _deployFxPlayed = 0;
+            _lastDeployCardId = 0;
+            _lastDeployTime = -999f;
+            _deployDupeSkipped = 0;
             _battleShots = 0;
             _towerShots = 0;
             _towerShotFlights = 0;
@@ -799,9 +844,15 @@ namespace CR.View
             _arrivalReal = Time.realtimeSinceStartup;
             _catchingUp = false;
             _timeWarned = false;
+            // 「本场画面还没开过局」：⛔ 不清 ⇒ 同一场景连开下一局时被判成"同一局"，塔的阵亡态与快照时钟
+            // 都不会重置（见 `OnBattleStarted`）。上面那组时间轴字段同时归零 ⇒ 新局 `server_ms` 从 0 重走。
+            _matchRoomId = null;
+            _matchSeed = long.MinValue;
             _built = true;
             Game.Logger?.Info(LogTag,
                 $"对局表现层已建：塔={_arena.TowerCount} 相机={_cam.name} 正交半高={_cam.orthographicSize:F2}（18×32 格竖屏）");
+            // 建场后才预热：`Events.Battle.Started` 可能早于本方法（首次进图），此刻资源后端已就绪。
+            WarmBattleSprites();
         }
 
         /// <summary>拆掉画面（幂等）。</summary>
@@ -829,6 +880,7 @@ namespace CR.View
             for (var i = 0; i < HistSlots; i++) _idxHist[i].Clear();
             _histLen = 0;
             _hasPrev = false;
+            _warmNotify = null;         // 画面已拆 ⇒ 那份待预热（见 WarmBattleSprites）没有落点了
             _built = false;
             if (_subscribed) Game.Logger?.Info(LogTag, "对局表现层已拆（出图）");
         }
@@ -890,6 +942,33 @@ namespace CR.View
         {
             if (n == null) return;
             _myTeam = n.my_team;
+            // ── 同一场景里的**新一局**必须整场重建（差异登记 D173）──
+            // 「再来一局」时 `AppFlow.RequestEnterBattle` 只切站点、不重载场景（`CurrentScene == Battle01`）
+            // ⇒ 本组件不重建，而这两样东西都是**每局唯一**的、必须归零的：
+            //   ① `ArenaView.TowerView` 的阵亡终态锁（`ArenaView._destroyed` 置位后不清零）会把新局
+            //      "塔满血存活"的快照挡掉 ⇒ 塔体各层仍隐藏、废墟层仍亮（= 塔还是死亡状态）；
+            //   ② 快照时钟（`_snapshotCount/_newestMs/_msHist/_histLen/_clockBaseMs`）还停在上局末尾，
+            //      而新局 `server_ms` 从 0 起 ⇒ `OnSnapshot` 的"时间戳没有前进 ⇒ 整帧丢弃"会把新局快照
+            //      一直丢到时间追上上一局（画面停在上局末帧）。
+            // 判"新的一局"= `room_id` + `seed` 变化（服务端每局新建房间）；`_matchRoomId == null` = 本场画面
+            // 还没开过局（`Build()` 里清），此时画面本来就是新建的，⛔ 不重建（否则每次进图白重建一次）。
+            // `Teardown()` 之后由下方的 `RebuildIfWanted` 重建；`Build()` 里把上面两组一起归零
+            // ⇒ ⛔ 只清 `_destroyed` 不够（时钟那组不清仍会停帧）。
+            var newMatch = _matchRoomId != null && (n.room_id != _matchRoomId || n.seed != _matchSeed);
+            if (newMatch)
+            {
+                Game.Logger?.Info(LogTag,
+                    $"新的一局：room_id={n.room_id} seed={n.seed}（上一局 room_id={_matchRoomId} seed={_matchSeed}）" +
+                    $"⇒ 对局表现层整场重建（已建={_built}）");
+                _matchRoomId = n.room_id;
+                _matchSeed = n.seed;
+                if (_built) Teardown();
+            }
+            else if (_matchRoomId == null)
+            {
+                _matchRoomId = n.room_id;
+                _matchSeed = n.seed;
+            }
             // hp / anim 比对表必须清零：⛔ 不清会把上一局的 hp 与新局比对出**假命中**，
             // 也会让上一局的 `anim==2` 与开局第一帧比出一个假"开火"（同 BattleAudioView.OnBattleStarted 的处置）。
             _prevHp.Clear();
@@ -898,10 +977,81 @@ namespace CR.View
             _curAnim.Clear();
             _lastShotMs.Clear();
             if (!_built) RebuildIfWanted("Events.Battle.Started"); // 兜底：万一 StationChanged 没到（例如直接由服务端推送进对局）
+            // 精灵预热：画面已建 ⇒ 当场做；画面待建（首次进图，本事件早于 `Scene.Load`）⇒ 记下待办、由 `Build()` 补做。
+            _warmNotify = n;
+            if (_built) WarmBattleSprites();
             var regulation = n.timeline != null ? n.timeline.regulation_ms : 0;
             Game.Logger?.Info(LogTag,
                 $"对局开始：my_team={_myTeam}({(_myTeam == 0 ? "BLUE" : "RED")}) 常规={regulation}ms " +
                 $"我的手牌={HandToString(_myTeam == 0 ? n.hand_a : n.hand_b)} 下一张={(int)(_myTeam == 0 ? n.next_a : n.next_b)}");
+        }
+
+        // ── D167 放卡卡顿：战斗期会用到的精灵目录，在进图期先整目录抓一遍 ──
+
+        /// <summary>
+        /// 预热本局会用到的精灵目录（消费 <see cref="_warmNotify"/>，一局一次）。
+        /// <para>
+        /// <b>为什么必须预热</b>：<see cref="SpriteBank.LoadDir(string,SpriteBank.SpritePivotMode)"/> 是
+        /// **同步整目录加载**（引擎 <c>IResourceManager.LoadAll{T}</c>，契约见 <see cref="SpriteBank"/> 的类注释：
+        /// "同步、阻塞主线程，请在进图前 / 读条阶段调用"），而 `UnitView.Bind` 与 `EffectsView.Spawn`
+        /// 都在**战斗热路径**里第一次碰到某目录时才加载它 ⇒ 出牌 / 单位出场 / 首次命中那一帧要等这次加载，
+        /// 表现为"放一张卡卡一下、单位出现又卡一下"。<see cref="Teardown"/>（出图）会
+        /// <see cref="SpriteBank.ClearCache"/> ⇒ 每局都从头踩一遍，所以预热也必须**每局做一次**。
+        /// </para>
+        /// <para>
+        /// 范围 = 双方卡组 + 双方手牌（卡 id → 目录走 <see cref="CardVisuals"/>，法术卡不在表里、由下方的
+        /// 特效目录覆盖）+ 战斗期特效目录（落地 / 死亡 / 命中 / 爆炸 / 弹道 / 法术命中）。
+        /// `FrameBank` 按 (锚点模式, 路径) 缓存 ⇒ 重复目录再调一次不重复加载。
+        /// </para>
+        /// </summary>
+        private void WarmBattleSprites()
+        {
+            var n = _warmNotify;
+            if (n == null) return;
+            _warmNotify = null;
+
+            var dirs = 0;
+            var hits = 0;
+            var frames = 0;
+            WarmCardList(n.deck_a, ref dirs, ref hits, ref frames);
+            WarmCardList(n.deck_b, ref dirs, ref hits, ref frames);
+            WarmCardList(n.hand_a, ref dirs, ref hits, ref frames);
+            WarmCardList(n.hand_b, ref dirs, ref hits, ref frames);
+            var cardDirs = dirs;
+
+            var uses = new[]
+            {
+                DeployFxDir,
+                ResPaths.EffectDeathBlue, ResPaths.EffectDeathPurple, ResPaths.EffectDeathGround,
+                ResPaths.EffectHit, ResPaths.EffectBlast, ResPaths.EffectArrow,
+                ResPaths.EffectSpell, ResPaths.EffectSpellBarrel,
+            };
+            for (var i = 0; i < uses.Length; i++)
+            {
+                var f = SpriteBank.LoadDir(ResPaths.EffectDir(uses[i]), SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
+                dirs++;
+                if (f.Length > 0) { hits++; frames += f.Length; }
+            }
+
+            // 判据行：`hits` 必须等于 `dirs`（取不到 = 目录名错 / 素材没落地 ⇒ 战斗期仍会首触并留 Warn）。
+            Game.Logger?.Info(LogTag,
+                $"精灵预热：卡组+手牌目录 {cardDirs} 个 + 战斗特效目录 {uses.Length} 个（含重复）⇒ " +
+                $"命中 {hits} / 取不到 {dirs - hits}，共 {frames} 帧；战斗期不再首触 LoadDir");
+        }
+
+        /// <summary>预热一批卡 id 的精灵目录（见 <see cref="WarmBattleSprites"/>）。⛔ 表外的卡跳过（法术卡走特效目录）。</summary>
+        private static void WarmCardList(int[] cardIds, ref int dirs, ref int hits, ref int frames)
+        {
+            if (cardIds == null) return;
+            for (var i = 0; i < cardIds.Length; i++)
+            {
+                CardVisual v;
+                if (!CardVisuals.TryGetValue(cardIds[i], out v) || string.IsNullOrEmpty(v.Dir)) continue;
+                var path = v.IsBuilding ? ResPaths.BuildingDir(v.Dir) : ResPaths.UnitDir(v.Dir);
+                var f = SpriteBank.LoadDir(path, SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
+                dirs++;
+                if (f.Length > 0) { hits++; frames += f.Length; }
+            }
         }
 
         private void OnSnapshot(BattleSnapshot s)
@@ -1023,12 +1173,21 @@ namespace CR.View
                         break;
 
                     case EventKindDeath:
-                        // 命中 / 受击闪光：在死亡位置播 `Hit` 类原版帧序列（f050..f056）。
+                        // 死亡：原版 **die 档**（出处 = `ResPaths.EffectDeathBlue` 上方的块：原版 `effects_out`
+                        // 的 `Death_blue` / `Death_purple` / `death_ground`）。蓝方播蓝族、红方播紫族，
+                        // 之后都跟一段地面扬尘。⛔ 不用 `Hit`（f050..f056 是命中光球，不是死亡表现）。
                         // ⚠️ 只覆盖**致死**那一击；**非致死**命中由快照 hp 下降补播（见 OnSnapshot），
                         // 两者互斥（非致死才走 hp 下降分支），⛔ 不会同一击播两次。
                         if (_effects != null)
-                            _effects.Play(GameConst.MilliToWorld(e.x_milli, e.y_milli),
-                                ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount, EffectsView.WorldSize);
+                        {
+                            var at = GameConst.MilliToWorld(e.x_milli, e.y_milli);
+                            var deathUse = e.team == 0 ? ResPaths.EffectDeathBlue : ResPaths.EffectDeathPurple;
+                            var deathFirst = e.team == 0 ? ResPaths.EffectDeathBlueFirst : ResPaths.EffectDeathPurpleFirst;
+                            var deathCount = e.team == 0 ? ResPaths.EffectDeathBlueCount : ResPaths.EffectDeathPurpleCount;
+                            _effects.Play(at, deathUse, deathFirst, deathCount, EffectsView.WorldSize);
+                            _effects.Play(at, ResPaths.EffectDeathGround, ResPaths.EffectDeathGroundFirst,
+                                ResPaths.EffectDeathGroundCount, EffectsView.WorldSize);
+                        }
                         break;
 
                     case EventKindTowerDestroyed:
@@ -1097,12 +1256,34 @@ namespace CR.View
         {
             if (_effects == null) return;
             var world = GameConst.MilliToWorld(e.x_milli, e.y_milli);
+
+            // ① 就位读条：落点处转圈，时长 = 落位期。多单位卡片的若干条 `EvSpawn` 落在同一窗口内
+            //    ⇒ 看起来是一条连续的读条（每条事件都把倒计时重起，见 ShowDeployRing）。
+            ShowDeployRing(WorldToTile(world), 1f, DeployFxSeconds);
+
+            // ② 绿色落地标记：**按一次出牌去重**。`EvSpawn` 是逐单位发的（一张 3 单位的卡 = 3 条事件），
+            //    而玩家看到的是"这张卡在就位"这一枚标记 —— 逐单位各画一枚就成了"每个单位头上一个绿点"。
+            //    ⛔ 只影响标记的重复绘制，不影响任何实体生成（单位一律以快照为准）。
+            var sameCard = e.card_id == _lastDeployCardId
+                           && Time.unscaledTime - _lastDeployTime < DeployDedupeSeconds;
+            if (sameCard)
+            {
+                _deployDupeSkipped++;
+                Game.Logger?.Info(LogTag,
+                    $"出牌落地标记去重（同一次出牌的后续单位）：ent={e.entity_id} card={e.card_id} " +
+                    $"本局累计：落位={_deployFxPlayed} 去重={_deployDupeSkipped}");
+                return;
+            }
+            _lastDeployCardId = e.card_id;
+            _lastDeployTime = Time.unscaledTime;
+
             var before = _effects.SpawnedTotal;
             _effects.PlayHold(world, DeployFxDir, DeployFxFirst, EffectsView.WorldSize, DeployFxSeconds);
             if (_effects.SpawnedTotal > before) _deployFxPlayed++;
             Game.Logger?.Info(LogTag,
                 $"出牌落地特效：ent={e.entity_id} team={e.team} card={e.card_id} " +
-                $"落点=({world.x:F2},{world.y:F2}) 帧=f{DeployFxFirst}（{DeployFxDir}）定格={DeployFxSeconds:F2}s 本局累计={_deployFxPlayed}");
+                $"落点=({world.x:F2},{world.y:F2}) 帧=f{DeployFxFirst}（{DeployFxDir}）定格={DeployFxSeconds:F2}s " +
+                $"本局累计：落位={_deployFxPlayed} 去重={_deployDupeSkipped}");
         }
 
         /// <summary>
@@ -1313,12 +1494,16 @@ namespace CR.View
             //    —— 若先声明 `Vector2 muzzle;` 再用 `&&` 短路调用，编辑器会报
             //    `CS0165 Use of unassigned local variable 'muzzle'`。
             Vector2 muzzle = GameConst.MilliToWorld(e.x_milli, e.y_milli);
-            var fromMuzzleLayer = _arena != null && _arena.TryTowerMuzzle(e.entity_id, out muzzle);
+            // 先按**队伍 + 事件坐标**对号（塔实体 id 实测恒为 0 ⇒ 按 id 永远匹配不上，见
+            // ArenaView.TryTowerMuzzle 的注释），再退回按 id。
+            var fromMuzzleLayer = _arena != null
+                && (_arena.TryTowerMuzzle(e.x_milli, e.y_milli, e.team, out muzzle)
+                    || _arena.TryTowerMuzzle(e.entity_id, out muzzle));
             if (!fromMuzzleLayer && !_towerMuzzleMissingWarned)
             {
                 _towerMuzzleMissingWarned = true;
                 Game.Logger?.Warn(LogTag,
-                    $"塔开火：塔 id={e.entity_id} 在塔视图里找不到炮口层（塔视图未建 / id 对不上）⇒ " +
+                    $"塔开火：塔 id={e.entity_id} team={e.team} 在塔视图里找不到炮口层（塔视图未建 / 坐标对不上）⇒ " +
                     $"用事件自带的塔根坐标 ({muzzle.x:F2},{muzzle.y:F2}) 兜底（炮口闪光看起来会偏到塔底）（只报一次）");
             }
 
@@ -1976,11 +2161,28 @@ namespace CR.View
             return PlacementIndicator.IsLegalDeploy(input, tileXY.x, tileXY.y, isSpell);
         }
 
-        /// <summary>显示落点指示（合法绿 / 非法红）。HUD 在**每次指针移动**时调一次即可。</summary>
-        public void ShowPlacement(Vector2 tileXY, float radiusTiles, bool isSpell)
+        /// <summary>
+        /// 显示落点指示（合法绿 / 非法红）+ 落点处的**卡面虚影**。HUD 在**每次指针移动**时调一次即可。
+        /// </summary>
+        /// <param name="cardArt">
+        /// 正在拖的那张卡的**卡面**（由 HUD 从手牌卡面直接给出）；<c>null</c> = 不显示虚影。
+        /// ⛔ 不用任何兜底图形顶替 —— 取不到卡面时宁可不显示（否则又变成"一个小图标"，见 `_dropCard`）。
+        /// </param>
+        public void ShowPlacement(Vector2 tileXY, float radiusTiles, bool isSpell, Sprite cardArt = null)
         {
             if (_indicator == null) return;
+            _indicator.SetDropCard(cardArt);
             _indicator.Show(tileXY, radiusTiles, IsDeployLegal(tileXY, isSpell));
+        }
+
+        /// <summary>
+        /// 落点处的**就位读条**：出牌落位期间在落点转圈（时长 = 服务端 `deploy_time`）。
+        /// 由 <see cref="PlayDeploy"/> 调用 —— 它只表示"这张卡在就位"，⛔ 不表示落点是否合法。
+        /// </summary>
+        public void ShowDeployRing(Vector2 tileXY, float radiusTiles, float seconds)
+        {
+            if (_indicator == null) return;
+            _indicator.ShowDeployRing(tileXY, radiusTiles, seconds);
         }
 
         /// <summary>隐藏落点指示（抬手 / 取消拖放）。</summary>

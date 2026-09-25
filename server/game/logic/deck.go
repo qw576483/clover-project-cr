@@ -3,6 +3,7 @@ package logic
 import (
 	"fmt"
 
+	"clover-cr/game/datadef"
 	"clover-cr/game/def"
 	"github.com/qw576483/clover-server-engine/pkg/foundation/logger"
 	"github.com/qw576483/clover-server-engine/pkg/shared/proto"
@@ -11,6 +12,32 @@ import (
 
 // deckSize 一副卡组的卡数（参考规格 §7 S11：8 张卡组）。
 const deckSize = 8
+
+// ensureDefaultDeck 给还没有卡组的角色落一套默认卡组。
+//
+// 为什么必须在创角那一刻落：卡组只有 `onSaveDeck` 会写，而开局的两条路
+// （`onAiBattleStart` / `room.go::checkStartable`）都要求卡组**已经**是合法的 8 张
+// ⇒ 新角色直接点「人机对战」会被 checkDeck 拒掉，玩家看到的就是
+// 「必须先去编队里点一次保存」。
+//
+// 默认卡组 = 参考实现 `原版资源/cr-sim/cr_sim/train/run.py:55` 的 `DEFAULT_DECK`
+// （同一份常量已按 key 搬进 `ai.go::aiDeckRefKeys`，出处与 key 对应关系见其注释）。
+//
+// 幂等：档案里已有卡组就原样不动（编队页保存过的玩家不会被这里覆盖）。
+func (l *gameLogic) ensureDefaultDeck(p *datadef.PlayerData, pid string) {
+	if p == nil || len(p.Deck) > 0 {
+		return
+	}
+	deck := l.aiDeck()
+	if err := l.checkDeck(deck); err != nil {
+		// 非预期分支：默认卡组来自装配期（`aiDeckIDs`），非法说明配表没就绪或
+		// 参考卡组点名的卡缺失 —— 留痕，但不改档案（宁可不给，也不给一套非法卡组）。
+		logger.Errorf("logic: 默认卡组不合法 player=%s deck=%v: %v", pid, deck, err)
+		return
+	}
+	p.Deck = append([]int32(nil), deck...)
+	logger.Infof("logic: 落默认卡组 player=%s cards=%d=%v", pid, len(p.Deck), p.Deck)
+}
 
 // checkDeck 校验卡组：正好 8 张、不重复、每张都在卡池里。
 // 这是**协议层**的合法性校验（不是玩法规则：不判圣水、不判强度），

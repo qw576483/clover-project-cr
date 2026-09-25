@@ -62,6 +62,34 @@ namespace CR.View
         private float _lastRadius;
         private bool _lastLegal;
 
+        /// <summary>
+        /// 落点处的**卡面虚影**（拖动时显示的那张卡本身）。原版拖动时落点上就是这张卡，不是一个小图标。
+        /// <para>
+        /// ⛔ 它**不是本指示器的子节点**：指示器自身带 `localScale`（按半径缩放）且每帧旋转，
+        /// 卡面若挂在它下面会被一起缩放 + 跟着转。两者位置相同、层级相邻，各管各的变换。
+        /// </para>
+        /// </summary>
+        private SpriteRenderer _dropCard;
+
+        /// <summary>当前要显示的卡面（由 HUD 在起拖时给出；<c>null</c> = 不显示虚影）。</summary>
+        private Sprite _dropArt;
+
+        /// <summary>落点卡面虚影的着色（半透明 —— 它是"还没落下"的预览，见 <see cref="_dropCard"/>）。</summary>
+        private static readonly Color DropCardColor = new Color(1f, 1f, 1f, 0.62f);
+
+        /// <summary>就位读条的**剩余秒数**（&gt; 0 = 正在显示；由 <see cref="ShowDeployRing"/> 起算）。</summary>
+        private float _deployLeft;
+
+        /// <summary>就位读条的外径（格）—— 取 <see cref="ShowDeployRing"/> 传入的落点半径 × 2。</summary>
+        private float _deployRadiusTiles = 1f;
+
+        /// <summary>
+        /// 落点卡面虚影的世界高度（格）—— <b>本项目自定</b>：卡面虚影取**部队落点圈的外径**
+        /// （`HudPanel.PlacementRadiusTilesDrop` = 1 格半径 ⇒ 直径 2 格），宽按卡面素材自身比例。
+        /// ⛔ 不跟法术半径缩放：法术半径最大 3.5 格 ⇒ 卡面会被放大到 7 格，不是"落下前的预览"了。
+        /// </summary>
+        private const float DropCardHeightTiles = 2f;
+
         /// <summary>原版环形素材（我方 f221 / 敌方 f294）；未到货时为 null ⇒ 用 <see cref="_discSprite"/> 兜底。</summary>
         private Sprite _ringFriendly;
         private Sprite _ringHostile;
@@ -94,8 +122,59 @@ namespace CR.View
             // 落点指示必须压在**所有单位与塔之下**（它是一块地板高亮），所以给一个很低的 sortingOrder。
             // 与 UnitView/ArenaView 的层级约定：底图 0 / 塔 50 / 指示 200 / 单位 1000（见各自注释）。
             _renderer.sortingOrder = ArenaLayers.Instance.Indicator;
+
+            // 落点卡面虚影：**兄弟节点**（理由见 `_dropCard` 的注释），压在落点环之下、单位之上仍在其下
+            //（单位层从 `ArenaLayers.Instance.Actor` 起，见 UnitView）。
+            var dropGo = new GameObject("DropCard");
+            dropGo.transform.SetParent(transform.parent, false);
+            _dropCard = dropGo.AddComponent<SpriteRenderer>();
+            _dropCard.sortingOrder = ArenaLayers.Instance.Indicator - 1;
+            _dropCard.color = DropCardColor;
+            dropGo.SetActive(false);
+
             LoadRingSprites();
             SetVisible(false);
+        }
+
+        /// <summary>
+        /// 设置落点处显示的**卡面**（原版拖放时落点上显示的就是这张卡本身）。
+        /// 传 <c>null</c> 关掉虚影（抬手 / 取消 / 就位读条开始时）。
+        /// </summary>
+        public void SetDropCard(Sprite art)
+        {
+            _dropArt = art;
+            if (_dropCard == null) return;
+            _dropCard.sprite = art;
+            _dropCard.gameObject.SetActive(art != null);
+            if (art != null) ReapplyDropCard();
+        }
+
+        /// <summary>落点卡面虚影的位置与缩放（位置跟落点走，缩放取"卡面高 = 落点直径"）。</summary>
+        private void ReapplyDropCard()
+        {
+            if (_dropCard == null || _dropArt == null) return;
+            _dropCard.transform.position = transform.position;
+            var native = _dropArt.bounds.size.y;
+            if (native <= 0f) native = 1f;
+            var scale = DropCardHeightTiles / native;
+            _dropCard.transform.localScale = new Vector3(scale, scale, 1f);
+        }
+
+        /// <summary>
+        /// 落点处的**就位读条**：在 <paramref name="tileXY"/> 显示原版范围环并持续转圈
+        /// <paramref name="seconds"/> 秒（= 出牌落位期，服务端 `deploy_time` 的长度）。
+        /// <para>
+        /// 用途：出牌落位期间"这张卡正在就位"的唯一提示。⛔ 环的图元与 <see cref="Show"/> 同一个
+        /// （原版范围环），⛔ 不另画图形。
+        /// </para>
+        /// </summary>
+        public void ShowDeployRing(Vector2 tileXY, float radiusTiles, float seconds)
+        {
+            SetDropCard(null);
+            _deployRadiusTiles = radiusTiles;
+            // ⚠️ 顺序：`Show` 会把 `_deployLeft` 归零（拖动接手），所以倒计时必须在它**之后**起算。
+            Show(tileXY, radiusTiles, true);
+            _deployLeft = seconds > 0f ? seconds : 1f;
         }
 
         /// <summary>
@@ -160,6 +239,8 @@ namespace CR.View
         /// <param name="legal">是否合法（由 <see cref="IsLegalDeploy(DeployInput,float,float,bool)"/> 判定）。</param>
         public void Show(Vector2 tileXY, float radiusTiles, bool legal)
         {
+            // 拖动接手：把上一条就位读条的倒计时清掉（否则它会中途把这一轮拖动的环收走）。
+            _deployLeft = 0f;
             _lastTile = tileXY;
             _lastRadius = radiusTiles;
             _lastLegal = legal;
@@ -196,6 +277,8 @@ namespace CR.View
             // 两种贴图用两套着色（理由见 ApplyTint 的注释）。
             if (usingFallback) _renderer.color = _lastLegal ? LegalColor : IllegalColor;
             else _renderer.color = _lastLegal ? LegalTint : IllegalTint;
+
+            ReapplyDropCard();
         }
 
         /// <summary>
@@ -216,9 +299,11 @@ namespace CR.View
         /// <summary>非法落点着色（压红 + 降一点不透明度，让"不能放"一眼可辨）。</summary>
         private static readonly Color IllegalTint = new Color(1f, 0.55f, 0.50f, 0.9f);
 
-        /// <summary>隐藏指示盘（拖放结束 / 抬手）。</summary>
+        /// <summary>隐藏指示盘（拖放结束 / 抬手）—— 连同落点卡面虚影与就位读条一起收掉。</summary>
         public void Hide()
         {
+            _deployLeft = 0f;
+            SetDropCard(null);
             SetVisible(false);
         }
 
@@ -238,6 +323,17 @@ namespace CR.View
         /// </summary>
         private void Update()
         {
+            // 就位读条：到点自己收掉（出牌落位期 = 服务端 `deploy_time`，见 ShowDeployRing）。
+            if (_deployLeft > 0f)
+            {
+                _deployLeft -= Time.unscaledDeltaTime;
+                if (_deployLeft <= 0f)
+                {
+                    _deployLeft = 0f;
+                    SetVisible(false);
+                    return;
+                }
+            }
             transform.Rotate(0f, 0f, SpinDegreesPerSecond * Time.unscaledDeltaTime);
         }
 

@@ -1961,6 +1961,14 @@ namespace CR.View
         /// </summary>
         public bool TryTowerMuzzle(int towerId, out Vector2 world)
         {
+            // `towerId == 0` 不是合法键：服务端的塔实体 id **从 0 起**（见 `TryTowerMuzzle(int,int,int,out)` 的注释），
+            // 而 `TowerView.Id` 的初值也是 0 ⇒ 用 0 去匹配会命中的是"快照还没 `Apply` 过的那座塔"，
+            // 取到的是不相干那座塔的炮口。
+            if (towerId == 0)
+            {
+                world = default(Vector2);
+                return false;
+            }
             for (var i = 0; i < _towers.Count; i++)
             {
                 var t = _towers[i];
@@ -1969,6 +1977,40 @@ namespace CR.View
             }
             world = default(Vector2);
             return false;
+        }
+
+        /// <summary>
+        /// 按**塔位 + 队伍**取炮口世界坐标（不用服务端 id）。
+        /// <para>
+        /// 为什么还需要这一条：<see cref="TryTowerMuzzle(int,out Vector2)"/> 靠 id 对号，而塔**不在**快照的
+        /// `entities` 里（见 <see cref="TowerView"/> 的类注释）⇒ 开火事件里的 `entity_id` 实测恒为 **0**
+        /// （客户端日志行 `对局事件 kind=6 team=0 card=0 ent=0 pos=(9.00,3.00)`；服务端 `emitTowerShoot`
+        /// 填的就是塔实体自己的 id，而塔实体 id 从 0 起）⇒ 永远匹配不上，闪光会落回**塔底**而不是炮口。
+        /// </para>
+        /// <para>
+        /// 对号方式：取**同队伍里离事件坐标最近**的那座塔。塔位是固定几何（`GameConst`，两塔最近相距 ≥ 3 格），
+        /// 而事件坐标就是塔根 ⇒ 这条匹配在几何上是唯一的，不需要 id。
+        /// </para>
+        /// </summary>
+        public bool TryTowerMuzzle(int xMilli, int yMilli, int team, out Vector2 world)
+        {
+            var p = GameConst.MilliToWorld(xMilli, yMilli);
+            var found = false;
+            var bestSq = float.MaxValue;
+            var best = default(Vector2);
+            for (var i = 0; i < _towers.Count; i++)
+            {
+                var t = _towers[i];
+                if (t.Team != team) continue;
+                Vector2 m;
+                if (!t.TryMuzzle(out m)) continue;
+                var dx = m.x - p.x;
+                var dy = m.y - p.y;
+                var d2 = dx * dx + dy * dy;
+                if (!found || d2 < bestSq) { found = true; bestSq = d2; best = m; }
+            }
+            world = best;
+            return found;
         }
 
         private void ClearGenerated()

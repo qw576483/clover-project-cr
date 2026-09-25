@@ -65,6 +65,19 @@ namespace CR.Module.Room
         private string _roomId;                 // 本地认定的当前房间号（发出创建/加入成功后才置）
         private RoomStateNotify _state;         // 最近一次 PushRoomState（缓存，供面板打开时补发）
         private bool _createdByMe;              // 这个房是不是我创建的（认不出自己时的兜底判据）
+        /// <summary>
+        /// 建房 / 加房**请求在途**（请求已发出、回包还没到）。
+        /// <para>
+        /// 存在的理由：服务端在**建房成功那一刻**就发 <c>PushRoomState</c>（`server/game/logic/room.go:936-938`），
+        /// 这条推送走的是另一条链路，**可能早于**同一个请求的回包到达（实测早 3ms：推送 23:48:19.072 / 回包 23:48:19.075）。
+        /// 而房号只有回包里才有 ⇒ 此刻本地 `_roomId` 还是空。见 <see cref="OnRoomStatePush"/> 的处置。
+        /// </para>
+        /// </summary>
+        private bool _entryInFlight;
+
+        /// <summary>请求在途期间到达、<b>暂时认不出房号</b>的那条房间态（见 <see cref="OnRoomStatePush"/>）。</summary>
+        private RoomStateNotify _pendingState;
+
         private string _selfPlayerId;           // 本机角色 ID（每次进房时重算，见 ResolveSelfPlayerId）
         private bool _selfIdWarned;             // 「认不出自己」只告警一次（避免每次进房刷屏）
         private bool _selfMissingWarned;        // 「成员列表里没有我」只告警一次
@@ -314,6 +327,10 @@ namespace CR.Module.Room
                     return null;
                 }
 
+                // 从这一刻起进入"房号未知"的窗口：服务端建房成功即推 PushRoomState，
+                // 那条推送可能比本请求的回包先到（见 `_entryInFlight`）。
+                _entryInFlight = true;
+
                 // 房名允许为空：服务端会用「<昵称>的房间」兜底（`server/game/logic/room.go:895-902`），
                 // 客户端**不重复**这套兜底逻辑（那会与服务端漂移，且界面无法知道昵称）。
                 var reply = await Game.Net.Call<RoomCreateReply>(MsgDef.RoomCreate,
@@ -336,6 +353,12 @@ namespace CR.Module.Room
             finally
             {
                 _busy = false;
+                // 回包已落定（EnterLocalRoom 在上面跑过）⇒ 之后到的房间态都能对上房号了。
+                _entryInFlight = false;
+                // 但这次请求**没落到任何房间**（失败 / 异常 / 网络没挂）时，在途窗口里缓存的那条房间态必须作废：
+                // 它没有对应的本地房间，留着会一直等到下一次进房、被当成那一次的状态应用
+                // （只有 room_id 恰好不同时才会被 EnterLocalRoom 丢掉 —— 那一条是运气，不是保证）。
+                if (string.IsNullOrEmpty(_roomId)) _pendingState = null;
             }
         }
 
@@ -362,6 +385,9 @@ namespace CR.Module.Room
                     return null;
                 }
 
+                // 同 CreateRoomAsync：加房成功也会立刻推 PushRoomState，先进入"房号未知"窗口。
+                _entryInFlight = true;
+
                 var reply = await Game.Net.Call<RoomJoinReply>(MsgDef.RoomJoin, new RoomJoinReq { room_id = roomId });
                 if (reply == null || !reply.ok)
                 {
@@ -381,6 +407,10 @@ namespace CR.Module.Room
             finally
             {
                 _busy = false;
+                // 回包已落定（EnterLocalRoom 在上面跑过）⇒ 之后到的房间态都能对上房号了。
+                _entryInFlight = false;
+                // 同 CreateRoomAsync：加房没成功时，在途窗口里缓存的那条房间态没有对应房间，必须作废。
+                if (string.IsNullOrEmpty(_roomId)) _pendingState = null;
             }
         }
 
@@ -546,12 +576,32 @@ namespace CR.Module.Room
                 return;
             }
 
-            if (string.IsNullOrEmpty(_roomId) || state.room_id != _roomId)
+            if (string.IsNullOrEmpty(_roomId))
             {
+                // 建房 / 加房的回包**晚于**服务端那条推送（服务端建房成功即推，见 `room.go:936-938`）
+                // ⇒ 此刻本地还不知道房号。丢掉它 = 面板永远显示"等待加入"、`FindSelf()` 恒为 null
+                //（准备按钮点了只提示"还没拿到你的座位信息"、座位也一直是空的）。
+                // ⛔ 不能只看房号就丢：先缓存，等 EnterLocalRoom 拿到房号后应用（那条链路才是权威顺序）。
+                if (_entryInFlight)
+                {
+                    _pendingState = state;
+                    var n = state.members != null ? state.members.Length : 0;
+                    Game.Logger?.Info(Tag,
+                        $"建房/加房回包尚未落定，先缓存房间态 room={state.room_id}（成员 {n}），回包后自动应用");
+                    return;
+                }
+
                 // 预期内的情形：结算后服务端还会给房内真人推一次收尾态，而本客户端在进对局时已清掉本地房间
                 //（见 OnStationChanged 的 Battle 分支）。留一条 Info 便于排查"面板没刷新"这类问题。
                 Game.Logger?.Info(Tag,
                     $"忽略非当前房间的状态推送 room={state.room_id}（本地当前：{(_roomId ?? "无")}）");
+                return;
+            }
+
+            if (state.room_id != _roomId)
+            {
+                Game.Logger?.Info(Tag,
+                    $"忽略非当前房间的状态推送 room={state.room_id}（本地当前：{_roomId}）");
                 return;
             }
 
@@ -662,6 +712,17 @@ namespace CR.Module.Room
             if (!string.IsNullOrEmpty(roomName)) Game.Logger?.Info(Tag, $"房间名：{roomName}");
             Game.Logger?.Info(Tag, $"进入房间 {roomId}（createdByMe={_createdByMe}，self={_selfPlayerId ?? "未知"}）");
 
+            // 请求在途期间到达的那条房间态在这里补上（见 OnRoomStatePush 的第一个分支）：
+            // 房号只有回包里才有，所以"认不出房号"的那条推送不能丢，只能等回包落定后再应用。
+            if (_pendingState != null)
+            {
+                var cached = _pendingState;
+                _pendingState = null;
+                if (cached.room_id == roomId) ApplyState(cached);
+                else Game.Logger?.Info(Tag,
+                    $"缓存的房间态 room={cached.room_id} 与本次进入的 {roomId} 不符（连点了建房/加房？），已丢弃");
+            }
+
             Game.Event?.Emit(Events.Room.Joined, roomId);
 
             // 站点切换的唯一入口是 AppFlow（它还会 CloseAll + 广播 StationChanged），
@@ -675,6 +736,8 @@ namespace CR.Module.Room
             Game.Logger?.Info(Tag, $"清掉本地房间态（{why}）：room={_roomId ?? "无"}");
             _roomId = null;
             _state = null;
+            _pendingState = null;      // 上一轮的缓存绝不能跨房间沿用（成员/准备态完全不同）
+            _entryInFlight = false;
             _createdByMe = false;
             _selfMissingWarned = false;
         }

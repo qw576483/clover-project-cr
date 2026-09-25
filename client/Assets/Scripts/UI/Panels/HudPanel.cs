@@ -283,40 +283,41 @@ namespace CR.UI.Panels
         /// </summary>
         private const int CardFontSize = 32;
 
-        // ── 卡面在卡槽里的贴合 ──
+        // ── 卡框 + 卡面（两个节点）在卡槽里的贴合 ──
         //
-        // 卡体件 = `ResPaths.SlotCard`（`ui_out/43`，原生 107×159）自带一圈**深色环**：左 6 列 / 上 6 行
-        // = (0,0,0)、内侧 = (248,248,248) 白卡体（逐像素剖面）。`CrUiStyle.Skin(corner: HudCardBodyCorner)`
-        // 的九宫格角块**按 1:1 绘制** ⇒ 实机卡缘那圈深色**恒为 6px**、不随卡片缩放变化。
+        // **卡框**：`ResPaths.SlotCard`（`ui_out/43`，原生 107×159）铺满整个卡槽 `CardW×CardH`；
+        //   `CrUiStyle.Skin(corner: HudCardBodyCorner)` 的九宫格角块**按 1:1 绘制**
+        //   ⇒ 卡框那圈深色**恒为 6px**、不随卡片缩放变化。
+        //   （43 的右边没有深色边：mid-row 剖面 = x0..5 黑、x6..106 全白 ⇒ 走九宫格会在右带画出白块，
+        //     `Skin` 的四角镜像路径四边都是深色边。）
+        // **卡面**：画在卡框**内部**的子节点（`HandArt{i}`），不参与卡框绘制。
         //
-        // <b>内缩 = 深色环 6px + 亮卡体带 4px = 10px</b>（四个方向同值）：
-        //   ① 6px 深色环必须让开：卡面若压在它上面，白卡体整条被盖住、卡缘只剩一条深色边
-        //      （实机 `CR-V2-hud-a0full.png` x144..280 / y1614..1785：卡面左沿 x=149、可见深色仅 x=146..148）。
-        //   ② 亮卡体带取 4px：原版同一处是**亮卡体**——`策划/参考图/18_对局HUD_1080x1920.jpg`
-        //      手牌卡 3 逐列中位色，x571..574 的亮占比 0.90~0.93、色 ≈(201,202,207)，x≤570 即背景。
-        //   ⚠️ 残余：原版亮带外侧只有**一条细深线**（同处逐列中位色量不到 6px 的深色台阶），
-        //      而本项目卡体件自带 6px 深色环 ⇒ 卡缘总厚 10px vs 原版 ≈5px，登记在 `差异登记 D111`。
+        // <b>卡面内缩 = 5px</b>（四个方向同值）—— 口径 = 原版手牌"卡缘可见厚度"：
+        //   `策划/参考图/18_对局HUD_1080x1920.jpg` 手牌第 3 张逐列中位色 —— x571..574 是亮卡缘
+        //   （亮占比 0.90~0.93、色 ≈(201,202,207)），x≤570 即背景 ⇒ 卡缘可见 ≈5px（细深线 1px + 亮带 4px）。
+        //   ⚠️ 卡框自带的深色环是 6px，比原版可见厚度厚 1px（差异登记 D111）。
+        //   卡面尺寸因此 = 136−2×5 × 171−2×5 = **126×161**（四边同值 ⇒ 卡面中心与卡槽中心重合）。
         //
         // 内缩按**比例**折到 `CardW`/`CardH`（本文件画布单位 = 画布像素）；
-        // 卡面尺寸 = `CardW×(1−左−右)` × `CardH×(1−上−下)`，四边同值 ⇒ 卡面中心与卡槽中心重合。
+        // 卡面尺寸 = `CardW×(1−左−右)` × `CardH×(1−上−下)`。
         // ⚠️ 「下一张」小卡按**同一比例**套用（原版是同一张卡设计按比例缩小）——见 `BuildNextPreview`。
 
-        /// <summary>卡面在卡槽里的**左**内缩比例 = 10/136（口径见上方「卡面在卡槽里的贴合」段）。</summary>
-        private const float ArtInsetLeftFrac = 10f / 136f;
+        /// <summary>卡面在卡框里的**左**内缩比例 = 5/136（口径见上方「卡框 + 卡面」段）。</summary>
+        private const float ArtInsetLeftFrac = 5f / 136f;
 
-        /// <summary>卡面在卡槽里的**右**内缩比例 = 10/136。</summary>
-        private const float ArtInsetRightFrac = 10f / 136f;
+        /// <summary>卡面在卡框里的**右**内缩比例 = 5/136。</summary>
+        private const float ArtInsetRightFrac = 5f / 136f;
 
-        /// <summary>卡面在卡槽里的**上**内缩比例 = 10/171。</summary>
-        private const float ArtInsetTopFrac = 10f / 171f;
+        /// <summary>卡面在卡框里的**上**内缩比例 = 5/171。</summary>
+        private const float ArtInsetTopFrac = 5f / 171f;
 
-        /// <summary>卡面在卡槽里的**下**内缩比例 = 10/171。</summary>
-        private const float ArtInsetBottomFrac = 10f / 171f;
+        /// <summary>卡面在卡框里的**下**内缩比例 = 5/171。</summary>
+        private const float ArtInsetBottomFrac = 5f / 171f;
 
-        /// <summary>卡面宽占卡宽的比例 = 1 − 左内缩 − 右内缩（= 116/136 ≈ 0.8529）。</summary>
+        /// <summary>卡面宽占卡宽的比例 = 1 − 左内缩 − 右内缩（= 126/136 ≈ 0.9265）。</summary>
         private const float ArtFillX = 1f - ArtInsetLeftFrac - ArtInsetRightFrac;
 
-        /// <summary>卡面高占卡高的比例 = 1 − 上内缩 − 下内缩（= 151/171 ≈ 0.8830）。</summary>
+        /// <summary>卡面高占卡高的比例 = 1 − 上内缩 − 下内缩（= 161/171 ≈ 0.9415）。</summary>
         private const float ArtFillY = 1f - ArtInsetTopFrac - ArtInsetBottomFrac;
 
         /// <summary>卡面中心相对卡槽中心的纵向偏移比例 =（下内缩 − 上内缩）/2（四边同值 ⇒ 恒 0）。</summary>
@@ -344,8 +345,11 @@ namespace CR.UI.Panels
         /// </summary>
         private const float CostIconBottom = 25f;
 
+        /// <summary>拖动幽灵卡的宽 = **单卡宽**（跟着指针走的就是那张卡本身）。</summary>
         private const float GhostW = CardW;
-        private const float GhostH = CardH * 0.5f;
+
+        /// <summary>拖动幽灵卡的高 = **单卡高**（⛔ 不是 `CardH * 0.5`：那会把卡片压成一条"小图标"）。</summary>
+        private const float GhostH = CardH;
 
         // ── 顶部右：倒计时（出处：§1.3 D16，18 图 `z1_18_top_x2` 读数） ──
 
@@ -662,6 +666,13 @@ namespace CR.UI.Panels
         private int _dragCardId;
         private Image _ghost;
 
+        /// <summary>
+        /// 本次拖动那张卡的**卡面**（<see cref="BeginDrag"/> 时从手牌槽取一次）。
+        /// 用途 = 落点处的卡面虚影（`BattleViewRoot.ShowPlacement` 的 `cardArt`）——
+        /// 指针每动一次都要重画落点，⛔ 不在那条路径上再查一次卡池。
+        /// </summary>
+        private Sprite _dragArt;
+
         /// <summary>「非 Battle 站点里按下手牌被站点守卫拦住」最近一次留痕时读到的站点名（去重标记）。
         /// 空 = 还没留过痕。⛔ 只用于日志去重，不参与任何判定。</summary>
         private string _stationGuardLogged;
@@ -916,23 +927,21 @@ namespace CR.UI.Panels
             {
                 var index = i; // 闭包捕获：槽位下标只用于建节点，卡 id 在刷新时按下标取
 
-                // 卡体 = 原版 `ui_out/43`（18 图未灰化卡体 ≈ 247 与 43 的主色 248 一致，
-                // 且 43 自带 6px 深色描边 + 圆角半径 ≈20 ⇒ 它就是"卡体 + 深色卡框"那一件）。
-                // `NineSlice` → `Skin(corner: 20)`。原因（实测）：
-                //   43 的**右边没有深色边**（mid-row 剖面 = x0..5 黑、x6..106 全白），
-                //   单用 `NineSlice` 时右带画出来的是白块 ⇒ 实机在第 2 张卡上量到
-                //   `x 421..427 = (248,248,248)` 的 **6px 白条**（卡面盖不住它）。
-                //   `Skin(corner=20)` 走引擎既有的"取左上 20×20 四角镜像拼"路径（`CrUiStyle.MakeRounded`，
-                //   014/019/165 等件同一条路）⇒ 四边都是 6px 深色边，实机不再是"三边有框、一边白条"。
+                // 卡框 = 原版 `ui_out/43`（18 图未灰化卡体 ≈ 247 与 43 的主色 248 一致，
+                // 且 43 自带 6px 深色描边 + 圆角半径 ≈20 ⇒ 它就是"卡体 + 深色卡框"那一件），铺满整个槽位。
+                // 用 `Skin(corner: 20)` 而不是 `NineSlice`：43 的**右边没有深色边**
+                //   （mid-row 剖面 = x0..5 黑、x6..106 全白）⇒ 九宫格的右带会画成白块
+                //   （右侧出现 6px 白色条，与另外三边的深色边不对称）。
+                //   `Skin` 走引擎既有的"取左上 20×20 四角镜像拼"路径（`CrUiStyle.MakeRounded`，
+                //   014/019/165 等件同一条路）⇒ **四边都是 6px 深色边**。
                 var card = CrUiStyle.Skin($"Hand{index}", bar, ResPaths.SlotCard, HudCardBodyCorner, BorderNone,
                     new Vector2(0f, 1f), new Vector2(0f, 1f),
                     new Vector2(index * (CardW + CardGap), 0f), new Vector2(CardW, CardH),
                     CrUiStyle.ButtonBg, false);
                 _handCards[index] = card;
 
-                // 真卡面：原版 `ui_spells_out` 帧（透明包围盒裁掉），压在卡槽底之上。
-                // 位置/尺寸按**量取**的 4 边内缩（见 `ArtInset*Frac` 上方那段），
-                //   ⛔ 不再用 `CardH * 0.06f` 的偏移（那会把卡面顶出卡槽上沿）。
+                // 卡面：原版 `ui_spells_out` 帧（透明包围盒裁掉），画在卡框**内部**（后建 ⇒ 画在卡框之上）。
+                // 位置/尺寸按量取的 4 边内缩 = 5px（见 `ArtInset*Frac` 上方那段）。
                 var art = UIFactory.CreatePanel($"HandArt{index}", card.rectTransform, Color.white, false);
                 UIFactory.Place(art.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                     new Vector2(0f, CardH * ArtOffsetYFrac), new Vector2(CardW * ArtFillX, CardH * ArtFillY));
@@ -1231,6 +1240,7 @@ namespace CR.UI.Panels
                 // 幽灵卡用**同一张真卡面**（G4：⛔ 不再是一个纯色小块跟着手走），半透明表示"跟着手"。
                 var art = slot >= 0 && slot < HandSlots ? _handArts[slot] : null;
                 var sprite = art != null ? art.sprite : null;
+                _dragArt = sprite;   // 落点虚影用同一张卡面（见 _dragArt）
                 _ghost.sprite = sprite;
                 _ghost.type = Image.Type.Simple;
                 _ghost.preserveAspect = false;
@@ -1334,6 +1344,7 @@ namespace CR.UI.Panels
             }
             _dragging = false;
             _dragCardId = 0;
+            _dragArt = null;
             if (_ghost != null) _ghost.gameObject.SetActive(false);
 
             // 拖放结束（正常抬手 / 取消 / 面板关闭）都要收掉落点指示，
@@ -1462,7 +1473,9 @@ namespace CR.UI.Panels
                     $"{(card != null ? card.aoe_radius_milli : -1)}（<=0）⇒ 落点圈半径退到兜底常量 " +
                     $"{PlacementRadiusTilesSpell} 格（**不是原版数值**）。检查服务端 CardInfo 是否下发了 aoe_radius_milli（只报一次）");
             }
-            view.ShowPlacement(tile, isSpell ? spellRadius : PlacementRadiusTilesDrop, isSpell);
+            // `_dragArt` = 正在拖的那张卡的卡面 ⇒ 落点处画的是**这张卡本身**（半透明虚影），
+            //   不是一个小图标。取不到卡面时传 null（宁可不画，⛔ 不用别的图形顶替）。
+            view.ShowPlacement(tile, isSpell ? spellRadius : PlacementRadiusTilesDrop, isSpell, _dragArt);
         }
 
         /// <summary>

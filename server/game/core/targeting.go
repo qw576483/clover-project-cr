@@ -6,8 +6,9 @@ package core
 //
 //  1. Range is measured to a hitbox, not to a point -- so a Giant with a 0.75
 //     tile radius can be hit from further away than a Skeleton with 0.5.
-//  2. Targets are sticky: a unit does not re-choose every tick, it keeps its
-//     target until that target dies or leaves sight range.
+//  2. Sight range answers "who", and it is re-answered every tick: the target is
+//     the nearest legal one inside sight (参考规格 §5). A unit walking to a
+//     tower therefore turns onto an enemy that comes closer on the way.
 //  3. Building-targeting troops are not "preferring" buildings, they cannot
 //     see troops at all.
 
@@ -91,6 +92,15 @@ func inAttackRange(attacker *entity, target *entity) bool {
 // identical positions never disagree: an arbitrary but *stable* choice, which
 // is what determinism requires (cr-sim engine/targeting.py:147). The candidate
 // order is therefore irrelevant to the result.
+//
+// ⛔ 视野半径（`sight_range`）是"选谁"的唯一判据，**每 tick 重取一次最近者**：
+// 参考规格 §5 = 「在 sight_range 内取距离最近的合法目标」。
+// 不存在"旧目标还在视野里就一直不换"这回事 —— 参考实现里那点粘滞只是防止
+// 两只等距目标之间抖动的滞回带，且该带在官方全局缺省时为 0
+// （cr-sim engine/battle.py:405 `_globals.get('LOGIC_RANGE_EXTENSION_TO_KEEP_TARGET', 0)`；
+// 另见 targeting.py:16 对滞回带用途的说明）。
+// 把"仍在视野内"当成保留条件，会让一只南下打塔的单位从 5.5 格外锁死在塔上，
+// 对擦身而过、且**比塔更近**的敌人一眼都不看（行进途中该打的敌人不打）。
 func acquireTarget(attacker *entity, candidates []*entity) *entity {
 	var best *entity
 	bestGap := int32(0)
@@ -110,11 +120,14 @@ func acquireTarget(attacker *entity, candidates []*entity) *entity {
 	return best
 }
 
-// keepTarget reports whether the attacker holds its current target for another
-// tick (参考规格 §5: 锁定后保持，目标死亡/越界才重锁定).
-func keepTarget(attacker *entity, target *entity) bool {
-	if target == nil || !canTarget(attacker, target) {
-		return false
-	}
-	return withinSight(attacker, target, 0)
+// holdsTarget reports whether `cur` is still exactly what acquireTarget picks
+// this tick, i.e. the attacker may keep it without re-engaging.
+//
+// The only thing a unit "keeps" is the attack cycle it has already paid for:
+// `attackState` keys on targetID, so leaving targetID alone means the windup
+// keeps running (entity.go: switching target restarts the windup, which is what
+// makes distraction cost something). Everything else about targeting is
+// re-decided every tick from sight range (参考规格 §5).
+func holdsTarget(attacker *entity, cur *entity, best *entity) bool {
+	return best != nil && cur == best
 }

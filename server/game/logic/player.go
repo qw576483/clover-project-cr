@@ -129,6 +129,9 @@ func (l *gameLogic) onSetNickname(c event.Ctx) error {
 	}
 
 	p.Nickname = nick
+	// 创角即落默认卡组：这是本项目的创角动作（见函数头注释），此后玩家不必先去
+	// 编队页保存一次才能开局（见 deck.go::ensureDefaultDeck）。
+	l.ensureDefaultDeck(p, pid)
 	logger.Infof("logic: 设置昵称成功 player=%s nickname=%q", pid, nick)
 	l.g.Reply(c, def.SetNicknameReply{OK: true, Nickname: nick})
 	return nil

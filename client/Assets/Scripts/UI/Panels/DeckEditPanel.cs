@@ -200,16 +200,29 @@ namespace CR.UI.Panels
         private const float ColGap = 49.5f;
 
         /// <summary>
-        /// 行间距 = **221.4**。出处 §1.1 **A6**：原版行步进 549px@1242 ⇒ **477.4**@1080 ⇒
-        /// `RowGap = 477.4 − CardH(256)`。（旧值 90 对应步进 424，比原版窄 11.2%。）
+        /// 行间距 = **46** —— = 原版两行卡片之间那条**纯背景带**。
+        /// <para>
+        /// 出处：`07_卡组编辑_1242x2208.jpg` 逐行统计「非卡池底色 `(2,35,90)` 的像素数」，
+        /// 第 1 行卡片的**整块**（含卡框 / Level 带 / 升级条）止于 **y=865@1242**，
+        /// 第 2 行卡片起于 **y=918@1242** ⇒ 缝 = 53@1242 × 0.8696 = **46.1@1080**。
+        /// </para>
+        /// <para>
+        /// ⚠️ **不能由行步进反算**：原版一张卡占 386..865@1242（479 = 卡面 294 + Level 带 + 升级条），
+        /// 而本工程的格子只画卡面（<see cref="CardH"/> = 256 = A5 的卡面高）⇒
+        /// 「行步进 477.4 − CardH 256」把原版**属于卡片本体**的 Level 带 / 升级条那 185px 也当成了行距，
+        /// 行距被放大到 221.4（实际 46）⇒ 两行之间空出一大片、卡阵整体被拉高 1/3。
+        /// </para>
         /// </summary>
-        private const float RowGap = 221.4f;
+        private const float RowGap = 46f;
 
         /// <summary>列步进 = 254.5（= A3）。</summary>
         private const float CardStepX = CardW + ColGap;
 
-        /// <summary>行步进 = 477.4（= A6）。</summary>
+        /// <summary>行步进 = 256 + 46 = **302**（= <see cref="CardH"/> + <see cref="RowGap"/>）。</summary>
         private const float CardStepY = CardH + RowGap;
+
+        /// <summary>卡阵总高 = 2 行 × 256 + 1 条行距 46 = **558**。</summary>
+        private const float GridH = 2f * CardH + RowGap;
 
         /// <summary>卡阵总宽 = 4×205 + 3×49.5 = **968.5**（= A3 的三步 254.5 + 一格 205）。</summary>
         private const float GridW = Columns * CardW + (Columns - 1) * ColGap;
@@ -217,7 +230,7 @@ namespace CR.UI.Panels
         /// <summary>卡池**内容**总行数 = ⌈60 / 4⌉ = **15**（整池一次建好，靠拖动滚动查看）。</summary>
         private const int PoolRows = (MaxPoolCells + Columns - 1) / Columns;
 
-        /// <summary>卡池内容总高 = 15×256 + 14×221.4 = **6940**（视口 554.6 ⇒ 可滚约 12.5 屏）。</summary>
+        /// <summary>卡池内容总高 = 15×256 + 14×46 = **4484**（视口 798.3 ⇒ 可滚约 5.6 屏）。</summary>
         private const float PoolContentH = PoolRows * CardH + (PoolRows - 1) * RowGap;
 
         // ═══════════ 整屏分带的纵向锚点（原版整屏版式的骨架） ═══════════
@@ -334,8 +347,25 @@ namespace CR.UI.Panels
         /// <summary>编号按钮高 = **87.0**（实测 100@1242）。</summary>
         private const float NumBtnH = 87.0f;
 
-        /// <summary>底行顶边 = **1174.8**（实测底行工具按钮 y1351..1469@1242 ⇒ 顶边 1351）。</summary>
-        private const float BottomRowY = 1174.8f;
+        /// <summary>
+        /// 底行（平均圣水 pill + 三颗工具钮）**紧贴卡阵下方**，间距 = 原版卡阵底边到底行顶边的那条空档。
+        /// <para>
+        /// 出处两条实测：① 原版卡阵最后一行卡片的下缘 = **1309@1242** ⇒ **1138.3@1080**
+        /// （y=918 起 + 卡片整块 391，见 <see cref="RowGap"/> 的出处段）；
+        /// ② 原版底行钮板顶边 = **1351@1242** ⇒ **1174.8@1080**（§1.6.3 **E41**）。
+        /// ⇒ 空档 = 1174.8 − 1138.3 = **36.5**。
+        /// </para>
+        /// <para>
+        /// ⚠️ 为什么本工程不能用原版底行的绝对 y = 1174.8：原版卡阵**整块**高 802.4@1080
+        /// （含 Level 带 / 升级条），本工程的格子只画卡面 ⇒ 卡阵只有 <see cref="GridH"/> = 558。
+        /// 沿用绝对位会把底行留在离卡阵 280 远的半空、而把下方卡池压到只剩 1 行（用户报「上下比例失衡」）
+        /// ⇒ 改按**实测空档**贴住卡阵，剩下的空间全部给卡池。
+        /// </para>
+        /// </summary>
+        private const float BottomRowY = GridTopY + GridH + GridToBottomRowGap;
+
+        /// <summary>卡阵底边 → 底行顶边的空档 = **36.5**（出处见 <see cref="BottomRowY"/>）。</summary>
+        private const float GridToBottomRowGap = 1174.8f - 1138.3f;
 
         /// <summary>
         /// 底行钮板高 = **103.5**。出处 **E41**。
@@ -393,17 +423,18 @@ namespace CR.UI.Panels
         /// <summary>工具钮步进 = **132.6**（实测 152.5@1242；第 3 颗右缘 = 1080 − 30.4 = 1049.6）。出处 **E63**。</summary>
         private const float BottomBtnPitch = 132.6f;
 
-        /// <summary>卡池视口顶边 = **1317.4**（= 底行底边 1277.4 + 40 留白；原版该处往下是宣传插图区，⛔ 无 UI 出处）。</summary>
+        /// <summary>卡池视口顶边 = **1073.7**（= 底行底边 1033.7 + 40 留白；原版该处往下是宣传插图区，⛔ 无 UI 出处）。</summary>
         private const float PoolTopY = BottomRowY + BottomRowH + 40f;
 
         /// <summary>卡池视口底边距画布底 = **48**（本项目自定：给状态行让位）。</summary>
         private const float PoolBottomGap = 48f;
 
         /// <summary>
-        /// 卡池**视口**高 = **554.6**（= <see cref="CrUiStyle.DesignH"/> − <see cref="PoolTopY"/> − <see cref="PoolBottomGap"/>）。
+        /// 卡池**视口**高 = **798.3**（= <see cref="CrUiStyle.DesignH"/> − <see cref="PoolTopY"/> − <see cref="PoolBottomGap"/>）。
         /// <para>
-        /// ⚠️ <b>取值</b>：可见 2 行 = 733.4（⛔ 不按"卡池自己占满剩下的屏"算）。版式是**整屏原版**
-        /// 之后卡池被压到屏幕下半，高度由**剩余空间**决定，不再由行数决定。可滚的行数不变（<see cref="PoolRows"/> = 15）。
+        /// ⚠️ <b>取值</b>：高度由**剩余空间**决定（上方的页签带 / 编号行 / 卡阵 / 底行各自有自己的实测几何），
+        /// 不按行数反算。当前可见 ≈ 2.6 行（行步进 <see cref="CardStepY"/> = 302）；可滚的行数不变
+        /// （<see cref="PoolRows"/> = 15）。
         /// </para>
         /// </summary>
         private const float PoolViewportH = CrUiStyle.DesignH - PoolTopY - PoolBottomGap;
@@ -533,6 +564,23 @@ namespace CR.UI.Panels
         /// <summary>卡池滚动列表的惯性衰减（`ScrollRect.decelerationRate`；Unity 默认 0.135，沿用）。</summary>
         private const float ScrollDeceleration = 0.135f;
 
+        // ── 「按住卡上任意位置都能拖」的采样口径（`VerifyDragPath` 用；本项目自定） ──
+
+        /// <summary>每个卡格的采样边长 = **5** ⇒ 5×5 = 25 个点（判据 = 25 点**全部**命中卡自己）。</summary>
+        private const int ProbeSide = 5;
+
+        /// <summary>采样区起点 = 卡面矩形内 **15%** 分位（两侧对称，见 <see cref="ProbeTo"/>）。</summary>
+        private const float ProbeFrom = 0.15f;
+
+        /// <summary>采样区终点 = 卡面矩形内 **85%** 分位。15%..85% 覆盖到卡框圆角之内、又不贴边。</summary>
+        private const float ProbeTo = 0.85f;
+
+        /// <summary>同一格最多打几条 `DRAGPATH-BLOCKED`（超出只累计、不刷屏；判据读数仍按 25 点算）。</summary>
+        private const int MaxBlockedLogPerCell = 6;
+
+        /// <summary>采样点距滚动视口边界的**排除余量**（屏幕 px；理由见 <see cref="InsideClip"/>）。</summary>
+        private const float ProbeClipGuardPx = 4f;
+
         /// <summary>幽灵卡的不透明度（跟着指针走的那张半透明卡；`HudPanel.GhostColor` 同口径 0.55 附近，取 0.70）。</summary>
         private const float GhostAlpha = 0.70f;
 
@@ -561,7 +609,7 @@ namespace CR.UI.Panels
         private ScrollRect _poolScroll;                 // 卡池滚动列表（拖动滚动取代翻页按钮）
         private RectTransform _poolContent;             // 卡池滚动**内容**（15 行，整池一次建好）
         private GameObject _bannerLayer;                // Decks 页底部宣传区（与卡池互斥）
-        private Page _page = Page.Decks;                 // 当前页（原版卡组页 / 收藏页是两个 clip）
+        private Page _page = Page.Collection;            // 当前页（打开即 = 可编辑的卡池页，见 Build 末尾的 SetTab）
         private readonly List<Cell> _cells = new List<Cell>();       // 60 个卡池格（整池一次建好，只按卡池长度切 active）
         private readonly List<Cell> _slotCells = new List<Cell>();
 
@@ -599,6 +647,8 @@ namespace CR.UI.Panels
         {
             public Image Chassis;      // 原版白色卡片底（九宫格）
             public Image Art;          // 卡面（原版素材帧；没登记帧号的卡为 null）
+            public Image Frame;        // 品质边框（原版卡框图元 ui_out 532，按稀有度染；空格子关掉）
+            public int Rarity;         // 本格卡片的稀有度（协议 CardInfo.rarity）；边框色与异步到货的贴色都读它
             public Text Name;
             public Text Elixir;
 
@@ -789,8 +839,10 @@ namespace CR.UI.Panels
                 new Vector2(GridW, 30f), TextAnchor.MiddleLeft);
             BuildGrid();
 
-            // 初始落在 **Decks 页**（原版 07 截图就是 Decks 高亮、底部是宣传区）。
-            SetTab(Page.Decks);
+            // 初始落在 **Collection 页**（= 可编辑页：卡池可见、卡可直接拖进上面的卡阵）。
+            //   为什么不是原版 07 的 Decks 页：本工程把卡组页与收藏页合到一屏（见 `SetTab` 的说明），
+            //   打开面板的目的就是编卡组 ⇒ 一打开就要能拖卡；Decks 页只剩宣传区、不能编辑。
+            SetTab(Page.Collection);
 
             // ── ⑨ 状态行（**默认不建**）──
             // ⛔ 原版 07 屏幕最下沿是**宣传插图的画面本身**，没有状态条。本工程这条状态行会盖在插图上
@@ -1244,8 +1296,8 @@ namespace CR.UI.Panels
         /// 「卡组槽底 / 卡池格底」= <see cref="ResPaths.SlotCard"/>（`ui_out` 43，107×159）：
         /// 它**就是 A 的原版白色卡底**（白色圆角卡片剪影，与基线 `07_卡组编辑` 每张卡背面的卡形一致）
         /// ⇒ 不是错帧、没有可换的替代帧。
-        /// ⚠️ 与基线的**已知差异**：原版卡格带**按稀有度**的彩色卡框（紫/橙/灰，基线 07 可见），
-        /// 本项目已落地的图元里**没有**成套的稀有度卡框 ⇒ 统一用白色卡底。
+        /// 卡底之上再压一层**品质边框**（<see cref="ResPaths.CardFrameGlowLegendary"/> 的原版框形 +
+        /// <see cref="RarityFrameColor"/> 的实测稀有度色），对应基线 07 上每格那圈彩色卡框。
         /// </para>
         /// </summary>
         /// <param name="index">本格下标（卡池格 = 卡池下标；槽位 = 槽位下标）—— 拖放回调要用。</param>
@@ -1284,6 +1336,7 @@ namespace CR.UI.Panels
             drag.OnDragEnded = screen => EndCardDrag(screen);
 
             // 卡面（素材到达后按帧号换成裁剪过的 Sprite；未登记帧号的卡这一格保持 null = 不画）
+            // 卡面（素材到达后按帧号换成裁剪过的 Sprite；未登记帧号的卡这一格保持 null = 不画）
             cell.Art = UIFactory.CreatePanel(name + "Art", cell.Chassis.rectTransform, CrUiStyle.PanelBg, false);
             // 卡面**满铺卡格**（左右内缩 0、距顶 0、高 = 格高）。
             //   ⛔ 不能按 `artH = artW × (CardArtBboxH / CardArtBboxW)`（**素材自身的宽高比**）反推高：
@@ -1294,6 +1347,19 @@ namespace CR.UI.Panels
             UIFactory.Place(cell.Art.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(ArtInsetX, -ArtTop), new Vector2(artW, artH));
             cell.Art.gameObject.SetActive(false);
+
+            // 品质边框：**框形 = 原版图元** `ResPaths.CardFrameGlowLegendary`
+            //   （`ui_out` frame 532，原版权威名 `card_frame_glow_legendary`，143×185 空心卡形），
+            //   颜色按稀有度染（见 `RarityFrameColor`）。兄弟顺序在卡面**之后** ⇒ 压在卡面之上。
+            //   ⛔ `raycast = false`：边框盖在卡面外圈，一旦吃射线，"按住卡上任意位置都能拖"就失效。
+            //   ⛔ **不套 `CrUiStyle.Skin`**：它的 `Dress` 在 sprite 异步到货时会写
+            //   `img.color = tint ?? Color.white`（`CrUiStyle.cs:432-459`）—— 那一刻会把这里按稀有度设好的
+            //   tint **覆盖成白色**（格子是先建、卡数据后到，必然踩到）。所以自己加载、自己在回调里贴色。
+            cell.Frame = UIFactory.CreatePanel(name + "Frame", cell.Chassis.rectTransform,
+                CrUiStyle.PanelBg, false);
+            UIFactory.Place(cell.Frame.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(size.x * RarityFrameScale, size.y * RarityFrameScale));
+            LoadFrameSprite(cell);
 
             // 圣水水滴（原版图标）+ 数字
             if (!isSlot)
@@ -1332,6 +1398,53 @@ namespace CR.UI.Panels
 
         /// <summary>原版白色卡片底（<see cref="ResPaths.SlotCard"/>，107×159）的九宫格切边：四边各 20（实测）。</summary>
         private static readonly Vector4 BorderCard = new Vector4(20f, 20f, 20f, 20f);
+
+        /// <summary>
+        /// 品质边框相对卡格的放大系数 = **1.06**（**本项目自定值**，登记在 `策划/差异登记.tsv` D164）。
+        /// <para>
+        /// 为什么不是 1.0：原版卡框图元 `ui_out` 532 的 143×185 画布里**含外发光**（bbox 按 alpha&gt;8 量），
+        /// 环本体贴在画布内圈 ⇒ 按 1.0 铺会把环压到卡面**里面**、边缘露出卡面。
+        /// </para>
+        /// </summary>
+        private const float RarityFrameScale = 1.06f;
+
+        /// <summary>
+        /// 稀有度 → 边框色。四档色值全部**量自**基线图 `策划/参考图/07_卡组编辑_1242x2208.jpg`
+        /// 的对应卡格（该图四档都有实例，见下面的逐条读数）。
+        /// <para>
+        /// 量法：在卡格**外圈**（bbox 左/右各 8px 的竖带、上/下各 8px 的横带）取像素，
+        /// 先剔掉与卡池底色 `(2,35,90)` 距离 &lt; 60 的背景，再取"饱和度最高的 20%"的中位色。
+        /// 逐条读数（原始输出 `.ai-tmp/test/fui-edge.py` / `fui-ring.py`）：
+        /// <list type="bullet">
+        /// <item>**普通** = 第 1 行第 4 格（箭雨）/ 第 2 行第 3 格（哥布林）：外圈 <b>(40,45,52)</b> 深灰
+        /// （实测样本 `y=620 x=952..958` = (24,24,26)(28,27,25)(31,31,33)(21,21,23)）；</item>
+        /// <item>**稀有** = 第 2 行第 2 格（火枪手）：外圈 <b>(171,74,32)</b> 橙
+        /// （实测样本 `y=1120 x=367..375` = (143,63,26)(141,61,26)(136,59,29)(138,57,27)）；</item>
+        /// <item>**史诗** = 第 1 行第 2 格（女巫）：顶缘外圈 <b>(151,116,210)</b> 紫
+        /// （实测样本 `x=492 y=392..396` = (212,196,255)(151,116,210)(107,56,183)）；</item>
+        /// <item>**传说** = 第 2 行第 1 格：外圈 <b>(228,185,29)</b> 金
+        /// （实测样本 `y=1120 x=74..78` = (228,185,29)(232,198,47)(233,216,98)）。</item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// ⚠️ **只有"传说"有独立的原版框帧**（`card_frame_glow_legendary` = `ui_out` 532）；
+        /// 原版还有 `card_frame_glow_epic`（`ui.sc` clip 4268 / sid 4267）与 `card_glow_rare`
+        /// （clip 4463 / sid 4462），但这两个 sid **不在** `ui_out` 的 914 条 `12` 记录里
+        /// ⇒ 对应的图**没有导出到盘上**（`原版资源/cr-assets-png/assets/sc/ui_out/` 里查不到，实测脚本
+        /// `.ai-tmp/test/fui-scmap2.py`）。故四档共用同一个原版**框形**、只用**实测色**区分稀有度；
+        /// 缺口登记在 `策划/差异登记.tsv` D164。
+        /// </para>
+        /// </summary>
+        private static Color RarityFrameColor(int rarity)
+        {
+            switch (rarity)
+            {
+                case 1: return new Color32(171, 74, 32, 255);    // 稀有（橙）
+                case 2: return new Color32(151, 116, 210, 255);  // 史诗（紫）
+                case 3: return new Color32(228, 185, 29, 255);   // 传说（金）
+                default: return new Color32(40, 45, 52, 255);    // 普通（深灰）
+            }
+        }
 
         // ───────────────────────── 拖动幽灵卡 ─────────────────────────
 
@@ -1567,11 +1680,17 @@ namespace CR.UI.Panels
         /// **没有证明"手指按在卡上时事件会派给卡"** —— 本方法补上这一步。
         /// </para>
         /// <para>
-        /// <b>判据（走真实射线）</b>：对每一个**可见**卡格，取其矩形中心当屏幕点 →
-        /// <see cref="EventSystem.RaycastAll"/> 拿到排序后的命中 → 取最靠前那个 GameObject →
+        /// <b>判据（走真实射线）</b>：对每一个**可见**卡格，在其矩形内按
+        /// <see cref="ProbeSide"/>×<see cref="ProbeSide"/> = 5×5 取 25 个采样点（15%~85% 分位）
+        /// 逐个当屏幕点 → <see cref="EventSystem.RaycastAll"/> 拿到排序后的命中 → 取最靠前那个 GameObject →
         /// 按 uGUI 的派发规则 <c>ExecuteEvents.GetEventHandler&lt;IDragHandler&gt;</c>（沿父链冒泡、取最深的处理器）
         /// 求出"事件会派给谁" → 判它**是不是那张卡自己**。
-        /// ⛔ 判据写成"等于卡"而不是"非空"：后者在"卡上盖了一层吃了射线的图元"时会**假绿**。
+        /// <para>
+        /// ⛔ 判据写成"等于卡自己"而不是"非空"：后者在"卡上盖了一层吃了射线的图元"时会**假绿**。
+        /// ⛔ 采样取 **25 个点**而不是只取矩形中心：需求是"点住卡上**任意位置**都能拖"
+        /// （用户原话「卡组里的卡必须按在窄区域才能起拖」），只判中心的旧版在这条上恒假绿 ——
+        /// 卡面上一块吃着射线的子图元（名字 / 圣水数字 / 品质边框 / 圣水水滴）就能把外圈的点全挡掉。
+        /// 判据 = 25/25 全绿（<c>ok == checked</c>）。
         /// </para>
         /// <para>
         /// 失败时打印**挡在前面的是谁**（完整节点路径）—— 这是这条判据最有价值的部分：将来若有人在卡面上
@@ -1612,36 +1731,66 @@ namespace CR.UI.Panels
                     if (!cell.Chassis.gameObject.activeInHierarchy) continue;   // 卡池里被 SetActive(false) 的格子不判
                     if (isSlot && i >= _selected.Count) continue;               // 空槽位：没有可拖的东西，不判
 
+                    // 5×5 = 25 个采样点均匀覆盖**卡面矩形内部**（15%~85% 分位），
+                    //   ⛔ 不取矩形边界本身 —— 那已落在卡框圆角之外、不属于"卡面内"。
                     var rt = cell.Chassis.rectTransform;
-                    var center = RectTransformUtility.WorldToScreenPoint(cam, rt.TransformPoint(rt.rect.center));
-
-                    // 屏幕外的格子不进入判定：射线用的是屏幕坐标，被 ScrollRect 滚出视口的格子
-                    // 中心点根本不在屏上（实测 `中心=(937,-4778)`），`RaycastAll` 必然空手 ⇒ 那不是
-                    // "被遮挡"，是"指针到不了"。单独计数并打印，⛔ 不并进 blocked、也不当成 ok。
-                    if (center.x < 0f || center.x > Screen.width || center.y < 0f || center.y > Screen.height)
+                    var r = rt.rect;
+                    var blocked = 0;
+                    var logged = 0;
+                    for (var sy = 0; sy < ProbeSide; sy++)
                     {
-                        offViewport++;
-                        continue;
+                        for (var sx = 0; sx < ProbeSide; sx++)
+                        {
+                            var fx = Mathf.Lerp(ProbeFrom, ProbeTo, (float)sx / (ProbeSide - 1));
+                            var fy = Mathf.Lerp(ProbeFrom, ProbeTo, (float)sy / (ProbeSide - 1));
+                            var local = new Vector3(Mathf.Lerp(r.xMin, r.xMax, fx), Mathf.Lerp(r.yMin, r.yMax, fy), 0f);
+                            var pt = RectTransformUtility.WorldToScreenPoint(cam, rt.TransformPoint(local));
+
+                            // 屏幕外 / **被卡池视口裁掉**的采样点都不进入判定：射线用屏幕坐标，
+                            // 这类点根本不在"看得见的卡面"上 —— 实测被 `RectMask2D` 裁掉的那几行
+                            // 命中的是 `Popup/PopupMask`（卡池视口下方的遮罩），那不是"卡面被挡"。
+                            // 判据问的是"看得见的卡面上任意位置能不能起拖" ⇒ 单独计数打印，
+                            // ⛔ 不并进 blocked、也不当成 ok（旧版用"中心是否在屏内"判，只挡住了前者）。
+                            if (pt.x < 0f || pt.x > Screen.width || pt.y < 0f || pt.y > Screen.height)
+                            {
+                                offViewport++;
+                                continue;
+                            }
+                            var dragHandle = cell.Chassis.GetComponent<CardDragHandle>();
+                            var clip = dragHandle != null ? dragHandle.ScrollViewport : null;
+                            if (clip != null && !InsideClip(clip, pt, cam))
+                            {
+                                offViewport++;
+                                continue;
+                            }
+
+                            ped.position = pt;
+                            hits.Clear();
+                            es.RaycastAll(ped, hits);
+                            checkedCount++;
+
+                            var top = hits.Count > 0 ? hits[0].gameObject : null;
+                            var handler = top != null ? ExecuteEvents.GetEventHandler<IDragHandler>(top) : null;
+                            if (handler == cell.Chassis.gameObject)
+                            {
+                                okCount++;
+                                continue;
+                            }
+
+                            blocked++;
+                            if (logged++ >= MaxBlockedLogPerCell) continue;
+                            Game.Logger?.Error(Tag,
+                                $"[Deck] DRAGPATH-BLOCKED {cell.Chassis.name} 采样=({sx},{sy}) 屏=({pt.x:0},{pt.y:0}) "
+                                + $"命中={NodePath(top != null ? top.transform : null)} "
+                                + $"拖动处理器={NodePath(handler != null ? handler.transform : null)} "
+                                + "⇒ 按在这个点上事件**不会**派给卡（查遮挡层是不是 raycastTarget = true）");
+                        }
                     }
-
-                    ped.position = center;
-                    hits.Clear();
-                    es.RaycastAll(ped, hits);
-                    checkedCount++;
-
-                    var top = hits.Count > 0 ? hits[0].gameObject : null;
-                    var handler = top != null ? ExecuteEvents.GetEventHandler<IDragHandler>(top) : null;
-                    if (handler == cell.Chassis.gameObject)
+                    if (blocked > MaxBlockedLogPerCell)
                     {
-                        okCount++;
-                        continue;
+                        Game.Logger?.Error(Tag,
+                            $"[Deck] DRAGPATH-BLOCKED {cell.Chassis.name} 另有 {blocked - MaxBlockedLogPerCell} 点同样被挡（已省略，同一格）");
                     }
-
-                    Game.Logger?.Error(Tag,
-                        $"[Deck] DRAGPATH-BLOCKED {cell.Chassis.name} 中心=({center.x:0},{center.y:0}) "
-                        + $"命中={NodePath(top != null ? top.transform : null)} "
-                        + $"拖动处理器={NodePath(handler != null ? handler.transform : null)} "
-                        + "⇒ 按在这张卡上事件**不会**派给卡（查遮挡层是不是 raycastTarget = true）");
                 }
             }
 
@@ -1654,8 +1803,32 @@ namespace CR.UI.Panels
                 return;
             }
             Game.Logger?.Info(Tag,
-                $"[Deck] DRAGPATH-SUMMARY checked={checkedCount} ok={okCount} blocked={checkedCount - okCount} "
+                $"[Deck] DRAGPATH-SUMMARY grid={ProbeSide}x{ProbeSide} frac={ProbeFrom:0.##}..{ProbeTo:0.##} "
+                + $"checked={checkedCount} ok={okCount} blocked={checkedCount - okCount} "
                 + $"offViewport={offViewport} verdict={verdict}");
+        }
+
+        /// <summary>
+        /// 采样点是否落在滚动视口（<c>RectMask2D</c> 的宿主矩形）**内圈**。
+        /// <para>
+        /// <b>为什么要留 <see cref="ProbeClipGuardPx"/> 的余量</b>：<c>RectMask2D</c> 的实际裁剪边与
+        /// <c>RectTransform.rect</c> 之间会差亚像素（画布缩放 + 像素取整）—— 实测贴边的采样点
+        /// （屏 y=25，视口下缘也落在 25 附近）判"在视口内"却被裁掉，射线命中的是视口外的模态遮罩
+        /// `Popup/PopupMask`，于是被误报成"卡面被挡"。留 4px 余量把这条**探针边界噪声**排除，
+        /// ⛔ 不放宽判据本身（卡面可见区域内的判定仍是 25/25）。
+        /// </para>
+        /// </summary>
+        private static bool InsideClip(RectTransform clip, Vector2 pt, Camera cam)
+        {
+            if (clip == null) return true;
+            var a = RectTransformUtility.WorldToScreenPoint(cam,
+                clip.TransformPoint(new Vector3(clip.rect.xMin, clip.rect.yMin, 0f)));
+            var b = RectTransformUtility.WorldToScreenPoint(cam,
+                clip.TransformPoint(new Vector3(clip.rect.xMax, clip.rect.yMax, 0f)));
+            return pt.x >= Mathf.Min(a.x, b.x) + ProbeClipGuardPx
+                && pt.x <= Mathf.Max(a.x, b.x) - ProbeClipGuardPx
+                && pt.y >= Mathf.Min(a.y, b.y) + ProbeClipGuardPx
+                && pt.y <= Mathf.Max(a.y, b.y) - ProbeClipGuardPx;
         }
 
         /// <summary>把 Transform 打成 <c>A/B/C</c>（日志里要能一眼看出"挡在前面的是谁"）。⛔ 不是给玩家看的。</summary>
@@ -2148,6 +2321,12 @@ namespace CR.UI.Panels
                 // 已选 = 金色强调（原版卡面的圣水数字本身是彩色的）。
                 cell.Elixir.color = selected ? CrUiStyle.Accent : CrUiStyle.TextColor;
             }
+            if (cell.Frame != null)
+            {
+                cell.Frame.gameObject.SetActive(true);
+                cell.Rarity = card.rarity;
+                ApplyFrameTint(cell);
+            }
             LoadArt(cell, card.key);
         }
 
@@ -2172,6 +2351,7 @@ namespace CR.UI.Panels
                 cell.Art.color = Color.white;
                 cell.Art.gameObject.SetActive(false);
             }
+            if (cell.Frame != null) cell.Frame.gameObject.SetActive(false);   // 空格子没有品质 ⇒ 不画边框
         }
 
         /// <summary>
@@ -2225,6 +2405,76 @@ namespace CR.UI.Panels
                 // ⇒ 卡面本身就填满卡格，⛔ 不要再按比例缩（会再留边）。
                 cell.Art.preserveAspect = false;
                 ApplyArtTint(cell);               // 素材异步到货 ⇒ 贴回当前状态色（见 Cell.Tint / Cell.Dragging）
+            });
+        }
+
+        /// <summary>
+        /// 品质边框的原版图元（`ui_out` 532）。**自己加载、自己贴色**，理由见 `CreateCell` 里那段注释：
+        /// `CrUiStyle.Dress` 的异步回调会把 `image.color` 覆盖成它创建时收到的 tint（这里会是白）。
+        /// 只有一片，所以缓存键就是路径本身。
+        /// </summary>
+        private static Sprite _frameSprite;
+
+        /// <summary>边框图元已 Warn 过（缺素材只报一次）。</summary>
+        private static bool _frameWarned;
+
+        // 说明（D167 预热，已回退）：曾按 `IResourceManager.Preload(paths, onDone)` 在这里加过一版卡面预热
+        //（装 59 张卡面 + 在 onDone 里连 `CropCardArt` 一起做、灌进 ArtCache）。实机读数把它否掉：
+        //   `[Deck] PRELOAD 卡面 59 张开始` → `[Deck] PRELOAD-DONE 新增裁剪 0 张，ArtCache=0`，
+        //   且同一轮 `Card0` 的卡面 sprite = `<null>`（回退前的上一轮同一读数 = `frame_022_0`，
+        //   卡组页截图里卡面是画出来的）⇒ 预热把同一批路径置成"加载在途"后，
+        //   面板那 60 次 `LoadAsset` 的回调不再回来（与 `IResourceManager.Release`「加载在途时被忽略」
+        //   同一类在途语义），**卡面永久不画** —— 是回归，不是收益。故整段回退，不留未验证的改动。
+        // ⛔ 要再做必须先弄清引擎 Preload/LoadAsset 的在途回调语义（本次未测出来），不许照搬这一版。
+
+        /// <summary>把边框染成 `cell` 当前稀有度的颜色（本格没有卡时不参与 —— 由调用方关掉整个节点）。</summary>
+        private static void ApplyFrameTint(Cell cell)
+        {
+            if (cell == null || cell.Frame == null) return;
+            cell.Frame.color = RarityFrameColor(cell.Rarity);
+        }
+
+        /// <summary>
+        /// 取边框图元并贴到格子上；**到货后按 `cell.Rarity` 重新贴色**（数据可能在建格之后才到）。
+        /// 与 `LoadArtSprite` 同一范式：走 `Game.Res` 的异步口，命中缓存则同步回填。
+        /// </summary>
+        private void LoadFrameSprite(Cell cell)
+        {
+            if (cell == null || cell.Frame == null) return;
+
+            if (_frameSprite != null)
+            {
+                cell.Frame.sprite = _frameSprite;
+                cell.Frame.type = Image.Type.Simple;
+                cell.Frame.preserveAspect = false;
+                ApplyFrameTint(cell);
+                return;
+            }
+
+            if (Game.Res == null)
+            {
+                WarnOnce("Game.Res 为空（漏了 CloverRes.Init？），品质边框加载不了，格子只剩卡底 + 卡面");
+                return;
+            }
+
+            Game.Res.LoadAsset<Sprite>(ResPaths.CardFrameGlowLegendary, sprite =>
+            {
+                if (sprite == null)
+                {
+                    if (!_frameWarned)
+                    {
+                        _frameWarned = true;
+                        Game.Logger?.Warn(Tag,
+                            "品质边框素材加载不到（格子只画卡底 + 卡面）：" + ResPaths.CardFrameGlowLegendary);
+                    }
+                    return;
+                }
+                _frameSprite = sprite;
+                if (cell.Frame == null) return;
+                cell.Frame.sprite = sprite;
+                cell.Frame.type = Image.Type.Simple;
+                cell.Frame.preserveAspect = false;
+                ApplyFrameTint(cell);          // 素材异步到货 ⇒ 贴回当前稀有度色（见 Cell.Rarity）
             });
         }
 

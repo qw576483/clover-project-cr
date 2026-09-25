@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace CR.UI.Panels
 {
     /// <summary>
-    /// 设置（任意站点可开的 Popup 层面板）：音量 ×3 / 画质 / 全屏。
+    /// 设置（任意站点可开的 Popup 层面板）：背景音乐 / 音效。
     ///
     /// <para>
     /// <b>面板只显示 + 发请求</b>：初值来自打开时传入的 <see cref="SettingsSnapshot"/>（由 `AppFlow`
@@ -15,9 +15,9 @@ namespace CR.UI.Panels
     /// </para>
     /// <para>
     /// <b>快照只是初值，打开期间跟随权威值</b>。只读打开那一刻的快照，会让面板在"权威值随后变了"时
-    /// 显示旧值 —— 典型是引擎**自动降档**
-    /// （`Quality.cs:221-243`：面板上还写着「高」，引擎已经降到「中」）。因此面板在 <see cref="Subscribe"/>
-    /// 里订阅 `BgmVolumeChanged` / `SfxVolumeChanged` / `QualityChanged` / `FullscreenChanged`，
+    /// 显示旧值（典型：音频设备切换后引擎把分组音量同步下来）。
+    /// 因此面板在 <see cref="Subscribe"/>
+    /// 里订阅 `BgmVolumeChanged` / `SfxVolumeChanged`，
     /// 事件一到就地刷新显示（<see cref="OnClose"/> 里摘掉）。刷新一律走
     /// `SetValueWithoutNotify` / 直接改文字 ⇒ **不会反手发出请求**、不构成回环。
     /// </para>
@@ -41,7 +41,7 @@ namespace CR.UI.Panels
     /// 右上角是**红色圆形 X 关闭**（不是宽金条）；控件是**绿 / 红 / 蓝 / 灰**四种圆角按钮，
     /// 标签压在控件上方、字是**深墨蓝**（不是黄字）；**原版设置界面上没有任何滑条 / 任何三角箭头按钮**
     /// （Music / SFx 是绿 ON 按钮，Language / Name 是蓝 / 灰按钮）。
-    /// ⇒ 音量 / 画质仍按任务契约保留（⛔ 不许改消息号与字段），控件外观按同一套原版视觉语言表达；
+    /// ⇒ 音量两项按任务契约保留（⛔ 不许改消息号与字段），控件外观按同一套原版视觉语言表达；
     /// 原版没有滑条 / 三角箭头这两类件，本面板的对应件是**本项目等价件**，⛔ 不声称是原版复刻。
     /// </para>
     /// </summary>
@@ -63,41 +63,40 @@ namespace CR.UI.Panels
         private const float SliderW = CrUiStyle.PopupW - 2f * Pad - ValueW - ValueGap; // 715
         private const float SliderH = 48f;                            // 滑块高（控件的下缘以内）
 
-        private const float ArrowW = 96f;                             // ◀ / ▶ 蓝按钮宽（原版无此件，见允许差异 D2）
-        private const float QualityValueW = 200f;                     // 档位文字列宽
-
         /// <summary>
-        /// 行数 = 4：背景音乐 / 音效 / 画质 / 全屏。
-        /// <para>⚠️ CR-F2：原来第 3 行是「人声」，已删（依据见 <see cref="Build"/> 里的说明）⇒ 行数与弹窗高随之变化。</para>
+        /// 行数 = **2**：背景音乐 / 音效。
+        /// <para>⚠️ 原来的「人声」行（CR-F2）与「画质」行已删，本次再删「全屏」行。</para>
+        /// <para><b>「画质」为什么删</b>：`SettingsManager.ApplyQuality` 先 `Game.Quality.SetLevel(tier)`
+        /// 写 `targetFrameRate / vSyncCount`，**紧接着**又调 `FramePacingPolicy.Pin(...)` 把它们改回去
+        /// ⇒ 对帧率没有任何净效果；同一次 `SetLevel` 里写的其余三项（`shadows / shadowCascades /
+        /// maximumLODLevel / ScalableBufferManager`）在本工程没有作用对象 —— 2D 精灵竖版，
+        /// 全工程 0 个 `LODGroup`、0 个 2D 阴影投射体 ⇒ 点 ◀▶ 时画面**逐像素不变**。</para>
+        /// <para><b>「全屏」为什么删</b>：判据 = 点一次读 `Screen.fullScreen` 的 before/after
+        /// （实测 `.ai-tmp/test/fixui2-room.txt`：`before=False` → 点击后 `after=False`，面板文案却乐观地
+        /// 翻成"开"）；再绕过本工程的链**直接写引擎原生开关**，读回仍是 `False`
+        /// （`DIRECT-WRITE … nativeSetterWorks=False`）⇒ 编辑器里这条链**无法验证、玩家也看不出任何变化**
+        /// ⇒ 属"看起来有用其实不动"的假控件。**打包后 `Screen.fullScreen` 本身是有效的**，
+        /// 若日后要恢复：把本节删掉的 UI 行 + `Events.Settings.FullscreenRequest/FullscreenChanged` 的
+        /// 那一段订阅加回即可（`SettingsManager` 侧全链路**未动**，仍在）。</para>
         /// </summary>
-        private const int Rows = 4;
+        private const int Rows = 2;
 
-        /// <summary>弹窗高 = 标题带 + 上下留白 + 4 行（基线**高度不一致**，原因见 AM2-允许差异 D1）。</summary>
-        private const float BoxH = CrUiStyle.PopupTitleH + 2f * Pad + Rows * RowPitch;   // 58+60+544 = 662
+        /// <summary>弹窗高 = 标题带 + 上下留白 + 2 行（基线**高度不一致**，原因见 AM2-允许差异 D1）。</summary>
+        private const float BoxH = CrUiStyle.PopupTitleH + 2f * Pad + Rows * RowPitch;   // 58+60+272 = 390
 
         /// <summary>设置面板是 Popup 层（架构契约 §4）。</summary>
         public override UILayer Layer => UILayer.Popup;
-
-        /// <summary>档位文案（下标 = `QualityTier` 的 int 值）。</summary>
-        private static readonly string[] TierNames = { "低", "中", "高" };
 
         private bool _built;
         private Slider _bgmSlider;
         private Slider _sfxSlider;
         private Text _bgmValue;
         private Text _sfxValue;
-        private Text _qualityValue;      // 画质档位文字（◀ ▶ 之间）
-        private Text _fullscreenValue;   // 全屏"开/关"（按钮上的字）
-        private Image _fullscreenBg;     // 全屏按钮底（绿 = 开 / 红 = 关）
-        private int _qualityTier;
-
         // ── 权威值变更的订阅（CR-F2）：面板是"活视图"，不是"打开那一刻的快照" ──
         //    处理器必须是**实例字段**（理由与 `SettingsManager.Subscribe` 同：事件总线按委托相等性
         //    去重 / 注销，走局部 lambda 会在重开面板时叠加且 Off 不掉，`Event.cs:310-328`）。
         private Action<float> _onBgmChanged;
         private Action<float> _onSfxChanged;
-        private Action<int> _onQualityChanged;
-        private Action<bool> _onFullscreenChanged;
 
         public override void OnOpen(object param)
         {
@@ -116,8 +115,6 @@ namespace CR.UI.Panels
                 _built = true;
             }
 
-            _qualityTier = Mathf.Clamp(snapshot.QualityTier, 0, TierNames.Length - 1);
-
             // ⛔ 顺序：**先同步显示值再挂/改回调**。`UIFactory.CreateSlider` 内部已经保证
             //    "先赋 value 再 AddListener"，但面板重开（OnOpen 再来一次）时改 value 会触发已有监听
             //    ⇒ 用 `Slider.SetValueWithoutNotify`（**只改显示、不发通知**）同时同步**滑块的填充比例**与文本。
@@ -125,8 +122,6 @@ namespace CR.UI.Panels
             //    ⇒ 必须同时同步**滑块的填充比例**与文本（见 `SetSlider`）。
             SetSlider(_bgmSlider, _bgmValue, snapshot.BgmVolume);
             SetSlider(_sfxSlider, _sfxValue, snapshot.SfxVolume);
-            RefreshQualityText();
-            RefreshFullscreenText(snapshot.Fullscreen);
 
             // ⛔ 顺序：显示值已同步**之后**才挂订阅（反过来会让打开瞬间的陈旧快照覆盖掉刚到的权威值）。
             Subscribe();
@@ -231,8 +226,6 @@ namespace CR.UI.Panels
             _sfxSlider = AddVolumeRow(c, "Sfx", "音效", RowY(1),
                 v => Game.Event?.Emit(Events.Settings.SfxVolumeRequest, v), out _sfxValue);
 
-            BuildQualityRow(c, RowY(2));
-            BuildFullscreenRow(c, RowY(3));
         }
 
         /// <summary>第 <paramref name="i"/> 行的标签行顶 y（负值向下；0 行从标题带下 + 留白开始）。</summary>
@@ -266,118 +259,6 @@ namespace CR.UI.Panels
             return slider;
         }
 
-        /// <summary>画质行：标签 + 「◀ 值 ▶」（两颗原版蓝按钮，字 = 原版白色三角图元）。</summary>
-        private void BuildQualityRow(Transform c, float y)
-        {
-            UIFactory.CreateLabel("QualityLabel", c, "画质", CrUiStyle.FontBody,
-                new Vector2(Pad, y), new Vector2(CrUiStyle.PopupControlW, LabelH), TextAnchor.MiddleCenter,
-                CrUiStyle.TextOnLight);
-
-            var yCtrl = y - CtrlTopInRow;
-
-            AddArrowButton("QualityPrev", c, new Vector2(Pad, yCtrl), OnQualityPrev, true);
-
-            _qualityValue = UIFactory.CreateLabel("QualityValue", c, TierNames[1], CrUiStyle.FontBody,
-                new Vector2(Pad + ArrowW, yCtrl), new Vector2(QualityValueW, CtrlH),
-                TextAnchor.MiddleCenter, CrUiStyle.TextOnLight);
-
-            AddArrowButton("QualityNext", c, new Vector2(Pad + ArrowW + QualityValueW, yCtrl), OnQualityNext, false);
-        }
-
-        /// <summary>
-        /// 原版蓝按钮 + 原版白色三角（`ui_out` 170，`ResPaths.HudPauseIconPlay`）⇒ ▶；镜像 ⇒ ◀。
-        /// <para>取角块边长引用 <see cref="CrUiStyle.BlueCorner"/>，⛔ 不写字面量：帧 `ui_out/166` 的
-        /// 九宫格中心像素 = 帧 (c−1, c−1) ⇒ 乘常态 tint 后 = 原版读数 (48,112,224)。</para>
-        /// <para>必须传 `CrUiStyle.ButtonBlueTint`：不传 tint 时 face = 白，同一帧在这里会渲染成
-        /// (44,152,255) 而不是别处的 (44,108,224)。⛔ 不改几何、不换帧。</para>
-        /// </summary>
-        private static void AddArrowButton(string name, Transform parent, Vector2 pos, Action onClick, bool mirror)
-        {
-            var btn = CrUiStyle.Skin(name, parent, CrUiStyle.ButtonBlue, CrUiStyle.BlueCorner, Vector4.zero,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), pos, new Vector2(ArrowW, CtrlH),
-                CrUiStyle.ButtonPressed, true, CrUiStyle.ButtonBlueTint);
-            var b = btn.gameObject.AddComponent<Button>();
-            b.targetGraphic = btn;
-            var colors = b.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
-            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
-            colors.selectedColor = Color.white;
-            colors.colorMultiplier = 1f;
-            colors.fadeDuration = CrUiStyle.ButtonFade;
-            b.colors = colors;
-            b.onClick.AddListener(() => { CrUiStyle.PlayClick(name); onClick(); });
-
-            var icon = CrUiStyle.Icon(name + "Icon", btn.rectTransform, ResPaths.HudPauseIconPlay,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34f, 34f));
-            if (mirror && icon != null)
-            {
-                // ▶ 的原版图元水平镜像 ⇒ ◀。用的是同一张原版像素，不是自画。
-                var s = icon.rectTransform.localScale;
-                icon.rectTransform.localScale = new Vector3(-s.x, s.y, s.z);
-            }
-        }
-
-        /// <summary>全屏行：标签 + 原版**绿 ON / 红 Off** 按钮（与基线图 Music / SFx 同构）。</summary>
-        private void BuildFullscreenRow(Transform c, float y)
-        {
-            UIFactory.CreateLabel("FullscreenLabel", c, "全屏", CrUiStyle.FontBody,
-                new Vector2(Pad, y), new Vector2(CrUiStyle.PopupControlW, LabelH), TextAnchor.MiddleCenter,
-                CrUiStyle.TextOnLight);
-
-            var yCtrl = y - CtrlTopInRow;
-
-            _fullscreenBg = CrUiStyle.Skin("FullscreenButton", c, CrUiStyle.ButtonGreen, 0,
-                new Vector4(14f, 14f, 14f, 14f),
-                new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(Pad, yCtrl), new Vector2(CrUiStyle.PopupControlW, CtrlH),
-                CrUiStyle.PrimaryPressed, true);
-            var btn = _fullscreenBg.gameObject.AddComponent<Button>();
-            btn.targetGraphic = _fullscreenBg;
-            var colors = btn.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
-            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
-            colors.selectedColor = Color.white;
-            colors.colorMultiplier = 1f;
-            colors.fadeDuration = CrUiStyle.ButtonFade;
-            btn.colors = colors;
-            btn.onClick.AddListener(() => { CrUiStyle.PlayClick("FullscreenButton"); OnFullscreenClicked(); });
-
-            _fullscreenValue = UIFactory.CreateText("FullscreenValue", _fullscreenBg.rectTransform, "开",
-                CrUiStyle.FontBody, TextAnchor.MiddleCenter, Color.white);
-            UIFactory.Stretch(_fullscreenValue.rectTransform);
-        }
-
-        // ───────────────────────── 交互 ─────────────────────────
-
-        private void OnQualityPrev()
-        {
-            var tier = _qualityTier - 1;
-            if (tier < 0) tier = TierNames.Length - 1; // 循环切换（与"◀▶"的交互直觉一致）
-            _qualityTier = tier;
-            RefreshQualityText();
-            Game.Event?.Emit(Events.Settings.QualityRequest, tier);
-        }
-
-        private void OnQualityNext()
-        {
-            var tier = _qualityTier + 1;
-            if (tier >= TierNames.Length) tier = 0;
-            _qualityTier = tier;
-            RefreshQualityText();
-            Game.Event?.Emit(Events.Settings.QualityRequest, tier);
-        }
-
-        private void OnFullscreenClicked()
-        {
-            // 切换语义取自**当前真实状态**（`Screen.fullScreen`），不是本地缓存 ——
-            // 本地缓存在"用户用 Alt+Enter 切过全屏"时会与实际不一致，表现为"点一下没反应"。
-            var next = !Screen.fullScreen;
-            RefreshFullscreenText(next);
-            Game.Event?.Emit(Events.Settings.FullscreenRequest, next);
-        }
-
         // ───────────────────────── 权威值变更 → 就地刷新（CR-F2 活视图） ─────────────────────────
 
         /// <summary>
@@ -393,8 +274,6 @@ namespace CR.UI.Panels
             {
                 _onBgmChanged = OnBgmVolumeChanged;
                 _onSfxChanged = OnSfxVolumeChanged;
-                _onQualityChanged = OnQualityChanged;
-                _onFullscreenChanged = OnFullscreenChanged;
             }
 
             var bus = Game.Event;
@@ -407,16 +286,13 @@ namespace CR.UI.Panels
 
             bus.Off(Events.Settings.BgmVolumeChanged, _onBgmChanged);
             bus.Off(Events.Settings.SfxVolumeChanged, _onSfxChanged);
-            bus.Off(Events.Settings.QualityChanged, _onQualityChanged);
-            bus.Off(Events.Settings.FullscreenChanged, _onFullscreenChanged);
 
             bus.On(Events.Settings.BgmVolumeChanged, _onBgmChanged);
             bus.On(Events.Settings.SfxVolumeChanged, _onSfxChanged);
-            bus.On(Events.Settings.QualityChanged, _onQualityChanged);
-            bus.On(Events.Settings.FullscreenChanged, _onFullscreenChanged);
 
             Game.Logger?.Info(Tag,
-                "已订阅权威值变更（BGM/SFX/画质/全屏）⇒ 面板改为活视图；" +
+                "已订阅权威值变更（BGM/SFX）⇒ 面板改为活视图；" +
+                "画质 / 全屏不再订阅（两项控件已删，见 Rows 的说明）；" +
                 "人声无订阅（本工程无该显示项，见 Events.Settings.VoiceVolumeChanged 注释）");
         }
 
@@ -426,8 +302,6 @@ namespace CR.UI.Panels
             var bus = Game.Event;
             bus?.Off(Events.Settings.BgmVolumeChanged, _onBgmChanged);
             bus?.Off(Events.Settings.SfxVolumeChanged, _onSfxChanged);
-            bus?.Off(Events.Settings.QualityChanged, _onQualityChanged);
-            bus?.Off(Events.Settings.FullscreenChanged, _onFullscreenChanged);
         }
 
         /// <summary>BGM 权威音量变了 ⇒ 同步填充比例 + 百分比文本（⛔ 不发通知，刷新界面 ≠ 用户改动）。</summary>
@@ -445,27 +319,6 @@ namespace CR.UI.Panels
             SetSlider(_sfxSlider, _sfxValue, volume);
         }
 
-        /// <summary>
-        /// 画质权威档位变了 ⇒ 同步档位文字。**这条是引擎自动降档的唯一显示出口**：
-        /// 玩家没点任何按钮，引擎自己把档位降了（`Quality.cs:221-243`），
-        /// `SettingsManager` 把引擎回调翻译成 `QualityChanged`，这里把它画出来。
-        /// </summary>
-        private void OnQualityChanged(int tier)
-        {
-            var clamped = Mathf.Clamp(tier, 0, TierNames.Length - 1);
-            Game.Logger?.Info(Tag,
-                $"[Live] Quality follow-authority → tier={clamped}（面板原显示 tier={Mathf.Clamp(_qualityTier, 0, TierNames.Length - 1)}）");
-            _qualityTier = clamped;
-            RefreshQualityText();
-        }
-
-        /// <summary>全屏权威开关变了 ⇒ 同步按钮文字与底图（绿=开 / 红=关）。</summary>
-        private void OnFullscreenChanged(bool fullscreen)
-        {
-            Game.Logger?.Info(Tag, $"[Live] Fullscreen follow-authority → {(fullscreen ? "开" : "关")}");
-            RefreshFullscreenText(fullscreen);
-        }
-
         // ───────────────────────── 显示刷新 ─────────────────────────
 
         /// <summary>同步「滑块填充比例 + 百分比文本」，**不发 onValueChanged**（刷新界面 ≠ 用户改动）。</summary>
@@ -474,25 +327,6 @@ namespace CR.UI.Panels
             var v = Mathf.Clamp01(value);
             if (target != null) target.SetValueWithoutNotify(v);
             if (label != null) label.text = Mathf.RoundToInt(v * 100f) + "%";
-        }
-
-        private void RefreshQualityText()
-        {
-            if (_qualityValue == null) return;
-            _qualityValue.text = TierNames[Mathf.Clamp(_qualityTier, 0, TierNames.Length - 1)];
-        }
-
-        private void RefreshFullscreenText(bool fullscreen)
-        {
-            if (_fullscreenValue == null) return;
-            _fullscreenValue.text = fullscreen ? "开" : "关";
-
-            // 原版语义：开 = 绿 ON、关 = 红 Off（基线图 Music/SFx 绿、Filter Clan Chat 红）。
-            if (_fullscreenBg != null)
-            {
-                var path = fullscreen ? CrUiStyle.ButtonGreen : CrUiStyle.ButtonRed;
-                CrUiStyle.Dress(_fullscreenBg, path, 0, new Vector4(14f, 14f, 14f, 14f));
-            }
         }
 
         // ───────────────────────── 原版素材：把图元贴回引擎控件 ─────────────────────────

@@ -241,21 +241,23 @@ namespace CR.UI.Panels
         private static readonly Color TabOffEdgeColor = new Color32(3, 26, 74, 255);
 
         /// <summary>
-        /// 页签底 **tint** = 实测页签色 ÷ 源帧内填色 <c>(76,172,255)</c>
-        /// （与 <see cref="CrUiStyle.ButtonBlueTint"/> **同一口径**：那个是 (48,112,224)÷(76,172,255)）。
+        /// 页签底 **tint** = 实测页签色 ÷ 源帧内填色 <c>(76,176,255)</c>
+        /// （与 <see cref="CrUiStyle.ButtonBlueTint"/> **同一口径**，只是分母取页签自己那件
+        /// <see cref="CrUiStyle.TabCornerArt"/> = `ui_out` 447 的九宫格中心像素）。
         /// 出处 **E65**：
-        /// ① 选中 <c>(33,124,193)</c> ⇒ (0.4342, 0.7209, 0.7569)；
-        /// ② 未选中 <c>(12,55,97)</c> ⇒ (0.1579, 0.3198, 0.3804)。
+        /// ① 选中 <c>(33,124,193)</c> ⇒ (0.4342, 0.7045, 0.7569)；
+        /// ② 未选中 <c>(12,55,97)</c> ⇒ (0.1579, 0.3125, 0.3804)。
         /// <para>
-        /// <b>为什么要 tint</b>：源帧 <c>ui_out</c> 166 的自填色是 **(76,172,255)**（B=255，很艳），
+        /// <b>为什么要 tint</b>：源帧的内填色是 **(76,176,255)**（B=255，很艳），
         /// 而参考图上页签实测只有 B=193/97 ⇒ 不染色直接铺会**明显偏艳**。
-        /// 该 tint 的**分母是实测的**（见 `d155-frame-ident.py` 的逐像素比对），⛔ 不是随手调色。
+        /// 分母是实测的（离屏复刻 `MakeRounded` 后读中心像素，见 `.ai-tmp/test/cr-deckui-mirror9.py`），
+        /// ⛔ 不是随手调色。
         /// </para>
         /// </summary>
-        private static readonly Color TabOnTint = new Color(0.4342f, 0.7209f, 0.7569f, 1f);
+        private static readonly Color TabOnTint = new Color(0.4342f, 0.7045f, 0.7569f, 1f);
 
         /// <inheritdoc cref="TabOnTint"/>
-        private static readonly Color TabOffTint = new Color(0.1579f, 0.3198f, 0.3804f, 1f);
+        private static readonly Color TabOffTint = new Color(0.1579f, 0.3125f, 0.3804f, 1f);
 
         /// <summary>编号行带的**上下亮边** = 实测 <c>(2,130,255)</c>（x=40 列 y320 / x=300 列 y160）。</summary>
         private static readonly Color NumBarEdgeColor = new Color32(2, 130, 255, 255);
@@ -702,8 +704,13 @@ namespace CR.UI.Panels
             // 全屏底 = 卡池底深蓝 E18 (2,35,90)；顶部到 Tab 带底 = 安全区 E13 (7,38,92)。
             UIFactory.CreateBoxRect("DeckBg", root, Vector2.zero,
                 new Vector2(CrUiStyle.DesignW, CrUiStyle.DesignH), DeckBgColor, false);
-            UIFactory.CreateBoxRect("TopArea", root, Vector2.zero,
-                new Vector2(CrUiStyle.DesignW, TabBarY + TabBarH), TopAreaColor, false);
+            // 顶区底 = 原版斜格底纹**平铺**（源帧 `ui_out` 276；出处 = `UI_menu_background`（clip 4890）
+            // → 子件 `background`(clip) → shape frame_276，显式引用可复跑，见 `ResPaths.MenuBackdropTile`）。
+            // tint = 参考图 07 顶区纹理实测均值 ÷ 帧灰度均值（`CrUiStyle.BackdropTint`）；
+            // 兜底色仍用 TopAreaColor（取不到图时退化成原来的纯色，⛔ 不会变白）。
+            CrUiStyle.Backdrop("TopBackdrop", root, ResPaths.MenuBackdropTile, TopAreaColor,
+                new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero,
+                new Vector2(CrUiStyle.DesignW, TabBarY + TabBarH), CrUiStyle.BackdropTint, false);
 
             // ── ② Tab 带（E2/E4/E5/E6 + 实测的 Tab 块上缘）──
             // 两个页签**不同宽**（实测 Decks 418.3 / Collection 394.0）—— 见 TabWCollection。
@@ -795,26 +802,24 @@ namespace CR.UI.Panels
         }
 
         /// <summary>
-        /// 一颗 Tab（原版 `full_page_button_tab` 的**色块**近似：整块底色 + 顶部一条高光）。
-        /// <para>
-        /// ⚠️ 本工程没有落地 `full_page_button_tab` 的图元（它由 265/266/267/239/196/166 六件九宫格拼成），
-        /// 所以这里用**量取的底色**画块（选中 <see cref="TabOnColor"/> E15 / 未选中 <see cref="TabOffColor"/> E14
-        /// + 实测的高光条）。差异登记在 `策划/差异登记.tsv` D151。
-        /// </para>
-        /// </summary>
-        /// <summary>
         /// 建一颗页面 Tab（Decks / Collection）。
         /// <para>
         /// <b>底 = 原版图元的九宫格</b>（⛔ 不用 `CreateBoxRect` 那种**方角 + 无描边**的实心矩形：
         /// 参考图上页签是**圆角件**）。
-        /// 现在底 = <see cref="CrUiStyle.Skin"/> + <see cref="CrUiStyle.ButtonBlue"/>（= `ui_out` 166，
+        /// 底 = <see cref="CrUiStyle.Skin"/> + <see cref="CrUiStyle.TabCornerArt"/>（= `ui_out` **447**，
         /// 「左上圆角」件，**原版像素经四角镜像拼九宫格**）+ <see cref="TabOnTint"/> / <see cref="TabOffTint"/>，
-        /// 圆角边长 = <see cref="CrUiStyle.BlueCorner"/>（= 19）。
+        /// 圆角边长 = <see cref="CrUiStyle.TabCornerSize"/>（= 24）。
         /// </para>
         /// <para>
-        /// <b>圆角的诚实缺口</b>：19@1080 = 21.9@1242，而参考图上页签圆角实测 **25@1242**（E68：逐行最左
-        /// 亮蓝像素 x140→118 收口于 y52）⇒ 我们**偏小 3.1px@1242（12%）**。
-        /// 原因是源帧 166 自身圆弧只有 ≈13px，镜像拼不出更大的圆角；⛔ 不写"一致"。
+        /// <b>圆角口径</b>：447 的弧 = 23px（`ui_out` 166 只有 11px、165 的左上角是方角）
+        /// ⇒ 实机圆角 23@1080 = 26.5@1242，参考图实测 **25@1242**（E68：x140→118 收口于 y52）
+        /// ⇒ 差 **+1.5px@1242**（在读数容差 ±5px@1242 内）。447 的内填色与 166 **逐像素相同**
+        /// (76,172,255) ⇒ tint 分母未变、无需重标。
+        /// </para>
+        /// <para>
+        /// <b>仍未复刻</b>：页签底**没有竖向渐变**（原版顶部 → 底部有渐变）。源内已实测**排除**
+        /// `ui_out` 265（剖面有"膝"），其余图集已扫过、无剖面一致的渐变件 ⇒ 保留单色。
+        /// 登记在 `策划/差异登记.tsv` D155 第 ② 条。
         /// </para>
         /// <para>
         /// <b>顶部那条线两态不同</b>（实测，E66 / E67）：选中 = **亮线** 3.5 高 <see cref="TabOnEdgeColor"/>；
@@ -824,7 +829,7 @@ namespace CR.UI.Panels
         private void BuildTab(string name, string label, float x, float y, float h, float w,
             Color fill, Color edge, float edgeH, Color tint, Action onClick)
         {
-            var block = CrUiStyle.Skin(name, _content, CrUiStyle.ButtonBlue, CrUiStyle.BlueCorner,
+            var block = CrUiStyle.Skin(name, _content, CrUiStyle.TabCornerArt, CrUiStyle.TabCornerSize,
                 Vector4.zero, new Vector2(0f, 1f), new Vector2(0f, 1f), At(x, y), new Vector2(w, h),
                 fill, true, tint);
             // 顶部那条线：**盖在**圆角件之上（圆角件自身的高光在左上角，整条顶边要靠这一条补）。

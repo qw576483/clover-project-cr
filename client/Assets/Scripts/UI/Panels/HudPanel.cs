@@ -283,50 +283,43 @@ namespace CR.UI.Panels
         /// </summary>
         private const int CardFontSize = 32;
 
-        // ── 卡面在卡槽里的贴合（⛔ 不能 ArtFill = 1.0/1.0，也不能叠向上偏移） ──
+        // ── 卡面在卡槽里的贴合 ──
         //
-        // 卡面按 1.0/1.0 铺满整张卡 ⇒ 卡面**顶出卡槽上沿**、卡槽下沿露出一条空底；再叠
-        // `+CardH*0.06`（= 10.3px）的向上偏移 ⇒ 上沿溢出更多、下半截与卡框明显错开
-        // （表现为「卡面不贴合卡框」）。
+        // 卡体件 = `ResPaths.SlotCard`（`ui_out/43`，原生 107×159）自带一圈**深色环**：左 6 列 / 上 6 行
+        // = (0,0,0)、内侧 = (248,248,248) 白卡体（逐像素剖面）。`CrUiStyle.Skin(corner: HudCardBodyCorner)`
+        // 的九宫格角块**按 1:1 绘制** ⇒ 实机卡缘那圈深色**恒为 6px**、不随卡片缩放变化。
         //
-        // <b>量取口径（每个值都能反查）</b>：
-        //   原版图 = `策划/参考图/20_对局_1080x1920.jpg`（1080×1920 = 本项目画布 ⇒ **像素值即画布值**，k=1.0）；
-        //   量取对象 = 该图**第 2 张手牌**（冰雪精灵 = `ui_spells_out/frame_007` ← 卡池 `card.tsv` 的
-        //   `ice-spirit`）—— 该卡是这张图里唯一"卡面不被费用泡遮住、可整幅比对"的一张。
-        //   ① 卡片外框（金边**外沿**）：金边列 x 286..290 / 417..421、金边行 y 1699..1703 / 1859..1862
-        //      ⇒ 外框 = **136 × 164**（像素）。
-        //   ② 卡面（插画）区域 = 用「与素材帧**最小平均绝对差**」反解（排除品红费用泡像素）：
-        //      把 `frame_007` 的 alpha 包围盒内容缩放到候选矩形、与原图同一区域逐像素比对，
-        //      坐标下降法求得最优内缩 = **左 6 / 上 7 / 右 5 / 下 6**（像素）⇒ 卡面 = **125 × 151**
-        //      （占卡片 91.91% × 92.07%）。量法：逐帧拟合。
-        //   ③ 换算式（本文件画布单位 = 画布像素）：内缩按**比例**折到 `CardW`/`CardH` ⇒ 下面四个 `*Frac`；
-        //      卡面尺寸 = `CardW×(1−左−右)` × `CardH×(1−上−下)`；卡面中心相对卡槽中心的 y 偏移
-        //      = `CardH×(下−上)/2`（本次量得 ≈ **−0.52px**，即卡面中心比卡槽中心**低** 0.52px）。
-        //   ⚠️ 「下一张」小卡按**同一比例**套用（原版是同一张卡设计按比例缩小）——见 `BuildNextPreview`。
+        // <b>内缩 = 深色环 6px + 亮卡体带 4px = 10px</b>（四个方向同值）：
+        //   ① 6px 深色环必须让开：卡面若压在它上面，白卡体整条被盖住、卡缘只剩一条深色边
+        //      （实机 `CR-V2-hud-a0full.png` x144..280 / y1614..1785：卡面左沿 x=149、可见深色仅 x=146..148）。
+        //   ② 亮卡体带取 4px：原版同一处是**亮卡体**——`策划/参考图/18_对局HUD_1080x1920.jpg`
+        //      手牌卡 3 逐列中位色，x571..574 的亮占比 0.90~0.93、色 ≈(201,202,207)，x≤570 即背景。
+        //   ⚠️ 残余：原版亮带外侧只有**一条细深线**（同处逐列中位色量不到 6px 的深色台阶），
+        //      而本项目卡体件自带 6px 深色环 ⇒ 卡缘总厚 10px vs 原版 ≈5px，登记在 `差异登记 D111`。
         //
-        // <b>量取的边界</b>：该图的手牌几何（卡片 136×164）比 `18_对局HUD_1080x1920.jpg` 的 D9/D11/D12
-        // 读数（单卡 140 × 高 171）小约 4.5%（两张图都是本项目画布尺寸 ⇒ 原版 HUD 缩放档不同）
-        // ⇒ 这里取**比例**（与缩放档无关），⛔ 不改 `CardW/CardH/CardGap/HandRowLeft`。
+        // 内缩按**比例**折到 `CardW`/`CardH`（本文件画布单位 = 画布像素）；
+        // 卡面尺寸 = `CardW×(1−左−右)` × `CardH×(1−上−下)`，四边同值 ⇒ 卡面中心与卡槽中心重合。
+        // ⚠️ 「下一张」小卡按**同一比例**套用（原版是同一张卡设计按比例缩小）——见 `BuildNextPreview`。
 
-        /// <summary>卡面在卡槽里的**左**内缩比例 = 6/136（量取口径见上方「卡面在卡槽里的贴合」段）。</summary>
-        private const float ArtInsetLeftFrac = 6f / 136f;
+        /// <summary>卡面在卡槽里的**左**内缩比例 = 10/136（口径见上方「卡面在卡槽里的贴合」段）。</summary>
+        private const float ArtInsetLeftFrac = 10f / 136f;
 
-        /// <summary>卡面在卡槽里的**右**内缩比例 = 5/136。</summary>
-        private const float ArtInsetRightFrac = 5f / 136f;
+        /// <summary>卡面在卡槽里的**右**内缩比例 = 10/136。</summary>
+        private const float ArtInsetRightFrac = 10f / 136f;
 
-        /// <summary>卡面在卡槽里的**上**内缩比例 = 7/164。</summary>
-        private const float ArtInsetTopFrac = 7f / 164f;
+        /// <summary>卡面在卡槽里的**上**内缩比例 = 10/171。</summary>
+        private const float ArtInsetTopFrac = 10f / 171f;
 
-        /// <summary>卡面在卡槽里的**下**内缩比例 = 6/164。</summary>
-        private const float ArtInsetBottomFrac = 6f / 164f;
+        /// <summary>卡面在卡槽里的**下**内缩比例 = 10/171。</summary>
+        private const float ArtInsetBottomFrac = 10f / 171f;
 
-        /// <summary>卡面宽占卡宽的比例 = 1 − 左内缩 − 右内缩（量得 ≈ 0.9191）。</summary>
+        /// <summary>卡面宽占卡宽的比例 = 1 − 左内缩 − 右内缩（= 116/136 ≈ 0.8529）。</summary>
         private const float ArtFillX = 1f - ArtInsetLeftFrac - ArtInsetRightFrac;
 
-        /// <summary>卡面高占卡高的比例 = 1 − 上内缩 − 下内缩（量得 ≈ 0.9207）。</summary>
+        /// <summary>卡面高占卡高的比例 = 1 − 上内缩 − 下内缩（= 151/171 ≈ 0.8830）。</summary>
         private const float ArtFillY = 1f - ArtInsetTopFrac - ArtInsetBottomFrac;
 
-        /// <summary>卡面中心相对卡槽中心的纵向偏移比例 =（下内缩 − 上内缩）/2（负 = 卡面偏下）。</summary>
+        /// <summary>卡面中心相对卡槽中心的纵向偏移比例 =（下内缩 − 上内缩）/2（四边同值 ⇒ 恒 0）。</summary>
         private const float ArtOffsetYFrac = (ArtInsetBottomFrac - ArtInsetTopFrac) * 0.5f;
 
         /// <summary>

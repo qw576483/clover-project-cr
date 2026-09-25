@@ -237,6 +237,25 @@ namespace CR
         /// <summary>深色圆角空框（横向；`ui_battle_end_out` 108）。</summary>
         public static string PanelFrameDark { get { return UiFrame(UiPanelsDir, UiSrcBattleEnd, 108); } }
 
+        /// <summary>
+        /// 菜单 / 卡组页**顶区的斜格底纹**（一个周期），`ui_out` **frame_276**（**裁到 192×192 = 一个周期**）。
+        /// <para>
+        /// <b>出处（显式子件引用，可复跑）</b>：`ui.sc` 的 export `UI_menu_background`（clip **4890**）
+        /// → 子件 `background`（clip）→ shape **frame_276**（放置矩阵 1:1，fx 列见
+        /// `python tools/probes/sc-subtree.py --clip UI_menu_background --depth 4`）。
+        /// </para>
+        /// <para>
+        /// <b>为什么要裁到一个周期</b>：源帧是 1152×2688 的**无缝斜格**，而本工程 UI 图元的导入设置
+        /// `maxTextureSize = 2048` 会把 2688 压到 76.2%，使周期变成非整数、平铺出接缝。
+        /// 周期是**量出来的**不是设的：灰度画布的 2D 自相关在 lag=192
+        /// 两轴 RMS=0.57/255（lag=384 为 0.0 ⇒ 384 是两个周期），且 1152/192=6、2688/192=14 整除。
+        /// </para>
+        /// <para>
+        /// 用图方式：<c>Image.Type.Tiled</c>（见 <c>CrUiStyle.Backdrop</c>），tint 见 <c>CrUiStyle.BackdropTint</c>。
+        /// </para>
+        /// </summary>
+        public static string MenuBackdropTile { get { return UiFrame(UiPanelsDir, UiSrcUi, 276); } }
+
         // ── 按钮（Buttons）─────────────────────────────────────────────────────────
 
         /// <summary>
@@ -267,6 +286,42 @@ namespace CR
 
         /// <summary>蓝色按钮切角（变体；`ui_out` 166）。</summary>
         public static string ButtonBlueCornerAlt { get { return UiFrame(UiButtonsDir, UiSrcUi, 166); } }
+
+        /// <summary>
+        /// 蓝色按钮切角（**大圆弧**；`ui_out` **447**，88×91）。
+        /// <para>
+        /// <b>与 165 / 166 同族</b>：内填色逐像素相同 = **(76,172,255)**（447 的中列 y16..y90 恒为此值；
+        /// 166 的 (c−1,c−1) 也是它）⇒ 换用它**不需要**重标任何 tint 分母。
+        /// </para>
+        /// <para>
+        /// <b>唯一差别 = 圆弧半径</b>（逐行最左不透明像素 / 逐列最上不透明像素，两向各量一次）：
+        /// 447 = **23 / 21**，166 = **11 / 11**，165 = 左下弧 12（左上角是**方角** ⇒ 不可用于
+        /// 「左上圆角」拼法）。参考图里页签圆角实测 **25@1242 = 21.7@1080**（`策划/参考图/几何量取.md`
+        /// E68：x140(y28)→118(y52) 收口）⇒ 166 拼不出该半径，447 拼得出（23@1080 = 26.5@1242）。
+        /// </para>
+        /// </summary>
+        public static string ButtonBlueCornerBig { get { return UiFrame(UiButtonsDir, UiSrcUi, 447); } }
+
+        // ── 原版 `full_page_button_tab`（`ui.sc` clip 3981）**显式引用**的那几件（D151 第 ① 项）──
+        //    引用链：clip 3981 → 子件 `ok_button`(clip) → shapes frame_165/166/264/265/266/267/196/239；
+        //            clip 3981 → 子件 `background`(clip) → shapes frame_270/460。
+        //    帧 270/460 是 1px 高的线、264 是 1×1 ⇒ 只登记有实体面积的那几件（165/166 已有键）。
+        //    落地口径见 `tools/probes/copy-ui-assets.py` 的 SPRITES。
+
+        /// <summary>页签底**竖向渐变条**（`ui_out` 265，1×40；`full_page_button_tab` → `ok_button` 引用）。</summary>
+        public static string TabGradientStrip { get { return UiFrame(UiButtonsDir, UiSrcUi, 265); } }
+
+        /// <summary>页签底**横边条**（`ui_out` 266，39×1；同一条引用链）。</summary>
+        public static string TabEdgeH { get { return UiFrame(UiButtonsDir, UiSrcUi, 266); } }
+
+        /// <summary>页签底**横边条**（`ui_out` 267，38×1；同一条引用链）。</summary>
+        public static string TabEdgeHAlt { get { return UiFrame(UiButtonsDir, UiSrcUi, 267); } }
+
+        /// <summary>页签内**白色圆角底板**（`ui_out` 196，247×56 纯白；同一条引用链）。</summary>
+        public static string TabWhitePlate { get { return UiFrame(UiButtonsDir, UiSrcUi, 196); } }
+
+        /// <summary>页签内**白色圆点**（`ui_out` 239，19×19；同一条引用链）。</summary>
+        public static string TabWhiteDot { get { return UiFrame(UiButtonsDir, UiSrcUi, 239); } }
 
         /// <summary>金黄色按钮底（渐变+立体边；`ui_out` 300）。</summary>
         public static string ButtonGold { get { return UiFrame(UiButtonsDir, UiSrcUi, 300); } }

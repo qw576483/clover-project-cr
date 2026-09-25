@@ -40,6 +40,11 @@ WHY THE LANDED FILE IS A CROP, NOT A RAW COPY (measured, not assumed)
     the `图元尺寸(bbox)` column of `策划/原版UI素材索引.md`, so any landed file
     reverse-resolves to its original rectangle.
 
+    One exception, listed in `CROP_OVERRIDE` below: `ui_out` 276 is a seamless
+    repeating quilt, so landing a single measured period (192x192) is both the
+    correct asset for `Image.Type.Tiled` and the only way to keep it 1:1 under
+    `maxTextureSize = 2048`.  The override carries its own measurement note.
+
 TWO FRAMES ARE DELIBERATELY NOT LANDED
     `ui_out` 10  (`ButtonWide` / 白色宽圆角框描边) and `ui_out` 76
     (`IconCrownBlackSmall` / 黑色皇冠（小）) are made of disconnected pieces, so the
@@ -93,6 +98,10 @@ MANIFEST = os.path.join(ROOT, ".ai-tmp", "screenshots", "ui-index-manifest.tsv")
 # ── purpose dir -> [ (source dir, source frame, ResPaths key) ] ───────────────
 SPRITES = {
     "Panels": [
+        # -- MenuBackdropTile: `UI_menu_background`（clip 4890）→ `background`(clip) → shape **frame_276**.
+        #    Source frame is 1152x2688 (a seamless quilt).  Cropped here to ONE period (192x192) --
+        #    see CROP_OVERRIDE below for why, and the autocorrelation evidence in that dict. --
+        ("ui_out", 276, "MenuBackdropTile"),
         ("ui_out", 806, "PanelPaper"),
         ("ui_out", 807, "PanelPaperCornerTr"),
         ("ui_out", 808, "PanelPaperCornerTl"),
@@ -128,6 +137,22 @@ SPRITES = {
         ("ui_out", 5, "ButtonGreenCorner"),
         ("ui_out", 165, "ButtonBlueCorner"),
         ("ui_out", 166, "ButtonBlueCornerAlt"),
+        # -- ButtonBlueCornerBig: `ui_out` 447 (88x91).  Same inner fill as 166 --
+        #    (76,172,255) -- but its top-left arc is 23 px instead of 166's 11 px, i.e. it is the
+        #    only same-family frame big enough to reproduce a 21.7px@1080 corner (the original
+        #    card page tab radius, 几何量取.md E68).  Two independent arc measurements, both from
+        #    the alpha bbox: leftmost-opaque-per-row 23, topmost-opaque-per-col 21 (166: 11 / 11). --
+        ("ui_out", 447, "ButtonBlueCornerBig"),
+        # -- The frames `full_page_button_tab` (ui.sc clip 3981) references explicitly, landed so the
+        #    tab block's original 9-slice pieces exist in the project (差异登记 D151 item 1).  The
+        #    reference chain is clip 3981 -> ok_button(clip) -> shapes frame_165/166/264/265/266/267/
+        #    196/239 and clip 3981 -> background(clip) -> frame_270/460.  Frames 270/460 are 1px-tall
+        #    lines and 264 is 1x1, so only the five pieces with real area are landed here. --
+        ("ui_out", 265, "TabGradientStrip"),
+        ("ui_out", 266, "TabEdgeH"),
+        ("ui_out", 267, "TabEdgeHAlt"),
+        ("ui_out", 196, "TabWhitePlate"),
+        ("ui_out", 239, "TabWhiteDot"),
         ("ui_out", 300, "ButtonGold"),
         ("ui_out", 357, "ButtonOrange"),
         ("ui_out", 359, "ButtonOrangeAlt"),
@@ -233,6 +258,22 @@ ALSO_NOT_LANDED = [
                                           "已有 IconCrownBlack（ui_out 75）覆盖同一用途"),
 ]
 
+# ── crop overrides: (source dir, frame) -> (x, y, w, h) in the ORIGINAL source canvas ──────────
+# Only for frames whose manifest bbox is NOT the right thing to land.
+#
+# MenuBackdropTile: `ui_out` 276 is 1152x2688 and is a SEAMLESS repeating quilt.  Two reasons to
+# land one period instead of the whole frame:
+#   1. `TextureImporter.maxTextureSize = 2048` (the project's agreed UI setting) would downscale
+#      2688 -> 2048 = 76.2%, changing the tile pitch in a non-integer way (visible seams).
+#   2. The whole point of this asset is `Image.Type.Tiled`, so a single exact period is all that
+#      is needed and it stays 1:1.
+# The period is measured, not assumed: the 2D autocorrelation of the grayscale canvas has
+# RMS=0.57/255 at lag 192 on both axes (RMS=0.0 at lag 384, i.e. 384 is 2 periods) and
+# 1152/192 = 6, 2688/192 = 14 exactly.  See `.ai-tmp/test/cr-deckui-tile.py`.
+CROP_OVERRIDE: dict[tuple[str, int], tuple[int, int, int, int]] = {
+    ("ui_out", 276): (108, 0, 192, 192),
+}
+
 IDX_RE = re.compile(r"_sprite_(\d+)\.png$")
 
 
@@ -287,7 +328,7 @@ def main() -> int:
                 print("!! source frame missing: %s/%s_sprite_%d.png" % (SRC, src_dir, frame))
                 bad += 1
                 continue
-            box = bbox.get((src_dir, frame))
+            box = CROP_OVERRIDE.get((src_dir, frame)) or bbox.get((src_dir, frame))
             if box is None:
                 print("!! no manifest row for %s frame %d" % (src_dir, frame))
                 bad += 1

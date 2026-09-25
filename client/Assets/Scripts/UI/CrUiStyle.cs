@@ -478,6 +478,30 @@ namespace CR.UI
         }
 
         /// <summary>
+        /// 造一个**平铺**（<c>Image.Type.Tiled</c>）的原版底纹节点 —— 用于本身就是**无缝重复**
+        /// 的整幅纹理（如 <see cref="ResPaths.MenuBackdropTile"/>：源帧的一个 192×192 周期）。
+        /// <para>
+        /// ⛔ 与 <see cref="Icon"/> 的区别只在 <c>type</c>：图标是整幅拉伸（`Simple`），
+        /// 底纹必须**重复**而不是拉大（拉大会把斜格间距放大到原版的数倍）。
+        /// 取不到图时保持兜底色并把 <c>color</c> 置白（⛔ 不留 tint 当滤镜）。
+        /// </para>
+        /// </summary>
+        public static Image Backdrop(string name, Transform parent, string resPath, Color fallback,
+            Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size, Color tint, bool raycast = false)
+        {
+            var img = UIFactory.CreatePanel(name, parent, fallback, raycast);
+            UIFactory.Place(img.rectTransform, anchor, pivot, pos, size);
+            LoadSprite(resPath, s =>
+            {
+                if (img == null || s == null) return;
+                img.sprite = s;
+                img.type = Image.Type.Tiled;
+                img.color = tint;
+            });
+            return img;
+        }
+
+        /// <summary>
         /// UI 点击音的唯一公开入口：除 `<see cref="ActionButton"/>/<see cref="Button"/>` 之外，
         /// 各面板自建的 `Button`（设置面板的关闭 / 画质箭头 / 全屏）也要发声，所以把私有的 <see cref="PlayUiClick"/>
         /// 包一层 —— ⛔ 调用方不要自己 `Game.Sound.PlaySFX`（会漏日志、双响）。
@@ -1128,6 +1152,45 @@ namespace CR.UI
         /// </para>
         /// </summary>
         public const int BlueCorner = 19;
+
+        /// <summary>
+        /// **页签底**用的「左上圆角」件 = <see cref="ResPaths.ButtonBlueCornerBig"/>（`ui_out` 447）。
+        /// <para>
+        /// 为什么页签不用 <see cref="ButtonBlue"/>（`ui_out` 166）：<see cref="Skin"/> 的镜像拼法
+        /// 只能复现**源帧自身圆弧**那么大的圆角 —— 166 的弧 = 11px、165 的左上角是方角，
+        /// 都做不出参考图页签的 **25@1242 = 21.7@1080**（`策划/参考图/几何量取.md` E68）。
+        /// 447 的弧 = 23px（右下角另量 21px），内填色与 166 **逐像素相同** (76,172,255)
+        /// ⇒ 换件不动 tint 分母。
+        /// </para>
+        /// </summary>
+        public static string TabCornerArt { get { return ResPaths.ButtonBlueCornerBig; } }
+
+        /// <summary>
+        /// <see cref="TabCornerArt"/> 的取角块边长 = **24**（全工程唯一来源）。
+        /// <para>
+        /// 取值判据（同 <see cref="BlueCorner"/> 的两条约束）：① 弧不被截断 ⇒ c ≥ 弧 = 23；
+        /// ② 镜像九宫格最外一行/一列取自源帧 row 0 / col (c−1)，必须不透明 ⇒ c ≥ 24
+        /// （447 的 row 0 在 x=23 起不透明、col 23 整列不透明）。实机圆角 = 23@1080 = 26.5@1242，
+        /// 与参考图 25@1242 差 +1.5px（在 ±5px@1242 容差内）。
+        /// </para>
+        /// </summary>
+        public const int TabCornerSize = 24;
+
+        /// <summary>
+        /// 菜单 / 卡组页**顶区斜格底纹**的 tint = <c>参考图读数均值 ÷ 素材帧灰度均值</c>。
+        /// <para>
+        /// 分母 = `ui_out/276` 的灰度均值 **153.5**（该帧 R=G=B，逐像素 max|R−G| = max|G−B| = 0
+        /// ⇒ 纯乘 tint 能把中性灰纹染成任意原版色）；
+        /// 分子 = 参考图 `07` 顶区纹理实测均值 **(11.4, 49.8, 100.1)**（x0..100 / y26..156，
+        /// 排除了页签本体）⇒ tint = (0.0740, 0.3243, 0.6521)。
+        /// </para>
+        /// <para>
+        /// ⚠️ <b>如实登记的残余</b>：该 tint 对**均值**吻合（预判中位 (11,50,100) = 实测），
+        /// 但素材帧的灰度跨度 60..231 比参考图同区实测跨度（B 通道 64..118）宽 ⇒ 最亮那几格
+        /// 我们会偏亮（预判 B=150 vs 实测 118）。单值纯乘无法同时对上两端，⛔ 不为此改成拟合曲线。
+        /// </para>
+        /// </summary>
+        public static readonly Color BackdropTint = new Color(0.0740f, 0.3243f, 0.6521f, 1f);
 
         /// <summary>
         /// **蓝底按钮**（原版蓝色圆角件 <see cref="ButtonBlue"/>（`ui_out` **166**，左上圆角件 ⇒ 走

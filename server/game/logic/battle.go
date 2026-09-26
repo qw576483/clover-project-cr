@@ -94,6 +94,10 @@ func (l *gameLogic) startMatch(roomID string) error {
 	st.ticking = false
 	st.started = true
 	st.ended = false
+	st.plays = make(map[string]map[int32]int32) // 本局的出牌计数从零开始（房间可能被复用打第二局）
+	// 进场闸门从零开始：模拟等每个真人座位进图（MsgBattleSync）才推进（房间可能被复用打第二局）。
+	st.entered = make(map[int]bool, maxRoomMembers)
+	st.tickArmed = false
 	for _, m := range st.members {
 		m.Ready = false
 	}
@@ -112,10 +116,16 @@ func (l *gameLogic) startMatch(roomID string) error {
 	}
 	targets := make([]string, 0, maxRoomMembers)
 	seats := make([]int, 0, maxRoomMembers)
+	// 待进图的真人座位（模拟推进闸门的读数；在锁内取，见 battleTick）。
+	pending := make([]int, 0, maxRoomMembers)
 	for i, m := range st.members {
-		if !m.IsAI {
-			targets = append(targets, m.PlayerID)
-			seats = append(seats, i)
+		if m.IsAI {
+			continue
+		}
+		targets = append(targets, m.PlayerID)
+		seats = append(seats, i)
+		if !st.entered[i] {
+			pending = append(pending, i)
 		}
 	}
 	l.rooms.mu.Unlock()
@@ -129,6 +139,11 @@ func (l *gameLogic) startMatch(roomID string) error {
 	}
 	logger.Infof("logic: 对局开打 room=%s seed=%d seat0=%s seat1=%s deckA=%v deckB=%v",
 		roomID, seed, st.members[0].PlayerID, st.members[1].PlayerID, deckA, deckB)
+
+	// 模拟推进闸门：真人座位都进图（MsgBattleSync）后才 Step，见 battleTick。
+	if len(pending) > 0 {
+		logger.Infof("logic: 对局等待真人进图 room=%s 待进图座位=%v", roomID, pending)
+	}
 
 	l.g.Timer.TimerGroup(battleScope(roomID)).Every("tick", battleTickInterval, func() {
 		l.battleTick(roomID)
@@ -171,34 +186,46 @@ func (l *gameLogic) battleTick(roomID string) {
 	st.ticking = true
 
 	b := st.battle
-	b.Step()
-	st.ticks++
 
-	// AI 决策：每 500 ms 一次，落点仍然走 core.PlayCard（唯一入口，与真人同一条校验路径）。
-	if seat := st.aiSeatLocked(); seat >= 0 && st.ticks%aiDecisionTicks == 0 {
-		team := core.Team(seat)
-		if cardID, x, y, ok := core.Decide(b, team); ok {
-			if err := b.PlayCard(team, cardID, x, y); err != nil {
-				logger.Warnf("logic: AI 出牌被拒 room=%s team=%d card=%d (%d,%d): %v",
-					roomID, seat, cardID, x, y, err)
-			} else {
-				logger.Infof("logic: AI 出牌成功 room=%s team=%d card=%d (%d,%d) elixir=%d tick=%d",
-					roomID, seat, cardID, x, y, b.Elixir(team), st.ticks)
+	// 推进闸门：真人客户端进图之前不 Step —— 否则服务端时钟先于玩家画面跑，
+	// 对手（AI）会先出牌、先走到玩家半场。就位判据 = 客户端进图时发的 MsgBattleSync。
+	if !st.tickArmed && st.allHumansEnteredLocked() {
+		st.tickArmed = true
+		logger.Infof("logic: 对局开始推进 room=%s（真人座位均已进图）", roomID)
+	}
+
+	var snap *core.Snapshot
+	if st.tickArmed {
+		b.Step()
+		st.ticks++
+
+		// AI 决策：每 500 ms 一次，落点仍然走 core.PlayCard（唯一入口，与真人同一条校验路径）。
+		if seat := st.aiSeatLocked(); seat >= 0 && st.ticks%aiDecisionTicks == 0 {
+			team := core.Team(seat)
+			if cardID, x, y, ok := core.Decide(b, team); ok {
+				if err := b.PlayCard(team, cardID, x, y); err != nil {
+					logger.Warnf("logic: AI 出牌被拒 room=%s team=%d card=%d (%d,%d): %v",
+						roomID, seat, cardID, x, y, err)
+				} else {
+					logger.Infof("logic: AI 出牌成功 room=%s team=%d card=%d (%d,%d) elixir=%d tick=%d",
+						roomID, seat, cardID, x, y, b.Elixir(team), st.ticks)
+				}
 			}
+		}
+
+		if st.ticks%snapshotEveryTicks == 0 {
+			s := b.Snapshot()
+			st.lastSnap = s
+			st.hasLastSnap = true
+			snap = &s
 		}
 	}
 
 	events := b.DrainEvents()
-	var snap *core.Snapshot
-	if st.ticks%snapshotEveryTicks == 0 {
-		s := b.Snapshot()
-		st.lastSnap = s
-		st.hasLastSnap = true
-		snap = &s
-	}
 	ended := b.Ended()
 	var result core.Result
 	var targets []string
+	var results []matchResult
 	seats := make([]int, 0, maxRoomMembers)
 	if ended {
 		result = b.Result()
@@ -211,6 +238,23 @@ func (l *gameLogic) battleTick(roomID string) {
 	for i, m := range st.members {
 		if !m.IsAI {
 			seats = append(seats, i)
+		}
+	}
+	if ended {
+		// 结算的**待补记内容**必须在锁内取（出去以后 st 可能已被回收）：
+		// 胜负 + 本方王冠数（三冠胜场的判据）+ 本局出牌计数（常用卡牌的判据）。
+		results = make([]matchResult, 0, len(targets))
+		for i, pid := range targets {
+			mr := matchResult{Draw: result.Draw, Plays: st.plays[pid]}
+			if !result.Draw && i < len(seats) && result.Ended {
+				mr.Win = int(result.Winner) == seats[i]
+				if seats[i] == 0 {
+					mr.Crowns = result.CrownsA
+				} else {
+					mr.Crowns = result.CrownsB
+				}
+			}
+			results = append(results, mr)
 		}
 	}
 	st.ticking = false
@@ -235,20 +279,20 @@ func (l *gameLogic) battleTick(roomID string) {
 	}
 	if ended {
 		l.stopBattleTimer(roomID)
-		l.finishMatch(roomID, result, targets, seats)
+		l.finishMatch(roomID, result, targets, results)
 		return
 	}
 }
 
 // finishMatch 结算：推 BattleEnd、排队战绩、清理掉线座位、房间回到未开打态。
-func (l *gameLogic) finishMatch(roomID string, res core.Result, targets []string, seats []int) {
+// results[i] 与 targets[i] 一一对应（在 battleTick 的锁内组装，见那里的注释）。
+func (l *gameLogic) finishMatch(roomID string, res core.Result, targets []string, results []matchResult) {
 	for i, pid := range targets {
-		if i >= len(seats) {
+		if i >= len(results) {
 			break
 		}
-		win := res.Ended && !res.Draw && int(res.Winner) == seats[i]
 		payload := def.BattleEndNotify{
-			Win:     win,
+			Win:     results[i].Win,
 			Draw:    res.Draw,
 			CrownsA: res.CrownsA,
 			CrownsB: res.CrownsB,
@@ -259,11 +303,8 @@ func (l *gameLogic) finishMatch(roomID string, res core.Result, targets []string
 		if err := l.g.PushToPlayer(pushTarget(pid), def.PushBattleEnd, payload); err != nil {
 			logger.Warnf("logic: 推送结算失败 room=%s player=%s: %v", roomID, pid, err)
 		}
-		if res.Draw {
-			// 平局不改胜负场（PlayerData 只有 Wins/Losses 两个计数，没有平局位）。
-			continue
-		}
-		l.rooms.pushResult(pid, win)
+		// 平局也排队（不改胜负场，但要算进参赛场次）。
+		l.rooms.pushResult(pid, results[i])
 	}
 	logger.Infof("logic: 对局结束 room=%s reason=%s draw=%v winner=%d crownsA=%d crownsB=%d hpRateA=%d hpRateB=%d",
 		roomID, res.Reason, res.Draw, res.Winner, res.CrownsA, res.CrownsB, res.HpRateA, res.HpRateB)
@@ -344,6 +385,12 @@ func (l *gameLogic) onBattleSync(c event.Ctx) error {
 		l.g.Reply(c, def.BattleSyncReply{})
 		return nil
 	}
+	// 进图回执：进程内模拟的推进闸门（见 battleTick）等这一条 —— 客户端是在
+	// 战斗场景加载完、HUD 打开之后才发 MsgBattleSync 的。
+	if l.rooms.markEntered(req.RoomID, pid) {
+		logger.Infof("logic: 真人进图 room=%s player=%s", req.RoomID, pid)
+	}
+
 	snap, ok := l.rooms.snapshotFor(req.RoomID, pid)
 	if !ok {
 		logger.Warnf("logic: 同步请求无效（不在房内或对局未开始）room=%s player=%s", req.RoomID, pid)

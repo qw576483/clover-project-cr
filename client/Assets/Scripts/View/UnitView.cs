@@ -60,8 +60,8 @@ namespace CR.View
         /// 各档**默认**播放帧率（帧/秒）—— 只给「不在 <see cref="UnitAnimTable"/> 里的目录 / 未覆盖的档位」用
         /// （它们整目录循环、没有 `.sc` 逐档 FPS 可查）。出处：**本项目自定**，
         /// 取值依据只有三条相对关系：移动比待机快、攻击比移动快、死亡播完即停。
-        /// <para>⛔ 收录目录**不**用这里：idle=0（静止帧不播）、walk/die = 该目录 `.sc` 自带 FPS、
-        /// attack = 攻击段帧数 ÷ (`hit_speed_ms`÷1000)（见 <see cref="FpsFor"/>）。</para>
+        /// <para>⛔ 收录目录**不**用这里：帧率一律按「帧数 ÷ 该档原版时长」算（见 <see cref="FpsFor"/> 与
+        /// <see cref="UnitAnimDurations"/>）；本数组只给「表外目录 / 表内档位不可用」的整目录循环用。</para>
         /// </summary>
         private static readonly float[] AnimFps = { 8f, 12f, 14f, 10f };
 
@@ -72,9 +72,8 @@ namespace CR.View
         /// </summary>
         private static readonly Dictionary<string, int[]> ClipIndexCache = new Dictionary<string, int[]>();
 
-        /// <summary>`hit_speed_ms` 与攻击段帧率的关系（⛔ 不再在本类里写死数值，一律查 <see cref="UnitAnimTable"/>）：
-        /// `AnimFps[attack] = 攻击段帧数 ÷ (hit_speed_ms ÷ 1000)` ⇒ 攻击段**播完一遍的时长 == `hit_speed_ms`**。
-        /// 演算原文打印在 <see cref="AssertAttackTiming"/>（每目录一次）。</summary>
+        /// <summary>攻击档的**兜底**帧率算式（只在 <see cref="UnitAnimDurations"/> 查不到该档时长时用）：
+        /// `attackFps = 攻击段帧数 ÷ (hit_speed_ms ÷ 1000)`。演算原文打印在 <see cref="AssertAttackTiming"/>。</summary>
         private const string AttackFpsFormula = "attackFps = attackCount / (hitSpeedMs / 1000)";
 
         /// <summary>
@@ -112,15 +111,20 @@ namespace CR.View
         /// ⇒ 本表的值 = `upp / 10`。
         /// </para>
         /// <para>
-        /// 核验（闭环）：把本表的值乘回该单位 art 的紧框中位宽，得到的格宽与同一个 `.sc` 的多边形格宽
-        /// 逐单位吻合（37 个目录里 36 个的闭环比在 ±5% 内；逐目录读数见
-        /// `.ai-tmp/test/cr-scale-table.tsv` 的「闭环比」列）。
+        /// <b>哪些 shape 参与取值（规则）</b>：`0x12` 记录里只有「多边形与图集矩形是 1:1 贴图」的那些
+        /// 才携带一个「单位/像素」数 —— 判据 = `0.9 ≤ upp_x / upp_y ≤ 1.1`（`upp_x` = 多边形外接框宽
+        /// ÷ 图集矩形宽，`upp_y` 同理）；其余形状的多边形与纹理不成 1:1，会把中位带偏
+        /// （`building_tesla_v215.sc` 全量中位 6.79、可用子集中位 9.82）。取值 = 可用子集 `upp` 的**中位** ÷ 10。
         /// </para>
         /// <para>
-        /// ⚠️ 只列 `chr_*_out`（部队）。建筑目录（`building_*_out`）**不在此列** —— 塔的缩放由
-        /// `ArenaView.TowerScale` / `ArenaView.PrincessTowerScale` 单独给出，再乘本表会二次放大。
-        /// 未列出的 `spriteDir`（含 `chr_balloon_out` —— 该 `.sc` 只有 10 条可用 shape，中位不可信）
-        /// 一律按 1.0。
+        /// ⚠️ 只列 `chr_*_out`（部队）。**建筑目录一律不列、按 1.0**，两条理由：
+        /// ① `.sc` 侧 —— 建筑的 shape 集只能筛出约四成 1:1 贴图（`building_tesla_v215.sc` 全量中位 6.79 /
+        /// 可用子集 9.82），仍不足以定位「主体件」；
+        /// ② **素材侧** —— `building_*_out` 目录是**多子图**目录（如 `building_goblin_hut_out` 的帧宽中位 42 px、
+        /// 最宽帧 169 px），「帧宽中位」≠ 建筑自身的宽度 ⇒ 没有可配对的两个量。
+        /// `chr_balloon_out` 同理不列（`.sc` 只有 10 条可用 shape）。
+        /// 塔目录 `building_tower_out` **从不**走本类（`BattleViewRoot` 只把快照的 `Entities`（部队 / 已部署建筑）
+        /// 交给它，冠状塔由 `ArenaView` 用自己的层配方画）。
         /// </para>
         /// <para>生成路径：`tools/probes/sc-placement.py`（解析 `.sc`）+ `.ai-tmp/test/cr-scale-table.py`（出表）。</para>
         /// </summary>
@@ -194,6 +198,13 @@ namespace CR.View
         }
 
         private SpriteRenderer _renderer;
+
+        /// <summary>
+        /// 渲染器**自带**的默认材质（`AddComponent` 之后立刻记下）。没有混合的帧要写回它 ——
+        /// ⛔ 不许往 `sharedMaterial` 写 null（那会让渲染器落到 Unity 的错误材质上，整块画成洋红）。
+        /// </summary>
+        private Material _rendererDefault;
+
         private WorldHpBar _hpBar;
         private string _spriteDir = string.Empty;
         private Sprite[] _frames;
@@ -201,6 +212,105 @@ namespace CR.View
         private string _spritePath = string.Empty;
         /// <summary>加载时用的锚点模式（与 <see cref="_spritePath"/> 一起构成 <see cref="SpriteBank.FrameNumberMap"/> 的键）。</summary>
         private SpriteBank.SpritePivotMode _pivotMode = SpriteBank.SpritePivotMode.UnifiedCanvasAnchor;
+
+        /// <summary>本视图是不是建筑（取 `ResPaths.BuildingDir` 那一支；层配方只对建筑生效）。</summary>
+        private bool _isBuilding;
+
+        /// <summary>
+        /// 建筑的各层渲染器（出处 = <see cref="BuildingLayerTable"/>；非建筑 / 目录未收录时为空）。
+        /// <para>
+        /// 一个建筑的 `building_*_out` 目录装的是**建物的多个子件 + 两队配色 + 小道具**，单个渲染器一次只能画一帧
+        /// ⇒ 会把部件帧与敌队配色帧也播出来。有配方时改成「按配方给的帧与偏移叠 N 层」，层序 = 配方顺序（后建的在上）。
+        /// </para>
+        /// </summary>
+        private SpriteRenderer[] _layers;
+
+        /// <summary>`_layers` 是按哪一队的配方建的（`-1` = 还没建；池复用可能换队，必须重建）。</summary>
+        private int _layersTeam = -1;
+
+        /// <summary>「该建筑目录没有层配方」只报一次的集合。</summary>
+        private static readonly HashSet<string> BuildingRecipeWarned = new HashSet<string>();
+
+        /// <summary>该目录是否有建筑层配方（两队任一即可）。</summary>
+        private bool HasBuildingRecipe()
+        {
+            if (!_isBuilding) return false;
+            BuildingLayerTable.Layer[] tmp;
+            return BuildingLayerTable.TryGet(_spriteDir, BuildingLayerTable.TeamBlue, out tmp)
+                || BuildingLayerTable.TryGet(_spriteDir, BuildingLayerTable.TeamRed, out tmp);
+        }
+
+        /// <summary>销毁已有的层节点（池复用 / 换目录 / 换队时调）。</summary>
+        private void ClearLayers()
+        {
+            if (_layers == null) return;
+            for (var i = 0; i < _layers.Length; i++)
+                if (_layers[i] != null) Destroy(_layers[i].gameObject);
+            _layers = null;
+            _layersTeam = -1;
+        }
+
+        /// <summary>
+        /// 按 <see cref="BuildingLayerTable"/> 的配方建/重建这个建筑的各层。返回 true = 该队有配方、已按层渲染。
+        /// <para>偏移换算与 `ArenaView` 的塔层同式：`localPosition = (DxPx, −DyPx) ÷ 该帧的 pixelsPerUnit`
+        /// （`.sc` 矩阵的 y 向下为正，而 Unity 的 +y 向上）。</para>
+        /// </summary>
+        private bool BuildLayers(int team)
+        {
+            BuildingLayerTable.Layer[] recipe;
+            if (_frames == null || _frames.Length == 0
+                || !BuildingLayerTable.TryGet(_spriteDir, team, out recipe)) return false;
+            if (_layers != null && _layersTeam == team) return true;
+            ClearLayers();
+            // 配方的 `Frame` 是**帧号**（`frame_NNN` 的 NNN），不是帧数组下标 —— 老规矩必须过
+            // `SpriteBank.FrameNumberMap`（一张 PNG 被切成多个子 Sprite 时下标 ≠ 帧号），见 `ResolveFrame`。
+            var map = SpriteBank.FrameNumberMap(_spritePath, _pivotMode);
+            _layers = new SpriteRenderer[recipe.Length];
+            for (var i = 0; i < recipe.Length; i++)
+            {
+                var spec = recipe[i];
+                var idx = ResolveFrame(map, spec.Frame);
+                if (idx < 0 || idx >= _frames.Length)
+                {
+                    // 非预期分支必须留痕：配方引用的帧在本目录取不到（缺帧 / 映射缺项）⇒ 这一层不画。
+                    LogThrottle.WarnOnce(LogTag, "layer:" + _spriteDir + ":" + spec.Frame,
+                        $"建筑层配方的帧在本目录取不到 ⇒ 跳过该层：dir={_spriteDir} frame={spec.Frame} 下标={idx} frames.Length={_frames.Length}");
+                    continue;
+                }
+                var sprite = _frames[idx];
+                var ppu = sprite != null && sprite.pixelsPerUnit > 0.01f
+                    ? sprite.pixelsPerUnit : SpriteBank.FallbackPixelsPerUnit;
+                var go = new GameObject("L" + i);
+                go.transform.SetParent(transform, false);
+                go.transform.localPosition = new Vector3(spec.DxPx / ppu, -spec.DyPx / ppu, 0f);
+                go.transform.localScale = new Vector3(spec.Sx, spec.Sy, 1f);
+                var sr = go.AddComponent<SpriteRenderer>();
+                sr.sprite = sprite;
+                // 层配方里的帧可能有原版 Add / Multiply / Screen 混合（见 `SpriteBlendTable`）⇒ 逐层选材质；
+                // 没有混合的帧写回该渲染器自带的默认材质（⛔ 不许写 null = 整块洋红，见 `SpriteBlendMaterial.For`）。
+                SpriteBlendMaterial.Set(sr, SpriteBlendMaterial.For(
+                    _spritePath, spec.Frame, SpriteBlendMaterial.RememberDefault(sr)));
+                _layers[i] = sr;
+            }
+            _layersTeam = team;
+            return true;
+        }
+
+        /// <summary>把层序与透明度推到各层（层序从建筑根的世界 y 深度起算，配方顺序即绘制顺序）。</summary>
+        private void ApplyLayers(Vector2 worldPos, float alpha)
+        {
+            if (_layers == null) return;
+            var baseOrder = ArenaLayers.Instance.DepthOrder(worldPos.y);
+            for (var i = 0; i < _layers.Length; i++)
+            {
+                var sr = _layers[i];
+                if (sr == null) continue;
+                sr.sortingOrder = baseOrder + i;
+                var c = sr.color;
+                c.a = alpha;
+                sr.color = c;
+            }
+        }
 
         /// <summary>当前档位的**帧下标序列**（null = 该档无可用帧段 ⇒ 整目录；见 <see cref="ClipIndices"/>）。</summary>
         private int[] _clip;
@@ -340,11 +450,15 @@ namespace CR.View
         {
             _key = (isBuilding ? "B:" : "U:") + (spriteDir ?? string.Empty);
             if (parent != null && transform.parent != parent) transform.SetParent(parent, false);
+            _isBuilding = isBuilding;
+            ClearLayers();          // 池复用：上一个宿主可能不是同一个建筑（甚至不是建筑）
 
             if (_renderer == null)
             {
                 _renderer = gameObject.AddComponent<SpriteRenderer>();
                 _renderer.sortingOrder = ArenaLayers.Instance.Actor;
+                // 默认材质必须在**第一次写** `sharedMaterial` 之前记下来（见 `_rendererDefault`）。
+                _rendererDefault = SpriteBlendMaterial.RememberDefault(_renderer);
             }
             // 血条：幂等创建（`WorldHpBar.Create` 内部已有则复用并更新参数）。
             if (_hpBar == null)
@@ -390,6 +504,10 @@ namespace CR.View
             // ★ 逐单位缩放（出处见 `UnitSpriteScale`）：必须在血条创建**之后** —— 它同时按 `1 / scale`
             //   抵消父缩放对血条世界尺寸 / 离地高度的影响（见 `ApplySpriteScale`）。
             ApplySpriteScale(_spriteDir);
+
+            // ★ 建筑层配方（见 `BuildingLayerTable`）：有配方的目录**不用**单帧渲染器 —— 它一次只画一帧，
+            //   而目录里混着部件帧与敌队配色帧（真正的层序由 `Apply` 按队叠出）。
+            if (_renderer != null) _renderer.enabled = !HasBuildingRecipe();
 
             // 无任何可用帧段的目录（89 个里 44 个）保持"整目录循环"，只报一次（已登记差异，非静默降级）；
             // 部分档位不可用的目录在 ClipIndices 里按档位留痕。
@@ -509,6 +627,14 @@ namespace CR.View
             if (_renderer != null)
                 _renderer.sortingOrder = ArenaLayers.Instance.DepthOrder(worldPos.y);
 
+            // ★ 建筑：按层配方叠帧（出处见 `BuildingLayerTable`）。有配方 ⇒ 关掉单帧渲染器，
+            //   否则它会把目录里的部件帧 / 敌队配色帧也逐帧播出来。
+            if (_isBuilding && BuildLayers(e.team))
+            {
+                if (_renderer != null) _renderer.enabled = false;
+                ApplyLayers(worldPos, alpha);
+            }
+
             UpdateHpBar(e.hp, e.max_hp);
         }
 
@@ -536,6 +662,8 @@ namespace CR.View
 
         private void Update()
         {
+            // 按层配方渲染的建筑不逐帧换图（见 `BuildLayers`）：换图会把部件帧也播出来。
+            if (_layers != null) return;
             if (_frames == null || _frames.Length <= 1) return;
             if (_animDone) return;
 
@@ -563,7 +691,20 @@ namespace CR.View
             {
                 _spriteIndex = idx;
                 _renderer.sprite = _frames[idx];
+                ApplyBlendMaterial(idx);
             }
+        }
+
+        /// <summary>
+        /// 按该帧的原版 <c>blend_mode</c> 选材质（出处 = <see cref="SpriteBlendTable"/>，生成物、⛔ 不许手改）。
+        /// 表里没有的帧 ⇒ 写回渲染器自带的默认材质（即未登记就是 Normal）；⛔ 绝不写 <c>null</c>（洋红）。
+        /// </summary>
+        private void ApplyBlendMaterial(int frameIndex)
+        {
+            if (_renderer == null || _frames == null || frameIndex < 0 || frameIndex >= _frames.Length) return;
+            var mat = SpriteBlendMaterial.For(_spritePath,
+                SpriteBank.ParseFrameIndex(_frames[frameIndex].name), _rendererDefault);
+            SpriteBlendMaterial.Set(_renderer, mat);
         }
 
         /// <summary>朝向档切换的**滞回半宽**（单位 = 档；0.25 档 = 5.625°）—— 避免在档边界上左右跳。</summary>
@@ -686,8 +827,10 @@ namespace CR.View
                     LogThrottle.WarnOnce(LogTag, "tier:" + dir,
                         $"帧段解析出的可用帧 0 帧（该目录帧号→下标全部缺项）⇒ 该档回落整目录：dir={dir} anim={TierName(anim)} view={view} 段表帧数={want} frames.Length={_frames.Length}");
             }
-            else
+            else if (!HasBuildingRecipe())
                 // 目录在表里但该档不可用（素材无此动画 / `.sc` 引用越界 shapeID）⇒ 整目录（已登记差异，每目录一次）。
+                // 有建筑层配方的目录**不发这句**：它的单帧渲染器在 `Apply` 里已关（`enabled = !HasBuildingRecipe()`），
+                // 真正的层序由 `BuildingLayerTable` 叠出（逐层读数见 `BuildLayers`）⇒ 「整目录循环播」与事实相反。
                 LogThrottle.WarnOnce(LogTag, "tier:" + dir,
                     $"该档位不可用（素材无此动画 / `.sc` 越界 shapeID）⇒ 整目录循环播（已登记差异）：dir={dir} anim={TierName(anim)}");
 
@@ -754,15 +897,18 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 当前目录+档位的播放帧率（帧/秒）。出处 = `策划/单位帧段表.md` §3 + `server/game/table/tsv/unit.tsv`：
+        /// 当前目录+档位的播放帧率（帧/秒）= **帧数 ÷ 该档的原版时长**。时长与帧数的出处：
         /// <list type="bullet">
-        /// <item>**idle**：`0f` —— 表里 idle 是**所取单条 clip** 的静止姿态帧（knight / musketeer / archer /
-        /// giant / minion 取到的那条 `_5` clip 里，idle 都只有 1 帧）⇒ 按 `0f` **不播**、停在首帧。</item>
-        /// <item>**walk**（原版 `run1`）：该目录 `.sc` 自带 FPS（`UnitAnimTable.Entry.ScFps`）。</item>
-        /// <item>**attack**：`攻击段帧数 ÷ (hit_speed_ms ÷ 1000)` ⇒ **攻击段播完一遍 == `hit_speed_ms`**。</item>
-        /// <item>**die**：同 walk（素材无死亡动画 ⇒ 该档 `Known==false` ⇒ 实际走不到这里）。</item>
+        /// <item>**时长**：<see cref="UnitAnimDurations"/>（= `策划/单位动画分组表.md` 里该档那条 export 的
+        /// `timeline 帧数 ÷ FPS`）。这就是原版播这一档用的时间。</item>
+        /// <item>**帧数**：<see cref="UnitAnimTable"/> 的帧段表按**当前视角**数（各视角帧数可能不同）。</item>
         /// </list>
-        /// 未收录目录 / 未覆盖档位 ⇒ 回落 <see cref="AnimFps"/> 默认值。
+        /// ⛔ **不许直接拿 `.sc` 的 FPS 播像素帧**：`Runs` 里存的是**唯一像素帧**，timeline 里的重复帧
+        /// 已被折叠（`axe_man_run1_5` = timeline 38 步 / 8 张像素帧 / 60 fps ⇒ 原版周期 0.633 s；
+        /// 按 60 fps 播那 8 张只有 0.133 s，**快 4.75 倍** —— 现象就是"走起来在发抖"）。
+        /// <para>兜底（分组表里查不到该 export / 目录未收录 / 帧数为 0）：idle = 不播（`0f`）、
+        /// attack = 帧数 ÷ `hit_speed_ms`、walk/die = `.sc` 自带 FPS；再兜底 = <see cref="AnimFps"/>。
+        /// 单帧档无论时长多大都不会动（`Update` 里 `count &lt;= 1` 直接 return）。</para>
         /// </summary>
         private static float FpsFor(string dir, int anim, int view)
         {
@@ -771,12 +917,15 @@ namespace CR.View
                 && anim >= 0 && anim < entry.Tiers.Length && entry.Tiers[anim].Known)
             {
                 var clip = entry.Tiers[anim];
-                // 帧数按**当前视角**算（各视角帧数可能不同；attack 的 fps 随之缩放 ⇒
-                // 「攻击段播完一遍 == hit_speed_ms」这条对任何视角都成立）。
                 var runs = UnitAnimTable.RunsForView(clip, view) ?? clip.Runs;
+                var frames = UnitAnimTable.CountOfRuns(runs);
+                int[] durations;
+                if (frames > 0 && UnitAnimDurations.TryGet(dir ?? string.Empty, out durations)
+                    && anim < durations.Length && durations[anim] > 0)
+                    return frames * 1000f / durations[anim];
                 if (anim == AnimIdle) return 0f;                                  // 静止帧：不播
                 if (anim == AnimAttack && entry.HitSpeedMs > 0)
-                    return UnitAnimTable.CountOfRuns(runs) / (entry.HitSpeedMs / 1000f);   // = 攻击段帧数 ÷ 秒
+                    return frames / (entry.HitSpeedMs / 1000f);                    // = 攻击段帧数 ÷ 秒
                 if (entry.ScFps > 0) return entry.ScFps;                          // walk / die：.sc 自带帧率
             }
             return AnimFps[Mathf.Clamp(anim, 0, AnimFps.Length - 1)];
@@ -797,11 +946,14 @@ namespace CR.View
             {
                 _spriteIndex = idx;
                 _renderer.sprite = _frames[idx];
+                ApplyBlendMaterial(idx);
             }
             else
             {
                 _spriteIndex = -1;
                 _renderer.sprite = FallbackSprite();
+                // 没有帧时不该留着上一档的混合材质；写回渲染器自带的默认材质（⛔ 不许写 null = 洋红）。
+                SpriteBlendMaterial.Set(_renderer, _rendererDefault);
             }
         }
 
@@ -857,7 +1009,19 @@ namespace CR.View
 
         private static void WarnIfUnmapped(bool isBuilding, string dir)
         {
-            if (isBuilding || string.IsNullOrEmpty(dir)) return;
+            if (string.IsNullOrEmpty(dir)) return;
+            if (isBuilding)
+            {
+                // 建筑：有层配方 ⇒ 按配方叠帧（无告警）；没有 ⇒ 仍是「整目录逐帧循环」——
+                // 那种目录里混着部件帧与敌队配色帧，**必须留痕**，不静默降级。
+                BuildingLayerTable.Layer[] tmp;
+                if (BuildingLayerTable.TryGet(dir, BuildingLayerTable.TeamBlue, out tmp)
+                    || BuildingLayerTable.TryGet(dir, BuildingLayerTable.TeamRed, out tmp)) return;
+                if (BuildingRecipeWarned.Add(dir))
+                    Game.Logger?.Warn(LogTag,
+                        $"建筑目录无层配方，仍按「整目录逐帧循环」播（会把部件帧 / 敌队配色帧也播出来）：dir={dir}");
+                return;
+            }
             UnitAnimTable.Entry entry;
             var any = false;
             if (UnitAnimTable.TryGet(dir, out entry) && entry.Tiers != null)
@@ -873,9 +1037,11 @@ namespace CR.View
         private static readonly HashSet<string> AttackTimingLogged = new HashSet<string>();
 
         /// <summary>
-        /// 打印**攻击段与 `hit_speed_ms` 的自洽断言**（每个已收录目录一次）—— 算式原文：
-        /// `attackFps = attackCount / (hitSpeedMs / 1000)` ⇒ `attackCount / attackFps == hitSpeedMs`。
-        /// 出处：`策划/单位帧段表.md` §3（attack 帧段帧数）+ `server/game/table/tsv/unit.tsv`（`hit_speed_ms`）。
+        /// 打印**攻击段时长与 `hit_speed_ms` 的对照**（每个已收录目录一次）—— 读数原文：
+        /// `攻击段时长 = attackCount / attackFps`（= <see cref="UnitAnimDurations"/> 的原版时长）
+        /// vs `hit_speed_ms`（= 两次挥砍的间隔）。两者**不必相等**：原版里一次挥砍的动画时长
+        /// 可以短于攻击间隔（播完停在末帧等下一次）。
+        /// 出处：`策划/单位动画分组表.md`（时长）+ `server/game/table/tsv/unit.tsv`（`hit_speed_ms`）。
         /// </summary>
         private static void AssertAttackTiming(string dir)
         {
@@ -892,12 +1058,16 @@ namespace CR.View
                     $"目录已收录帧段但 unit.tsv 里查不到 hit_speed_ms ⇒ attack 用默认帧率（已登记差异）：dir={dir}");
                 return;
             }
-            var sec = hitMs / 1000f;
-            var fps = count / sec;
-            var segSec = count / fps;
+            int[] durations;
+            var hasDur = UnitAnimDurations.TryGet(dir, out durations) && durations[AnimAttack] > 0;
+            var segSec = hasDur ? durations[AnimAttack] / 1000f : 0f;
+            var hitSec = hitMs / 1000f;
+            var fps = segSec > 0f ? count / segSec : count / hitSec;
             Game.Logger?.Info(LogTag,
-                $"攻击段自洽断言：dir={dir} {AttackFpsFormula} = {count} / ({hitMs}/1000) = {fps:F2}fps | " +
-                $"攻击段时长 = {count}帧 / {fps:F2}fps = {segSec:F3}s vs hit_speed_ms={sec:F3}s（差 {(segSec - sec) / sec * 100f:+0.0;-0.0}%）");
+                $"攻击段时长对照：dir={dir} 帧数={count} 原版时长={segSec:F3}s（= 分组表的 timeline÷FPS）" +
+                $" ⇒ fps={fps:F2}" + (hasDur ? "" : $"（无时长数据 ⇒ 兜底 {AttackFpsFormula}）") +
+                $" | hit_speed_ms={hitSec:F3}s" +
+                (hasDur ? $"（差 {(segSec - hitSec) / hitSec * 100f:+0.0;-0.0}%）" : ""));
         }
 
         private static Sprite FallbackSprite()

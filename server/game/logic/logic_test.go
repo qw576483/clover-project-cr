@@ -537,3 +537,80 @@ func TestAISpellCastFromReferenceDeck(t *testing.T) {
 	t.Logf("AI（红方）出牌 %d 张，其中法术 %d 张 %v —— decideSpell 已被走到并成功下发 EvPlayCard",
 		playedTotal, spellPlays, perKey)
 }
+
+// TestEnterGateHoldsSimulationUntilEveryHumanEnters 进图闸门的离线判据。
+//
+// 判的是 battleTick 放行前的那条状态（模拟推进闸门）：
+//   - 有真人座位还没报进场 ⇒ 闸门保持"等"（否则服务端时钟先于玩家画面跑，对手先出牌先走动）；
+//   - 每个真人座位首次报进场被记录、重复报不重复计数；
+//   - 全部真人报齐 ⇒ 闸门打开；
+//   - **中途掉线不得把闸门重新关上** —— 否则一局打到一半有人掉线，模拟会当场冻住。
+func TestEnterGateHoldsSimulationUntilEveryHumanEnters(t *testing.T) {
+	ct := testTable(t)
+	r := newRoomRegistry()
+	if err := r.ensure("r1"); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	_ = r.join("r1", "p_a")
+	_ = r.configure("r1", "测试房", "p_a", "小蓝A")
+	_ = r.join("r1", "p_b")
+	deck := buildAIDeck(ct)
+	b, err := core.NewBattle(core.Config{Seed: 3, Table: ct, DeckA: deck, DeckB: deck})
+	if err != nil {
+		t.Fatalf("NewBattle: %v", err)
+	}
+	r.mu.Lock()
+	st := r.rooms["r1"]
+	st.battle = b
+	st.started = true
+	st.entered = make(map[int]bool, maxRoomMembers)
+	st.tickArmed = false
+	held := st.allHumansEnteredLocked()
+	r.mu.Unlock()
+	if held {
+		t.Fatalf("两个真人座位都没报进场，闸门却已放行")
+	}
+
+	if !r.markEntered("r1", "p_a") {
+		t.Fatalf("p_a 首次报进场应被记录")
+	}
+	if r.markEntered("r1", "p_a") {
+		t.Fatalf("p_a 重复报进场不应重复计数")
+	}
+	r.mu.Lock()
+	held = st.allHumansEnteredLocked()
+	r.mu.Unlock()
+	if held {
+		t.Fatalf("只报了一个座位，闸门却已放行")
+	}
+
+	if !r.markEntered("r1", "p_b") {
+		t.Fatalf("p_b 首次报进场应被记录")
+	}
+	r.mu.Lock()
+	opened := st.allHumansEnteredLocked()
+	r.mu.Unlock()
+	if !opened {
+		t.Fatalf("两个真人座位都报进场了，闸门仍未放行")
+	}
+
+	// 中途掉线：detach 会把座位的 Ready 清掉，但进场记录只增不减 ⇒ 闸门必须保持打开。
+	if _, _, _, ok := r.detach("p_b"); !ok {
+		t.Fatalf("p_b detach 应成功")
+	}
+	r.mu.Lock()
+	afterLeave := st.allHumansEnteredLocked()
+	r.mu.Unlock()
+	if !afterLeave {
+		t.Fatalf("中途掉线把闸门重新关上了（模拟会冻住）")
+	}
+
+	// 非本房玩家 / 不存在的房间：记号不进闸门。
+	if r.markEntered("r1", "p_x") {
+		t.Fatalf("不在房内的玩家不应被记为已进场")
+	}
+	if r.markEntered("nope", "p_a") {
+		t.Fatalf("不存在的房间不应被记为已进场")
+	}
+	t.Logf("进图闸门：未报齐=等 / 首次记录 / 重复不计数 / 报齐=放行 / 中途掉线仍放行，全部符合预期")
+}

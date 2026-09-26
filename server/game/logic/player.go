@@ -64,20 +64,116 @@ func pushTarget(pid string) string {
 // 那里没有 event.Ctx，而引擎的数据改动统一走 LoadStruct + handler 返回后自动 Commit。
 // 所以结算只把结果排进 registry.pending，玩家下一次发消息（任意一条）时在这里补记 ——
 // 不丢、可查（补记会打日志），代价只是"晚一条消息落库"。
+//
+// 补记的口径（资料页那 8 项统计的真值来源）：
+//   - 每局 Matches++（平局也算打过一局）；
+//   - 非平局：胜 ⇒ Wins++，负 ⇒ Losses++；胜且本方王冠 == 3 ⇒ ThreeCrownWins++；
+//   - 本局出过的牌逐张累进 CardPlays（「常用卡牌」由它算）。
 func (l *gameLogic) loadPlayer(c event.Ctx, pid string) (*datadef.PlayerData, error) {
 	var p datadef.PlayerData
 	if err := l.g.LoadStruct(c, datadef.PlayerSchema, pid, &p); err != nil {
 		return nil, err
 	}
-	if win, ok := l.rooms.takePendingResult(pid); ok {
-		if win {
+	for _, r := range l.rooms.takePendingResults(pid) {
+		applyMatchResult(&p, r)
+		logger.Infof("logic: 补记战绩 player=%s win=%v draw=%v crowns=%d plays=%v matches=%d wins=%d losses=%d threeCrown=%d",
+			pid, r.Win, r.Draw, r.Crowns, r.Plays, p.Matches, p.Wins, p.Losses, p.ThreeCrownWins)
+	}
+	return &p, nil
+}
+
+// threeCrowns 三冠的判据：一局里打掉对手三座塔（本方王冠数 = 3）。
+const threeCrowns = 3
+
+// applyMatchResult 把一局的结算结果累进档案（补记的唯一实现，loadPlayer 与离线断言共用）。
+func applyMatchResult(p *datadef.PlayerData, r matchResult) {
+	p.Matches++
+	if !r.Draw {
+		if r.Win {
 			p.Wins++
+			if r.Crowns >= threeCrowns {
+				p.ThreeCrownWins++
+			}
 		} else {
 			p.Losses++
 		}
-		logger.Infof("logic: 补记上一局战绩 player=%s win=%v wins=%d losses=%d", pid, win, p.Wins, p.Losses)
 	}
-	return &p, nil
+	if len(r.Plays) == 0 {
+		return
+	}
+	if p.CardPlays == nil {
+		p.CardPlays = make(map[int32]int32, len(r.Plays))
+	}
+	for id, n := range r.Plays {
+		p.CardPlays[id] += n
+	}
+}
+
+// favouriteCardOf 取「常用卡牌」= 出牌次数最多的那张卡；同次数取卡 id 最小者
+// （结果确定、可复算 —— map 的遍历顺序是随机的，不能交给"最后一个比较成功的人"）。
+// 返回 (0, "") 表示一张牌都还没出过 —— 界面按「真的没有」显示占位符。
+func favouriteCardOf(p *datadef.PlayerData, cards *cardTable) (int32, string) {
+	var best, bestN int32
+	for id, n := range p.CardPlays {
+		if n <= 0 {
+			continue
+		}
+		if bestN == 0 || n > bestN || (n == bestN && id < best) {
+			best, bestN = id, n
+		}
+	}
+	if best == 0 {
+		return 0, ""
+	}
+	if cards != nil {
+		if c, ok := cards.Card(best); ok {
+			return best, c.NameCN
+		}
+	}
+	return best, ""
+}
+
+// buildProfileReply 把档案组装成 `GetProfileReply`（资料页 8 项统计的**唯一**组装点）。
+//
+// 8 项各自的出处：
+//
+//	0 胜场 / 2 三冠胜场 / 6 参赛场次 / 1 常用卡牌 —— PlayerData 里结算累加出来的计数；
+//	3 已收集卡牌 —— 卡牌表的可用卡数（本工程卡池即全集，没有"未解锁"概念）；
+//	4 最高奖杯 / 5 累计捐赠 / 7 赢得卡牌 —— 本工程没有奖杯/段位、部落捐赠、锦标赛奖励
+//	  这三套系统 ⇒ 恒 0（原版新号这几项同样是 0）。⛔ 不拿别的量顶替，也不编数。
+func buildProfileReply(p *datadef.PlayerData, cards *cardTable) def.GetProfileReply {
+	var cardsFound int32
+	if cards != nil {
+		cardsFound = int32(cards.CardCount())
+	}
+	favID, favName := favouriteCardOf(p, cards)
+
+	// 参赛场次的下限：档案是在这套统计之前创建的（那时只记胜负场，没有局数），
+	// 所以 p.Matches 会比历史局数小 —— 取 max(matches, wins+losses) 当下限，
+	// 免得老档案显示成「参赛场次 < 胜场 + 负场」这种自相矛盾的数。
+	// 这是一个**由真实记录推出的下限**，不是编数（历史平局没有记录，故下限只少不多）。
+	matches := p.Matches
+	if floor := p.Wins + p.Losses; floor > matches {
+		logger.Infof("logic: 参赛场次取历史下限（该档案早于局数统计）记录 matches=%d < wins+losses=%d ⇒ 下发 %d",
+			p.Matches, floor, floor)
+		matches = floor
+	}
+
+	return def.GetProfileReply{
+		Nickname: p.Nickname,
+		Wins:     p.Wins,
+		Losses:   p.Losses,
+		Deck:     p.Deck,
+
+		Matches:           matches,
+		ThreeCrownWins:    p.ThreeCrownWins,
+		CardsFound:        cardsFound,
+		FavouriteCard:     favID,
+		FavouriteCardName: favName,
+		HighestTrophies:   0,
+		CardsDonated:      0,
+		CardsWon:          0,
+	}
 }
 
 // profile 是本层 handler 的统一入口：取角色 ID + 加载档案（顺带补记战绩）。
@@ -153,13 +249,10 @@ func (l *gameLogic) onGetProfile(c event.Ctx) error {
 		return nil
 	}
 
-	logger.Infof("logic: 拉取档案 player=%s nickname=%q deck=%d wins=%d losses=%d",
-		pid, p.Nickname, len(p.Deck), p.Wins, p.Losses)
-	l.g.Reply(c, def.GetProfileReply{
-		Nickname: p.Nickname,
-		Wins:     p.Wins,
-		Losses:   p.Losses,
-		Deck:     p.Deck,
-	})
+	reply := buildProfileReply(p, l.cards)
+	logger.Infof("logic: 拉取档案 player=%s nickname=%q deck=%d wins=%d losses=%d matches=%d threeCrownWins=%d cardsFound=%d favouriteCard=%d(%q)",
+		pid, reply.Nickname, len(reply.Deck), reply.Wins, reply.Losses, reply.Matches,
+		reply.ThreeCrownWins, reply.CardsFound, reply.FavouriteCard, reply.FavouriteCardName)
+	l.g.Reply(c, reply)
 	return nil
 }

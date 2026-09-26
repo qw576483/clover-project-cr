@@ -54,6 +54,13 @@ namespace CR.View
         private const float SpinDegreesPerSecond = 90f;
 
         private SpriteRenderer _renderer;
+
+        /// <summary>
+        /// 渲染器**自带**的默认材质（`AddComponent` 之后立刻记下）。没有混合的帧 / 兜底圆盘要写回它 ——
+        /// ⛔ 不许往 `sharedMaterial` 写 null（那会让渲染器落到 Unity 的错误材质上，整块画成洋红）。
+        /// </summary>
+        private Material _rendererDefault;
+
         private Sprite _discSprite;
         private bool _visible;
 
@@ -77,11 +84,57 @@ namespace CR.View
         /// <summary>落点卡面虚影的着色（半透明 —— 它是"还没落下"的预览，见 <see cref="_dropCard"/>）。</summary>
         private static readonly Color DropCardColor = new Color(1f, 1f, 1f, 0.62f);
 
-        /// <summary>就位读条的**剩余秒数**（&gt; 0 = 正在显示；由 <see cref="ShowDeployRing"/> 起算）。</summary>
+        /// <summary>就位计时的**剩余秒数**（&gt; 0 = 正在显示；由 <see cref="ShowDeployRing"/> 起算）。</summary>
         private float _deployLeft;
 
-        /// <summary>就位读条的外径（格）—— 取 <see cref="ShowDeployRing"/> 传入的落点半径 × 2。</summary>
-        private float _deployRadiusTiles = 1f;
+        /// <summary><see cref="ShowDeployRing"/> 传入的总时长（秒）—— 扇形扫过角度的分母。</summary>
+        private float _deployTotal = 1f;
+
+        /// <summary>
+        /// 当前是否处于「出牌落位计时」形态（显示原版 `troopDeployTimer` 而不是落点范围环）。
+        /// 由 <see cref="ShowDeployRing"/> 置位、由 <see cref="Show"/>/<see cref="Hide"/>（拖动接手）复位。
+        /// </summary>
+        private bool _deployTimerMode;
+
+        /// <summary>
+        /// 落位计时件的尺寸口径。原版件自身像素 ÷ <see cref="ArenaView.GroundPxPerTileX"/>（45.545 px/格）——
+        /// 与 <see cref="DeployAreaView"/> 的 `deployArea_*` 一族**同一条**换算（同一张 `ui` 图集、同一批尺寸）。
+        /// </summary>
+        private const float TimerArtPxPerTile = ArenaView.GroundPxPerTileX;
+
+        /// <summary>表盘（f252）已到的原版图元。</summary>
+        private Sprite _timerBodySprite;
+
+        /// <summary>扫过片（我方 f253 / 敌方 f256）已到的原版图元。</summary>
+        private Sprite _timerSweepFriendly, _timerSweepHostile;
+
+        /// <summary>指针 / 表冠（f255）已到的原版图元。</summary>
+        private Sprite _timerStemSprite;
+
+        /// <summary>计时件图元的到货计数（4 帧齐了才画；与 <see cref="Frames"/> 的数量无关，故单独计）。</summary>
+        private int _timerLoaded;
+
+        /// <summary>扇形的旋转轴（= 表盘盘心，自身不缩放，只被 <see cref="Update"/> 转）。</summary>
+        private Transform _timerSweepPivot;
+
+        /// <summary>扇形（原版扫过片）；以**自身左上角**对齐盘心，绕盘心转 = 扫过。</summary>
+        private SpriteRenderer _timerSweep;
+
+        /// <summary>指针 / 表冠（原版 f255，按 clip 的平移量摆在盘心）。</summary>
+        private SpriteRenderer _timerStem;
+
+        /// <summary>
+        /// 指针（f255）相对表盘中心的位置（**表盘像素**）：取 clip 1245 里 child3(f255) `tx=1.00 ty=5.55`
+        /// 与 child0(f252) `tx=1.10 ty=6.00` 的位移差 ÷ 表盘缩放 0.089。
+        /// `.sc` 舞台的 y 向下为正 ⇒ 折到 Unity（y 向上）后取正号。
+        /// </summary>
+        private static readonly Vector2 TimerClipStemOffsetPx = new Vector2(-1.124f, 5.056f);
+
+        /// <summary>计时件取不到时只留痕一次。</summary>
+        private bool _timerWarned;
+
+        /// <summary>落位的是不是敌方单位（决定用红扫过片 f256 还是蓝扫过片 f253）。</summary>
+        private bool _timerHostile;
 
         /// <summary>
         /// 落点卡面虚影的世界高度（格）—— <b>本项目自定</b>：卡面虚影取**部队落点圈的外径**
@@ -119,6 +172,8 @@ namespace CR.View
             _renderer = gameObject.AddComponent<SpriteRenderer>();
             _renderer.sprite = _discSprite;
             _renderer.color = LegalColor;
+            // 默认材质必须在**第一次写** `sharedMaterial` 之前记下（见 `_rendererDefault`）。
+            _rendererDefault = SpriteBlendMaterial.RememberDefault(_renderer);
             // 落点指示必须压在**所有单位与塔之下**（它是一块地板高亮），所以给一个很低的 sortingOrder。
             // 与 UnitView/ArenaView 的层级约定：底图 0 / 塔 50 / 指示 200 / 单位 1000（见各自注释）。
             _renderer.sortingOrder = ArenaLayers.Instance.Indicator;
@@ -132,7 +187,28 @@ namespace CR.View
             _dropCard.color = DropCardColor;
             dropGo.SetActive(false);
 
+            // 落位计时件的子节点是**兄弟节点**（同 `_dropCard`）：计时件形态由本 GameObject 的渲染器当表盘，
+            // 而 `Reapply` 会给本 GameObject 写 `localScale`（表盘像素 → 格）—— 挂成子节点会把这个缩放
+            // **再乘一次**（扇形/指针会被放大到表盘的 localScale 倍）。位置因此一律写世界坐标，见 ApplyTimer。
+            var pivotGo = new GameObject("DeployTimerSweepPivot");
+            pivotGo.transform.SetParent(transform.parent, false);
+            _timerSweepPivot = pivotGo.transform;
+            var sweepGo = new GameObject("DeployTimerSweep");
+            sweepGo.transform.SetParent(_timerSweepPivot, false);
+            _timerSweep = sweepGo.AddComponent<SpriteRenderer>();
+            _timerSweep.color = Color.white;            // ⛔ 不 tint：原版扫过片自身就是蓝/红
+            _timerSweep.sortingOrder = ArenaLayers.Instance.Indicator + 2;
+            var stemGo = new GameObject("DeployTimerStem");
+            stemGo.transform.SetParent(transform.parent, false);
+            _timerStem = stemGo.AddComponent<SpriteRenderer>();
+            _timerStem.color = Color.white;
+            _timerStem.sortingOrder = ArenaLayers.Instance.Indicator + 3;
+            // 两个兄弟节点只在计时件形态下露面（见 SetTimerPiecesActive / SetVisible）。
+            pivotGo.SetActive(false);
+            stemGo.SetActive(false);
+
             LoadRingSprites();
+            LoadTimerSprites();
             SetVisible(false);
         }
 
@@ -161,20 +237,83 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 落点处的**就位读条**：在 <paramref name="tileXY"/> 显示原版范围环并持续转圈
-        /// <paramref name="seconds"/> 秒（= 出牌落位期，服务端 `deploy_time` 的长度）。
+        /// 落点处的**就位计时件**：在 <paramref name="tileXY"/> 摆出原版 `troopDeployTimer`（灰色表盘
+        /// `f252` + 我方蓝 / 敌方红扫过片 `f253`/`f256` + 指针 `f255`），扫过片按进度绕盘心转一圈，
+        /// 持续 <paramref name="seconds"/> 秒（= 出牌落位期，服务端 `deploy_time` 的长度）。
         /// <para>
-        /// 用途：出牌落位期间"这张卡正在就位"的唯一提示。⛔ 环的图元与 <see cref="Show"/> 同一个
-        /// （原版范围环），⛔ 不另画图形。
+        /// <b>图元出处</b>：`原版资源/sc/ui_v215.sc` 的 clip 1245 `troopDeployTimer_player` /
+        /// 1247 `troopDeployTimer_enemy`（分组 `spawn`，帧列 252-257；表 `策划/原版UI素材名称索引.md:433-434`）。
+        /// 原版这一族**不是**范围环 —— 表盘像素均值 (216,208,204) 灰、扫过片 (116,200,255) 蓝。
+        /// </para>
+        /// <para>
+        /// <paramref name="radiusTiles"/> 只保留为调用方接口的一部分（落点半径），计时件自身尺寸按
+        /// 原版件像素换算（见 <see cref="TimerArtPxPerTile"/>），⛔ 不跟法术半径缩放。
+        /// </para>
+        /// <para>
+        /// <paramref name="hostile"/> = 落位的是不是**敌方**单位。原版两个 clip 只有扫过片颜色不同
+        /// （`player` = 蓝 f253 / `enemy` = 红 f256），表盘与指针两路共用。
         /// </para>
         /// </summary>
-        public void ShowDeployRing(Vector2 tileXY, float radiusTiles, float seconds)
+        public void ShowDeployRing(Vector2 tileXY, float radiusTiles, float seconds, bool hostile = false)
         {
             SetDropCard(null);
-            _deployRadiusTiles = radiusTiles;
-            // ⚠️ 顺序：`Show` 会把 `_deployLeft` 归零（拖动接手），所以倒计时必须在它**之后**起算。
+            // ⚠️ 顺序：`Show` 会把 `_deployLeft` 归零并把形态复位成范围环，所以形态与倒计时都要在它**之后**置。
             Show(tileXY, radiusTiles, true);
-            _deployLeft = seconds > 0f ? seconds : 1f;
+            _deployTimerMode = true;
+            _timerHostile = hostile;
+            _deployTotal = seconds > 0f ? seconds : 1f;
+            _deployLeft = _deployTotal;
+            Reapply();
+        }
+
+        /// <summary>
+        /// 异步取 4 帧原版计时件图元（表盘 252 / 我方 253 / 敌方 256 / 指针 255）。
+        /// 到货前 <see cref="ApplyTimer"/> 不画（画面留空总好过画一个自造件）。
+        /// </summary>
+        private void LoadTimerSprites()
+        {
+            if (Game.Res == null)
+            {
+                WarnOnceTimer("Game.Res 为空（漏了 CloverRes.Init？）⇒ 出牌落位计时件画不出来");
+                return;
+            }
+            LoadTimerOne(ResPaths.EffectDeployTimerBody);
+            LoadTimerOne(ResPaths.EffectDeployTimerSweepFriendly);
+            LoadTimerOne(ResPaths.EffectDeployTimerSweepHostile);
+            LoadTimerOne(ResPaths.EffectDeployTimerStem);
+        }
+
+        /// <summary>取一帧计时件图元；4 帧齐了且此刻正显示计时件时按最近一次参数补画。</summary>
+        private void LoadTimerOne(int frame)
+        {
+            var path = ResPaths.EffectFrame(ResPaths.EffectDeployTimer, frame);
+            Game.Res.LoadAsset<Sprite>(path, sprite =>
+            {
+                if (sprite == null)
+                {
+                    WarnOnceTimer($"原版落位计时件加载不到：{path}");
+                    return;
+                }
+                if (frame == ResPaths.EffectDeployTimerBody) _timerBodySprite = sprite;
+                else if (frame == ResPaths.EffectDeployTimerSweepFriendly) _timerSweepFriendly = sprite;
+                else if (frame == ResPaths.EffectDeployTimerSweepHostile) _timerSweepHostile = sprite;
+                else if (frame == ResPaths.EffectDeployTimerStem) _timerStemSprite = sprite;
+                _timerLoaded++;
+                if (_timerLoaded >= 4)
+                    Game.Logger?.Info(LogTag,
+                        $"落位计时件已就绪：表盘 f{ResPaths.EffectDeployTimerBody} / 我方扫过片 f{ResPaths.EffectDeployTimerSweepFriendly} / " +
+                        $"敌方 f{ResPaths.EffectDeployTimerSweepHostile} / 指针 f{ResPaths.EffectDeployTimerStem}" +
+                        "（出处 策划/原版UI素材名称索引.md:433-434 troopDeployTimer_player/enemy）");
+                if (_deployTimerMode && _visible) ApplyTimer();
+            });
+        }
+
+        /// <summary>计时件取不到时只留痕一次（⛔ 不静默）。</summary>
+        private void WarnOnceTimer(string message)
+        {
+            if (_timerWarned) return;
+            _timerWarned = true;
+            Game.Logger?.Warn(LogTag, message + "（只报一次；落位本身照常，只是没有计时件显示）");
         }
 
         /// <summary>
@@ -239,8 +378,10 @@ namespace CR.View
         /// <param name="legal">是否合法（由 <see cref="IsLegalDeploy(DeployInput,float,float,bool)"/> 判定）。</param>
         public void Show(Vector2 tileXY, float radiusTiles, bool legal)
         {
-            // 拖动接手：把上一条就位读条的倒计时清掉（否则它会中途把这一轮拖动的环收走）。
+            // 拖动接手：把上一条就位计时的倒计时清掉（否则它会中途把这一轮拖动的环收走），
+            // 并把形态复位成落点范围环（同一个实例不许两种形态叠着画）。
             _deployLeft = 0f;
+            _deployTimerMode = false;
             _lastTile = tileXY;
             _lastRadius = radiusTiles;
             _lastLegal = legal;
@@ -262,6 +403,14 @@ namespace CR.View
 
             transform.position = GameConst.TileToWorld(_lastTile.x, _lastTile.y);
 
+            if (_deployTimerMode)
+            {
+                ApplyTimer();
+                return;
+            }
+            SetTimerPiecesActive(false);
+            _renderer.sortingOrder = ArenaLayers.Instance.Indicator;
+
             var sprite = _lastLegal ? _ringFriendly : _ringHostile;
             if (sprite == null) sprite = _discSprite;      // 兜底：原版图元还没到货 / 取不到
             var usingFallback = ReferenceEquals(sprite, _discSprite);
@@ -278,31 +427,115 @@ namespace CR.View
             if (usingFallback) _renderer.color = _lastLegal ? LegalColor : IllegalColor;
             else _renderer.color = _lastLegal ? LegalTint : IllegalTint;
 
+            // 原版该帧的 `blend_mode` 若为非 Normal（表 `SpriteBlendTable`：`Sprites/Effects/RangeRing`
+            // 的敌方帧 = Add），走 `SpriteBlendMaterial` 的共享材质；兜底圆盘与表外帧写回渲染器自带的默认材质
+            //（⛔ 不许写 null = 整块洋红，见 `SpriteBlendMaterial.For`）。
+            SpriteBlendMaterial.Set(_renderer, usingFallback
+                ? _rendererDefault
+                : SpriteBlendMaterial.For(
+                    ResPaths.EffectRangeRing,
+                    _lastLegal ? ResPaths.EffectRangeRingFriendly : ResPaths.EffectRangeRingHostile,
+                    _rendererDefault));
+
             ReapplyDropCard();
         }
 
         /// <summary>
-        /// 落点颜色的取法。
+        /// 按最近一次参数摆出原版落位计时件：灰色表盘（f252，居中于落点）+ 指针（f255，按 clip 的平移量）
+        /// + 扫过片（f253 我方 / f256 敌方，以**自身左上角**对齐盘心）。
         /// <para>
-        /// ⚠️ **与旧版不同**：旧版是**自制**圆盘（白色软边），所以整块染成绿/红没有违和感。
-        /// 现在贴图是**原版**图元（我方白环 / 敌方红边盘），**再整块染绿会把它染成一张绿环、
-        /// 丢掉原版的红/白区分** ⇒ 原版素材上只做"合法性提示"的轻量着色：
-        /// 合法 = 略带绿（<see cref="LegalTint"/>），非法 = 压红（<see cref="IllegalTint"/>），
-        /// 两者都保留原图元自己的明暗。**自制圆盘兜底时**仍用旧的两套半透明色
-        /// （<see cref="LegalColor"/> / <see cref="IllegalColor"/>），因为那张图本来就是白的，
-        /// 不染色就等于没有合法性提示。
+        /// <b>尺寸</b>：件自身像素 ÷ <see cref="TimerArtPxPerTile"/>（⛔ 不写死"计时件 = N 格"这类常量）。
+        /// <b>扫过</b>：盘心轴的角度由 <see cref="Update"/> 按 <see cref="ShowDeployRing"/> 的进度推。
         /// </para>
         /// </summary>
-        /// <summary>合法落点着色（白 → 略带绿，alpha = 1 保留原图元不透明度）。</summary>
+        private void ApplyTimer()
+        {
+            if (_renderer == null || _timerSweepPivot == null) return;
+            if (_timerBodySprite == null) { SetTimerPiecesActive(false); return; }
+            SetTimerPiecesActive(true);
+
+            _renderer.sprite = _timerBodySprite;
+            _renderer.color = Color.white;                  // ⛔ 不 tint：原版表盘自身就是灰的
+            _renderer.sortingOrder = ArenaLayers.Instance.Indicator + 1;
+            var bodyNative = _timerBodySprite.bounds.size;
+            _renderer.transform.localScale = new Vector3(
+                _timerBodySprite.rect.width / TimerArtPxPerTile / bodyNative.x,
+                _timerBodySprite.rect.height / TimerArtPxPerTile / bodyNative.y, 1f);
+            transform.localRotation = Quaternion.identity;  // 计时件不转（落点范围环才转）
+            SpriteBlendMaterial.Set(_renderer, _rendererDefault);
+
+            // 盘心 = 表盘中心（原版盘面圆心与表盘包围盒中心差 1.5 px < 1/10 格，取同一个点）。
+            var center = transform.position;
+
+            // 指针 / 表冠：平移量取 clip 1245 里 child3(f255) 与 child0(f252) 的位移差，
+            // 再按表盘自身的缩放（0.089 / 1024）折成表盘像素 ⇒ 单位与表盘同一套（格）。
+            if (_timerStem != null && _timerStemSprite != null)
+            {
+                _timerStem.sprite = _timerStemSprite;
+                _timerStem.enabled = true;
+                var stemNative = _timerStemSprite.bounds.size;
+                _timerStem.transform.localScale = new Vector3(
+                    _timerStemSprite.rect.width / TimerArtPxPerTile / stemNative.x,
+                    _timerStemSprite.rect.height / TimerArtPxPerTile / stemNative.y, 1f);
+                _timerStem.transform.position = center + new Vector3(
+                    TimerClipStemOffsetPx.x / TimerArtPxPerTile,
+                    TimerClipStemOffsetPx.y / TimerArtPxPerTile, 0f);
+            }
+
+            var sweepSprite = _timerHostile ? _timerSweepHostile : _timerSweepFriendly;
+            if (_timerSweepPivot != null) _timerSweepPivot.position = center;
+            if (_timerSweep != null && sweepSprite != null)
+            {
+                _timerSweep.sprite = sweepSprite;
+                _timerSweep.enabled = true;
+                var sweepNative = sweepSprite.bounds.size;
+                var w = sweepSprite.rect.width / TimerArtPxPerTile;
+                var h = sweepSprite.rect.height / TimerArtPxPerTile;
+                _timerSweep.transform.localScale = new Vector3(w / sweepNative.x, h / sweepNative.y, 1f);
+                // 扫过片的**左上角**就是盘心（原版这一片是绕盘心的扇形）⇒ 把它的左上角对到轴的原点。
+                // 轴自身不缩放 ⇒ 这里的偏移量就是格。
+                _timerSweep.transform.localPosition = new Vector3(w * 0.5f, -h * 0.5f, 0f);
+            }
+            ApplyTimerSweep();
+        }
+
+        /// <summary>按倒计时进度把扫过片转过对应角度（一圈 = 整个落位期）。</summary>
+        private void ApplyTimerSweep()
+        {
+            if (_timerSweepPivot == null) return;
+            var p = _deployTotal > 0f ? 1f - Mathf.Clamp01(_deployLeft / _deployTotal) : 1f;
+            _timerSweepPivot.localRotation = Quaternion.Euler(0f, 0f, -360f * p);
+        }
+
+        /// <summary>
+        /// 开 / 关计时件的两个**兄弟**节点（形态切换与显隐时用；⛔ 不动本 GameObject 自身的渲染器）。
+        /// 它们不在本 GameObject 下，所以 `SetVisible` 的 `SetActive` 管不到。
+        /// </summary>
+        private void SetTimerPiecesActive(bool active)
+        {
+            if (_timerSweepPivot != null) _timerSweepPivot.gameObject.SetActive(active);
+            if (_timerStem != null) _timerStem.gameObject.SetActive(active);
+        }
+
+        /// <summary>
+        /// 合法落点着色（白 → 略带绿，alpha = 1 保留原图元不透明度）。
+        /// <para>
+        /// 只用于**原版范围环**：环自身已含红/白区分，整块染绿会把它染成一张绿环、丢掉那个区分
+        /// ⇒ 原版素材上只做"合法性提示"的轻量着色（合法 = 略带绿，非法 = 压红 <see cref="IllegalTint"/>），
+        /// 两者都保留原图元自己的明暗。**自制圆盘兜底时**用另两套半透明色
+        /// （<see cref="LegalColor"/> / <see cref="IllegalColor"/>）—— 那张图是白的，不染色就没有合法性提示。
+        /// </para>
+        /// </summary>
         private static readonly Color LegalTint = new Color(0.80f, 1f, 0.85f, 1f);
 
         /// <summary>非法落点着色（压红 + 降一点不透明度，让"不能放"一眼可辨）。</summary>
         private static readonly Color IllegalTint = new Color(1f, 0.55f, 0.50f, 0.9f);
 
-        /// <summary>隐藏指示盘（拖放结束 / 抬手）—— 连同落点卡面虚影与就位读条一起收掉。</summary>
+        /// <summary>隐藏指示盘（拖放结束 / 抬手）—— 连同落点卡面虚影与就位计时件一起收掉。</summary>
         public void Hide()
         {
             _deployLeft = 0f;
+            _deployTimerMode = false;
             SetDropCard(null);
             SetVisible(false);
         }
@@ -311,11 +544,13 @@ namespace CR.View
         {
             _visible = visible;
             if (_renderer != null) _renderer.enabled = visible;
+            SetTimerPiecesActive(visible && _deployTimerMode);
             gameObject.SetActive(visible);
         }
 
         /// <summary>
-        /// 让落点环**转圈**（参考口径：原版落点环是转圈的）。
+        /// 推进当前形态的动画：**落点范围环**转圈 / **落位计时件**的扫过片走一圈
+        /// （两种形态由 <see cref="_deployTimerMode"/> 区分，见 <see cref="ShowDeployRing"/>）。
         /// <para>
         /// 只在可见时推进（`SetVisible(false)` 会 `SetActive(false)`，本方法自然不会被调到）；
         /// 用 `unscaledDeltaTime`：对局暂停 / 时间倍率为 0 时，拖放手势仍然要有反馈。
@@ -323,7 +558,7 @@ namespace CR.View
         /// </summary>
         private void Update()
         {
-            // 就位读条：到点自己收掉（出牌落位期 = 服务端 `deploy_time`，见 ShowDeployRing）。
+            // 落位计时：到点自己收掉（落位期 = 服务端 `deploy_time`，见 ShowDeployRing）。
             if (_deployLeft > 0f)
             {
                 _deployLeft -= Time.unscaledDeltaTime;
@@ -333,6 +568,11 @@ namespace CR.View
                     SetVisible(false);
                     return;
                 }
+            }
+            if (_deployTimerMode)
+            {
+                ApplyTimerSweep();
+                return;
             }
             transform.Rotate(0f, 0f, SpinDegreesPerSecond * Time.unscaledDeltaTime);
         }

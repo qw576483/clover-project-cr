@@ -107,10 +107,9 @@ namespace CR.View
     ///   即"场地（格 0..18）本身是居中的，但整张底图的内容明显偏一侧、左右不对称"。</item>
     /// <item><b>正确算式（当前口径）</b>：横向裁到场地后 ① sprite 中心格 = (0 + 18) / 2 = 9 ⇒ 世界 x = 0 = 竞技场中心；
     ///   ② 可见内容 = 场地本身 = 格 0..18 ⇒ 左右严格对称，且 sprite 世界宽 = <c>ArenaTilesW</c> = 18 格 = 实测 405 px（18 × 22.5 ✓）。</item>
-    /// <item><b>⚠️ 登记（与落位无关）</b>：竞技场两侧的大片黑色<b>不是</b>落位错误 —— 它是"18×32 竖屏竞技场 + 横屏视口"的必然结果：
-    ///   视口 aspect = 1.778（16:9）时 <see cref="SetupCamera"/> 按"铺满高度"取 orthographicSize = 16，
-    ///   于是可见宽度 = 32 × 1.778 = 56.9 格，竞技场只占 18 / 56.9 = <b>31.6%</b>（实测 405/1280 = 31.6% ✓），两侧各留 437 px。
-    ///   两侧留白<b>左右等宽</b>（437 vs 438 px）⇒ 与落位无关；要去掉留白只能把 Game 视口设成竖屏（9:16），⛔ 不能靠改相机裁掉竞技场上下。</item>
+    /// <item><b>⚠️ 登记（与落位无关）</b>：底图横向只取场地那一段（见上）⇒ 场地左右沿之外不画任何东西（背景清屏色）。
+    ///   取景恒为"18 格铺满画宽"（见 <see cref="SetupCamera"/>）⇒ 场地左右沿**恒在视口的左右边上**，不存在两侧留白；
+    ///   窗口比 9:16 更矮/更宽时，视口上截掉的是**场地远端**（不是左右）。</item>
     /// </list>
     ///
     /// <b>第三处（与 A/B 同一成因）：RED 半场必须真镜像 —— 镜像只许表达一次</b>
@@ -187,8 +186,9 @@ namespace CR.View
     /// <item><term>地面美术纵向密度</term><description>
     ///   训练场地面美术实测 <b>45.55 px/格(x) × 23.2 px/格(y)</b>（`arena_training_tex_.png`，脚本 `t6-calib.py`；
     ///   f006 远段同量级 ≈22 px/格），纵向压缩比 **0.51**；参考图整场实测 <b>58.6 × 45.844 px/格</b>、
-    ///   压缩比 **0.782**（`t6-refscan.py` / `t6-compare.py` 的标定）。我方按 **60 × 60 px/格** 渲染
-    ///   （<see cref="SetupCamera"/> = 32 格铺满画布高）⇒ 训练场美术被放大 **1.32×(横) / 2.59×(纵)**，
+    ///   压缩比 **0.782**（`t6-refscan.py` / `t6-compare.py` 的标定）。我方按 **60 × 45 px/格** 渲染
+    ///   （<see cref="SetupCamera"/>：横向 18 格铺满画宽 = 60 px/格、纵向 60 × 0.75 = 45 px/格）
+    ///   ⇒ 训练场美术被放大 **1.32×(横) / 1.94×(纵)**，
     ///   远段（含河道两侧）因此呈"竖直条纹 + 棋盘格对比度被抹平"的观感 —— 这是**美术密度代差**，
     ///   本解包素材里**不存在**与参考图同密度（≈45.8 px/格）的训练场地面 ⇒ 如实登记为素材缺口。</description></item>
     /// </list>
@@ -203,9 +203,15 @@ namespace CR.View
         /// <summary>
         /// 带蓝色水面的那一帧的帧号（= <b>6</b>，`atlasgenerator_texture_rgb565`）。
         /// <para>
-        /// 地面由**帧 22 的六段地层**铺（见 <see cref="BlueFieldPyTop"/> 上方的长注释），本帧**只承担河面**
-        /// ⇒ 语义 = <see cref="WaterFrameNumber"/>，两者同值（⛔ 保留本名不删 —— 类注释二/六与 `策划/`
-        /// 文档按它引用「f006 唯一与 18×32 自洽」这条结论）。
+        /// <b>⚠️ 名字里的「Ground」是历史名：本帧不铺地面</b>。要查「地面美术帧」请看
+        /// <see cref="NearGroundFrameNumber"/>（= <b>22</b>，六段地层全取自它，落位见 <see cref="BlueFieldPyTop"/>
+        /// 上方的长注释）。本帧**只承担河面** ⇒ 语义 = <see cref="WaterFrameNumber"/>，两者同值。
+        /// </para>
+        /// <para>
+        /// <b>本常量的消费点</b>：代码内**无**（另一处引用只是注释里的脚注）；
+        /// 按名字引用它的只有 `策划/对照表.md`、`策划/验收表.md`、`tools/probes/FlowProbe.cs`（探针读值）。
+        /// ⛔ 保留本名不删 —— 那三处按它引用「f006 唯一与 18×32 自洽」这条结论；
+        /// 但**判「地面用什么帧」一律看 <see cref="NearGroundFrameNumber"/>**。
         /// </para>
         /// </summary>
         public const int GroundFrameIndex = 6;
@@ -328,7 +334,8 @@ namespace CR.View
         //   参考规格 §2「RED 侧 = BLUE 侧 y → 32 − y」）⇒ 格 0..15 的镜像落在格 17..32。
         //   这样地面**只有一张原版画布、一个缩放比**（无「2 段之间压缩率跳变」）。
 
-        /// <summary>完整半场地面的**帧号**：`training_area_bg`（= `frame_022`，⛔ 不是数组下标）。**六段地层仍在用**。</summary>
+        /// <summary>完整半场地面的**帧号**：`training_area_bg`（= `frame_022`，⛔ 不是数组下标）。**六段地层仍在用**。
+        /// <para>⚠️ 「地面美术帧」= 本常量；<see cref="GroundFrameIndex"/>(6) 是**河面帧**的历史名，别互相指错。</para></summary>
         public const int NearGroundFrameNumber = 22;
 
         /// <summary>【无消费点】f022 场地左沿——当前口径 = <see cref="GroundFieldLeftPx"/>（同为 99）。</summary>
@@ -609,6 +616,19 @@ namespace CR.View
         /// <summary>【覆盖带】下界格 = 9.44 = <see cref="GapTileHigh"/> − 2 × 单份跨格数（两份向上复制，见 <see cref="GapSrcPyTop"/> 的说明）。</summary>
         public const float GapTileLow = GapTileHigh - 2f * ((GapSrcPyBottom - GapSrcPyTop) / BlueRowsPerTile);
 
+        /// <summary>【边界带垫层】干净源带的上沿（帧 22 画布行）= 696（= <see cref="GapSrcPyTop"/> + 10）。
+        /// <para>
+        /// 取 <b>52 行</b>（696..<see cref="BluePrincessPyTop"/>(748)）= 2.33 格 @ <see cref="BlueRowsPerTile"/>（22.3158 行/格）
+        /// ⇒ 与 BLUE 段② 同源、同尺度 **1:1**；RED 边界带（2.57 格）由同一窗口铺 ⇒ 20.2 行/格，
+        /// 与它上面那条「后沿草须带」（55 行 / 2.57 格 = 21.4 行/格）同尺度。
+        /// </para>
+        /// <para>
+        /// 用途：格 y <c>[0, <see cref="BackEdgeTileLow"/>]</c> 与 <c>[<see cref="RedBackTileTop"/>, 32]</c> 两条边界带。
+        /// f022 行 0..55 那条后沿带是**草须轮廓**（同窗口不透明率仅 53%，实测 0..55 行有 12 行透明像元 &gt;5%），
+        /// 单靠它铺这两条带会让近半像元露出底衬纯色 ⇒ 先把这段干净草地铺满整带，草须轮廓再叠在其上。
+        /// </para></summary>
+        public const float EdgeFillSrcPyTop = 696f;
+
         // ⛔ 以下 2 个「段界」**当前无消费点，保留**：
         //    它们只服务 `MakeSegment`（f006 两段透视映射），地面在 `BuildArt()` 里是 f022 完整半场
         //    ⇒ 不再有"近段/远段"之分。保留原因 = 类注释五「双翻转陷阱」等结论按名字引用它们。
@@ -761,8 +781,50 @@ namespace CR.View
         /// rec 41-47 是"正对镜头看进炮口"；rec 32-40 是横向。参考图 `03_对局` 里**我方（蓝）国王塔**
         /// 看到的就是炮尾（炮管向远去、近端带金环），⇒ 取 rec 30。
         /// </para>
+        /// <para>
+        /// <b>方向复核（逐帧量法）</b>：对 rec 30-47 逐帧算"alpha 质心 → 最远 alpha 像素"的方向
+        /// （= 炮口端相对炮身的方向）：rec 30 = **4.7°**（炮口朝屏幕上方）、rec 47 = **185.2°**
+        /// （炮口朝屏幕下方），与"背对 / 正对镜头"的目视判定一致。
+        /// </para>
         /// </summary>
         public const int BlueKingTurretFrame = 30;
+
+        /// <summary>
+        /// 国王塔炮塔层的**颜色变换**：`building_tower_v215.sc` 的 `09` 记录**第 6 条**
+        /// = <c>add=(0,0,0) alpha=0 mul=(255,255,255)</c> ⇒ 应用后 <c>out_alpha = src_alpha × 0 / 255 = 0</c>
+        /// ⇒ **整层透明**。
+        /// <para>
+        /// <b>为什么这条变换就是"炮塔未激活时不显示"</b>（三条互相独立的读数，全部实测）：
+        /// ① 逐帧枚举 `KingTower_blue`(clip 308) 的 98 帧放置表：turret 子件 **97 帧**带 ct 6（alpha 0），
+        ///    唯一不带的是**最后一帧**；`KingTower_red`(clip 307) 里 turret 出现的 89 帧**全部**带 ct 6。
+        /// ② 该 clip 的时间轴长度 = 98 帧 @30 fps = **3.27 s ≈ 3300 ms = 服务端 `KingActivationMs`**
+        ///    （`server/game/core/units.go:95`，出处 = `原版资源/cr-sim/cr_sim/engine/battle.py:140`
+        ///    `KING_ACTIVATION_MS = 3300`）⇒ 这 98 帧正是"被激怒 → 苏醒 → 炮塔升起"那一段。
+        /// ③ 参考图同机位 A/B：`策划/参考图/03_对局_1320x2868.jpg` 我方国王塔 **1150 HP**（= 挨过打
+        ///    ⇒ 已激活）**看得到炮管**；`策划/参考图/04_对局_1320x2868.jpg` 我方国王塔满血（未激活）
+        ///    只在垛口上看到塔体与国王，**没有炮管**。
+        /// </para>
+        /// <para>
+        /// CT 的字段序与取值口径见 `tools/probes/ct-index.py` 的类注释（`09` = 7 字节
+        /// `add.rgb / alpha / mul.rgb`，255 = 1.0）。
+        /// </para>
+        /// </summary>
+        public const int KingTurretAlphaZeroCt = 6;
+
+        /// <summary>
+        /// 敌方（RED）国王塔的炮塔帧 —— 与蓝方**同一个** `turret` 子件（clip 247 = rec 30-47 共 18 个转角）。
+        /// <para>
+        /// <b>为什么是 rec 47</b>：rec 30 与 rec 47 的炮口方向互为镜像（4.7° ↔ 185.2°，量法见
+        /// <see cref="BlueKingTurretFrame"/>），而原版的规律是**每座塔的炮口朝它的敌方**
+        /// （同 `PrincessOccupant` 的朝向规律，见 <see cref="BluePrincessOccupantFrame"/> 的长注释）
+        /// ⇒ 蓝方取 30（朝屏幕上方 = 朝红方）、红方取 47（朝屏幕下方 = 朝蓝方）。
+        /// </para>
+        /// <para>
+        /// <b>红方的炮塔此前没有接进配方</b>：`.sc` 的 `KingTower_red`(clip 307) 第 1 帧的放置表里
+        /// child 247（turret）**在**，只是与本文件旧配方相比多一层 `BodyTop`(212)，旧配方漏接了炮塔。
+        /// </para>
+        /// </summary>
+        public const int RedKingTurretFrame = 47;
 
         /// <summary>
         /// 公主塔乘员所在目录：`Sprites/Units/chr_princess_out`（源 `chr_princess_v215.sc`）。
@@ -910,18 +972,14 @@ namespace CR.View
         /// </summary>
         private static readonly LayerSpec[] RedKingRecipe =
         {
-            new LayerSpec(RedTowerBodyFrame, 1f, 0f, 0f, "Body"),             // child 212 → rec 211，无矩阵
-            new LayerSpec(15, 1f, 0f, 0f, "BackA"),                           // child 15，无矩阵
-            new LayerSpec(RedKingSeatFrame, KingLayerScale, 0f, -25f, "King"),// child 245，matrix 89
-            new LayerSpec(RedTowerBodyTopFrame, 1f, 0f, 0f, "BodyTop"),       // child 213 → rec 212，无矩阵
-            // ⛔ 本格**不画炮塔层**（`.sc` 里 child 247 仍在，本表只是不接它）。判定：
-            //   把 18 个炮塔帧逐个离线合成（塔体+15+王+前墙+该帧炮塔），与原版 `03_对局` G1 那一格按同一
-            //   结构包围盒归一化后算**平均绝对差**（离线逐帧合成脚本）：
-            //   18 帧 MAE 全落在 71.09~72.53，"不画" = 73.00 ⇒ **没有任何一帧能对上原版**（差异极不显著、
-            //   且"不画"并不比加一帧差多少）⇒ 按判定口径：**原版那一刻这一格不画炮塔**
-            //   （炮塔随瞄准/激活切换；参考图抓到的正是"不可见"那一态）。
-            // ⚠️ 已知缺口：红王塔炮塔的**可见性规则未解出**；此处是复刻参考图那一帧的状态，
-            //   **不是删部件** —— 蓝王塔那一格照 `.sc` 正常画炮塔（见 BlueKingRecipe）。
+            new LayerSpec(RedTowerBodyFrame, 1f, 0f, 0f, "Body"),             // child 0 → rec 211，无矩阵
+            new LayerSpec(15, 1f, 0f, 0f, "BackA"),                           // child 1，无矩阵
+            new LayerSpec(RedKingSeatFrame, KingLayerScale, 0f, -25f, "King"),// child 2（king_idle），matrix 89
+            new LayerSpec(RedTowerBodyTopFrame, 1f, 0f, 0f, "BodyTop"),       // child 3 → rec 212，无矩阵
+            new LayerSpec(RedKingTurretFrame, 1f, 0f, -33f, "Turret"),        // child 4，matrix 91 = 1.0×、dy −33px
+            // 层序 = `.sc` 第 1 帧的放置表顺序（turret 在**最后** = 画在最上层）；本表不再偏离它。
+            // 炮塔层**初始不显示** —— 原版国王塔未激活时炮塔的 alpha = 0（出处见
+            // `KingTurretAlphaZeroCt`），塔被激活时才亮（见 TowerView.SetKingActive）。
         };
 
         /// <summary>
@@ -1048,7 +1106,18 @@ namespace CR.View
         /// </summary>
         public const float PrincessTowerScale = 1.65f;
 
-        /// <summary>底图兜底色（取自 f022 的草地均色 ≈(154,182,85)）—— 美术取不到时的地板色。</summary>
+        /// <summary>
+        /// 底衬纯色（取自 f022 的草地均色 ≈(154,182,85)）：铺在整块 18×32 之下的**最底层**（order = <see cref="SortingLayers.Ground"/>）。
+        /// <para>
+        /// <b>它不是场地的最终表现</b>：六个地面段 + 两条边界带垫层（<see cref="EdgeFillSrcPyTop"/>）盖住它 98% 以上。
+        /// 余下不足 2% 是 f022 草地边缘的**抗锯齿透明孔**（逐行实测该窗口透明像元 1.24%..1.72%，散布、不连成带），
+        /// 底衬用草地同色正好补掉这些孔 —— 去掉它，这 ~2% 的孔会露出相机底色（深灰蓝）。
+        /// </para>
+        /// <para>
+        /// 地面美术整帧取不到时（目录空 / 帧号 <see cref="NearGroundFrameNumber"/> 缺失），它是屏幕上唯一的场地
+        /// —— 这是它存在的唯一"兜底"语义（见 <see cref="BuildBaseQuad"/>）。
+        /// </para>
+        /// </summary>
         public static readonly Color BaseGrassColor = new Color(154f / 255f, 182f / 255f, 85f / 255f, 1f);
 
         /// <summary>塔帧断言日志只打一次（6 座塔会走 6 遍建塔路径）。</summary>
@@ -1125,61 +1194,176 @@ namespace CR.View
         /// <summary>行号口径的基准屏高（<see cref="GroundBottomRowPx"/> 用它换算成比例，从而与设备分辨率无关）。</summary>
         public const float FrameBasisHeightPx = 1920f;
 
-        /// <summary>相机设置：竞技场 18×32 格、竖屏构图。</summary>
-        /// <remarks>
-        /// <b>为什么这样取</b>：世界单位 = 格、竞技场中心在原点、y 大 = RED 后方（`GameConst` 的坐标约定）。
-        /// 正交尺寸 = 视野半高。要**完整**看到 32 格高 ⇒ 半高 ≥ 16；要看到 18 格宽 ⇒ 半高 ≥ 9/aspect。
-        /// 取两者的大者，于是竖屏（aspect &lt; 0.5625）时铺满高度、横屏时退化为左右留白（露出竞技场外的草地，不裁单位）。
+        /// <summary>
+        /// 行号口径的基准屏宽（<see cref="FrameBasisHeightPx"/> 的配套，1080×1920 基准图的一半）。
         /// <para>
-        /// <b>★ 取景（用户第 1 条「出牌区挤压战斗区，我记得好像是分离的」）</b>：让 18×32 场地**恰好铺满整屏**时
-        /// （半高 16 时 32 格 = 1920 px），于是场地底沿 = 屏幕底沿，**下方国王塔整层落在出牌区之后**（实测塔外框
-        /// rows 1622.7..1771.6 vs 出牌区上沿 1614 ⇒ 被盖 306 px ≈ 5.1 格）。
-        /// 原版不是这样：它把地面纵向压到 **0.75**（<see cref="GroundCompressY"/>），场地只占 1440 px，底沿停在
-        /// <see cref="GroundBottomRowPx"/> = 1580，**出牌区上沿之下没有战斗区**。
-        /// ⇒ 本方法改为**非等比正交投影**：半宽 = 9 格（18 格铺满画宽）、半高 = 16 / 0.75 = 21.333 格
-        /// （32 格占 1440 px），再平移相机把场地底沿放到第 1580 行。
-        /// <b>为什么用投影矩阵而不是缩放内容根</b>：投影矩阵参与 `ScreenToWorldPoint` ⇒ 点击落点/落位指示仍然自洽；
-        /// 若改缩放 `BattleContent`，则屏幕→世界不再反映该压缩，点哪丢哪会错位。
+        /// <b>为什么需要它</b>：HUD 画布是 `CanvasScaler` match=width（`App/Bootstrap.LaunchEngine` 的
+        /// `CloverPresentation.ReferenceResolution` = 1080×1920、`MatchWidthOrHeight` = 0）
+        /// ⇒ 贴底件距屏底的实际像素数 = 画布距离 × 屏宽 / 1080，**与屏高无关**。
+        /// 场地底边要一直停在卡条上沿之上，就必须用同一个比例折算（见 <see cref="SetupCamera"/>）。
         /// </para>
-        /// <b>⛔ 不走 `Game.Camera`：理由是"**不需要**"，不是"文档没写"</b> ——
-        /// ⚠️ 本条注释原先写的是"`docs/client-api-reference.md` 的 §2/§5 只列出 `Game.Camera` 的类型、
-        /// 没有成员签名，照'不猜 API'的规矩不用它"。**该理由已过期**：引擎现在有完整签名
-        /// （`Runtime/Core/PresentationContracts.cs` 的 `ICameraManager`，`Runtime/Presentation/Camera.cs` 是实现）。
-        /// **现在成立的真实理由**（2026-09-24 经 sinkup5 盘点复核）：本工程是 **2D 正交固定相机** ——
-        /// 竞技场 18×32 格、相机**不跟随任何目标**、无震屏、无边界约束、且投影是**非等比**的
-        /// （见上面的 `Matrix4x4.Ortho`）。引擎 `ICameraManager` 的能力面（Follow / Shake / SetBounds / FOV /
-        /// 视线）在这里**一个都用不上**；而"非等比正交投影 + 相机平移"这条引擎**没有**（引擎缺口 E-7）
+        /// </summary>
+        public const float FrameBasisWidthPx = 1080f;
+
+        /// <summary>相机设置（自适应取景）：横向恒 18 格铺满画宽、纵向按原版像素比 60:45、场地底边停在卡条上沿之上。</summary>
+        /// <remarks>
+        /// <b>取景的三个量，各自的出处</b>（原版读数全部来自 `20_对局_1080x1920.jpg` 的实测，
+        /// 见 `策划/参考图/几何量取.md` §1.3 与 <see cref="GroundCompressY"/> / <see cref="GroundBottomRowPx"/> 的出处行）：
+        /// <list type="number">
+        /// <item><b>横向恒 18 格</b>：原版场地横占 x 0..1079 = 1080 px / 18 格 = <b>60 px/格</b>
+        ///   ⇒ 半宽恒 = `ArenaTilesW / 2` = 9 格，`pxPerTileX = 屏宽 / 18`（任何窗口宽高比下都恰好 18 格铺满画宽）。</item>
+        /// <item><b>纵向 60:45</b>：同图场地纵占 rows 140..1580 = 1440 px / 32 格 = <b>45 px/格</b>
+        ///   ⇒ `pxPerTileY = pxPerTileX × GroundCompressY`(0.75)；由 `屏高 / (2·halfH) = pxPerTileY`
+        ///   反解得 `halfH = halfW / (aspect × GroundCompressY)`
+        ///   （1080×1920 时 = 9 / (0.5625 × 0.75) = 21.3333，即竖屏基准下的原取景值）。
+        ///   <b>场地因此永不被纵向压扁</b>；屏比原版基准更高或更矮时，差额落在**场地之外**（远端以外的区域露得多或少），
+        ///   不落进场地的像素比例里。</item>
+        /// <item><b>场地底边距屏底 340 px（1080 宽基准）= 卡条上沿之上 34 px</b>：原版场地底沿 row 1580、
+        ///   手牌卡顶 row 1614（§1.3 D12）⇒ 留白 34 px。本工程手牌贴底量 = 卡底距画布底 135（`HudPanel.HandBottomOffset`）
+        ///   + 卡高 171 = **306** ⇒ 卡条上沿在基准屏 row 1614；场地底边取 row <see cref="GroundBottomRowPx"/> = 1580。
+        ///   HUD 画布 match=width ⇒ 卡条上沿距屏底的像素数 = 306 × 屏宽 / 1080（**与屏高无关**）
+        ///   ⇒ 场地底边必须用同一个比例折算：`底边距屏底 = (FrameBasisHeightPx − GroundBottomRowPx) × 屏宽 / FrameBasisWidthPx`。
+        ///   于是**卡条永不压住场地**（留白 = 34 × 屏宽 / 1080 &gt; 0），窗口变矮时少看到的只是场地远端。</item>
+        /// </list>
+        /// <b>为什么用投影矩阵而不是缩放内容根</b>：投影矩阵参与 `ScreenToWorldPoint` ⇒ 点击落点/落位指示仍然自洽；
+        /// 若改缩放 `BattleContent`，则屏幕→世界不再反映这个非等比压缩，点哪丢哪会错位。
+        /// <para>
+        /// <b>⛔ 不走 `Game.Camera`：理由是"**不需要**"</b> —— 本工程是 **2D 正交固定相机**：
+        /// 竞技场 18×32 格、相机不跟随任何目标、无震屏、无边界约束，且投影是**非等比**的（上面的 `Matrix4x4.Ortho`）。
+        /// 引擎 `ICameraManager`（`Runtime/Core/PresentationContracts.cs`）的能力面（Follow / Shake / SetBounds /
+        /// FOV / 视线）在这里一个都用不上；"非等比正交投影 + 相机平移"这条引擎没有（引擎缺口 E-7）
         /// ⇒ 即便接上引擎相机，这两步仍只能自己写。因此直接摆 `Camera`
         /// （场景里已有一台正交相机，见 `Editor/SceneBuilder.cs` 的 `AddCamera`）。
+        /// </para>
         /// </remarks>
         public static void SetupCamera(Camera cam)
         {
             if (cam == null) return;
             cam.orthographic = true;
-            var aspect = cam.aspect > 0.01f ? cam.aspect : 0.5625f; // 0.5625 = 9:16 竖屏
-            // 半宽固定 9 格 = 18 格铺满画宽；半高 = 16 / 0.75 ⇒ 纵向 45 px/格、横向 60 px/格（原版实测比例）。
+            // 横向恒 18 格铺满画宽 ⇒ 半宽 9 格、pxPerTileX = 屏宽 / 18（与窗口宽成比例）。
             var halfW = GameConst.ArenaTilesW * 0.5f;
-            var halfH = GameConst.ArenaTilesH * 0.5f / GroundCompressY;
-            // 比场地（压后 aspect = 9/21.333 ≈ 0.4219）更窄的屏：保宽、露出更多高（沿用原"竖屏铺满宽度"的意图）。
-            if (aspect < halfW / halfH) halfH = halfW / aspect;
+            // 竖向 60:45 ⇒ pxPerTileY = pxPerTileX × GroundCompressY；由 屏高 / (2·halfH) = pxPerTileY 反解 halfH。
+            var aspect = cam.aspect > 0.01f ? cam.aspect : FrameBasisWidthPx / FrameBasisHeightPx;
+            if (cam.aspect <= 0.01f)
+                Game.Logger?.Warn(LogTag, $"相机 aspect={cam.aspect:F4} 不可用 ⇒ 取景按基准 1080×1920 折算");
+            var halfH = halfW / (aspect * GroundCompressY);
             cam.orthographicSize = halfH; // 仅作对外读数（渲染由下面的投影矩阵决定）
             var zN = cam.nearClipPlane > 0f ? cam.nearClipPlane : 0.3f;
             var zF = cam.farClipPlane > zN ? cam.farClipPlane : 1000f;
             cam.projectionMatrix = Matrix4x4.Ortho(-halfW, halfW, -halfH, halfH, zN, zF);
-            // 平移相机：令场地底沿（世界 y = −ArenaTilesH/2）落在第 GroundBottomRowPx 行。
-            //   row = (cy + halfH − worldY) / (2·halfH) · H  ⇒  cy = frac·2·halfH − halfH − ArenaTilesH/2
-            var frac = GroundBottomRowPx / FrameBasisHeightPx;
+            // 平移相机：令场地底沿（世界 y = −ArenaTilesH/2）落在"卡条上沿之上 34 px"那一行。
+            //   row = (cy + halfH − worldY) / (2·halfH) · 屏高  ⇒  cy = frac·2·halfH − halfH − ArenaTilesH/2
+            var pw = cam.pixelWidth > 0 ? cam.pixelWidth : Screen.width;
+            var ph = cam.pixelHeight > 0 ? cam.pixelHeight : Screen.height;
+            if (pw <= 0 || ph <= 0)
+            {
+                pw = (int)FrameBasisWidthPx;
+                ph = (int)FrameBasisHeightPx;
+                Game.Logger?.Warn(LogTag, "渲染尺寸不可用（拍到 0）⇒ 取景按基准 1080×1920 折算");
+            }
+            var bottomMarginPx = (FrameBasisHeightPx - GroundBottomRowPx) * (pw / FrameBasisWidthPx);
+            var frac = (ph - bottomMarginPx) / ph;
             var cy = frac * (2f * halfH) - halfH - GameConst.ArenaTilesH * 0.5f;
             cam.transform.rotation = Quaternion.identity;
             cam.transform.position = new Vector3(0f, cy, -10f);
         }
 
+        /// <summary>取景用的相机；`SetupCamera` 的取景依赖窗口宽高比，窗口改了要重设（见 <see cref="LateUpdate"/>）。</summary>
+        private Camera _framedCam;
+
+        /// <summary>上一次取景时的渲染尺寸（像素），用来判断窗口是否变了。</summary>
+        private int _framedPw;
+        private int _framedPh;
+
+        /// <summary>
+        /// 帧后按当前渲染尺寸重设投影：<see cref="SetupCamera"/> 的取景量（`aspect` 与"场地底边距屏底"）
+        /// 都随窗口尺寸变，尺寸一改旧投影就与新窗口不符（表现 = 场地被纵向拉伸、贴底 HUD 压到场地）
+        /// ⇒ 尺寸变了就重算一次；不变则零开销。
+        /// </summary>
+        private void LateUpdate()
+        {
+            if (_framedCam == null)
+            {
+                _framedCam = Camera.main;
+                if (_framedCam == null) return;
+            }
+            var pw = _framedCam.pixelWidth;
+            var ph = _framedCam.pixelHeight;
+            if (pw == _framedPw && ph == _framedPh) return;
+            SetupCamera(_framedCam);
+            _framedPw = pw;
+            _framedPh = ph;
+        }
+
         // ─────────────────────────── 底图 ───────────────────────────
+
+        // ────────── 场地外圈：场地两端之外那两条带（原版是围栏/崖壁/看台，见 BuildOuterRing） ──────────
+
+        /// <summary>
+        /// 外圈用具的帧号：`arena_training` 的 `training_cliffs_left`
+        /// （`策划/原版UI素材名称索引.md` 的导出名 ↔ 帧号表；`sc-exports-dump.py` 可复跑）。
+        /// </summary>
+        public const int OuterRingLeftFrameNumber = 5;
+
+        /// <summary>外圈用具的帧号：`arena_training` 的 `training_cliffs_right`。</summary>
+        public const int OuterRingRightFrameNumber = 4;
+
+        /// <summary>`training_cliffs_left` 的 alpha 包围盒（原版画布 1090×1677 上的 px 坐标）。</summary>
+        private const float OuterRingLeftPxLeft = 327f;
+        /// <summary>见 <see cref="OuterRingLeftPxLeft"/>。</summary>
+        private const float OuterRingLeftPyTop = 901f;
+        /// <summary>见 <see cref="OuterRingLeftPxLeft"/>。</summary>
+        private const float OuterRingLeftPxRight = 698f;
+        /// <summary>见 <see cref="OuterRingLeftPxLeft"/>。</summary>
+        private const float OuterRingLeftPyBottom = 1355f;
+
+        /// <summary>`training_cliffs_right` 的 alpha 包围盒（同坐标系）。</summary>
+        private const float OuterRingRightPxLeft = 329f;
+        /// <summary>见 <see cref="OuterRingRightPxLeft"/>。</summary>
+        private const float OuterRingRightPyTop = 916f;
+        /// <summary>见 <see cref="OuterRingRightPxLeft"/>。</summary>
+        private const float OuterRingRightPxRight = 696f;
+        /// <summary>见 <see cref="OuterRingRightPxLeft"/>。</summary>
+        private const float OuterRingRightPyBottom = 1332f;
+
+        /// <summary>
+        /// 外圈**围栏**那一排的件（`arena_training` 的 `fence_*` 四件），数组顺序 = 从左到右的铺放顺序。
+        /// <para>
+        /// <b>为什么这 4 件是一排</b>：它们的 alpha bbox 宽度合计 **212+209+209+212 = 842 px**
+        /// ÷ <see cref="GroundPxPerTileX"/>(45.545) = **18.49 格**，与场地宽
+        /// <see cref="GameConst.ArenaTilesW"/>(18 格) 只差 **2.7%** —— 这是原版把这一族沿一条边排满的量化痕迹。
+        /// </para>
+        /// </summary>
+        private static readonly int[] OuterFenceFrameNumbers = { 17, 18, 19, 20 };
+
+        /// <summary>围栏 4 件的 alpha bbox 左沿（原版画布 1090×1677 上的 px，下标与 <see cref="OuterFenceFrameNumbers"/> 对齐）。</summary>
+        private static readonly float[] OuterFencePxLeft = { 406f, 407f, 407f, 406f };
+
+        /// <summary>围栏 4 件的 alpha bbox 上沿。</summary>
+        private static readonly float[] OuterFencePyTop = { 1063f, 1073f, 1062f, 1073f };
+
+        /// <summary>围栏 4 件的 alpha bbox 右沿。</summary>
+        private static readonly float[] OuterFencePxRight = { 618f, 616f, 616f, 618f };
+
+        /// <summary>围栏 4 件的 alpha bbox 下沿。</summary>
+        private static readonly float[] OuterFencePyBottom = { 1135f, 1143f, 1136f, 1143f };
+
+        /// <summary>
+        /// 崖壁相对围栏再外推多少**排行高**（1 = 完全让开围栏那一条；0 = 与围栏同锚点，靠 sortingOrder 遮挡）。
+        /// <para>
+        /// 取 0 的实测理由：场地上方的可见带只有 3.11 格，崖壁一旦外推 1 排行高，
+        /// 落进这条带的就只剩**件底部的碎石尖**（件密的草地部分被推出视野）⇒ 该带暗像元从 30.0% 涨到 49.9%；
+        /// 与围栏同锚点时崖壁密的下半部仍在带内，围栏由更高的 sortingOrder 画在它前面（= 遮挡，不是穿插）。
+        /// </para>
+        /// </summary>
+        private const float OuterCliffRowGapRows = 0f;
 
         private void BuildBaseQuad()
         {
-            // 纯色底图：**兜底**，保证"美术取不到"时玩家仍能看到一块场地（而不是一片清屏色）。
-            // 它同时把 18×32 的场地边界"画实"，比透明背景更容易发现坐标错位。
+            // 纯色底衬：18×32 的**最底层**（order = SortingLayers.Ground），色值见 BaseGrassColor。
+            // 它的两个语义：① 补掉地面美术的抗锯齿透明孔（f022 各窗口透明像元 1.24%..1.72%，散布不成带）；
+            // ② 地面美术整帧取不到时，它是屏幕上唯一的场地（此时 BuildArt 会 Warn，不是静默降级）。
+            // 它把 18×32 的场地边界"画实"，比透明背景更容易发现坐标错位。
             var white = SpriteBank.WhiteSprite();
             var go = new GameObject("Base");
             go.transform.SetParent(_artRoot, false);
@@ -1233,9 +1417,10 @@ namespace CR.View
                 //    ⇒ 公主台 5.5..7.5 中心 6.5、王台 2.5..3.5 中心 3.0）
                 MakeCrop("GroundBlueBack", ground, GroundFieldLeftPx, BluePrincessPyTop, GroundFieldRightPx, BlueBackPyBottom,
                     0f, GameConst.ArenaTilesW, BlueBackTileLow, BluePrincessTileTop, orderBlueHalf);
-                // ③ BLUE 段③：行 [0, 55] → 格 y [0, 2.33]（后沿带；草须朝下 ⇒ 底边；⛔ 不 flipY）
+                // ③ BLUE 段③：行 [0, 55] → 格 y [0, 2.33]（后沿带；草须朝下 ⇒ 底边；⛔ 不 flipY）。
+                //    order 用叠层（+3）：它必须压在 ⑦ 的边界带垫层之上（同格区间，见 EdgeFillSrcPyTop）。
                 MakeCrop("GroundBlueEdge", ground, GroundFieldLeftPx, BackEdgePyTop, GroundFieldRightPx, BackEdgePyBottom,
-                    0f, GameConst.ArenaTilesW, 0f, BackEdgeTileLow, orderBlueHalf);
+                    0f, GameConst.ArenaTilesW, 0f, BackEdgeTileLow, orderGroundOverlay);
                 // ④ RED 段①：行 [1323, 1600] → 格 y [17.0, 24.5]（近岸草 + 车道）
                 MakeCrop("GroundRedNear", ground, GroundFieldLeftPx, RedPrincessPyBottom, GroundFieldRightPx, RedFieldPyBottom,
                     0f, GameConst.ArenaTilesW, GameConst.RiverBottomTile, RedPrincessTileBottom, orderRedHalf);
@@ -1243,9 +1428,20 @@ namespace CR.View
                 //    ⇒ 公主台 24.5..26.5 中心 25.5、王台中心 29.0 = 32 − `KingTowerTileY`）
                 MakeCrop("GroundRedBack", ground, GroundFieldLeftPx, RedBackPyTop, GroundFieldRightPx, RedPrincessPyBottom,
                     0f, GameConst.ArenaTilesW, RedPrincessTileBottom, RedBackTileTop, orderRedHalf);
-                // ⑥ RED 段③：行 [0, 55] → 格 y [29.43, 32]（同一条后沿带，flipY ⇒ 草须朝上 = 顶边）
+                // ⑥ RED 段③：行 [0, 55] → 格 y [29.43, 32]（同一条后沿带，flipY ⇒ 草须朝上 = 顶边）。
+                //    order 用叠层（+3）：压在 ⑦ 的边界带垫层之上（同格区间）。
                 MakeCrop("GroundRedEdge", ground, GroundFieldLeftPx, BackEdgePyTop, GroundFieldRightPx, BackEdgePyBottom,
-                    0f, GameConst.ArenaTilesW, RedBackTileTop, BackEdgeTileTop, orderRedHalf, flipY: true);
+                    0f, GameConst.ArenaTilesW, RedBackTileTop, BackEdgeTileTop, orderGroundOverlay, flipY: true);
+
+                // ★ **边界带垫层**（出处见 EdgeFillSrcPyTop）：把同帧的干净草地（行 696..748）铺满
+                //    格 y [0, 2.33] 与 [29.43, 32] 两条边界带，草须轮廓（③/⑥）再叠在其上。
+                //    原因：③/⑥ 用的 f022 行 0..55 是**草须轮廓**（该窗口不透明率 53%），单靠它铺这两条带，
+                //    近半像元会直接露出底衬纯色（实机读数：两条带内 ±6 近 BaseGrassColor 的像元占 48.9% / 47.6%，
+                //    而场中草地只有 1.0%）⇒ 这两条带必须以美术承担。
+                MakeCrop("GroundBlueEdgeFill", ground, GroundFieldLeftPx, EdgeFillSrcPyTop, GroundFieldRightPx, BluePrincessPyTop,
+                    0f, GameConst.ArenaTilesW, 0f, BackEdgeTileLow, orderBlueHalf);
+                MakeCrop("GroundRedEdgeFill", ground, GroundFieldLeftPx, EdgeFillSrcPyTop, GroundFieldRightPx, BluePrincessPyTop,
+                    0f, GameConst.ArenaTilesW, RedBackTileTop, BackEdgeTileTop, orderRedHalf);
 
                 // ══════════ ★★ 叠层（判据/出处见上方常量块与长注释）★★ ══════════
                 // ① 覆盖带：把 rows {GapSrcPyTop}..{GapSrcPyBottom} 这段**干净草地（含两条车道）**按段① 自己的
@@ -1266,18 +1462,168 @@ namespace CR.View
                 $"竞技场底图合成完成（D130 六段铺法）：地面帧号={NearGroundFrameNumber} 源={Name(ground)}" +
                 $" BLUE=py {BlueFieldPyTop}..{BluePrincessPyTop}→格 {BluePrincessTileTop}..{BlueFieldTileTop}" +
                 $" + py {BluePrincessPyTop}..{BlueBackPyBottom}→格 {BlueBackTileLow}..{BluePrincessTileTop}" +
-                $" + py {BackEdgePyTop}..{BackEdgePyBottom}→格 0..{BackEdgeTileLow}" +
+                $" + 垫层 py {EdgeFillSrcPyTop}..{BluePrincessPyTop}→格 0..{BackEdgeTileLow}" +
+                $" + py {BackEdgePyTop}..{BackEdgePyBottom}→格 0..{BackEdgeTileLow}（草须轮廓，order=叠层）" +
                 $" | RED=py {RedPrincessPyBottom}..{RedFieldPyBottom}→格 {GameConst.RiverBottomTile}..{RedPrincessTileBottom}" +
                 $" + py {RedBackPyTop}..{RedPrincessPyBottom}→格 {RedPrincessTileBottom}..{RedBackTileTop}" +
-                $" + py {BackEdgePyTop}..{BackEdgePyBottom}→格 {RedBackTileTop}..{BackEdgeTileTop}（flipY）" +
+                $" + 垫层 py {EdgeFillSrcPyTop}..{BluePrincessPyTop}→格 {RedBackTileTop}..{BackEdgeTileTop}" +
+                $" + py {BackEdgePyTop}..{BackEdgePyBottom}→格 {RedBackTileTop}..{BackEdgeTileTop}（草须轮廓，flipY）" +
                 $" | 横向=格 0..{GameConst.ArenaTilesW} ⇔ 画布px {GroundFieldLeftPx}..{GroundFieldRightPx:F1}（{GroundPxPerTileX}px/格）" +
                 $" | 叠层：覆盖带 源行 {GapSrcPyTop}..{GapSrcPyBottom}×2 → 格 y {GapTileLow:F2}..{GapTileHigh:F1}" +
                 $"（抹掉贴图集残留的「泥带+竖木板」）" +
                 $" | 河岸带=撤销不铺（原版水上沿以上是草+窄泥岸、无木板；见上方撤销记录）" +
                 $" | 河面/桥见后续 RiverWater/BridgeLeft/BridgeRight 日志");
 
+            // 场地**两端之外**那两条带的外圈（用户报的「场地外圈没有美术」）。
+            BuildOuterRing(frames, ArenaLayers.Instance.Ground);
+
             // 河道 = 帧 6 的蓝色水带；桥 = 帧 22 的桥板。见 BuildRiver。
             BuildRiver(frames, orderWater, orderBridge);
+        }
+
+        /// <summary>
+        /// 铺**场地两端之外**那两条带的外圈（屏上 = 格 y &gt; 32 一侧，屏下 = 格 y &lt; 0 一侧）。
+        ///
+        /// <para>
+        /// <b>为什么需要</b>：场地只占屏幕 rows 140..1580（<see cref="GroundBottomRowPx"/> 那一套取景），
+        /// 两端之外原本**没有任何美术** —— 实机读数 rows 0..140 均色 (12,19,27) / 暗像元 98.1% / 唯一色 3、
+        /// rows 1580..1614 均色 (11,16,27) / 暗 100% / 唯一色 1（= 纯相机底色）；原版同两条带是满美术
+        /// （参考图 18 同带均色 (113,101,100) 暗 3.5% / (93,153,151) 暗 2.2%）。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>件与落位的出处</b>：
+        /// <list type="bullet">
+        /// <item><b>件 = 原版帧</b>：<see cref="OuterRingLeftFrameNumber"/> / <see cref="OuterRingRightFrameNumber"/>
+        ///   （`training_cliffs_left/right`），像素与包围盒直接量自原版画布，⛔ 不自画、⛔ 不用别的竞技场的件；</item>
+        /// <item><b>尺寸 = 件自身像素 ÷ <see cref="GroundPxPerTileX"/></b>（本工程既有的"像素→格"口径，
+        ///   与 `DeployAreaView` 的边条/角件同一条）；</item>
+        /// <item><b>落位 = 件的内侧边对齐场地边界</b>（屏上端 = 格 y <see cref="GameConst.ArenaTilesH"/>、
+        ///   屏下端 = 格 y 0），横向按件宽成对摆（左件靠左、右件靠右），两端各一组。</item>
+        /// <item><b>外加围栏两排</b>（见 <see cref="BuildFenceRow"/>）：6 塔之外那条边上的
+        ///   `fence_*` 4 件（用户点名的那一族），件宽合计 18.49 格 ≈ 场地宽；崖壁排到围栏**之外侧**（按行高让位）。</item>
+        /// </list>
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠️ <b>诚实标注：这是「推断锚」</b>。件的像素是硬出处，但**摆放坐标没有一手出处** ——
+        /// 原版这些件在 `.sc` 里全是无父 root clip（`sc-reverse.py` 反查零命中），位置由原版运行期布局给，
+        /// 本仓没有那份布置表。所以本方法按上面的锚规则推出来，判据 = 两条带的读数是否被美术填上
+        /// （`.ai-tmp/test/arena-band-stats.py` 复量）。
+        /// </para>
+        /// </summary>
+        /// <param name="frames">整个竞技场目录的帧（按帧号取外圈件）。</param>
+        /// <param name="sortingOrder">外圈件的 sortingOrder（外圈**不与场地矩形重叠**，故与底衬同序不冲突）。</param>
+        private void BuildOuterRing(Sprite[] frames, int sortingOrder)
+        {
+            // ① 围栏一排（两端各一排）：铺在场地边界那条边上，横向铺满 [0, ArenaTilesW]。
+            //    返回值 = 这一排的行高（格），给 ② 的崖壁让位用 ⇒ 两组不穿模。
+            var fenceRowH = BuildFenceRow(frames, GameConst.ArenaTilesH, true, sortingOrder + 1);
+            BuildFenceRow(frames, 0f, false, sortingOrder + 1);
+
+            // ② 崖壁一组：排在围栏**之外侧**（远端再往外 1 排行高、近端同）。
+            var left = FindFrameByNumber(frames, OuterRingLeftFrameNumber);
+            var right = FindFrameByNumber(frames, OuterRingRightFrameNumber);
+            if (left == null || right == null)
+            {
+                Game.Logger?.Warn(LogTag,
+                    $"场地外圈件按帧号取不到（左 {OuterRingLeftFrameNumber} / 右 {OuterRingRightFrameNumber}）⇒ 两端之外只剩围栏那两排");
+                return;
+            }
+
+            var wL = (OuterRingLeftPxRight - OuterRingLeftPxLeft) / GroundPxPerTileX;
+            var hL = (OuterRingLeftPyBottom - OuterRingLeftPyTop) / GroundPxPerTileX;
+            var wR = (OuterRingRightPxRight - OuterRingRightPxLeft) / GroundPxPerTileX;
+            var hR = (OuterRingRightPyBottom - OuterRingRightPyTop) / GroundPxPerTileX;
+
+            // 崖壁的内侧边 = 场地边界 + OuterCliffRowGapRows × 围栏行高（让开的量，见该常量的注释）
+            var cliffGap = OuterCliffRowGapRows * fenceRowH;
+            var farEdge = GameConst.ArenaTilesH + cliffGap; // 远端（屏上那条带）
+            var nearEdge = 0f - cliffGap;                   // 近端（屏下那条带）
+            var rightX = GameConst.ArenaTilesW;              // 右件的右边贴着场地右边
+
+            // 屏上端（格 y > 32）：内侧边 = 件自己的**下边**贴在 y = 32，向外（y 增大）延伸。
+            MakeCrop("OuterRingFarLeft", left,
+                OuterRingLeftPxLeft, OuterRingLeftPyTop, OuterRingLeftPxRight, OuterRingLeftPyBottom,
+                0f, wL, farEdge, farEdge + hL, sortingOrder);
+            MakeCrop("OuterRingFarRight", right,
+                OuterRingRightPxLeft, OuterRingRightPyTop, OuterRingRightPxRight, OuterRingRightPyBottom,
+                rightX - wR, rightX, farEdge, farEdge + hR, sortingOrder);
+
+            // 屏下端（格 y < 0）：位置同样是"内侧边贴在场地边界 y = 0、向外（y 减小）延伸"，
+            //   **但件要竖直镜像**（`flipY`）—— 件自身的下沿是"草沿 + 碎石"那一面，正是远端贴地的那一面；
+            //   不镜像时贴到场地的是件顶部的草尖（实测该带只剩 25% 非暗像元，与远端 70% 不对称）。
+            //   ⛔ 只镜像朝向，⛔ 不改尺寸、不 reshape。
+            MakeCrop("OuterRingNearLeft", left,
+                OuterRingLeftPxLeft, OuterRingLeftPyTop, OuterRingLeftPxRight, OuterRingLeftPyBottom,
+                0f, wL, nearEdge - hL, nearEdge, sortingOrder, flipY: true);
+            MakeCrop("OuterRingNearRight", right,
+                OuterRingRightPxLeft, OuterRingRightPyTop, OuterRingRightPxRight, OuterRingRightPyBottom,
+                rightX - wR, rightX, nearEdge - hR, nearEdge, sortingOrder, flipY: true);
+
+            Game.Logger?.Info(LogTag,
+                $"场地外圈（推断锚）已铺 围栏 2 排 + 崖壁 4 件：崖壁 = training_cliffs_left(帧{OuterRingLeftFrameNumber})/right(帧{OuterRingRightFrameNumber})" +
+                $" 尺寸 = 自身像素 ÷ {GroundPxPerTileX} ⇒ 左 {wL:F2}×{hL:F2} 格、右 {wR:F2}×{hR:F2} 格" +
+                $" | 崖壁内侧边 = 场地边界 + 围栏行高 {fenceRowH:F3}：屏上端 y={farEdge:F3}、屏下端 y={nearEdge:F3}；左件靠左、右件靠右（右件右沿 x={rightX}）");
+        }
+
+        /// <summary>
+        /// 铺一排**围栏**：4 件按 <see cref="OuterFenceFrameNumbers"/> 的顺序横向排开，铺满格 <c>[0, ArenaTilesW]</c>。
+        /// <para>
+        /// <b>余量怎么处理</b>：4 件自身宽度合计 ≈ 18.49 格，比场地宽多 0.49 格 ⇒ **按件间均分**
+        /// （<c>gap = (ArenaTilesW − Σ件宽) / 3</c>，本轮是 −0.162 格 ⇒ 相邻两件**轻微重叠** 0.162 格），
+        /// ⛔ **不缩放件本身**（"件自身像素"是硬出处，缩放会连像素密度一起改掉）。
+        /// </para>
+        /// </summary>
+        /// <param name="frames">竞技场目录的帧。</param>
+        /// <param name="edgeTileY">贴的那条场地边界（远端 <see cref="GameConst.ArenaTilesH"/> / 近端 0）。</param>
+        /// <param name="outsideIsUp">true = 远端那排（向外 = y 增大）；false = 近端那排（向外 = y 减小）。</param>
+        /// <param name="sortingOrder">这一排的 sortingOrder（比崖壁高一层，明示围栏在前）。</param>
+        /// <returns>这一排的行高（格）= 4 件里最高的那件，供崖壁让位用。</returns>
+        private float BuildFenceRow(Sprite[] frames, float edgeTileY, bool outsideIsUp, int sortingOrder)
+        {
+            var n = OuterFenceFrameNumbers.Length;
+            var w = new float[n];
+            var h = new float[n];
+            var sum = 0f;
+            var maxH = 0f;
+            for (var i = 0; i < n; i++)
+            {
+                w[i] = (OuterFencePxRight[i] - OuterFencePxLeft[i]) / GroundPxPerTileX;
+                h[i] = (OuterFencePyBottom[i] - OuterFencePyTop[i]) / GroundPxPerTileX;
+                sum += w[i];
+                if (h[i] > maxH) maxH = h[i];
+            }
+
+            var gap = (GameConst.ArenaTilesW - sum) / (n - 1);
+            var tag = outsideIsUp ? "Far" : "Near";
+            var x = 0f;
+            for (var i = 0; i < n; i++)
+            {
+                var sprite = FindFrameByNumber(frames, OuterFenceFrameNumbers[i]);
+                if (sprite == null)
+                {
+                    // 非预期分支必须留痕：缺一块只表现为"这一排短了一截"。
+                    Game.Logger?.Warn(LogTag,
+                        $"外圈围栏件按帧号取不到：帧 {OuterFenceFrameNumbers[i]} ⇒ {tag} 排第 {i} 块缺席");
+                }
+                else
+                {
+                    MakeCrop("OuterFence" + tag + i, sprite,
+                        OuterFencePxLeft[i], OuterFencePyTop[i], OuterFencePxRight[i], OuterFencePyBottom[i],
+                        x, x + w[i],
+                        outsideIsUp ? edgeTileY : edgeTileY - h[i],
+                        outsideIsUp ? edgeTileY + h[i] : edgeTileY,
+                        sortingOrder);
+                }
+                x += w[i] + gap;
+            }
+
+            Game.Logger?.Info(LogTag,
+                $"外圈围栏{tag}排：{n} 件自身宽度 {string.Join("/", System.Array.ConvertAll(w, v => v.ToString("F3")))} 格" +
+                $" 合计 {sum:F3} 格 vs 场地宽 {GameConst.ArenaTilesW} 格 ⇒ 件间均分 {gap:F3} 格（⛔ 未缩件）；" +
+                $"行高 {maxH:F3} 格、贴边 y={edgeTileY}");
+            return maxH;
         }
 
         // ────────── 河道：帧 6 的蓝色水带 + 帧 22 的桥板（原版像素；见类注释六与上方长注释） ──────────
@@ -1592,6 +1938,7 @@ namespace CR.View
             var n = 0;
             Sprite body = null;
             Transform muzzle = null;   // ★ D145：炮口层（Princess / Turret），见 TowerView._muzzle
+            Transform turret = null;   // 国王塔的炮塔层 —— 初始不显示，激活时才亮（见 TowerView.SetKingActive）
             var sb = new List<string>();
             for (var i = 0; i < recipe.Length; i++)
             {
@@ -1615,6 +1962,7 @@ namespace CR.View
                 //   取到的就是原版配方里那一层的世界坐标，⛔ 不编"炮口高度"的常数。
                 if (built && (spec.Name == "Princess" || spec.Name == "Turret"))
                     muzzle = go.transform.Find(spec.Name);
+                if (built && spec.Name == "Turret") turret = go.transform.Find(spec.Name);
                 n += built ? 1 : 0;
                 sb.Add(spec.Name + "=" + Name(sp));
             }
@@ -1683,7 +2031,7 @@ namespace CR.View
             //     ⇒ 未做（登记 `策划/差异登记.tsv` D125）。
             var bar = WorldHpBar.Create(go.transform, isKing ? 1.8f : 1.4f, 0.20f,
                 isKing ? 2.6f : 2.0f, LogTag + (isKing ? ".KingHp" : ".PrinHp"), ArenaLayers.Instance.Overlay);
-            _towers.Add(new TowerView(team, isKing, xTile, yTile, FindLayerRenderer(go.transform), bar, rubble, muzzle));
+            _towers.Add(new TowerView(team, isKing, xTile, yTile, FindLayerRenderer(go.transform), bar, rubble, muzzle, turret));
         }
 
         /// <summary>
@@ -2013,6 +2361,60 @@ namespace CR.View
             return found;
         }
 
+        /// <summary>
+        /// 按**事件坐标 + 队伍**把国王塔标为已激活（服务端 `EvTowerActivated` / `kind == 5`）。
+        /// <para>
+        /// <b>为什么要这一条</b>：国王塔在未激活时**炮塔整层不可见**（原版 alpha = 0，出处见
+        /// <see cref="KingTurretAlphaZeroCt"/>）⇒ "惊醒"这一下在客户端就是**这一层从关到开**；
+        /// 服务端的激活链路本身早已实现（`server/game/core/tower.go` 的 `arm` / `tickActivation`，
+        /// 3300 ms，`EvTowerActivated` 事件在 `battle.go` 的 `stepKingActivation` 里发）。
+        /// </para>
+        /// <para>
+        /// <b>对号方式</b>：事件载荷带的就是**该塔自己的坐标**（服务端 `stepKingActivation` 填
+        /// `k.xMilli / k.yMilli`）⇒ 同队伍里离事件坐标最近的那座塔即是它；塔位是固定几何
+        /// （`GameConst`，两塔最近相距 ≥ 3 格）⇒ 不需要 id（塔实体 id 实测恒为 0，见
+        /// <see cref="TryTowerMuzzle(int,out Vector2)"/> 的注释）。
+        /// </para>
+        /// <para>
+        /// ⛔ <b>对上的那座塔必须是国王塔</b>：<see cref="TryTowerMuzzle(int,int,int,out Vector2)"/> 之类
+        /// "按队伍取最近的塔"的调用方（塔开火事件）也会经过这里 —— 若在这里回退成"取最近的国王塔"，
+        /// 一座**公主塔**开火就会把本方国王塔的炮塔点亮（实机踩到过：本局第一次快照后
+        /// `blueTurretOn=True` 而激活计数只有 1，正是公主塔开火触发的）。
+        /// </para>
+        /// </summary>
+        /// <returns>true = 本次调用真的把该塔从"未激活"翻成"已激活"（幂等：已激活再调返回 false；
+        /// 对上的不是国王塔也返回 false）。</returns>
+        public bool TryActivateKingTower(int xMilli, int yMilli, int team, int serverMs,
+            out float tileX, out float tileY)
+        {
+            tileX = 0f;
+            tileY = 0f;
+            if (team != 0 && team != 1) return false;
+            var p = GameConst.MilliToWorld(xMilli, yMilli);
+            var found = false;
+            var bestSq = float.MaxValue;
+            TowerView best = null;
+            for (var i = 0; i < _towers.Count; i++)
+            {
+                var t = _towers[i];
+                if (t.Team != team) continue;
+                var d = GameConst.TileToWorld(t.TileX, t.TileY);
+                var dx = d.x - p.x;
+                var dy = d.y - p.y;
+                var d2 = dx * dx + dy * dy;
+                if (!found || d2 < bestSq)
+                {
+                    found = true;
+                    bestSq = d2;
+                    best = t;
+                }
+            }
+            if (best == null || !best.IsKing) return false;
+            tileX = best.TileX;
+            tileY = best.TileY;
+            return best.SetKingActive(serverMs);
+        }
+
         private void ClearGenerated()
         {
             for (var i = 0; i < _towers.Count; i++) _towers[i].Destroy();
@@ -2063,10 +2465,26 @@ namespace CR.View
             private readonly Transform _muzzle;
 
             /// <summary>
+            /// 国王塔的**炮塔层**（`Turret`）的 Transform；公主塔为 <c>null</c>。
+            /// <para>
+            /// 用途：原版国王塔在**未激活**时炮塔整层透明（alpha = 0，出处见
+            /// <see cref="ArenaView.KingTurretAlphaZeroCt"/>）⇒ 建塔时先把这一层关掉，
+            /// 收到 `EvTowerActivated`（`kind == 5`）时再打开（见 <see cref="SetKingActive"/>）。
+            /// </para>
+            /// </summary>
+            private readonly Transform _turret;
+
+            /// <summary>
             /// 服务端给的塔 id（`TowerState.id`）—— 用来把开火事件 <c>EvTowerShoot.entity_id</c>
             /// 认到具体哪一座塔（塔不在快照的 `entities` 里，只能这样对号）。
             /// </summary>
             public int Id { get; private set; }
+
+            /// <summary>
+            /// 国王塔是否**已激活**（可以开火、炮塔层可见）。公主塔恒为 <c>true</c>
+            /// （原版公主塔一直参战，见 `server/game/core/tower.go` 的 `canFight`）。
+            /// </summary>
+            public bool KingActive { get; private set; }
 
             /// <summary>
             /// 阵亡废墟层的渲染器（D133）。**初始 disabled**，塔被摧毁时才全部 <c>enabled = true</c>。
@@ -2086,7 +2504,7 @@ namespace CR.View
             public bool Alive { get; private set; } = true;
 
             public TowerView(int team, bool isKing, float tileX, float tileY, SpriteRenderer renderer,
-                WorldHpBar bar, SpriteRenderer[] rubbleRenderers, Transform muzzle = null)
+                WorldHpBar bar, SpriteRenderer[] rubbleRenderers, Transform muzzle = null, Transform turret = null)
             {
                 Team = team;
                 IsKing = isKing;
@@ -2096,6 +2514,40 @@ namespace CR.View
                 _bar = bar;
                 _rubbleRenderers = rubbleRenderers ?? new SpriteRenderer[0];
                 _muzzle = muzzle != null ? muzzle : (renderer != null ? renderer.transform : null);
+                _turret = turret;
+                // 国王塔起手**未激活** ⇒ 炮塔层不显示（原版同一状态，见 KingTurretAlphaZeroCt）。
+                KingActive = !isKing;
+                if (isKing) SetTurretEnabled(false);
+            }
+
+            /// <summary>
+            /// 把这座国王塔标为**已激活**：打开炮塔层并留一条日志。<b>幂等</b> —— 已激活时是空操作。
+            /// </summary>
+            /// <param name="serverMs">服务端时间（日志用；`-1` = 未知）。</param>
+            /// <returns>true = 本次调用真的把它从"未激活"翻成"已激活"。</returns>
+            public bool SetKingActive(int serverMs)
+            {
+                if (!IsKing || KingActive) return false;
+                KingActive = true;
+                var shown = SetTurretEnabled(true);
+                Game.Logger?.Info(LogTag,
+                    $"国王塔激活：team={Team} 位置=({TileX:F1},{TileY:F1}) serverMs={serverMs} " +
+                    $"炮塔层={(shown ? "已亮" : "素材缺失（配方里没有 Turret 层）")}");
+                return true;
+            }
+
+            /// <summary>
+            /// 开关**炮塔层**的渲染器（<see cref="_turret"/>）。层是 <see cref="ArenaView.AddTower"/>
+            /// 建完就固定的，每层只有一个 SpriteRenderer（见 `ArenaView.TowerLayer`）。
+            /// </summary>
+            /// <returns>该层是否存在（false = 配方里没有 / 素材缺失）。</returns>
+            private bool SetTurretEnabled(bool enabled)
+            {
+                if (_turret == null) return false;
+                var rs = _turret.GetComponentsInChildren<SpriteRenderer>(true);
+                for (var i = 0; i < rs.Length; i++)
+                    if (rs[i] != null) rs[i].enabled = enabled;
+                return rs.Length > 0;
             }
 
             /// <summary>

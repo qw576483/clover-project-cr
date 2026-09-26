@@ -206,6 +206,8 @@ namespace CR.View
         private Transform _unitRoot;
         private ArenaView _arena;
         private PlacementIndicator _indicator;
+        private PlacementIndicator _deployRing;  // 就位读条专用实例（与拖动环分开，见 ShowDeployRing）
+        private DeployAreaView _deployArea;   // 拖放时的不可放置区域显示（见 DeployAreaView）
         private EffectsView _effects;
         private BattleAudioView _audio;   // 对局音效（唯一挂点：见 Build；订阅 Core/Events.cs 的战斗事件）
         private Camera _cam;
@@ -294,6 +296,16 @@ namespace CR.View
         /// </summary>
         public int TowerShots { get { return _towerShots; } }
 
+        /// <summary>
+        /// 本局收到的**国王塔激活**事件（`kind == 5` / `EvTowerActivated`）条数。
+        /// <para>判据：<c>TowerActivations == 服务端日志里 EvTowerActivated 的条数</c>；且
+        /// <c>TowerActivatedShown</c> 应当把其中每一座"本地有塔视图"的算进去。</para>
+        /// </summary>
+        public int TowerActivations { get { return _towerActivations; } }
+
+        /// <summary>本局真的把**炮塔层点亮**的国王塔座数（`EvTowerActivated` + 塔开火兜底两条路）。</summary>
+        public int TowerActivatedShown { get { return _towerActivatedShown; } }
+
         /// <summary>本局从**塔开火事件**里真的播出弹道（`proj_speed &gt; 0`）的条数。</summary>
         public int TowerShotFlights { get { return _towerShotFlights; } }
 
@@ -359,6 +371,8 @@ namespace CR.View
 
         private int _battleShots;
         private int _towerShots;
+        private int _towerActivations;
+        private int _towerActivatedShown;
         private int _towerShotFlights;
         private int _towerShotMuzzles;
         private int _towerShotSkipped;
@@ -371,6 +385,12 @@ namespace CR.View
 
         /// <summary>塔开火时"塔视图里找不到炮口层"只报一次（⛔ 不刷屏）。</summary>
         private bool _towerMuzzleMissingWarned;
+
+        /// <summary>国王塔激活事件到达时塔视图还没建（只报一次）。</summary>
+        private bool _towerActivateMissingWarned;
+
+        /// <summary>国王塔激活事件在塔视图里对不上号（只报一次）。</summary>
+        private bool _towerActivateUnmatchedWarned;
 
         /// <summary>
         /// **最近一帧快照的实体数组**（只读，用于塔开火事件里挑"最近敌方"）。
@@ -759,6 +779,8 @@ namespace CR.View
                     "这条 Warn 出现即说明 Build() 抢在场景加载之前跑过");
                 _arena = null;
                 _indicator = null;
+                _deployRing = null;
+                _deployArea = null;
                 _unitRoot = null;
                 _cam = null;
                 _units.Clear();
@@ -776,6 +798,10 @@ namespace CR.View
             _unitRoot = units.transform;
 
             _indicator = PlacementIndicator.Create(_content.transform);
+            // 就位读条单独一个实例：两条链的生命周期不同（拖动 = 抬手才收；就位读条 = 倒计时到点自己收），
+            // 共用一个实例时后者的到点收会把前者收掉（区域显示同理由 `ShowPlacement` 与它并列存在）。
+            _deployRing = PlacementIndicator.Create(_content.transform);
+            _deployArea = DeployAreaView.Create(_content.transform);
             _effects = EffectsView.Create(_content.transform); // 特效层（原版帧序列，见 ResPaths 特效区段）
             // 音效层（⛔ **唯一挂点**）：挂在 BattleContent 下 ⇒ 生命周期跟着对局画面走
             //（出图时随场景卸载，OnDestroy 自动退订 Core/Events.cs 的战斗事件）。与 EffectsView 同一范式。
@@ -812,6 +838,8 @@ namespace CR.View
             _deployDupeSkipped = 0;
             _battleShots = 0;
             _towerShots = 0;
+            _towerActivations = 0;
+            _towerActivatedShown = 0;
             _towerShotFlights = 0;
             _towerShotMuzzles = 0;
             _towerShotSkipped = 0;
@@ -820,6 +848,8 @@ namespace CR.View
             _spellFxSkipped = 0;
             _spellFxUnknownWarned = false;
             _towerMuzzleMissingWarned = false;
+            _towerActivateMissingWarned = false;
+            _towerActivateUnmatchedWarned = false;
             _lastEntities = null;
             _prevHp.Clear();
             _curHp.Clear();
@@ -873,6 +903,8 @@ namespace CR.View
 
             _arena = null;
             _indicator = null;
+            _deployRing = null;
+            _deployArea = null;
             _effects = null;
             _audio = null;
             _unitRoot = null;
@@ -1207,11 +1239,17 @@ namespace CR.View
                         PlayTowerShot(e);
                         break;
 
-                    case EventKindElixirFull:
                     case EventKindTowerActivated:
-                        // kind==4 圣水满 / kind==5 塔激活：**只有音效、没有特效帧**（`BattleAudioView` 播
-                        // `ElixirFull` / `TowerActivate`；`ResPaths` 的特效区段里没有对应用途目录）。
-                        // 显式列出这两个 case，是为了让下面的 `default` 只表示"**协议新增的未知 kind**"。
+                        // 塔激活（`EvTowerActivated`）：把该国王塔的**炮塔层打开**（这一层在原版未激活时
+                        // alpha=0 ⇒ "惊醒"在画面上就是它亮起来，出处见 ArenaView.KingTurretAlphaZeroCt）。
+                        // 音效仍由 `BattleAudioView` 播 `king_activate_01`（两边互不重复）。
+                        PlayTowerActivated(e);
+                        break;
+
+                    case EventKindElixirFull:
+                        // kind==4 圣水满：**只有音效、没有特效帧**（`BattleAudioView` 播 `ElixirFull`；
+                        // `ResPaths` 的特效区段里没有对应用途目录）。显式列出这个 case，是为了让下面的
+                        // `default` 只表示"**协议新增的未知 kind**"。
                         break;
 
                     default:
@@ -1257,9 +1295,9 @@ namespace CR.View
             if (_effects == null) return;
             var world = GameConst.MilliToWorld(e.x_milli, e.y_milli);
 
-            // ① 就位读条：落点处转圈，时长 = 落位期。多单位卡片的若干条 `EvSpawn` 落在同一窗口内
-            //    ⇒ 看起来是一条连续的读条（每条事件都把倒计时重起，见 ShowDeployRing）。
-            ShowDeployRing(WorldToTile(world), 1f, DeployFxSeconds);
+            // ① 落位计时件：落点处摆原版 `troopDeployTimer`，时长 = 落位期。多单位卡片的若干条 `EvSpawn`
+            //    落在同一窗口内 ⇒ 看起来是一个连续的计时（每条事件都把倒计时重起，见 ShowDeployRing）。
+            ShowDeployRing(WorldToTile(world), 1f, DeployFxSeconds, e.team != _myTeam);
 
             // ② 绿色落地标记：**按一次出牌去重**。`EvSpawn` 是逐单位发的（一张 3 单位的卡 = 3 条事件），
             //    而玩家看到的是"这张卡在就位"这一枚标记 —— 逐单位各画一枚就成了"每个单位头上一个绿点"。
@@ -1439,17 +1477,69 @@ namespace CR.View
             if (dist <= 0f) return false;
             var seconds = dist * 60f / card.proj_speed; // 格 ÷ (格/分钟 ÷ 60)，与出牌弹道同一口径
 
+            var fx = ResolveProjectileFx(card.projectile_key);
+
             var before = _effects.SpawnedTotal;
-            _effects.PlayFlight(from, to, ResPaths.EffectArrow, ResPaths.EffectArrowFirst, ResPaths.EffectArrowCount,
-                EffectsView.WorldSize, seconds);
+            _effects.PlayFlight(from, to, fx.Use, fx.First, fx.Count, EffectsView.WorldSize, seconds);
             if (_effects.SpawnedTotal <= before) return false;
 
             _battleShots++;
             Game.Logger?.Info(LogTag,
                 $"战斗中开火弹道：ent={attacker.id}（card={attacker.card_id} key={card.projectile_key}）" +
                 $"从攻击者位置=({from.x:F2},{from.y:F2}) 飞向最近敌方 ent={target.id} =({to.x:F2},{to.y:F2}) " +
-                $"距离={dist:F2}格 飞行={seconds:F3}s 本局累计={_battleShots}");
+                $"距离={dist:F2}格 飞行={seconds:F3}s 图元={fx.Use} f{fx.First}..f{fx.First + fx.Count - 1}（{fx.Count} 帧）" +
+                $" 本局累计={_battleShots}");
             return true;
+        }
+
+        /// <summary>
+        /// 国王塔**激活**（`EvTowerActivated` / `kind == 5`）的一次性表现：**亮出该塔的炮塔层**。
+        ///
+        /// <para>
+        /// <b>为什么"亮炮塔"就是原版的"惊醒"</b>：原版国王塔未激活时炮塔整层透明
+        /// （`.sc` 给 turret 子件的颜色变换 alpha = 0，出处见 <see cref="ArenaView.KingTurretAlphaZeroCt"/>），
+        /// 被激怒后 3300 ms（`KingActivationMs`）才升起并开火 ⇒ 客户端的可见变化就是这一层由关到开。
+        /// 音效（`king_activate_01`）由 <see cref="BattleAudioView"/> 独立播，两边不重复。
+        /// </para>
+        ///
+        /// <para>
+        /// <b>塔怎么认</b>：事件载荷带的就是该塔**自己的坐标**（服务端 `stepKingActivation` 填
+        /// `k.xMilli / k.yMilli`）⇒ 交给 <see cref="ArenaView.TryActivateKingTower"/> 按"队伍 + 最近"对号。
+        /// 塔视图还没建（进对局第一帧就激活）⇒ 留痕并计数，不静默。
+        /// </para>
+        /// </summary>
+        private void PlayTowerActivated(BattleEvent e)
+        {
+            _towerActivations++;
+            float tx, ty;
+            if (_arena == null)
+            {
+                if (!_towerActivateMissingWarned)
+                {
+                    _towerActivateMissingWarned = true;
+                    Game.Logger?.Warn(LogTag,
+                        $"国王塔激活（kind={EventKindTowerActivated}）时塔视图还没建 ⇒ 炮塔层不会亮（只报一次）");
+                }
+                return;
+            }
+            var shown = _arena.TryActivateKingTower(e.x_milli, e.y_milli, e.team, (int)_currMs, out tx, out ty);
+            if (!shown)
+            {
+                // 幂等分支：同一座塔的重复激活事件（服务端 `arm` 只认第一次，但事件可能重发）
+                // 或本地找不到该队伍的国王塔。只在"找不到"时留痕。
+                if (!_towerActivateUnmatchedWarned)
+                {
+                    _towerActivateUnmatchedWarned = true;
+                    Game.Logger?.Warn(LogTag,
+                        $"国王塔激活事件 team={e.team} 坐标=({e.x_milli / 1000f:F2},{e.y_milli / 1000f:F2}) " +
+                        "在塔视图里找不到未激活的国王塔 ⇒ 本次不改动（只报一次）");
+                }
+                return;
+            }
+            _towerActivatedShown++;
+            Game.Logger?.Info(LogTag,
+                $"国王塔激活表现：team={e.team} 塔位=({tx:F1},{ty:F1}) 炮塔层已亮 " +
+                $"本局累计：激活事件={_towerActivations} 已亮塔数={_towerActivatedShown}");
         }
 
         /// <summary>
@@ -1505,6 +1595,18 @@ namespace CR.View
                 Game.Logger?.Warn(LogTag,
                     $"塔开火：塔 id={e.entity_id} team={e.team} 在塔视图里找不到炮口层（塔视图未建 / 坐标对不上）⇒ " +
                     $"用事件自带的塔根坐标 ({muzzle.x:F2},{muzzle.y:F2}) 兜底（炮口闪光看起来会偏到塔底）（只报一次）");
+            }
+
+            // ★ 兜底：这座国王塔**正在开火**却还是"未激活"（激活事件早于塔视图建好 / 本局中途加入）
+            //   ⇒ 补亮炮塔层。判据是"它开火了"：服务端只让已激活的国王塔参战
+            //   （`server/game/core/tower.go` 的 `canFight` / `battle.go` 的 `stepAttacks`）⇒ 这个推断必然成立。
+            float atx, aty;
+            if (_arena != null && _arena.TryActivateKingTower(e.x_milli, e.y_milli, e.team, (int)_currMs, out atx, out aty))
+            {
+                _towerActivatedShown++;
+                Game.Logger?.Info(LogTag,
+                    $"塔开火兜底：team={e.team} 塔位=({atx:F1},{aty:F1}) 此前未收到激活事件 ⇒ 补亮炮塔层 " +
+                    $"本局累计：激活事件={_towerActivations} 已亮塔数={_towerActivatedShown}");
             }
 
             if (_effects == null) { _towerShotSkipped++; return; }
@@ -1744,13 +1846,33 @@ namespace CR.View
                 return;
             }
 
-            _effects.PlayFlight(from, landing, ResPaths.EffectArrow, ResPaths.EffectArrowFirst, ResPaths.EffectArrowCount,
-                EffectsView.WorldSize, seconds);
+            var fx = ResolveProjectileFx(card.projectile_key);
+
+            _effects.PlayFlight(from, landing, fx.Use, fx.First, fx.Count, EffectsView.WorldSize, seconds);
             _projectileShots++;
             Game.Logger?.Info(LogTag,
                 $"弹道 card={e.card_id} key={card.projectile_key} proj_speed={card.proj_speed}格/分钟 " +
                 $"施法者[本方最近单位，见 CasterWorld]=({from.x:F2},{from.y:F2}) 落点=({landing.x:F2},{landing.y:F2}) " +
-                $"距离={dist:F2}格 飞行={seconds:F3}s（={dist:F2}×60/{card.proj_speed}） 本局累计={_projectileShots}");
+                $"距离={dist:F2}格 飞行={seconds:F3}s（={dist:F2}×60/{card.proj_speed}） " +
+                $"图元={fx.Use} f{fx.First}..f{fx.First + fx.Count - 1}（{fx.Count} 帧） 本局累计={_projectileShots}");
+        }
+
+        /// <summary>
+        /// 按官方投射物名取该投射物的原版图元段（表见 <see cref="EffectsView.TryGetProjectileFx"/>）。
+        /// 表里没有该投射物（原版图集里没有它的段落）⇒ **留痕一次**并退回箭矢段。
+        /// </summary>
+        private static EffectsView.ProjectileFx ResolveProjectileFx(string projectileKey)
+        {
+            EffectsView.ProjectileFx fx;
+            if (EffectsView.TryGetProjectileFx(projectileKey, out fx)) return fx;
+
+            // 「只报一次」走引擎的进程级去重（`Runtime/Core/LogThrottle.cs`），键里带投射物名
+            // ⇒ 每个"原版无对应图元"的投射物各报一次。
+            LogThrottle.WarnOnce(LogTag, "fx.proj.unknown:" + projectileKey,
+                $"投射物 \"{projectileKey}\" 在原版 effects 图集里没有对应段落 ⇒ 退回箭矢图元 " +
+                $"{EffectsView.ArrowFx.Use} f{EffectsView.ArrowFx.First}..f{EffectsView.ArrowFx.First + EffectsView.ArrowFx.Count - 1}" +
+                "（补法：在 策划/单位动画分组表.md 的 effects 小节查到该投射物的段，加进 EffectsView.TryGetProjectileFx + copy-fx-assets.py）");
+            return EffectsView.ArrowFx;
         }
 
         /// <summary>
@@ -2150,7 +2272,14 @@ namespace CR.View
         /// <param name="isSpell">该卡是否为法术（法术可落河面/敌方半场）。</param>
         public bool IsDeployLegal(Vector2 tileXY, bool isSpell)
         {
-            var input = new PlacementIndicator.DeployInput
+            var input = DeployInputNow();
+            return PlacementIndicator.IsLegalDeploy(input, tileXY.x, tileXY.y, isSpell);
+        }
+
+        /// <summary>当前这一帧的合法性输入（塔的存活状态 + 我方队伍）—— 判定与区域显示共用同一份。</summary>
+        private PlacementIndicator.DeployInput DeployInputNow()
+        {
+            return new PlacementIndicator.DeployInput
             {
                 MyTeam = _myTeam,
                 EnemyLeftPrincessAlive = _enemyLeftAlive,
@@ -2158,7 +2287,6 @@ namespace CR.View
                 OwnLeftPrincessAlive = _ownLeftAlive,
                 OwnRightPrincessAlive = _ownRightAlive
             };
-            return PlacementIndicator.IsLegalDeploy(input, tileXY.x, tileXY.y, isSpell);
         }
 
         /// <summary>
@@ -2171,23 +2299,28 @@ namespace CR.View
         public void ShowPlacement(Vector2 tileXY, float radiusTiles, bool isSpell, Sprite cardArt = null)
         {
             if (_indicator == null) return;
+            // 区域显示（哪些地方放不下这副牌）—— 整次拖动里区域是常量，本调用只切显隐（见 DeployAreaView）。
+            if (_deployArea != null)
+                _deployArea.Show(_myTeam, isSpell, _enemyLeftAlive, _enemyRightAlive, _ownLeftAlive, _ownRightAlive);
             _indicator.SetDropCard(cardArt);
             _indicator.Show(tileXY, radiusTiles, IsDeployLegal(tileXY, isSpell));
         }
 
         /// <summary>
-        /// 落点处的**就位读条**：出牌落位期间在落点转圈（时长 = 服务端 `deploy_time`）。
+        /// 落点处的**落位计时件**：出牌落位期间在落点摆原版 `troopDeployTimer`（时长 = 服务端 `deploy_time`）。
         /// 由 <see cref="PlayDeploy"/> 调用 —— 它只表示"这张卡在就位"，⛔ 不表示落点是否合法。
         /// </summary>
-        public void ShowDeployRing(Vector2 tileXY, float radiusTiles, float seconds)
+        /// <param name="hostile">落位的是不是敌方单位（决定扫过片用我方蓝还是敌方红，见 PlacementIndicator）。</param>
+        public void ShowDeployRing(Vector2 tileXY, float radiusTiles, float seconds, bool hostile = false)
         {
-            if (_indicator == null) return;
-            _indicator.ShowDeployRing(tileXY, radiusTiles, seconds);
+            if (_deployRing == null) return;
+            _deployRing.ShowDeployRing(tileXY, radiusTiles, seconds, hostile);
         }
 
-        /// <summary>隐藏落点指示（抬手 / 取消拖放）。</summary>
+        /// <summary>隐藏落点指示与不可放置区域（抬手 / 取消拖放）。</summary>
         public void HidePlacement()
         {
+            if (_deployArea != null) _deployArea.Hide();
             if (_indicator != null) _indicator.Hide();
         }
 

@@ -134,6 +134,18 @@ func TestCanDeployBase(t *testing.T) {
 	if !a.CanDeploy(TeamBlue, 3500, 25500, true, true, none) {
 		t.Fatal("a spell must be castable on an enemy tower's tile")
 	}
+	// 国王塔的阻塞格（IsBlocked 覆盖的 3x3）对法术同样开放：法术点是"场内任意点"，
+	// 只有 InBounds 在它前面。参考实现把 _BLOCKED 判在 anywhere 之前（arena.py:322-331），
+	// 本工程有意偏离（见 CanDeploy 的注释）。
+	if !a.CanDeploy(TeamBlue, 9000, 29000, true, false, none) {
+		t.Fatal("a spell must be castable on the enemy king tower's own tile")
+	}
+	if !a.CanDeploy(TeamRed, 9000, 3000, true, false, none) {
+		t.Fatal("a spell must be castable on the enemy king tower's own tile (RED side)")
+	}
+	if a.CanDeploy(TeamBlue, 18000, 29000, true, false, none) {
+		t.Fatal("out of bounds stays illegal for spells too")
+	}
 }
 
 // TestCanDeployPocketAfterPrincessFalls pins the deploy pocket: destroying an

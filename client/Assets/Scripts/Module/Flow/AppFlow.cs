@@ -610,24 +610,43 @@ namespace CR.Module.Flow
                 // 推一次"权威昵称已就绪"：面板可能在此之前就被别的路径打开过（`GoTo` 对
                 // 同一站点早退 ⇒ 本方法不跑），它现在能就地刷新成服务端那个名字。
                 Game.Event?.Emit(Events.Flow.NicknameKnown, PlayerSession.Nickname);
-                return;
+            }
+            else
+            {
+                // 非预期分支：进主菜单时还没拿到服务端昵称（档案为空 / 登录链未走完）。
+                // ⛔ 不能静默 —— 面板此时只能显示兜底名，必须留痕（Warn 对**每个会话的这一次**各一条，
+                //    由 `_nicknameRefreshBusy` 去重，不会每次进菜单都刷屏）。
+                Game.Logger?.Warn(Tag,
+                    "进入主菜单时尚未拿到服务端昵称（档案为空或登录链未走完）；面板先显示兜底名，正在重新拉取档案");
             }
 
-            // 非预期分支：进主菜单时还没拿到服务端昵称（档案为空 / 登录链未走完）。
-            // ⛔ 不能静默 —— 面板此时只能显示兜底名，必须留痕（Warn 对**每个会话的这一次**各一条，
-            //    由 `_nicknameRefreshBusy` 去重，不会每次进菜单都刷屏），并主动去服务端再拉一次。
-            Game.Logger?.Warn(Tag,
-                "进入主菜单时尚未拿到服务端昵称（档案为空或登录链未走完）；面板先显示兜底名，已重新拉取档案");
+            // 无论昵称在不在，都重拉一次档案：一局刚打完时战绩是**上一局**的旧值，
+            // 只有重拉才能把服务端累加出来的 8 项统计换成这一局的数（面板收到广播后就地刷新）。
             RefreshNicknameAsync();
         }
 
         /// <summary>
-        /// 向服务端重拉一次档案里的昵称，成功则写入 <see cref="PlayerSession"/> 并广播
+        /// 把 `GetProfileReply` 里的 8 项统计落进 <see cref="PlayerSession"/>（两条档案调用点共用一份口径）。
+        /// `null` 回包（请求失败）时不写 —— 写进去会把上一局的数当成这一局的。
+        /// </summary>
+        private static void ApplyProfileStats(GetProfileReply profile)
+        {
+            if (profile == null) return;
+            PlayerSession.SetStats(
+                profile.wins, profile.losses, profile.matches, profile.three_crown_wins,
+                profile.cards_found, profile.favourite_card, profile.favourite_card_name,
+                profile.highest_trophies, profile.cards_donated, profile.cards_won,
+                "GetProfile");
+        }
+
+        /// <summary>
+        /// 向服务端重拉一次档案（昵称 + 8 项统计），成功则写入 <see cref="PlayerSession"/> 并广播
         /// <see cref="Events.Flow.NicknameKnown"/>（已打开的主菜单面板据此就地刷新）。
         /// <para>
-        /// 为什么要有这条"重拉"：昵称是**迟到**数据。`EnterMainMenu` 可能在任何一条路径上先跑
-        ///（回主菜单 / 房间退出 / 被踢重登），那时档案请求可能还没回来 —— 兜底名能立刻显示，
-        /// 但一旦档案到位就必须换成服务端那个名字（判据：主菜单显示服务端权威昵称，不是本地默认值）。
+        /// 为什么要有这条"重拉"：昵称与统计都是**迟到**数据。`EnterMainMenu` 可能在任何一条路径上先跑
+        ///（回主菜单 / 房间退出 / 被踢重登 / 一局打完回到主菜单），那时档案请求可能还没回来 ——
+        /// 兜底名能立刻显示，战绩也是上一局的旧值；一旦档案到位就必须换成服务端那一份
+        ///（判据：主菜单显示服务端权威昵称与最新统计，不是本地默认值 / 上一局的数）。
         /// </para>
         /// </summary>
         private async void RefreshNicknameAsync()
@@ -642,6 +661,8 @@ namespace CR.Module.Flow
             try
             {
                 var profile = await Game.Net.Call<GetProfileReply>(MsgDef.GetProfile, new GetProfileReq());
+                // 统计与昵称同在一条回包里：先记下再判昵称 —— 昵称为空时下面会早退，别把统计一起丢掉。
+                ApplyProfileStats(profile);
                 var nick = profile != null ? profile.nickname : null;
                 if (string.IsNullOrEmpty(nick))
                 {
@@ -753,6 +774,8 @@ namespace CR.Module.Flow
                 //    用 GetProfile 而不是等 Game.Sync：档案里就有 nickname，一步到位且不依赖推送时序。
                 var profile = await Game.Net.Call<GetProfileReply>(MsgDef.GetProfile, new GetProfileReq());
                 PlayerSession.SetNickname(profile != null ? profile.nickname : null, "GetProfile");
+                // 同一回包里的 8 项统计（主菜单「玩家资料」页）：在这里落一次，面板自己读。
+                ApplyProfileStats(profile);
 
                 Game.Event?.Emit(Events.Flow.LoginSucceeded, PlayerSession.Nickname);
                 GoTo(PlayerSession.HasNickname ? Stations.MainMenu : Stations.Nickname);

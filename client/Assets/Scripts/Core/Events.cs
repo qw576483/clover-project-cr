@@ -42,7 +42,14 @@ namespace CR
             /// <summary>请求打开设置面板（任意站点可用）。参数：无。发布方：`MainMenuPanel`。</summary>
             public const string OpenSettingsRequest = "Flow.OpenSettingsRequest";
 
-            /// <summary>请求退出游戏。参数：无。</summary>
+            /// <summary>
+            /// 请求退出游戏。参数：无。
+            /// <para>
+            /// <b>当前无发布方</b>：原版没有游戏内退出件（移动端，系统层退出），界面上的红色 X 是
+            /// 「关闭按钮」而不是退出 ⇒ 没有任何面板发本事件。订阅方仍是
+            /// <c>Module/Flow/AppFlow</c>（它接住后执行退出）。
+            /// </para>
+            /// </summary>
             public const string QuitRequest = "Flow.QuitRequest";
 
             /// <summary>
@@ -168,8 +175,21 @@ namespace CR
             /// <summary>卡池已就绪。参数：`(CR.Def.CardInfo[] cards)`。</summary>
             public const string PoolLoaded = "Deck.PoolLoaded";
 
-            /// <summary>当前卡组已就绪（8 张）。参数：`(int[] cardIds)`。</summary>
+            /// <summary>
+            /// 卡组变更。参数：`(CR.Def.DeckRef { slot, ids })`。**双通道**（见 `Module/Deck/DeckManager`）：
+            /// 面板 → 管理器 = 「把 `ids` 保存到 `slot` 这个卡组号」；
+            /// 管理器 → 面板 = 「服务端确认 `slot` 号就是这 8 张」（保存成功后的回执）。
+            /// </summary>
             public const string Changed = "Deck.Changed";
+
+            /// <summary>
+            /// 请求读某个卡组号的内容。参数：`(int slot)`，`slot` = 0..4；**-1 = 当前使用的那个号**。
+            /// 发布方：`DeckEditPanel`（开面板 / 点卡组号）；消费方：`Module/Deck` ⇒ 回 <see cref="SlotLoaded"/>。
+            /// </summary>
+            public const string SlotRequest = "Deck.SlotRequest";
+
+            /// <summary>某个卡组号的内容已就绪（服务端权威）。参数：`(CR.Def.DeckRef { slot, ids })`。</summary>
+            public const string SlotLoaded = "Deck.SlotLoaded";
 
             /// <summary>保存卡组失败。参数：`(string reason)`。</summary>
             public const string SaveFailed = "Deck.SaveFailed";

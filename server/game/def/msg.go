@@ -60,11 +60,33 @@ type SetNicknameReply struct {
 type GetProfileReq struct{}
 
 // GetProfileReply 个人档案回包。
+//
+// 除下面标了「恒 0」的三项外，全部字段都来自**真实发生过的事件**（一局结算时累加并落库），
+// 没有一项是"看起来合理"的常量。三标「恒 0」的是本工程没有对应机制的系统
+// （奖杯/段位、部落捐赠、锦标赛/挑战卡牌奖励）—— 原版新号这几项同样是 0。
 type GetProfileReply struct {
 	Nickname string  `json:"nickname"`
 	Wins     int32   `json:"wins"`
 	Losses   int32   `json:"losses"`
 	Deck     []int32 `json:"deck"`
+
+	// Matches 参赛场次：打过的总局数（含平局）。
+	Matches int32 `json:"matches"`
+	// ThreeCrownWins 三冠胜场：以 3 王冠取胜的局数。
+	ThreeCrownWins int32 `json:"three_crown_wins"`
+	// CardsFound 已收集卡牌 = 卡牌表里可用的卡数（本工程卡池即全集，没有"未解锁"概念）。
+	CardsFound int32 `json:"cards_found"`
+	// FavouriteCard 常用卡牌 = 出牌次数最多的那张卡的 id；0 = 一张都没出过。
+	// FavouriteCardName = 它的中文名（服务端从卡牌表取，客户端直接显示）。
+	FavouriteCard     int32  `json:"favourite_card"`
+	FavouriteCardName string `json:"favourite_card_name"`
+
+	// HighestTrophies 最高奖杯：本工程无奖杯 / 段位机制 ⇒ 恒 0。
+	HighestTrophies int32 `json:"highest_trophies"`
+	// CardsDonated 累计捐赠：本工程无部落 / 捐赠系统 ⇒ 恒 0。
+	CardsDonated int32 `json:"cards_donated"`
+	// CardsWon 赢得卡牌：本工程无锦标赛 / 挑战 / 卡牌奖励系统 ⇒ 恒 0。
+	CardsWon int32 `json:"cards_won"`
 }
 
 // ------------------------------------------------------------ 卡池与卡组
@@ -77,17 +99,31 @@ type GetCardPoolReply struct {
 	Cards []CardInfo `json:"cards"`
 }
 
-// GetDeckReq 拉我的卡组请求。
-type GetDeckReq struct{}
+// GetDeckReq 拉卡组请求。
+//
+// Slot = 槽位下标 0..4（界面上的 1..5 号卡组）；**-1 = 当前使用的那一个**（`PlayerData.ActiveSlot`）。
+// 缺字段（旧客户端）= 0 = 1 号；越界由服务端兜到当前槽并留痕。
+type GetDeckReq struct {
+	Slot int `json:"slot"`
+}
 
-// GetDeckReply 我的卡组回包（8 个卡 id）。
+// GetDeckReply 卡组回包。
+//
+// CardIDs = `Slot` 那一套卡组的 8 个卡 id；Slot = 实际取到的槽位下标（-1 请求时回真实槽位）；
+// ActiveSlot = 当前使用的槽位下标。客户端据此决定打开卡组页停在哪个号上。
 type GetDeckReply struct {
-	CardIDs []int32 `json:"card_ids"`
+	CardIDs    []int32 `json:"card_ids"`
+	Slot       int     `json:"slot"`
+	ActiveSlot int     `json:"active_slot"`
 }
 
 // SaveDeckReq 保存卡组请求（8 张）。
+//
+// Slot = 槽位下标 0..4；缺字段（旧客户端）= 0 = 1 号。保存成功即把该槽设为当前槽
+// （对局 / 房间座位缓存用的就是当前槽那一套）。
 type SaveDeckReq struct {
 	CardIDs []int32 `json:"card_ids"`
+	Slot    int     `json:"slot"`
 }
 
 // SaveDeckReply 保存卡组回包。

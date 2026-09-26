@@ -174,6 +174,10 @@ func (l *gameLogic) onAiBattleStart(c event.Ctx) error {
 		l.g.Reply(c, def.AiBattleStartReply{Err: err.Error()})
 		return nil
 	}
+	// 这一行是「对局侧到底用哪套卡组」的读数：客户端不发 deck 时取的是档案里的 `Deck`
+	// （= `Decks[ActiveSlot]` 的镜像，见 deck.go::normalizeDecks），房间座位缓存随即写的就是它。
+	logger.Infof("logic: 人机对战记录座位卡组 room=%s player=%s active_slot=%d deck=%v",
+		id, pid, p.ActiveSlot+1, deck)
 	// 直接置 ai_fill 并补位（训练场不需要客户端再点一次"设 AI"）。
 	if err := l.rooms.setAiFill(id, pid, true); err != nil {
 		logger.Errorf("logic: 人机对战开启 AI 补位失败 room=%s: %v", id, err)

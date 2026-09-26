@@ -13,7 +13,77 @@ import (
 // deckSize 一副卡组的卡数（参考规格 §7 S11：8 张卡组）。
 const deckSize = 8
 
-// ensureDefaultDeck 给还没有卡组的角色落一套默认卡组。
+// deckSlots 卡组槽位数 = 界面上的 1..5 号（下标 0..4）。
+const deckSlots = 5
+
+// normalizeDecks 把档案里的卡组规范成 `deckSlots` 个槽位 + 合法的当前槽 + `Deck` 镜像。
+//
+// 三件事，都幂等：
+//  1. `Decks` 补齐 / 截到 `deckSlots` 个；
+//  2. `Decks` 全空而 `Deck` 有卡 ⇒ 当作「1 号槽」——旧档案（只带 `deck` 字段）走这条；
+//  3. `ActiveSlot` 越界或指向空槽 ⇒ 退到第一套满 8 张的槽（都没有则留 0 号空槽）；
+//     最后 `Deck` 恒等于 `Decks[ActiveSlot]`，对局 / 房间 / 档案回包读它。
+func (l *gameLogic) normalizeDecks(p *datadef.PlayerData) {
+	if p == nil {
+		return
+	}
+	if len(p.Decks) != deckSlots {
+		grown := make([][]int32, deckSlots)
+		copy(grown, p.Decks)
+		p.Decks = grown
+	}
+	if p.ActiveSlot < 0 || p.ActiveSlot >= deckSlots {
+		p.ActiveSlot = 0
+	}
+
+	// `Deck` 有卡而当前槽不是它 ⇒ 以 `Deck` 为准写回当前槽。
+	// 覆盖两种来源：旧档案（只有 `deck` 字段，槽位为空）、以及只写 `Deck` 的写入方。
+	if len(p.Deck) > 0 && !sameDeck(p.Deck, p.Decks[p.ActiveSlot]) {
+		p.Decks[p.ActiveSlot] = cloneDeck(p.Deck)
+	}
+
+	// 当前槽是空的（旧档案里没有这个槽）⇒ 退到第一套满 8 张的槽，别让对局侧拿到空卡组。
+	if len(p.Decks[p.ActiveSlot]) != deckSize {
+		for i := 0; i < deckSlots; i++ {
+			if len(p.Decks[i]) == deckSize {
+				p.ActiveSlot = i
+				break
+			}
+		}
+	}
+	p.Deck = cloneDeck(p.Decks[p.ActiveSlot])
+}
+
+// sameDeck 逐张比较（顺序敏感：卡组是有序的 8 张）。
+func sameDeck(a, b []int32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// cloneDeck 复制一份卡组；nil 进 nil 出。
+func cloneDeck(ids []int32) []int32 {
+	if len(ids) == 0 {
+		return nil
+	}
+	return append([]int32(nil), ids...)
+}
+
+// slotDeck 取某槽的卡组；越界返回 nil（调用方负责先校验槽位）。
+func slotDeck(p *datadef.PlayerData, slot int) []int32 {
+	if p == nil || slot < 0 || slot >= len(p.Decks) {
+		return nil
+	}
+	return p.Decks[slot]
+}
+
+// ensureDefaultDeck 给还没有卡组的角色落一套默认卡组（落在 1 号槽 = 下标 0，并设为当前槽）。
 //
 // 为什么必须在创角那一刻落：卡组只有 `onSaveDeck` 会写，而开局的两条路
 // （`onAiBattleStart` / `room.go::checkStartable`）都要求卡组**已经**是合法的 8 张
@@ -23,10 +93,16 @@ const deckSize = 8
 // 默认卡组 = 参考实现 `原版资源/cr-sim/cr_sim/train/run.py:55` 的 `DEFAULT_DECK`
 // （同一份常量已按 key 搬进 `ai.go::aiDeckRefKeys`，出处与 key 对应关系见其注释）。
 //
-// 幂等：档案里已有卡组就原样不动（编队页保存过的玩家不会被这里覆盖）。
+// 幂等：任何槽里已有卡组就原样不动（编队页保存过的玩家不会被这里覆盖）。
 func (l *gameLogic) ensureDefaultDeck(p *datadef.PlayerData, pid string) {
-	if p == nil || len(p.Deck) > 0 {
+	if p == nil {
 		return
+	}
+	l.normalizeDecks(p)
+	for i := 0; i < deckSlots; i++ {
+		if len(p.Decks[i]) > 0 {
+			return
+		}
 	}
 	deck := l.aiDeck()
 	if err := l.checkDeck(deck); err != nil {
@@ -35,8 +111,10 @@ func (l *gameLogic) ensureDefaultDeck(p *datadef.PlayerData, pid string) {
 		logger.Errorf("logic: 默认卡组不合法 player=%s deck=%v: %v", pid, deck, err)
 		return
 	}
-	p.Deck = append([]int32(nil), deck...)
-	logger.Infof("logic: 落默认卡组 player=%s cards=%d=%v", pid, len(p.Deck), p.Deck)
+	p.Decks[0] = cloneDeck(deck)
+	p.ActiveSlot = 0
+	p.Deck = cloneDeck(deck)
+	logger.Infof("logic: 落默认卡组 player=%s slot=1 cards=%d=%v", pid, len(p.Deck), p.Deck)
 }
 
 // checkDeck 校验卡组：正好 8 张、不重复、每张都在卡池里。
@@ -95,8 +173,22 @@ func (l *gameLogic) onGetDeck(c event.Ctx) error {
 		l.g.Reply(c, def.GetDeckReply{})
 		return nil
 	}
-	logger.Infof("logic: 下发卡组 player=%s cards=%v", pid, p.Deck)
-	l.g.Reply(c, def.GetDeckReply{CardIDs: p.Deck})
+	l.normalizeDecks(p)
+
+	slot := req.Slot
+	if slot < 0 {
+		slot = p.ActiveSlot
+	}
+	if slot >= deckSlots {
+		// 非预期分支：客户端槽位越界（消息号 / 下标口径不一致）。留痕，并按当前槽回包。
+		logger.Warnf("logic: GetDeck 槽位越界 player=%s slot=%d，按当前槽 %d 回包", pid, req.Slot, p.ActiveSlot)
+		slot = p.ActiveSlot
+	}
+
+	cards := slotDeck(p, slot)
+	logger.Infof("logic: 下发卡组 player=%s slot=%d active=%d cards=%v",
+		pid, slot+1, p.ActiveSlot+1, cards)
+	l.g.Reply(c, def.GetDeckReply{CardIDs: cards, Slot: slot, ActiveSlot: p.ActiveSlot})
 	return nil
 }
 
@@ -114,13 +206,22 @@ func (l *gameLogic) onSaveDeck(c event.Ctx) error {
 		l.g.Reply(c, def.SaveDeckReply{Err: err.Error()})
 		return nil
 	}
+	l.normalizeDecks(p)
+	if req.Slot < 0 || req.Slot >= deckSlots {
+		logger.Warnf("logic: SaveDeck 槽位越界 player=%s slot=%d", pid, req.Slot)
+		l.g.Reply(c, def.SaveDeckReply{OK: false, Err: fmt.Sprintf("卡组号必须在 1..%d 之间", deckSlots)})
+		return nil
+	}
 	if err := l.checkDeck(req.CardIDs); err != nil {
-		logger.Warnf("logic: 卡组非法 player=%s cards=%v: %v", pid, req.CardIDs, err)
+		logger.Warnf("logic: 卡组非法 player=%s slot=%d cards=%v: %v", pid, req.Slot+1, req.CardIDs, err)
 		l.g.Reply(c, def.SaveDeckReply{OK: false, Err: err.Error()})
 		return nil
 	}
 
-	p.Deck = append([]int32(nil), req.CardIDs...)
+	// 保存哪个槽，那个槽就成为当前槽（进对局 / 房间座位缓存读的都是当前槽）。
+	p.Decks[req.Slot] = cloneDeck(req.CardIDs)
+	p.ActiveSlot = req.Slot
+	p.Deck = cloneDeck(req.CardIDs)
 
 	// ★ 若此刻在房间里，必须把新卡组同步进房间的座位缓存。
 	//
@@ -145,7 +246,8 @@ func (l *gameLogic) onSaveDeck(c event.Ctx) error {
 		}
 	}
 
-	logger.Infof("logic: 保存卡组成功 player=%s cards=%v", pid, p.Deck)
+	logger.Infof("logic: 保存卡组成功 player=%s slot=%d active=%d cards=%v",
+		pid, req.Slot+1, p.ActiveSlot+1, p.Deck)
 	l.g.Reply(c, def.SaveDeckReply{OK: true})
 	return nil
 }

@@ -174,10 +174,41 @@ SPRITES = {
         ("ui_out", 162, "ElixirRequirementEnd"),
         ("ui_battle_end_out", 201, "GoldSquarePlate"),
         ("ui_battle_end_out", 222, "BarWhite"),
+        # -- Main-menu top layer + bottom nav band.  The page these belong to is the
+        #    original `Menu_topLayer` (ui.sc clip 4539) / `menu_bottom_*` (clips 4441/4542/
+        #    4560/4558); each entry below names the clip + child that references the frame. --
+        #    `left_top`/`right_top` -> `coins`/`gems` (single-resource rows) -> `background`
+        #    (`ui.sc` clip 4539, place matrix sx 61.96) = frame 270; `<shape 682>` = frame 208
+        #    (the stretched inner strip) and `<shape 683>` = frame 209 (the end cap, placed
+        #    twice with sx +1.2168 / -1.2178, i.e. mirrored).
+        ("ui_out", 270, "MenuTopSlotBar"),
+        ("ui_out", 208, "MenuTopSlotFill"),
+        ("ui_out", 209, "MenuTopSlotCap"),
+        #    `profile_strip` -> `profile_button`: `<shape 1652>` = frame 560 (edge piece,
+        #    placed twice with sx +0.7998 / -0.8008 = mirrored pair) and `<shape 1653>` =
+        #    frame 561 (the horizontal strip, stretched sx 8.5586).
+        ("ui_out", 560, "MenuNamePlateCap"),
+        ("ui_out", 561, "MenuNamePlateBar"),
+        #    `menu_bottom_tab_bg` (clip 4441) -> `<shape 1635>` = frame 544;
+        #    `menu_bottom_tab_selected` (clip 4542) -> `<shape 1657>` = frame 565;
+        #    `menu_bottom_divider` (clip 4560) -> `<shape 1518>` = frame 438 (placed with
+        #    sy 1.3604); `menu_bottom_label` (clip 4558) -> `title_shadow` = frame 566.
+        ("ui_out", 544, "NavTabBgStrip"),
+        ("ui_out", 565, "NavTabSelectedStrip"),
+        ("ui_out", 438, "NavDivider"),
+        ("ui_out", 566, "NavLabelShadow"),
         # -- AD1/D75: loading-screen progress-bar fill. Referenced by CrUiStyle.LoadingBarFill
         #    (built as ResPaths.UiFrame(ResPaths.UiBarsDir, "loading_out", 15)). AB3 deleted it
         #    because check-ui-keys.ps1 only scanned ResPaths.cs keys -> false negative (D75). --
         ("loading_out", 15, "LoadingBarFill"),
+        # -- Main-menu top-layer level track: `Menu_topLayer` (ui.sc clip 4539) -> `left_top` -> `xp` ->
+        #    `xp_bar` -> `xp_bar_fill` -> `<shape 1609>` = frame 518 (205x45). The track this fill sits
+        #    in is the SAME element as the resource slots (`<shape 682>` = frame 208 stretched +
+        #    `<shape 683>` = frame 209 mirrored end caps), already landed as MenuTopSlotFill /
+        #    MenuTopSlotCap.  The fill frame is authored magenta and the original recolours it through
+        #    the placement's colour transform (colour idx 2598); this project applies the same result
+        #    as a pure multiply tint at the call site. --
+        ("ui_out", 518, "MenuXpBarFill"),
     ],
     "Slots": [
         ("ui_out", 43, "SlotCard"),
@@ -213,6 +244,11 @@ SPRITES = {
         ("ui_out", 280, "IconAttackGear"),
         ("ui_out", 281, "IconTournamentCreate"),
         ("ui_out", 292, "IconQuestion"),
+        # -- Main-menu top layer resource icons: `right_top` -> `gems` -> `gem_icon`
+        #    (`<shape 1404>` = frame 339) and `right_top` -> `coins` -> `gold_icon`
+        #    (`<shape 1407>` = frame 342).  `ui.sc` clip 4539. --
+        ("ui_out", 339, "MenuTopGemIcon"),
+        ("ui_out", 342, "MenuTopCoinIcon"),
         ("ui_out", 226, "IconBattle"),
         ("ui_out", 519, "IconArrowUp"),
         ("ui_out", 521, "IconPlus"),
@@ -220,6 +256,19 @@ SPRITES = {
         ("ui_out", 570, "IconGamepad"),
         ("ui_out", 572, "IconChat"),
         ("ui_out", 597, "IconGemBlue"),
+        # -- Main-menu profile page + top resource rows (user-visible frames the panel used to
+        #    draw with the wrong piece):
+        #    `Menu_topLayer` (ui.sc clip 4539) -> `profile_strip` -> `profile_button` ->
+        #    `trophy_element` -> `<shape 1654>` = frame 562 (placed sx 1.3984 / sy 1.3994), and the
+        #    same frame is listed by `popup_profile_new` (clip 4621) -> the gold trophy of the
+        #    player-profile header.  The panel previously drew `ui_battle_end_out` 109 there.
+        #    `right_top` -> `coins` -> `buy_gold` / `gems` -> `buy_gems` reference frame 521
+        #    (`<shape 1612>`, color index 53) for the green "+" button.  That frame is already
+        #    landed as `IconPlus`: measured 50x50, fully opaque, bright green (72,176,72) with a
+        #    dark-green (0,48,0) "+" stroke => the frame IS the whole button (plate + glyph), so
+        #    no extra piece is landed for it.  The `<shape 10>` / `<shape 11>` slivers of the same
+        #    element (frames 4 / 5, placed at lx +-1 with sx +-1) are not needed.
+        ("ui_out", 562, "IconTrophyGold"),
         ("ui_battle_end_out", 109, "IconTrophy"),
         ("ui_battle_end_out", 195, "IconTrophyLaurel"),
         ("ui_battle_end_out", 213, "IconMedal"),
@@ -247,6 +296,25 @@ SPRITES = {
         # -- AD1/D75: boot-screen "CLASH ROYALE" logo. Referenced by CrUiStyle.LogoOfficial
         #    (ResPaths.UiFrame(ResPaths.UiIconsDir, "loading_out", 28)). Same false negative. --
         ("loading_out", 28, "LogoOfficial"),
+        # -- Menu bottom-navigation icons.  Each is named by an `icon_menu_*` export of
+        #    `ui_v215.sc`; the export -> frame step is the shape id's position in the shape
+        #    list (`tools/probes/sc-layout.py` rule): icon_menu_shop(1594) -> 503,
+        #    icon_menu_cards(1526) -> 446, icon_menu_battle(700) -> 226 (already landed as
+        #    IconBattle), icon_menu_tornament(1322) -> 280, icon_menu_royaltv(1637) -> 546.
+        #    `menu_bottom_icon` (clip 4559) holds only the SELECTED tab's icon
+        #    (`icon` = clip 4510 = `icon_menu_battle`); the other four are separate exports. --
+        ("ui_out", 503, "NavIconShop"),
+        ("ui_out", 446, "NavIconCards"),
+        ("ui_out", 280, "NavIconTournament"),
+        ("ui_out", 546, "NavIconRoyaleTv"),
+        # -- Main-menu top-layer level disc: `left_top` -> `xp` -> `xp_icon` -> `<shape 1634>` =
+        #    frame 543 (267x274), the zigzag star that carries the level number. --
+        ("ui_out", 543, "MenuLevelDisc"),
+        # -- Bottom-navigation selection arrows: `UI_pageSelection_arrow_anim` (ui.sc clip 4541) ->
+        #    `<shape 1656>` = frame 564 (38x53, a 23-frame animation; only its first frame is landed).
+        #    The nav band draws the same frame twice as a mirrored pair on both sides of the selected
+        #    tab. --
+        ("ui_out", 564, "NavSelectArrow"),
     ],
 }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CloverEngine;
 using CR.Def;
+using CR.View;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -245,18 +246,24 @@ namespace CR.UI.Panels
         private const float ElixirTickH = ElixirBarH - 12f;
 
         /// <summary>
-        /// 刻度分隔线的**不透明度** = <b>0.30</b>（还原"原版怎么画刻度"，不是随手调色）。
+        /// 刻度分隔线的**不透明度** = <b>77/255</b>（原版放
+        /// 置项的颜色变换值，不是调出来的）。
         /// <para>
-        /// 18 图实测：刻度处 = 底色 × ≈0.85（空槽 (32,48,82)→(28,41,73)；品红填充 (207,39,212)→(169,27,175)），
-        /// 即一层 ~15% 的**暗**覆盖。uGUI 默认混合做不出乘算 ⇒ 用原版帧 `frame_160` 的自色 (35,35,35)
-        /// 配 α = 0.30 逼近：空槽合成 ≈ (33,44,68) vs 实测 (28,41,73)、满条合成 ≈ (155,34,159)
-        /// vs 实测 (169,27,175)，两处每通道差 ≤ 14/255。
+        /// 出处：`原版资源/sc/ui_v215.sc` 的 `HUD_player`(clip 1091) → `elixir_bar`(clip 1080) → `d1`(clip 909)
+        /// 的放置三元组颜色索引 = 37，其 `09` 记录 = `000000 4d ffffff`
+        /// （`r_add,g_add,b_add=0,0,0`｜`alpha=77`｜`r_mul,g_mul,b_mul=255,255,255`）
+        /// ⇒ 原版是"用刻度件**自身**的 (35,35,35) 以 77/255 覆盖条面"。uGUI 顶点色只有乘算，
+        /// 表达同一层覆盖 = 白 tint 乘上刻度件的自身 α。
+        /// </para>
+        /// <para>
+        /// 18 图实测刻度列 = 底色 ×≈0.85（空槽 (32,48,82)→(28,41,73)、品红填充 (207,39,212)→(169,27,175)）；
+        /// 本值下实机合成 ≈ (33,44,68) / (155,34,159)，两处每通道差 ≤ 14/255。
         /// </para>
         /// </summary>
-        private static readonly Color ElixirTickTint = new Color(1f, 1f, 1f, 0.30f);
+        private static readonly Color ElixirTickTint = new Color(1f, 1f, 1f, 77f / 255f);
 
-        /// <summary>刻度线取不到图时的兜底色（同 <see cref="ElixirTickTint"/> 的等效暗覆盖）。</summary>
-        private static readonly Color ElixirTickFallback = new Color(0.14f, 0.14f, 0.14f, 0.30f);
+        /// <summary>刻度线取不到图时的兜底色 = 原版刻度件的自色 (35,35,35)（`ui_out/frame_160` 唯一不透明像素）配同一 α。</summary>
+        private static readonly Color ElixirTickFallback = new Color(35f / 255f, 35f / 255f, 35f / 255f, 77f / 255f);
 
         /// <summary>圣水徽章（水滴底 + 数字）直径 <b>60</b>。出处：D7（18 图 bb mag：心 (63,1815)、径 60）。</summary>
         private const float ElixirBadgeD = 60f;
@@ -396,18 +403,6 @@ namespace CR.UI.Panels
         /// </summary>
         private static readonly Color TimerPlateTint = new Color(0.16f, 0.15f, 0.30f, 0.80f);
 
-        /// <summary>
-        /// 计时板**外框**（`ResPaths.HudTopRightPlate` = `ui_out/193`）的不透明倍乘 = <b>(1,1,1,0.35)</b>。
-        /// <para>
-        /// **为什么**：193 的环是**纯黑 (0,0,0,255)**（逐点实测 row y=2 / col x=2 / mid row 全为
-        /// (0,0,0,255)）⇒ 它对任何 rgb 乘算都还是黑 ⇒ 只能压 **alpha**。板面亮起后这圈黑环会显出来
-        /// （3× 实机放大是一圈粗黑框），而原版 18 该处只有一条暗边
-        /// （y=20 行采样 (74,70,97)/(82,79,90) 无黑、y=95 行才是 (2,0,8) 的暗底）。
-        /// ⇒ 0.35 让环变成"一条压暗的边"。⛔ 不改几何、⛔ 不换素材（那是自造）。
-        /// </para>
-        /// </summary>
-        private static readonly Color TimerFrameTint = new Color(1f, 1f, 1f, 0.35f);
-
         /// <summary>计时板标题「剩余时间」字号 = <b>20</b>。（旧值 = `CrUiStyle.FontSmall` 24）。
         /// 出处：18 图板内标题的 near_white 命中仅 15px、bbox (925,10)-(990,28) ⇒ **字面高 ≈ 18**；
         /// 我方旧值实测 bbox (948,10)-(1043,33) = 95×23 ⇒ 字面高 ≈ 23，比原版大 5px。
@@ -529,10 +524,12 @@ namespace CR.UI.Panels
         // **手牌槽底换成"卡体"**（原版结构 = 卡体 + 卡面内缩，⛔ 不是"描边 + 卡面"）。
         //   实测依据（卡体帧逐像素比对）：
         //     ① 原版 18 图卡 2 的卡缘 = 蓝 HUD 底 → **1px 深色描边** → **浅灰卡体 8px+**（RGB≈(215,213,216)）；
-        //        ⚠️ 18 的手牌是**灰化态**（当时 2 圣水 ⇒ 4 张卡都不可出），CR 的灰化 ≈ ×0.87 去饱和 ⇒
-        //        反推**未灰化**卡体 ≈ 215/0.87 ≈ **247** ⇒ 与 `ui_out/43` 的主色 **(248,248,248)** 一致
-        //        （`frame_043` 占比 0.85，且实测左/上缘有 **6px 深色带**、圆角半径 ≈20px ⇒ 正好是
-        //        "卡体 + 深色描边 + 圆角"三件）。这也就是 `DeckEditPanel` 卡格底用的同一件。
+        //        ⚠️ 18 的手牌是**灰化态**（当时 2 圣水 ⇒ 4 张都不可出）。灰化口径实测 = **去色、不压亮度**
+        //        （4 张灰化卡面平均亮度 122.5 ≈ 未灰化素材 122，出处见 `GreySprite`）⇒ 那条卡体读数
+        //        **(215,213,216) 本身就是灰化后的值**（中性色去色后不变），旧算式"÷0.87 反推未灰化"不成立。
+        //        卡体帧仍取 `ui_out/43`（依据 = 它的主色 / 左·上缘 6px 深色带 / 圆角半径 ≈20px 与量取形状吻合，
+        //        且 `DeckEditPanel` 卡格底用同一件），但"未灰化主色 = 248"这条**出处待重取**
+        //        （按新口径：原版卡体 215 vs 我们 248 ⇒ 我们偏亮 33/255，已登记为待办，⛔ 本片不改帧）。
         //     ② 旧槽底 `ui_out/200` 实测 **全图 α ≤ 60（23.5%）**、色 ≈(18,12,10) ⇒ 是"半透明深色覆盖层"，
         //        实机在卡缘处的像素 = **竞技场草地原色（161，纯草 ~158）** ⇒ **视觉上没有框**。
         //   ⇒ 槽底 = `ResPaths.SlotCard`（`ui_out` 43），切边沿用 deck 的实测值 20。
@@ -654,6 +651,13 @@ namespace CR.UI.Panels
         private readonly Image[] _handCards = new Image[HandSlots];   // 卡槽底（原版 `SlotCard` 九宫格）
         private readonly Image[] _handArts = new Image[HandSlots];    // 真卡面（原版 `ui_spells_out` 帧）
         private readonly Text[] _handCosts = new Text[HandSlots];     // 圣水费用（压在原版圣水水滴上）
+        private readonly Image[] _handCostIcons = new Image[HandSlots]; // 费用水滴本身（圣水不足时要连同它一起去色）
+        // 灰化前的原精灵（恢复用）：槽底 / 卡面 / 费用水滴各一份。
+        private readonly Sprite[] _handRawSlot = new Sprite[HandSlots];
+        private readonly Sprite[] _handRawArt = new Sprite[HandSlots];
+        private readonly Sprite[] _handRawCost = new Sprite[HandSlots];
+        /// <summary>`NextText` 上一次写入的**原文**（只为不重复走 `TextFit.Clamp`，见 `RefreshNext`）。</summary>
+        private string _nextLabelRaw;
         // 原版卡面上没有卡名 ⇒ `_handTexts` 已整条删除（连带 `HandText{i}` 节点，
         //   见 `BuildHand` 的注释）。⛔ 不要再加回来。
         private Image _nextCard;
@@ -765,16 +769,31 @@ namespace CR.UI.Panels
             // 193 实测是**空心圆角框**（内部全透明）⇒ 先用实心件铺底，再压 193 外框。
             //   ① 板面件 = **原版浅色实心件 531 + 量取 tint**（反解使实机板面 ≈ 原版 18 图同一处的
             //      采样值，推导见 `TimerPlateTint` 注释）；⛔ 不用 `ui_out/177`（不透明黑）。
-            //   ② `193` 的环是**纯黑 (0,0,0,255)**（逐点实测 row/col/mid）—— 板面变亮后这条黑环会
-            //      从"看不见"变成**一圈粗黑框**（实机 3× 放大可见），而原版 18 该处只有**一条暗边**。
-            //      ⇒ 用 `Skin(..., tint)` 把环的 alpha 降到 0.35（⛔ 不改几何、⛔ 不换素材，只调不透明度）。
+            //   ② `193` 的环是**纯黑 (0,0,0,255)**（逐点实测 row/col/mid）—— 直接铺原色就是一圈粗黑框，
+            //      而该件的放置项是 `add=(255,255,255) / mul=(0,0,0) / alpha=255` ⇒ **结果色 = 不透明纯白**
+            //      ⇒ 环走共享材质换成白（见下），⛔ 不改几何、⛔ 不换素材。
             CrUiStyle.Skin("TimerPlateFill", _root, ResPaths.SlotCardPlain, 0, BorderNone,
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -TimerBoxTop),
                 new Vector2(TimerBoxW, TimerBoxH), TimerPlateTint, false, TimerPlateTint);
 
+            // tint 交回中性白（= 不加滤镜），颜色由下面的 `.sc` 变换材质给出。
             var timerBox = CrUiStyle.Skin("TimerBox", _root, ResPaths.HudTopRightPlate, 0, BorderNone,
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -TimerBoxTop),
-                new Vector2(TimerBoxW, TimerBoxH), TimerFrameTint, false, TimerFrameTint);
+                new Vector2(TimerBoxW, TimerBoxH), Color.white, false, Color.white);
+
+            // 顶点色只能乘 ⇒ 表达不了「mul=0 + add=白」（`ColorTransform::operator*` 口径：
+            // `out = clamp(src*mul/255 + add)`），改用 `SpriteColorTransformMaterial.ForUi` 的共享材质；
+            // ⛔ 着色器取不到时退化为「原图原色」（Skin tint = 白），不静默换表现。
+            var timerFrameXform = SpriteColorTransformMaterial.ForUi(0, 0, 0, 255, 255, 255, 255);
+            if (timerFrameXform != null)
+            {
+                var timerFrameImage = timerBox.rectTransform.GetComponent<UnityEngine.UI.Image>();
+                if (timerFrameImage != null)
+                {
+                    timerFrameImage.material = timerFrameXform;
+                    timerFrameImage.color = Color.white;   // 顶点色交回中性：颜色由 `.sc` 变换给出
+                }
+            }
 
             // `ClockIcon`（原版 `Clock_middle`/`ui_out/042`）**不在** 18 图的计时板里
             //   （18 图板内只有「剩余时间:」+ 大字，）；
@@ -965,6 +984,7 @@ namespace CR.UI.Panels
                     CardFontSize, TextAnchor.MiddleCenter, CrUiStyle.TextColor);
                 UIFactory.Stretch(costText.rectTransform);
                 _handCosts[index] = costText;
+                _handCostIcons[index] = costIcon;
             }
         }
 
@@ -1880,11 +1900,10 @@ namespace CR.UI.Panels
             return _start != null ? GameConst.StartingElixirMilli : -1;
         }
 
-        /// <summary>空手牌位的卡槽染色（把原版卡槽图元压暗，表达"空位"；本项目自定，不是素材替换）。</summary>
-        private static readonly Color EmptySlotTint = new Color(0.55f, 0.55f, 0.62f, 1f);
-
         private void RefreshHand()
         {
+            var elixirMilli = CurrentElixirMilli();
+
             for (var i = 0; i < HandSlots; i++)
             {
                 var card = _handCards[i];
@@ -1897,7 +1916,10 @@ namespace CR.UI.Panels
                 {
                     if (cost != null) cost.text = string.Empty;
                     HideArt(art);
-                    card.color = EmptySlotTint;
+                    // 空位与真卡用同一个卡槽图元原色：原版该件**无颜色变换**
+                    // （`原版资源/sc/ui_v215.sc` 的 `HUD_player`(clip 1091) → `slots`(clip 1070) 的
+                    //  frame_200 放置项 `ctId = 65535`）⇒ ⛔ 不给空位单独染色。
+                    card.color = Color.white;
                     continue;
                 }
 
@@ -1906,6 +1928,13 @@ namespace CR.UI.Panels
                 ApplyArt(art, info, id, $"手牌#{i + 1}");
                 // 原版卡槽图元原色（⛔ 不再按类型染色 —— 类型色底是占位物，G4 已废除）
                 card.color = Color.white;
+
+                // 圣水不足 ⇒ **整张卡**（卡体 + 卡面 + 费用水滴）去色（口径与出处见 `GreySprite`）。
+                // 口径与 `BeginDrag` 的本地提示同一处（`IsUnaffordable`），⛔ 不写第二套规则。
+                var grey = IsUnaffordable(info, elixirMilli);
+                Greyify(card, _handRawSlot, i, grey, Color.white);
+                Greyify(art, _handRawArt, i, grey, Color.white);
+                Greyify(_handCostIcons[i], _handRawCost, i, grey, CrUiStyle.Accent);
             }
 
             // 判据行（数值类证据 = 运行时日志行 + 断言）：手牌**组成变化时**报一次
@@ -1937,10 +1966,19 @@ namespace CR.UI.Panels
         {
             if (_nextCard == null) return;
             var info = FindCard(_nextId);
-            if (_nextText != null) _nextText.text = TextFit.Clamp(_nextText, _nextId == 0 ? "—" : CardLabel(info, _nextId));
+            // ⛔ 只在**原文变了**时才走 `TextFit.Clamp`：Clamp 每次装不下都会打一条日志，而本方法挂在
+            //   10 Hz 的快照链上 ⇒ 逐次赋值会把同一条文案的截断日志刷满（实测 19 s 内 200+ 条）。
+            //   节点矩形宽（NextW−6 × 28）是建节点时定死的 ⇒ 同一原文不必重算裁切结果。
+            var label = _nextId == 0 ? "—" : CardLabel(info, _nextId);
+            if (_nextText != null && label != _nextLabelRaw)
+            {
+                _nextLabelRaw = label;
+                _nextText.text = TextFit.Clamp(_nextText, label);
+            }
             if (_nextCost != null) _nextCost.text = info != null ? info.elixir.ToString() : string.Empty;
             ApplyArt(_nextArt, info, _nextId, "下一张");
-            _nextCard.color = _nextId == 0 ? EmptySlotTint : Color.white;
+            // 下一张位同样恒为原色（空位不另染色，口径同 `RefreshHand`）
+            _nextCard.color = Color.white;
         }
 
         /// <summary>
@@ -2003,6 +2041,120 @@ namespace CR.UI.Panels
         /// </para>
         /// </summary>
         /// <param name="slotTag">日志定位用（"手牌#1"…"下一张"）—— 日志里据此分辨是哪一格。</param>
+        /// <summary>
+        /// 这张卡当前**出不了**（圣水不足）—— 与 `BeginDrag` 的本地提示同一口径（⛔ 不写第二套规则）：
+        /// 费用（`CardInfo.elixir` × `ElixirMilliPerUnit`）**严格大于**当前圣水才算出不了（相等算能出）；
+        /// 圣水未知（<see cref="CurrentElixirMilli"/> 返回 -1）⇒ 一律按"能出"（不灰化，⛔ 不猜）。
+        /// </summary>
+        private bool IsUnaffordable(CardInfo info, int elixirMilli)
+        {
+            if (info == null || elixirMilli < 0) return false;
+            return info.elixir * ElixirMilliPerUnit > elixirMilli;
+        }
+
+        /// <summary>灰化副本的名字前缀（`Greyify` 靠它判断节点上现在这张是不是灰化副本）。</summary>
+        private const string GreySpritePrefix = "Grey:";
+
+        /// <summary>灰化副本缓存（键 = 原 Sprite 名）。</summary>
+        private static readonly Dictionary<string, Sprite> GreyCache = new Dictionary<string, Sprite>();
+
+        private static bool IsGreySprite(Sprite s)
+        {
+            return s != null && s.name.StartsWith(GreySpritePrefix, System.StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// 把一个图元在「圣水不足灰化」与「正常」两态之间同步（**幂等**：状态没变就一个字段都不写）。
+        /// <para>
+        /// 灰化时**连同 tint 一起换白**：费用水滴平时带 <see cref="CrUiStyle.Accent"/> 标定 tint，
+        /// 若不回白，乘算会把灰色重新染回品红（乘算改不了色相，见 <see cref="GreySprite"/>）。
+        /// </para>
+        /// <para>
+        /// 卡面是**异步**到货的（`ApplyArt` 的回调）⇒ 图元上还没有图时本方法什么都不做，
+        /// 由下一次 <see cref="RefreshHand"/> 再同步（⛔ 不提前记账，否则那张卡的灰化会被漏掉）。
+        /// </para>
+        /// </summary>
+        /// <param name="raw">灰化前那张精灵的存放位置（按槽位下标；恢复时用）。</param>
+        /// <param name="normalTint">非灰化态该图元的 tint（灰化态恒为白）。</param>
+        private static void Greyify(Image img, Sprite[] raw, int slot, bool grey, Color normalTint)
+        {
+            if (img == null) return;
+
+            if (!grey)
+            {
+                if (!IsGreySprite(img.sprite)) return;
+                if (raw[slot] != null) img.sprite = raw[slot];
+                img.color = normalTint;
+                return;
+            }
+
+            if (img.sprite == null || IsGreySprite(img.sprite)) return;
+            var made = GreySprite(img.sprite);
+            if (made == null) return;
+            raw[slot] = img.sprite;
+            img.sprite = made;
+            img.color = Color.white;
+        }
+
+        /// <summary>
+        /// 造一张**去色副本**（每像素取亮度：R=G=B=luma）—— 手牌"圣水不足"的灰化外观。
+        /// <para>
+        /// <b>口径出处</b>：原版基线图 `策划/参考图/18_对局HUD_1080x1920.jpg`（该帧手牌 4 张全在灰化态，
+        /// 当时 2 圣水 ⇒ 4 张都不可出）逐像素实测 —— 4 张卡面 chroma ≤ **3**（中性像素占比 ≥ 0.95）、
+        /// 平均亮度 **122.5** ≈ 同 4 槽未灰化卡面素材的平均亮度 **122**（差 0.4）⇒ 原版 = **去色、不压亮度**。
+        /// 量法：`.ai-tmp/test/fxhud-grey.py`（可复跑）。
+        /// </para>
+        /// <para>
+        /// ⛔ 不用 `Image.color` 乘灰代替：乘算只等比压暗、**不改色相**（费用水滴实色 (204,72,222)
+        /// 乘灰仍是艳品红，出不来原版的中性灰）。
+        /// </para>
+        /// <para>
+        /// 帧图 `.meta` 全是 `isReadable: 0` ⇒ 取像素只能走 GPU：Blit 进同尺寸临时 RenderTexture
+        /// 再 `ReadPixels` 回 CPU（与 `CrUiStyle.MakeRounded` 同一条路）。每个素材只做一次（带缓存）。
+        /// </para>
+        /// </summary>
+        private static Sprite GreySprite(Sprite source)
+        {
+            if (source == null || source.texture == null) return source;
+
+            Sprite cached;
+            if (GreyCache.TryGetValue(source.name, out cached) && cached != null) return cached;
+
+            var tw = source.texture.width;
+            var th = source.texture.height;
+            var rt = RenderTexture.GetTemporary(tw, th, 0, RenderTextureFormat.ARGB32);
+            var prevActive = RenderTexture.active;
+            Graphics.Blit(source.texture, rt);
+            RenderTexture.active = rt;
+            var readable = new Texture2D(tw, th, TextureFormat.RGBA32, false);
+            readable.ReadPixels(new Rect(0f, 0f, tw, th), 0, 0);
+            readable.Apply();
+            RenderTexture.active = prevActive;
+            RenderTexture.ReleaseTemporary(rt);
+
+            var px = readable.GetPixels32();
+            for (var i = 0; i < px.Length; i++)
+            {
+                var p = px[i];
+                var l = (byte)Mathf.Clamp(Mathf.RoundToInt(0.299f * p.r + 0.587f * p.g + 0.114f * p.b), 0, 255);
+                p.r = l;
+                p.g = l;
+                p.b = l;
+                px[i] = p;
+            }
+
+            var tex = new Texture2D(tw, th, TextureFormat.RGBA32, false);
+            tex.SetPixels32(px);
+            tex.Apply();
+            UnityEngine.Object.Destroy(readable);
+
+            var made = Sprite.Create(tex, source.rect, source.pivot, source.pixelsPerUnit, 0,
+                SpriteMeshType.FullRect, source.border);
+            made.name = GreySpritePrefix + source.name;
+            GreyCache[source.name] = made;
+            return made;
+        }
+
         private void ApplyArt(Image target, CardInfo card, int id, string slotTag)
         {
             if (target == null) return;

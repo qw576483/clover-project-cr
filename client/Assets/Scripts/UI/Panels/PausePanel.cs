@@ -286,6 +286,10 @@ namespace CR.UI.Panels
                     SetInteractable(false);
                     Game.Logger?.Info(Tag, "已确认回主菜单（弃赛），请求 AppFlow 执行");
                     SetStatus("正在返回主菜单…", CrUiStyle.Accent);
+                    // 先关自己再请求切站点（与 `OnContinueClicked` 同形）：⛔ 不能只靠切站点时的
+                    // `CloseAll` 兜 —— 那一段是异步场景加载，期间这个面板仍 `activeInHierarchy`，
+                    // 会留下"报错点不到、二次进对局叠一层"的隐患。
+                    Game.UI?.Close<PausePanel>();
                     // AppFlow 订阅了这条事件（`AppFlow.cs:297/316`）⇒ 读条 + 加载 `Main` + 切 `MainMenu`。
                     Game.Event?.Emit(Events.Battle.ReturnToMainMenuRequest);
                 },

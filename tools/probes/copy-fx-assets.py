@@ -10,7 +10,7 @@
 落点： client/Assets/Resources/Sprites/Effects/<用途>/frame_NNN.png   （NNN = **原版源帧号**）
       （命名规则与 `Core/ResPaths.cs` 的 `FrameName` 必须一致：`frame_` + 3 位十进制）
 
-⛔ **只复制 RANGES 里列的那几组**（38 张）；612 帧整目录搬是被明令禁止的。
+⛔ **只复制 RANGES 里列的那几组**（120 张）；612 帧整目录搬是被明令禁止的。
    要哪几组、为什么，见下方 RANGES 的注释。
 
 导入设置 = **照抄 `client/Assets/Resources/Sprites/Ui/loading_bg.png.meta`** 的 TextureImporter
@@ -41,11 +41,38 @@ CANVAS_W, CANVAS_H = 474, 537
 RANGES = [
     ("Hit", 50, 56),        # 命中/受击闪光：紫光球→黄光球→白四角星芒→淡蓝碎冰
     ("Blast", 418, 427),    # 爆炸/塔毁：黄橙漩涡大火球（由大缩到亮核）
-    ("Arrow", 440, 459),    # 弹道/飞行物：红羽白镞箭矢
+    # 弹道/飞行物 = 原版 export `projectile_arrow_basic`（clip 1388｜60fps｜15 帧｜帧列 `437-451`）：
+    # 红羽白镞箭矢。⛔ **不能**取 440..459 —— 那一段里 f452..f458 是**冰雪精灵的投射物**（飞的冰精灵本体）、
+    # f459 是冰块，落地后会被当成"箭矢的后续帧"播出来（现象 = 每次远程开火在落点冒出一个冰精灵）。
+    # 出处 `策划/单位动画分组表.md` 的 `projectile_arrow_basic` 行。
+    ("Arrow", 437, 451),
     # 出牌落地（D132）：原版 export `deploy_arrows_effect`（clip 354，档位=spawn）的 timeline 16 条
     # 记录**全部指向同一像素帧 f119** ⇒ 只需落地这一帧。出处 `策划/单位动画分组表.md:5021`
     # （同表 `:4725` 的 `deploy_arrows` 同 clip）。像素内容 = 绿色上箭头（474×537 画布内 34×38）。
     ("Deploy", 119, 119),
+    # ── 按投射物分开的弹体（每段 = 原版一个 export，段名 = 投射物名）──
+    # 表与像素辨认：`策划/单位动画分组表.md` 的 `effects` 小节 + `.ai-tmp/test/proj-fix-fxsheet{,2}.png`。
+    # 客户端选段 = `View/EffectsView.cs` 的 `TryGetProjectileFx`（key = 官方投射物名）。
+    # 长矛：原版 `projectile_spear` / `projectile_spear_360`（clip 1348）。
+    ("Spear", 363, 395),
+    # 炮弹：原版 `projectile_cannonball_small`(1383, f480) + `projectile_cannonball_large`(1385, f481)。
+    ("Cannonball", 480, 481),
+    # 保龄球：原版 `bowler_projectile`（clip 1389，唯一像素帧 f356）。
+    ("Bowler", 356, 356),
+    # 飞斧：原版 `executioner_projectile`（唯一像素帧 f469）。
+    ("Axe", 469, 469),
+    # 迫击炮的抛射石球：原版 `catapult_projectile1`（f471-479；同族命中云 `catapult_hit_cloud`）。
+    ("Catapult", 471, 479),
+    # 炸弹：原版 `projectile_bomb`（唯一像素帧 f482）。
+    ("Bomb", 482, 482),
+    # 寒冰法师的冰锥：原版 `ice_wizard_projectile`（f459-467）。
+    ("IceWizard", 459, 467),
+    # 冰雪精灵的冰晶：原版 `projectile_icespirit`（f453-458）。
+    ("IceSpirit", 453, 458),
+    # 烈焰精灵的火球：原版 `projectile_firespirit`（f512-535）。
+    ("FireSpirit", 512, 535),
+    # 飞龙宝宝的吐息弹：原版 `dragon_projectile` 的飞行段像素帧（f470）。
+    ("Dragon", 470, 470),
 ]
 
 
@@ -116,7 +143,9 @@ def build_meta(rel_path, sprite_name):
             out.append(line[:len(line) - len(line.lstrip())] + "height: " + str(CANVAS_H))
             continue
         if s.startswith("loading_bg_0:"):
-            out.append("  " + sprite_name + ": " + str(sid))
+            # 缩进照抄模板那一行（`nameFileIdTable` 的条目必须与模板同缩进，否则写出来的 YAML 层级不对）。
+            indent = line[:len(line) - len(line.lstrip())]
+            out.append(indent + sprite_name + ": " + str(sid))
             continue
         out.append(line)
     return "\n".join(out) + "\n"

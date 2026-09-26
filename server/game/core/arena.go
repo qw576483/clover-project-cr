@@ -163,18 +163,26 @@ func (a *Arena) OwnHalf(team Team) (int32, int32) {
 // **that lane only** of the enemy's half, up to (not including) the row the
 // destroyed tower stood on -- it does not open the whole half, and it never
 // reaches the king tower (参考规格 §2.1 / cr-sim engine/arena.py:293-350).
+// 法术点（`anywhere`）的合法范围 = **竞技场内任意点**，含两座国王塔的阻塞格
+// （`IsBlocked` 覆盖的 3x3）与河面 —— 所以 `anywhere` 的短路排在 `IsBlocked` **之前**，
+// 只有 `InBounds` 在它前面（场外仍然非法）。
+//
+// 参考实现 `原版资源/cr-sim/cr_sim/engine/arena.py:322-331` 的顺序是
+// `in_bounds → _BLOCKED → _WATER → anywhere`（`_BLOCKED` 在 `anywhere` 之前）⇒ 那条路径下
+// 法术发不进国王塔格。本工程**有意偏离该顺序**：法术必须能落在塔格上（判据见 `core_test.go`
+// 的「spell on a king tower's tile」一条）。
 func (a *Arena) CanDeploy(team Team, xMilli, yMilli int32, anywhere, onWater bool, fallenEnemyPrincess []TowerRef) bool {
 	if !a.InBounds(xMilli, yMilli) {
 		return false
+	}
+	if anywhere {
+		return true
 	}
 	if a.IsBlocked(xMilli, yMilli) {
 		return false
 	}
 	if a.IsWater(xMilli, yMilli) && !onWater {
 		return false
-	}
-	if anywhere {
-		return true
 	}
 
 	low, high := a.OwnHalf(team)

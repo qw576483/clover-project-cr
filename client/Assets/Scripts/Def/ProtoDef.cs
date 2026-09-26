@@ -27,17 +27,62 @@ namespace CR.Def
     [Serializable] public class SetNicknameReply { public bool ok; public string nickname; public string err; }
 
     [Serializable] public class GetProfileReq { }
-    [Serializable] public class GetProfileReply { public string nickname; public int wins; public int losses; public int[] deck; }
+
+    /// <summary>
+    /// 个人档案回包。字段与服务端 `server/game/def/msg.go` 的 `GetProfileReply` 逐字对齐。
+    /// <para>
+    /// `matches` / `three_crown_wins` / `cards_found` / `favourite_card(+_name)` 都是
+    /// 服务端在**结算那一刻**从真实发生的事件里累加出来的；`highest_trophies` /
+    /// `cards_donated` / `cards_won` 三项本工程没有对应机制（奖杯、部落捐赠、锦标赛奖励）
+    /// ⇒ 服务端恒下发 0（原版新号这几项同样是 0）。
+    /// </para>
+    /// </summary>
+    [Serializable]
+    public class GetProfileReply
+    {
+        public string nickname;
+        public int wins;
+        public int losses;
+        public int[] deck;
+        public int matches;               // 参赛场次（含平局）
+        public int three_crown_wins;      // 三冠胜场
+        public int cards_found;           // 已收集卡牌 = 卡池可用卡数
+        public int favourite_card;        // 常用卡牌 id（0 = 一张都没出过）
+        public string favourite_card_name; // 常用卡牌的显示名（服务端从卡牌表取）
+        public int highest_trophies;      // 本工程无奖杯 / 段位机制 ⇒ 恒 0
+        public int cards_donated;         // 本工程无部落 / 捐赠系统 ⇒ 恒 0
+        public int cards_won;             // 本工程无锦标赛 / 卡牌奖励系统 ⇒ 恒 0
+    }
 
     // ------------------------------------------------------------ 卡池与卡组
     [Serializable] public class GetCardPoolReq { }
     [Serializable] public class GetCardPoolReply { public CardInfo[] cards; }
 
-    [Serializable] public class GetDeckReq { }
-    [Serializable] public class GetDeckReply { public int[] card_ids; }
+    /// <summary>
+    /// 拉卡组：`slot` = 槽位下标 0..4（界面上的 1..5 号卡组）；**-1 = 当前使用的那一个**。
+    /// 缺字段（老客户端）= 0 = 1 号，服务端按同一口径兜底。
+    /// </summary>
+    [Serializable] public class GetDeckReq { public int slot; }
 
-    [Serializable] public class SaveDeckReq { public int[] card_ids; }
+    /// <summary>
+    /// 卡组回包：`card_ids` = `slot` 那一套（8 张）；`slot` 回显实际取到的槽位（发 -1 时是真实槽位）；
+    /// `active_slot` = 当前使用的槽位 —— 卡组页据此决定停在哪个号上。
+    /// </summary>
+    [Serializable] public class GetDeckReply { public int[] card_ids; public int slot; public int active_slot; }
+
+    /// <summary>
+    /// 保存卡组：`slot` = 槽位下标 0..4（缺字段 = 0 = 1 号）。保存成功即把该槽设为当前槽
+    /// （进对局 / 房间座位缓存用的就是当前槽那一套）。
+    /// </summary>
+    [Serializable] public class SaveDeckReq { public int[] card_ids; public int slot; }
     [Serializable] public class SaveDeckReply { public bool ok; public string err; }
+
+    /// <summary>
+    /// 「卡组页正在看哪一套」的载荷 —— **不是线协议消息**，是 `Events.Deck.*` 的进程内事件载荷
+    /// （`UI/Panels` 与 `Module/Deck` 两边都要看得见，所以放这里，而不是某一侧的内部类型）。
+    /// `slot` = 槽位下标 0..4（界面上的 1..5 号卡组）；`ids` = 该槽的 8 张卡。
+    /// </summary>
+    [Serializable] public class DeckRef { public int slot; public int[] ids; }
 
     // ---------------------------------------------------------------- 房间
     [Serializable] public class RoomCreateReq { public string name; }

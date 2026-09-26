@@ -564,6 +564,17 @@ namespace CR
         /// <summary>金色奖杯（`ui_battle_end_out` 109）。</summary>
         public static string IconTrophy { get { return UiFrame(UiIconsDir, UiSrcBattleEnd, 109); } }
 
+        /// <summary>
+        /// **资料页 / 名字条的金色奖杯** —— `ui_out` **frame_562**（130×128，金色奖杯带双耳把手）。
+        /// <para>出处：`ui.sc` 的 `Menu_topLayer`(clip 4539) → `profile_strip` → `profile_button` →
+        /// `trophy_element` → `<shape 1654>`（放置 sx 1.3984 / sy 1.3994）；同一帧也被
+        /// `popup_profile_new`(clip 4621) 引用 ⇒ 主菜单这两处用的就是它。
+        /// ⛔ 与 <see cref="IconTrophy"/>（`ui_battle_end_out` 109，结算页那一支）不是同一帧。</para>
+        /// </summary>
+        public static string IconTrophyGold { get { return UiFrame(UiIconsDir, UiSrcUi, 562); } }
+
+
+
         /// <summary>金色奖杯+橄榄枝（结算；`ui_battle_end_out` 195）。</summary>
         public static string IconTrophyLaurel { get { return UiFrame(UiIconsDir, UiSrcBattleEnd, 195); } }
 
@@ -840,7 +851,7 @@ namespace CR
         /// <summary>用途目录：爆炸 / 塔毁。</summary>
         public const string EffectBlast = "Blast";
 
-        /// <summary>用途目录：弹道 / 飞行物。</summary>
+        /// <summary>用途目录：弹道 / 飞行物（原版 `projectile_arrow_basic` 那条箭矢动画）。</summary>
         public const string EffectArrow = "Arrow";
 
         /// <summary>命中闪光起始帧（原版 f050..f056，7 帧）。</summary>
@@ -855,11 +866,17 @@ namespace CR
         /// <summary>爆炸帧数。</summary>
         public const int EffectBlastCount = 10;
 
-        /// <summary>弹道 / 飞行物起始帧（原版 f440..f459，20 帧）。</summary>
-        public const int EffectArrowFirst = 440;
+        /// <summary>
+        /// 弹道 / 飞行物起始帧 = **f437**（一条完整箭矢动画的头一帧）。
+        /// 出处：`策划/单位动画分组表.md` 的 `projectile_arrow_basic` 行（clip 1388｜60fps｜15 帧｜帧列 `437-451`）。
+        /// ⛔ **不许写成 f440**:`effects_out` 的 f437..f451 才是一条完整的箭矢动画；f452..f458 是
+        /// **冰雪精灵的投射物**（= 飞行的冰精灵本体）、f459 是冰块 —— 把它们当"箭矢"播，
+        /// 每一次远程开火都会在落点画出一个冰精灵（见 `.ai-tmp/test/fx-anim-report.md` 的联络图）。
+        /// </summary>
+        public const int EffectArrowFirst = 437;
 
-        /// <summary>弹道帧数。</summary>
-        public const int EffectArrowCount = 20;
+        /// <summary>弹道帧数（f437..f451 = `projectile_arrow_basic` 的 15 帧）。</summary>
+        public const int EffectArrowCount = 15;
 
         // ── 死亡特效（原版 die 档；差异登记见 `策划/差异登记.tsv`）──
         //
@@ -990,6 +1007,110 @@ namespace CR
         /// <summary>哥布林飞桶帧数（该组 12 帧）。</summary>
         public const int EffectGoblinBarrelCount = 12;
 
+        // ───────────────────────── 弹体特效（每个投射物自己的原版图元）─────────────────────────
+        //
+        // 为什么单列一组：`effects_out` 图集里**每种投射物各有一段自己的动画**，段名 = 投射物名
+        // （`projectile_spear` / `projectile_cannonball_small` / `bowler_projectile` …
+        // 出处 `策划/单位动画分组表.md` 的 `effects` 小节，该文件是生成物）。
+        // 全部远程攻击共用一条箭矢（`EffectArrow`）与原版不符 ⇒ 按投射物各自的段落成用途目录，
+        // 客户端按 `CardInfo.projectile_key`（官方投射物名，服务端 `core.ProjectileOf` 下发）取段。
+        // 落地：一段连续帧拷进一个用途目录，`EffectsView` 按 (First,Count) 顺序播。
+        // 帧列与像素内容（逐帧辨认）：`.ai-tmp/test/proj-fix-fxsheet.png` / `proj-fix-fxsheet2.png`。
+
+        /// <summary>用途目录：长矛（原版 `projectile_spear`，帧列 `363-395`）。</summary>
+        public const string EffectSpear = "Spear";
+
+        /// <summary>长矛起始帧（原版 f363）。</summary>
+        public const int EffectSpearFirst = 363;
+
+        /// <summary>长矛帧数（f363..f395）。</summary>
+        public const int EffectSpearCount = 33;
+
+        /// <summary>用途目录：炮弹（原版 `projectile_cannonball_small` f480 + `_large` f481）。</summary>
+        public const string EffectCannonball = "Cannonball";
+
+        /// <summary>炮弹起始帧（原版 f480 = `projectile_cannonball_small`）。</summary>
+        public const int EffectCannonballFirst = 480;
+
+        /// <summary>炮弹帧数（f480..f481 = 小/大两档炮弹）。</summary>
+        public const int EffectCannonballCount = 2;
+
+        /// <summary>用途目录：保龄球（原版 `bowler_projectile`，帧列 `356`）。</summary>
+        public const string EffectBowler = "Bowler";
+
+        /// <summary>保龄球起始帧（原版 f356）。</summary>
+        public const int EffectBowlerFirst = 356;
+
+        /// <summary>保龄球帧数（f356 = 该 export 的唯一像素帧）。</summary>
+        public const int EffectBowlerCount = 1;
+
+        /// <summary>用途目录：飞斧（原版 `executioner_projectile`，帧列 `469`）。</summary>
+        public const string EffectAxe = "Axe";
+
+        /// <summary>飞斧起始帧（原版 f469）。</summary>
+        public const int EffectAxeFirst = 469;
+
+        /// <summary>飞斧帧数（f469 = 该 export 的唯一像素帧）。</summary>
+        public const int EffectAxeCount = 1;
+
+        /// <summary>
+        /// 用途目录：迫击炮的抛射石球（原版 `catapult_projectile1`，帧列 `471-479`）。
+        /// 依据：原版迫击炮本体是投石车，图集里只有这一个抛射石球段，且它的专属命中云
+        /// `catapult_hit_cloud`（:4692）与 `bowler_hit_cloud`（:4690）成对出现。
+        /// </summary>
+        public const string EffectCatapult = "Catapult";
+
+        /// <summary>抛射石球起始帧（原版 f471）。</summary>
+        public const int EffectCatapultFirst = 471;
+
+        /// <summary>抛射石球帧数（f471..f479）。</summary>
+        public const int EffectCatapultCount = 9;
+
+        /// <summary>用途目录：炸弹（原版 `projectile_bomb`，帧列 `482`）。</summary>
+        public const string EffectBomb = "Bomb";
+
+        /// <summary>炸弹起始帧（原版 f482）。</summary>
+        public const int EffectBombFirst = 482;
+
+        /// <summary>炸弹帧数（f482 = 该 export 的唯一像素帧）。</summary>
+        public const int EffectBombCount = 1;
+
+        /// <summary>用途目录：寒冰法师的冰锥（原版 `ice_wizard_projectile`，帧列 `459-467`）。</summary>
+        public const string EffectIceWizard = "IceWizard";
+
+        /// <summary>冰锥起始帧（原版 f459）。</summary>
+        public const int EffectIceWizardFirst = 459;
+
+        /// <summary>冰锥帧数（f459..f467）。</summary>
+        public const int EffectIceWizardCount = 9;
+
+        /// <summary>用途目录：冰雪精灵的冰晶（原版 `projectile_icespirit`，帧列 `453-458`）。</summary>
+        public const string EffectIceSpirit = "IceSpirit";
+
+        /// <summary>冰晶起始帧（原版 f453）。</summary>
+        public const int EffectIceSpiritFirst = 453;
+
+        /// <summary>冰晶帧数（f453..f458）。</summary>
+        public const int EffectIceSpiritCount = 6;
+
+        /// <summary>用途目录：烈焰精灵的火球（原版 `projectile_firespirit`，帧列 `512-535`）。</summary>
+        public const string EffectFireSpirit = "FireSpirit";
+
+        /// <summary>火球起始帧（原版 f512）。</summary>
+        public const int EffectFireSpiritFirst = 512;
+
+        /// <summary>火球帧数（f512..f535）。</summary>
+        public const int EffectFireSpiritCount = 24;
+
+        /// <summary>用途目录：飞龙宝宝的吐息弹（原版 `dragon_projectile`，像素帧 f470）。</summary>
+        public const string EffectDragon = "Dragon";
+
+        /// <summary>吐息弹起始帧（原版 f470）。</summary>
+        public const int EffectDragonFirst = 470;
+
+        /// <summary>吐息弹帧数（f470 = 该 export 的飞行段唯一像素帧）。</summary>
+        public const int EffectDragonCount = 1;
+
         // ───────────────────────── 落点范围指示（差异登记见 `策划/差异登记.tsv`）─────────────────────────
         //
         // ⛔ 落点指示**不许自绘**（`PlacementIndicator` 不造圆盘贴图）：`策划/单位动画分组表.md`
@@ -1015,6 +1136,189 @@ namespace CR
         /// **敌方**落点范围盘：分组表 `:4815` `Poison` 帧列 `294`（深色圆盘 + 红边 + 外圈刻度）。
         /// </summary>
         public const int EffectRangeRingHostile = 294;
+
+        /// <summary>
+        /// 用途目录：**不可放置区域**显示（原版 `deployArea_*` 一族，见 `策划/原版UI素材名称索引.md:304-316`）。
+        /// 目录里 9 帧：底色 251 / 边条 241-244 / 角件 247-250。
+        /// </summary>
+        public const string EffectDeployArea = "DeployArea";
+
+        /// <summary>
+        /// 用途目录：**出牌落位计时件**（原版 `troopDeployTimer_player`/`_enemy`，clip 1245/1247；
+        /// `策划/原版UI素材名称索引.md:433-434`）。目录里 4 帧：表盘 252 / 我方扫过片 253 /
+        /// 敌方扫过片 256 / 指针 255。
+        /// </summary>
+        public const string EffectDeployTimer = "DeployTimer";
+
+        /// <summary>`troopDeployTimer_*` 的**灰色表盘**（56×67，像素均值 (216,208,204)）。</summary>
+        public const int EffectDeployTimerBody = 252;
+
+        /// <summary>`troopDeployTimer_player` 的**蓝色**扫过片（21×21，RGB(116,200,255)）。</summary>
+        public const int EffectDeployTimerSweepFriendly = 253;
+
+        /// <summary>`troopDeployTimer_enemy` 的扫过片（21×21，与 253 同形、异色）。</summary>
+        public const int EffectDeployTimerSweepHostile = 256;
+
+        /// <summary>`troopDeployTimer_*` 的指针 / 表冠（6×22，RGB(88,80,76)）。</summary>
+        public const int EffectDeployTimerStem = 255;
+
+        // ── 卡面品质边框（原版 `card_frame_glow_*` / `card_glow_*` 一族）──────────────────────
+
+        /// <summary>
+        /// 卡面**无光晕**空心描边框 —— `ui_out` **592**（215×109，空心描边，圆角 ≈6px）。
+        /// <para>
+        /// <b>用途</b>：普通 / 稀有 / 史诗三档卡面的品质边框（传说另有整幅专属光晕框
+        /// <see cref="CardFrameGlowLegendary"/>）。
+        /// </para>
+        /// <para>
+        /// <b>为什么用这一帧</b>：原版这三档自己的框件（`card_glow_rare` = frame 550 / 551、
+        /// `card_frame_glow_epic` = frame 515 / 516）是 **133×25 的带色宽扁描边件**（橙 / 紫），
+        /// 而本工程的 tint 走**纯乘** ⇒ 橙色件染不出紫色（目标 B 210 ÷ 件内 B 44 &gt; 1，纯乘无法提亮）；
+        /// 本帧自身接近中性亮色（落盘 PNG 不透明像素均值 **(254,254,203)**）⇒ 纯乘可到任意实测稀有度色。
+        /// 三档共用本件 + `DeckEditPanel.RarityFrameColor` 的**实测**色区分。
+        /// </para>
+        /// <para>
+        /// 出处：`策划/原版UI素材索引.md` 第 610 行（frame 592 = 灰白描边圆角矩形框（空心））；
+        /// 逐行 / 逐列透明剖面见 `DeckEditPanel.BorderCardFrameOutline`。
+        /// </para>
+        /// </summary>
+        public static string CardFrameOutline { get { return UiFrame(UiPanelsDir, UiSrcUi, 592); } }
+
+        // ── 菜单顶带 / 底部导航带（原版 `Menu_topLayer` clip 4539 与 `menu_bottom_*` 一族）──
+        //
+        // 为什么单列一组：这两条带是**整页固定的框架**（顶带 y0..167@1080、导航带 y1748.2..1920@1080），
+        // 用的是原版自己的槽盘 / 名字板 / 页签底与分隔槽帧，⛔ 不是同类语义的别帧顶替。
+        // 帧号出处 = `ui.sc` 的子元件引用（可复跑：`python tools/probes/sc-subtree.py --clip <名> --depth 3`）：
+        //   `Menu_topLayer`(4539) → `left_top`/`right_top` → `background`/`<shape 682>`/`<shape 683>`；
+        //   `Menu_topLayer`(4539) → `right_top` → `coins`/`gems` → `gold_icon`/`gem_icon`；
+        //   `Menu_topLayer`(4539) → `profile_strip` → `profile_button` → `<shape 1652>`/`<shape 1653>`；
+        //   `menu_bottom_tab_bg`(4441) / `menu_bottom_tab_selected`(4542) / `menu_bottom_divider`(4560) /
+        //   `menu_bottom_label`(4558) 各 1 帧。
+        // 落地口径 = `tools/probes/copy-ui-assets.py` 的 SPRITES（只追加，未改既有条目）。
+
+        /// <summary>
+        /// 资源槽 槽身长条 —— 原版 `left_top` / `right_top` → `background`（`<shape 1310>`），
+        /// `ui_out` **frame_270**（120×1；原版靠放置矩阵横向拉伸 sx 61.96）。
+        /// </summary>
+        public static string MenuTopSlotBar { get { return UiFrame(UiBarsDir, UiSrcUi, 270); } }
+
+        /// <summary>
+        /// 资源槽 内填长条 —— 原版 `coins` / `gems` → `<shape 682>`，`ui_out` **frame_208**（67×1；
+        /// 原版横向拉伸 sx 8.92 / 6.72）。与 <see cref="MenuTopSlotBar"/> 同族、不同帧。
+        /// </summary>
+        public static string MenuTopSlotFill { get { return UiFrame(UiBarsDir, UiSrcUi, 208); } }
+
+        /// <summary>
+        /// 资源槽 **端帽** —— 原版 `<shape 683>`，`ui_out` **frame_209**（11×67）。
+        /// 原版在同一槽里放**两次**（sx +1.2168 / −1.2178）⇒ 左右端帽是同一张图的镜像对。
+        /// </summary>
+        public static string MenuTopSlotCap { get { return UiFrame(UiBarsDir, UiSrcUi, 209); } }
+
+        /// <summary>
+        /// 名字条 端帽 —— 原版 `profile_strip` → `profile_button` → `<shape 1652>`，`ui_out` **frame_560**（24×162）。
+        /// 原版放置两次（sx +0.7998 / −0.8008）= 镜像对；含**竖向**渐变，⛔ 不横拉。
+        /// </summary>
+        public static string MenuNamePlateCap { get { return UiFrame(UiBarsDir, UiSrcUi, 560); } }
+
+        /// <summary>
+        /// 名字条 横条 —— 同一条 `profile_button` 的 `<shape 1653>`，`ui_out` **frame_561**（162×1；
+        /// 原版横向拉伸 sx 8.5586）。
+        /// </summary>
+        public static string MenuNamePlateBar { get { return UiFrame(UiBarsDir, UiSrcUi, 561); } }
+
+        /// <summary>
+        /// 底栏页签 底板横条 —— 原版 `menu_bottom_tab_bg`(clip 4441) → `<shape 1635>`，
+        /// `ui_out` **frame_544**（195×1；纵向拉伸成整格高）。
+        /// </summary>
+        public static string NavTabBgStrip { get { return UiFrame(UiBarsDir, UiSrcUi, 544); } }
+
+        /// <summary>
+        /// 底栏**选中**页签横条 —— 原版 `menu_bottom_tab_selected`(clip 4542) → `<shape 1657>`，
+        /// `ui_out` **frame_565**（195×1）。与 <see cref="NavTabBgStrip"/> 同尺寸不同帧（选中态的抬色）。
+        /// </summary>
+        public static string NavTabSelectedStrip { get { return UiFrame(UiBarsDir, UiSrcUi, 565); } }
+
+        /// <summary>
+        /// 底栏页签 **分隔槽** —— 原版 `menu_bottom_divider`(clip 4560) → `<shape 1518>`，
+        /// `ui_out` **frame_438**（7×1；原版纵向拉伸 sy 1.3604 = 整带高）。
+        /// </summary>
+        public static string NavDivider { get { return UiFrame(UiBarsDir, UiSrcUi, 438); } }
+
+        /// <summary>
+        /// 底栏页签 标签**投影条** —— 原版 `menu_bottom_label`(clip 4558) → `title_shadow`，
+        /// `ui_out` **frame_566**（305×1）。
+        /// </summary>
+        public static string NavLabelShadow { get { return UiFrame(UiBarsDir, UiSrcUi, 566); } }
+
+        /// <summary>
+        /// 资源条 **宝石**图标 —— 原版 `right_top` → `gems` → `gem_icon`（`<shape 1404>`），
+        /// `ui_out` **frame_339**（66×80）。
+        /// </summary>
+        public static string MenuTopGemIcon { get { return UiFrame(UiIconsDir, UiSrcUi, 339); } }
+
+        /// <summary>
+        /// 资源条 **金币**图标 —— 原版 `right_top` → `coins` → `gold_icon`（`<shape 1407>`），
+        /// `ui_out` **frame_342**（70×76）。与 <see cref="MenuTopGemIcon"/>（339）是同一行的两颗。
+        /// </summary>
+        public static string MenuTopCoinIcon { get { return UiFrame(UiIconsDir, UiSrcUi, 342); } }
+
+        /// <summary>
+        /// 底栏**商店**页签图标 —— 原版 `icon_menu_shop`(clip 4221) → `<shape 1594>`，
+        /// `ui_out` **frame_503**。
+        /// </summary>
+        public static string NavIconShop { get { return UiFrame(UiIconsDir, UiSrcUi, 503); } }
+
+        /// <summary>
+        /// 底栏**卡牌**页签图标 —— 原版 `icon_menu_cards`(clip 3929) → `<shape 1526>`，
+        /// `ui_out` **frame_446**。
+        /// </summary>
+        public static string NavIconCards { get { return UiFrame(UiIconsDir, UiSrcUi, 446); } }
+
+        /// <summary>
+        /// 底栏**锦标赛**页签图标 —— 原版 `icon_menu_tornament`(clip 3487) → `<shape 1322>`，
+        /// `ui_out` **frame_280**。
+        /// </summary>
+        public static string NavIconTournament { get { return UiFrame(UiIconsDir, UiSrcUi, 280); } }
+
+        /// <summary>
+        /// 底栏**皇室TV**页签图标 —— 原版 `icon_menu_royaltv`(clip 4448) → `<shape 1637>`，
+        /// `ui_out` **frame_546**。
+        /// </summary>
+        public static string NavIconRoyaleTv { get { return UiFrame(UiIconsDir, UiSrcUi, 546); } }
+
+        /// <summary>
+        /// **关闭按钮里那个叉**的图元 —— `ui_out` **frame_164**（80×81，白色粗叉；
+        /// `策划/原版UI素材索引.md` 第 164 行的用途列写的就是「关闭按钮」）。
+        /// <para>用途：主菜单「玩家资料」页右上角关闭块（<see cref="CrUiStyle.ButtonRed"/> = `ui_out` 477
+        /// 红块）里的那个叉 —— 缺了它画面上只剩一个红方块（看起来像缺图 / 占位）。</para>
+        /// <para>帧本身是**白**叉，基线 `12_主菜单_750x1334` 的叉面实测 **(255,171,214)**
+        /// ⇒ 由调用方按纯乘标定染成该读数（口径同 <see cref="CrUiStyle.ButtonBlueTint"/>）。</para>
+        /// </summary>
+        public static string IconClose { get { return UiFrame(UiIconsDir, UiSrcUi, 164); } }
+
+        /// <summary>
+        /// 顶带**左端的等级盘**（经验条左沿那颗锯齿多角星）—— 原版 `Menu_topLayer`(ui.sc clip 4539) →
+        /// `left_top` → `xp` → `xp_icon` → `<shape 1634>`，`ui_out` **frame_543**（267×274）。
+        /// <para>帧本身是亮蓝星面（不透明像素均值 (39,147,177)）；原版顶带整体偏暗，
+        /// 基线 `12_主菜单_750x1334` 盘面读数 (13,46,55) ⇒ 由调用方按纯乘标定（口径同 <see cref="NavTabSelectedStrip"/> 的用法）。</para>
+        /// </summary>
+        public static string MenuLevelDisc { get { return UiFrame(UiIconsDir, UiSrcUi, 543); } }
+
+        /// <summary>
+        /// **经验条内填**长条 —— 原版 `left_top` → `xp` → `xp_bar` → `xp_bar_fill` → `<shape 1609>`，
+        /// `ui_out` **frame_518**（205×45）。所在的轨道与资源槽**同一件**（
+        /// <see cref="MenuTopSlotFill"/> = frame 208 横拉 + <see cref="MenuTopSlotCap"/> = frame 209 镜像端帽）。
+        /// <para>帧本身是**品红**渐变；原版靠该放置的颜色变换（颜色下标 2598）把它染成青绿，
+        /// 本工程在调用处以纯乘标定复现同一读数。</para>
+        /// </summary>
+        public static string MenuXpBarFill { get { return UiFrame(UiBarsDir, UiSrcUi, 518); } }
+
+        /// <summary>
+        /// 底栏**选中**页签**两侧**那颗页选箭头 —— 原版 `UI_pageSelection_arrow_anim`(ui.sc clip 4541) →
+        /// `<shape 1656>`，`ui_out` **frame_564**（38×53；该 clip 是 23 帧动画，本工程只落首帧）。
+        /// <para>原版同一帧放两次成镜像对（左 ◀ 指右 / 右 ▶ 指左），贴在选中页签格的左右沿内侧。</para>
+        /// </summary>
+        public static string NavSelectArrow { get { return UiFrame(UiIconsDir, UiSrcUi, 564); } }
 
         // ───────────────────────── 内部 ─────────────────────────
 

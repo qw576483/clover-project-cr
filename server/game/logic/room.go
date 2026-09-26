@@ -112,6 +112,9 @@ type roomState struct {
 	ended   bool
 	members []*memberState
 	decks   map[string][]int32
+	// plays 本局逐人逐卡的出牌次数（真人出牌在 roomRegistry.playCard 里累加；
+	// AI 不走这条路径 ⇒ 表里只有玩家自己出的牌）。开打时清空，结算时随战绩一起排队补记。
+	plays map[string]map[int32]int32
 
 	battle      *core.Battle
 	lastSnap    core.Snapshot
@@ -119,6 +122,12 @@ type roomState struct {
 	seed        int64
 	ticks       int64
 	ticking     bool
+
+	// entered 本局已报「进场」的座位号（客户端进战斗场景后发 MsgBattleSync）。
+	// **只增不减**：中途掉线 / 重连都不清除 ⇒ 模拟一旦推进就不会退回等待态。
+	entered map[int]bool
+	// tickArmed 本局的模拟时钟是否已放行（entered 首次凑齐真人座位时置 true，只增不减）。
+	tickArmed bool
 }
 
 // aiSeatLocked 返回 AI 的座位号（-1 = 本局没有 AI）。调用方须持锁。
@@ -129,6 +138,21 @@ func (r *roomState) aiSeatLocked() int {
 		}
 	}
 	return -1
+}
+
+// allHumansEnteredLocked 每个真人座位是否都已报进场。调用方须持锁。
+//
+// 这是对局模拟的推进闸门：客户端进图（场景加载完 + HUD 打开）之前不推进，
+// 否则服务端时钟先于玩家画面跑，对手（AI）会先出牌、先走动。
+// AI 座位不需要进图；没有真人座位（不可能出现）时视为满足。
+func (r *roomState) allHumansEnteredLocked() bool {
+	for i, m := range r.members {
+		if m.IsAI || r.entered[i] {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func (r *roomState) seatOf(playerID string) int {
@@ -197,6 +221,22 @@ type roomExport struct {
 	Decks   map[string][]int32 `json:"decks,omitempty"`
 }
 
+// matchResult 一局结算后待补记的战绩。
+//
+// 为什么要排队：结算发生在对局 tick 里（定时器 goroutine），那里没有 event.Ctx，而引擎的
+// 数据改动统一走 LoadStruct + handler 返回后自动 Commit ⇒ 结算只能把结果存下来，
+// 由玩家下一次发消息时在 loadPlayer 里补记（不丢、可查，代价是"晚一条消息落库"）。
+type matchResult struct {
+	// Win 本方是否获胜；Draw 为 true 时无意义。
+	Win bool
+	// Draw 平局（不改胜负场，但算打过一局 ⇒ 参赛场次 +1）。
+	Draw bool
+	// Crowns 本方王冠数（结算时的 CrownsA / CrownsB 按座位取，3 = 三冠）。
+	Crowns int32
+	// Plays 本局该玩家的逐卡出牌次数（空 = 本局一张都没出）。
+	Plays map[int32]int32
+}
+
 // roomRegistry 是全部房间的进程内注册表。所有方法都在自己的锁内完成，
 // 出锁后才做网络推送（推送放在锁内会把所有房间的操作串行到一条网络上）。
 type roomRegistry struct {
@@ -207,8 +247,8 @@ type roomRegistry struct {
 	version  int64
 	watchers map[string]bool
 	pushed   map[string]int64
-	// pending 结算排队：pid → 是否胜利（平局不入队，因为平局不改胜负场）。
-	pending map[string]bool
+	// pending 结算排队：pid → 待补记的局（一个玩家可能在一局还没落库前又打了一局，故按序累积）。
+	pending map[string][]matchResult
 }
 
 func newRoomRegistry() *roomRegistry {
@@ -216,7 +256,7 @@ func newRoomRegistry() *roomRegistry {
 		rooms:    make(map[string]*roomState),
 		watchers: make(map[string]bool),
 		pushed:   make(map[string]int64),
-		pending:  make(map[string]bool),
+		pending:  make(map[string][]matchResult),
 	}
 }
 
@@ -598,22 +638,22 @@ func (r *roomRegistry) importState(roomID string, state json.RawMessage) error {
 	return nil
 }
 
-// takePendingResult 取走一次待补记的战绩。
-func (r *roomRegistry) takePendingResult(playerID string) (win bool, ok bool) {
+// takePendingResults 取走全部待补记的战绩（取走后本 map 项清空）。
+func (r *roomRegistry) takePendingResults(playerID string) []matchResult {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	win, ok = r.pending[playerID]
-	if ok {
+	list := r.pending[playerID]
+	if len(list) > 0 {
 		delete(r.pending, playerID)
 	}
-	return win, ok
+	return list
 }
 
-// pushResult 结算时排队待补记的战绩（平局不入队）。
-func (r *roomRegistry) pushResult(playerID string, win bool) {
+// pushResult 结算时排队待补记的战绩（平局也入队：它不改胜负场，但要算进参赛场次）。
+func (r *roomRegistry) pushResult(playerID string, res matchResult) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.pending[playerID] = win
+	r.pending[playerID] = append(r.pending[playerID], res)
 }
 
 // playCard 出牌的统一入口（真人 / AI 都走这里，最终都落到 core 的同一个 PlayCard）。
@@ -634,7 +674,18 @@ func (r *roomRegistry) playCard(roomID, playerID string, cardID, xMilli, yMilli 
 	if st.ended {
 		return fmt.Errorf("对局已结束")
 	}
-	return st.battle.PlayCard(core.Team(seat), cardID, xMilli, yMilli)
+	if err := st.battle.PlayCard(core.Team(seat), cardID, xMilli, yMilli); err != nil {
+		return err
+	}
+	// 出牌成功才计数（被拒的牌不算"用过"）。AI 不走这里 ⇒ 统计的只是玩家自己出的牌。
+	if st.plays == nil {
+		st.plays = make(map[string]map[int32]int32)
+	}
+	if st.plays[playerID] == nil {
+		st.plays[playerID] = make(map[int32]int32)
+	}
+	st.plays[playerID][cardID]++
+	return nil
 }
 
 // surrender 玩家投降。
@@ -671,6 +722,29 @@ func (r *roomRegistry) snapshotFor(roomID, playerID string) (core.Snapshot, bool
 		return st.lastSnap, true
 	}
 	return core.Snapshot{}, false
+}
+
+// markEntered 记录某玩家已进对局场景（MsgBattleSync 的副作用）。返回是否**首次**记录该座位。
+// 房间 / 座位不存在、或对局未进行时返回 false（只影响闸门，不影响 BattleSync 本身的回包语义）。
+func (r *roomRegistry) markEntered(roomID, playerID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st := r.rooms[roomID]
+	if st == nil || st.battle == nil || st.ended {
+		return false
+	}
+	seat := st.seatOf(playerID)
+	if seat < 0 {
+		return false
+	}
+	if st.entered == nil {
+		st.entered = make(map[int]bool, maxRoomMembers)
+	}
+	if st.entered[seat] {
+		return false
+	}
+	st.entered[seat] = true
+	return true
 }
 
 // surrenderOnDisconnect 掉线判负：对局进行中把该座位判负，返回是否生效。

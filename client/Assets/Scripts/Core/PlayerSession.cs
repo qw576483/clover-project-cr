@@ -26,6 +26,39 @@ namespace CR
 
         private static string _nickname = string.Empty;
 
+        /// <summary>服务端档案里的胜场（`GetProfileReply.wins`）。<see cref="HasStats"/> 为 false 时无意义。</summary>
+        private static int _wins;
+
+        /// <summary>服务端档案里的负场（`GetProfileReply.losses`）。</summary>
+        private static int _losses;
+
+        /// <summary>参赛场次（`GetProfileReply.matches`，含平局）。</summary>
+        private static int _matches;
+
+        /// <summary>三冠胜场（`GetProfileReply.three_crown_wins`）。</summary>
+        private static int _threeCrownWins;
+
+        /// <summary>已收集卡牌数（`GetProfileReply.cards_found`）。</summary>
+        private static int _cardsFound;
+
+        /// <summary>常用卡牌 id（`GetProfileReply.favourite_card`，0 = 一张都没出过）。</summary>
+        private static int _favouriteCard;
+
+        /// <summary>常用卡牌的显示名（`GetProfileReply.favourite_card_name`，空 = 一张都没出过）。</summary>
+        private static string _favouriteCardName = string.Empty;
+
+        /// <summary>最高奖杯（`GetProfileReply.highest_trophies`；本工程无奖杯机制 ⇒ 服务端恒 0）。</summary>
+        private static int _highestTrophies;
+
+        /// <summary>累计捐赠（`GetProfileReply.cards_donated`；本工程无捐赠机制 ⇒ 服务端恒 0）。</summary>
+        private static int _cardsDonated;
+
+        /// <summary>赢得卡牌（`GetProfileReply.cards_won`；本工程无卡牌奖励机制 ⇒ 服务端恒 0）。</summary>
+        private static int _cardsWon;
+
+        /// <summary>是否已经拿到过服务端档案里的战绩（先前 Launch 残留的不算，理由同 <see cref="_bus"/>）。</summary>
+        private static bool _hasStats;
+
         /// <summary>
         /// 记下这个昵称时那条引擎总线（= "**当前会话**"的标识）。
         /// <para>
@@ -64,6 +97,118 @@ namespace CR
         }
 
         /// <summary>
+        /// 服务端档案里的胜场；<see cref="HasStats"/> 为 false 时返回 0。
+        /// <para>⚠️ 读方必须**先问 <see cref="HasStats"/>**：0 是合法战绩（一场没赢），
+        /// 「没有数据」与「一场没赢」在界面上必须能分开（否则统计行会把"缺数据"画成 0）。</para>
+        /// </summary>
+        public static int Wins
+        {
+            get { return IsCurrentRound ? _wins : 0; }
+        }
+
+        /// <inheritdoc cref="Wins"/>
+        public static int Losses
+        {
+            get { return IsCurrentRound ? _losses : 0; }
+        }
+
+        /// <summary>是否已经从服务端档案拿到过战绩（先前 Launch 残留的不算）。</summary>
+        public static bool HasStats
+        {
+            get { return IsCurrentRound && _hasStats; }
+        }
+
+        /// <inheritdoc cref="Matches"/>
+        public static int Matches
+        {
+            get { return IsCurrentRound ? _matches : 0; }
+        }
+
+        /// <inheritdoc cref="Matches"/>
+        public static int ThreeCrownWins
+        {
+            get { return IsCurrentRound ? _threeCrownWins : 0; }
+        }
+
+        /// <inheritdoc cref="Matches"/>
+        public static int CardsFound
+        {
+            get { return IsCurrentRound ? _cardsFound : 0; }
+        }
+
+        /// <inheritdoc cref="Matches"/>
+        public static int HighestTrophies
+        {
+            get { return IsCurrentRound ? _highestTrophies : 0; }
+        }
+
+        /// <inheritdoc cref="Matches"/>
+        public static int CardsDonated
+        {
+            get { return IsCurrentRound ? _cardsDonated : 0; }
+        }
+
+        /// <inheritdoc cref="Matches"/>
+        public static int CardsWon
+        {
+            get { return IsCurrentRound ? _cardsWon : 0; }
+        }
+
+        /// <summary>常用卡牌的显示名（未知 / 一张都没出过时为空串）。</summary>
+        public static string FavouriteCardName
+        {
+            get { return IsCurrentRound ? (_favouriteCardName ?? string.Empty) : string.Empty; }
+        }
+
+        /// <summary>常用卡牌 id（0 = 一张都没出过）。</summary>
+        public static int FavouriteCard
+        {
+            get { return IsCurrentRound ? _favouriteCard : 0; }
+        }
+
+        /// <summary>
+        /// 是否已经有「常用卡牌」可显示。<b>必须先问它</b>：本工程确实存在"一张牌都没出过"的
+        /// 场合（新号第一局之前）⇒ 那种情况界面显示占位符，而不是空格子。
+        /// </summary>
+        public static bool HasFavouriteCard
+        {
+            get { return IsCurrentRound && !string.IsNullOrEmpty(_favouriteCardName); }
+        }
+
+        /// <summary>
+        /// 记下服务端档案里的 8 项统计。数据出处 = 服务端 `GetProfileReply`
+        /// （服务端 `server/game/datadef/player.go` 的 `PlayerData` + 卡牌表）。
+        /// <para>
+        /// `highestTrophies` / `cardsDonated` / `cardsWon` 三项本工程没有对应机制，
+        /// 服务端恒下发 0 —— 这里照收，不做任何"补一个好看的数"的加工。
+        /// </para>
+        /// <paramref name="source"/> = 哪条回包写的（`GetProfile`），便于在日志里区分来源。
+        /// </summary>
+        public static void SetStats(int wins, int losses, int matches, int threeCrownWins,
+            int cardsFound, int favouriteCard, string favouriteCardName,
+            int highestTrophies, int cardsDonated, int cardsWon, string source)
+        {
+            _wins = wins < 0 ? 0 : wins;
+            _losses = losses < 0 ? 0 : losses;
+            _matches = matches < 0 ? 0 : matches;
+            _threeCrownWins = threeCrownWins < 0 ? 0 : threeCrownWins;
+            _cardsFound = cardsFound < 0 ? 0 : cardsFound;
+            _favouriteCard = favouriteCard < 0 ? 0 : favouriteCard;
+            _favouriteCardName = favouriteCardName ?? string.Empty;
+            _highestTrophies = highestTrophies < 0 ? 0 : highestTrophies;
+            _cardsDonated = cardsDonated < 0 ? 0 : cardsDonated;
+            _cardsWon = cardsWon < 0 ? 0 : cardsWon;
+            _hasStats = true;
+            _bus = Game.Event;   // 标记"这份战绩属于当前引擎"（见 _bus 字段）
+            Game.Logger?.Info(Tag,
+                $"服务端战绩已记下 wins={_wins} losses={_losses} matches={_matches}" +
+                $" threeCrownWins={_threeCrownWins} cardsFound={_cardsFound}" +
+                $" favouriteCard={_favouriteCard}('{_favouriteCardName}')" +
+                $" highestTrophies={_highestTrophies} cardsDonated={_cardsDonated}" +
+                $" cardsWon={_cardsWon}（来自 {source}）");
+        }
+
+        /// <summary>
         /// 记下服务端下发的昵称。`source` = 哪条回包写的（`GetProfile` / `SetNickname`），
         /// 便于在日志里区分"登录时拿到"和"创角后拿到"。
         /// 传 null / 空串表示"服务端该玩家还没创角"——那是**正常态**（随后进创角站点），
@@ -82,8 +227,19 @@ namespace CR
         public static void Clear()
         {
             _nickname = string.Empty;
-            _bus = null;         // 会话已结束：这个昵称不再属于任何一次 Launch（见 _bus 字段）
-            Game.Logger?.Info(Tag, "会话昵称已清空（登出）");
+            _wins = 0;
+            _losses = 0;
+            _matches = 0;
+            _threeCrownWins = 0;
+            _cardsFound = 0;
+            _favouriteCard = 0;
+            _favouriteCardName = string.Empty;
+            _highestTrophies = 0;
+            _cardsDonated = 0;
+            _cardsWon = 0;
+            _hasStats = false;
+            _bus = null;         // 会话已结束：这些值不再属于任何一次 Launch（见 _bus 字段）
+            Game.Logger?.Info(Tag, "会话昵称与战绩已清空（登出）");
         }
     }
 }

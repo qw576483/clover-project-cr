@@ -53,14 +53,21 @@ namespace CR.Module.Deck
         public static DeckManager Instance { get; private set; }
 
         private CardInfo[] _pool;                    // 60 张卡池（拉一次并缓存）
-        private int[] _deck = Array.Empty<int>();    // 我的卡组（服务端确认过的）
+        /// <summary>卡组号个数 = 5（界面上的 1..5 号；下标 0..4，与服务端 `logic.deckSlots` 同值）。</summary>
+        public const int DeckSlots = 5;
+
+        private int[] _deck = Array.Empty<int>();    // 当前卡组号那一套（服务端确认过的）
+        private readonly int[][] _slots = new int[DeckSlots][];   // 各卡组号的缓存（没拉到的槽 = null）
+        private int _activeSlot;                     // 服务端记的当前卡组号（0..4）
+        private int _slotReqSeq;                     // 「读某个卡组号」的请求序号：回包乱序时只认最新那条
         private bool _deckFetched;                   // 「已拉过卡组」——空卡组也是合法状态，不能用长度判
         private bool _saving;                        // 保存在途（防连点）
         private bool _notifyingDeck;                 // 重入保护：见类注释「双通道」
         private IEventBus _bus;                      // 已经订阅过的那条事件总线（判据：同一条只装一次）
 
         private Action _onOpenRequest;
-        private Action<int[]> _onChangedFromPanel;
+        private Action<DeckRef> _onChangedFromPanel;
+        private Action<int> _onSlotRequest;
         private Action<string> _onStationChanged;
 
         /// <summary>已缓存的卡池（未拉到时为 null）。</summary>
@@ -112,17 +119,20 @@ namespace CR.Module.Deck
             _bus = bus;
             _onOpenRequest = OnOpenRequest;
             _onChangedFromPanel = OnChangedFromPanel;
+            _onSlotRequest = OnSlotRequest;
             _onStationChanged = OnStationChanged;
 
             bus.On(Events.Deck.OpenRequest, _onOpenRequest);
-            bus.On<int[]>(Events.Deck.Changed, _onChangedFromPanel);
+            bus.On<DeckRef>(Events.Deck.Changed, _onChangedFromPanel);
+            bus.On<int>(Events.Deck.SlotRequest, _onSlotRequest);
 
             // 「首次进主菜单时拉一次并缓存」：主菜单是卡组数据的第一个可能入口，
             // 在这里预取 ⇒ 玩家点「卡组编辑」时面板能立刻出内容，不必先看一次转圈。
             bus.On<string>(Events.Flow.StationChanged, _onStationChanged);
 
             Game.Logger?.Info(Tag,
-                $"卡组模块已装载（订阅 Deck.OpenRequest / Deck.Changed / Flow.StationChanged，卡组张数 {DeckSize}）");
+                $"卡组模块已装载（订阅 Deck.OpenRequest / Deck.Changed / Deck.SlotRequest / Flow.StationChanged，"
+                + $"卡组张数 {DeckSize}，卡组号 {DeckSlots} 个）");
         }
 
         // ═════════════════════════ 面板请求的处理 ═════════════════════════
@@ -140,7 +150,7 @@ namespace CR.Module.Deck
             // 再触发一次真拉取：拉到后本类会再发一次同样的通知，面板据此重画（幂等）。
             Game.UI.Open<DeckEditPanel>(new DeckEditPanel.PanelArgs { MaxSelected = DeckSize });
             NotifyPool();
-            NotifyDeck(_deck);
+            NotifySlot(_activeSlot, _slots[_activeSlot]);
 
             LoadAsync();
         }
@@ -152,15 +162,88 @@ namespace CR.Module.Deck
             LoadAsync();
         }
 
-        /// <summary>面板请求保存（见类注释「双通道」）。</summary>
-        private void OnChangedFromPanel(int[] ids)
+        /// <summary>面板请求保存某个卡组号（见类注释「双通道」）。</summary>
+        private void OnChangedFromPanel(DeckRef req)
         {
             if (_notifyingDeck)
             {
                 // 这是本类自己刚发出去的通知（Emit 同步分发 ⇒ 立刻回到这里），不是面板的请求。
                 return;
             }
-            SaveDeckAsync(ids);
+            if (req == null) return;
+            SaveDeckAsync(req.ids, req.slot);
+        }
+
+        /// <summary>
+        /// 面板要某个卡组号的内容（`slot` = -1 = 当前卡组号）：**每次点卡组号都问服务端**（它是权威，
+        /// 也可能被别的端改过），回来发 <see cref="Events.Deck.SlotLoaded"/>。
+        /// <para>
+        /// 读到的是一个**满 8 张、且不是当前号**的槽时，顺手把它写成当前号（"切号即设为当前"，
+        /// 复用 `SaveDeckReq.slot`）—— 否则玩家切到 3 号进对局，拿到的仍是 1 号那套卡组。
+        /// 空号 / 不满 8 张**不放行**（对局会拿到空卡组）；写库条件与理由见方法内的注释。
+        /// </para>
+        /// </summary>
+        private async void OnSlotRequest(int slot)
+        {
+            if (Game.Net == null)
+            {
+                Fail("网络模块未挂载（漏了 CloverNet.Init？）");
+                return;
+            }
+            var want = slot < 0 ? _activeSlot : slot;
+            if (want < 0 || want >= DeckSlots)
+            {
+                // 非预期分支：面板给的卡组号越界（界面与下标口径不一致）。留痕，不回包。
+                Game.Logger?.Warn(Tag, $"卡组号请求越界 slot={slot}（面板与下标口径不一致？），已忽略");
+                return;
+            }
+
+            var seq = ++_slotReqSeq;
+            try
+            {
+                var reply = await Game.Net.Call<GetDeckReply>(MsgDef.GetDeck, new GetDeckReq { slot = want });
+                if (seq != _slotReqSeq)
+                {
+                    // 非预期分支：连点了几个卡组号 ⇒ 这条回包已经过期（内容会盖掉最新那次）。留痕并丢弃。
+                    Game.Logger?.Info(Tag, $"卡组号 {want + 1} 的回包已过期（期间又点了别的号），丢弃");
+                    return;
+                }
+                if (reply == null)
+                {
+                    Fail("拉取卡组失败（空回包）");
+                    return;
+                }
+
+                var wasActive = _activeSlot;
+                var got = ClampSlot(reply.slot);
+                var ids = reply.card_ids ?? Array.Empty<int>();
+                _deckFetched = true;
+                _activeSlot = ClampSlot(reply.active_slot);
+                _slots[got] = (int[])ids.Clone();
+                if (got == _activeSlot) _deck = (int[])ids.Clone();
+                Game.Logger?.Info(Tag, $"卡组号 {got + 1} 已就绪 {ids.Length} 张（当前号 {_activeSlot + 1}）");
+                NotifySlot(got, ids);
+
+                // 「切号即设为当前」：点到**另一个号**、且那一号是**满 8 张**的完整卡组 ⇒ 立刻把该号写成当前号
+                // （复用 SaveDeck 的 slot 语义：写哪个槽，该槽就是当前槽，见 server logic/deck.go onSaveDeck）。
+                // 规则（⛔ 别把"点一下"变成噪声）：① 点的是当前号 ⇒ 上面面板已拦掉，这里也不会到；
+                // ② 空号 / 不满 8 张 ⇒ **不放行**（否则对局会拿到空卡组，服务端 checkDeck 同样会拒）；
+                // ③ 内容与原号相同但槽位不同 ⇒ 仍写（"当前槽"确实变了，玩家看到的就是换到那一号）。
+                if (got != wasActive && ids.Length == DeckSize)
+                {
+                    Game.Logger?.Info(Tag, $"卡组号 {got + 1} 是完整卡组 ⇒ 设为当前卡组（写回该槽并同步 active_slot）");
+                    SaveDeckAsync(ids, got);
+                }
+                else if (got != wasActive)
+                {
+                    Game.Logger?.Info(Tag, $"卡组号 {got + 1} 只有 {ids.Length}/{DeckSize} 张（不完整）⇒ 不改当前卡组");
+                }
+            }
+            catch (Exception e)
+            {
+                // Call 超时 / 断线 / 服务端拒绝都以异常结束（引擎契约）。
+                Fail("拉取卡组失败：" + e.Message);
+            }
         }
 
         // ═════════════════════════ 拉取 ═════════════════════════
@@ -191,16 +274,20 @@ namespace CR.Module.Deck
 
                 if (!_deckFetched)
                 {
-                    var deckReply = await Game.Net.Call<GetDeckReply>(MsgDef.GetDeck, new GetDeckReq());
+                    // slot = -1 = 「当前使用的那一个」⇒ 一次往返就拿到内容 + 当前号（回包带 active_slot）。
+                    var deckReply = await Game.Net.Call<GetDeckReply>(MsgDef.GetDeck, new GetDeckReq { slot = -1 });
                     if (deckReply == null)
                     {
                         Fail("拉取卡组失败（空回包）");
                         return;
                     }
                     _deckFetched = true;
+                    _activeSlot = ClampSlot(deckReply.active_slot);
+                    var slot = ClampSlot(deckReply.slot);
                     _deck = deckReply.card_ids ?? Array.Empty<int>();
-                    Game.Logger?.Info(Tag, $"当前卡组已就绪 {_deck.Length} 张");
-                    NotifyDeck(_deck);
+                    _slots[slot] = (int[])_deck.Clone();
+                    Game.Logger?.Info(Tag, $"当前卡组已就绪 号={slot + 1} 当前号={_activeSlot + 1} {_deck.Length} 张");
+                    NotifySlot(slot, _deck);
                 }
             }
             catch (Exception e)
@@ -213,12 +300,19 @@ namespace CR.Module.Deck
         // ═════════════════════════ 保存 ═════════════════════════
 
         /// <summary>
-        /// 保存卡组。**客户端先校验**（8 张 / 不重复 / 都在卡池里），
+        /// 保存 `slot` 号卡组（`slot` = 0..4；保存哪个号，那个号就成为「当前卡组号」——对局与房间
+        /// 座位缓存用的都是当前号那一套）。**客户端先校验**（8 张 / 不重复 / 都在卡池里），
         /// 校验不过**一个字节都不发**，并把原因 `Emit(SaveFailed)` 交给面板显示
         /// （⛔ 不许只打日志）。
         /// </summary>
-        private async void SaveDeckAsync(int[] ids)
+        private async void SaveDeckAsync(int[] ids, int slot)
         {
+            if (slot < 0 || slot >= DeckSlots)
+            {
+                // 非预期分支：面板给的卡组号越界 ⇒ 一个字节都不发，原因交给面板显示。
+                Fail($"卡组号越界（{slot}），应在 1..{DeckSlots} 之间");
+                return;
+            }
             try
             {
                 var reason = ValidateDeck(ids);
@@ -239,7 +333,8 @@ namespace CR.Module.Deck
                 }
 
                 _saving = true;
-                var reply = await Game.Net.Call<SaveDeckReply>(MsgDef.SaveDeck, new SaveDeckReq { card_ids = ids });
+                var reply = await Game.Net.Call<SaveDeckReply>(MsgDef.SaveDeck,
+                    new SaveDeckReq { card_ids = ids, slot = slot });
                 if (reply == null || !reply.ok)
                 {
                     Fail("服务端拒绝保存：" + (reply != null && !string.IsNullOrEmpty(reply.err) ? reply.err : "空回包"));
@@ -247,9 +342,11 @@ namespace CR.Module.Deck
                 }
 
                 _deck = (int[])ids.Clone();   // 以服务端确认的结果为准（而不是面板的引用）
+                _slots[slot] = (int[])ids.Clone();
+                _activeSlot = slot;           // 服务端把保存的那个号设为当前号（见 logic/deck.go onSaveDeck）
                 _deckFetched = true;
-                Game.Logger?.Info(Tag, $"卡组已保存 {_deck.Length} 张");
-                NotifyDeck(_deck);
+                Game.Logger?.Info(Tag, $"卡组号 {slot + 1} 已保存 {_deck.Length} 张（当前号 {_activeSlot + 1}）");
+                NotifyDeck(slot, _deck);
             }
             catch (Exception e)
             {
@@ -296,19 +393,35 @@ namespace CR.Module.Deck
             Game.Event?.Emit(Events.Deck.PoolLoaded, _pool);
         }
 
-        /// <summary>当前卡组通知（见类注释「双通道」：发出后会被自己的订阅立刻收到，故置重入位）。</summary>
-        private void NotifyDeck(int[] ids)
+        /// <summary>卡组号内容的通知（面板开面板 / 点卡组号 / 保存成功后重画）。</summary>
+        private void NotifySlot(int slot, int[] ids)
+        {
+            if (slot < 0 || slot >= DeckSlots) return;
+            Game.Event?.Emit(Events.Deck.SlotLoaded, new DeckRef { slot = slot, ids = ids ?? Array.Empty<int>() });
+        }
+
+        /// <summary>保存成功的回执（见类注释「双通道」：发出后会被自己的订阅立刻收到，故置重入位）。</summary>
+        private void NotifyDeck(int slot, int[] ids)
         {
             if (ids == null) return;
             _notifyingDeck = true;
             try
             {
-                Game.Event?.Emit(Events.Deck.Changed, ids);
+                Game.Event?.Emit(Events.Deck.Changed, new DeckRef { slot = slot, ids = ids });
             }
             finally
             {
                 _notifyingDeck = false;
             }
+        }
+
+        /// <summary>把线协议 / 界面给的卡组号夹到 0..DeckSlots-1；越界留痕并兜到 1 号。</summary>
+        private static int ClampSlot(int slot)
+        {
+            if (slot >= 0 && slot < DeckSlots) return slot;
+            // 非预期分支：槽位越界（老服务端 / 下标口径不一致）。留痕，兜到 1 号。
+            Game.Logger?.Warn(Tag, $"卡组号越界 slot={slot}，按 1 号处理");
+            return 0;
         }
 
         private void Fail(string reason)

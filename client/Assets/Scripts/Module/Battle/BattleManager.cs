@@ -378,12 +378,14 @@ namespace CR.Module.Battle
 
             ApplyStart(start);
 
-            // 已经在 `Battle` 站点时（重连后服务端重推开打）：站点没变 ⇒ `AppFlow` 不会广播
-            // `StationChanged`，本类的补发也不会触发 ⇒ 这里主动补一次，让 HUD/View 拿到新配置。
+            // 已经在 `Battle` 站点时（同站点「再来一局」/ 重连后服务端重推开打）：站点没变 ⇒
+            // `AppFlow` 不会广播 `StationChanged`，本类的补发也不会触发 ⇒ 这里主动补一次，
+            // 让 HUD/View 拿到新配置，并补发一次「进场」回执（服务端的模拟推进闸门等这一条）。
             if (Game.Fsm != null && Game.Fsm.Current == Stations.Battle)
             {
                 Game.Logger?.Info(Tag, $"已在 Battle 站点，补发开打配置（重连/重推）room={start.room_id}");
                 EmitStarted();
+                _ = SyncAsync();
             }
         }
 

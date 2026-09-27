@@ -27,7 +27,7 @@ namespace CR.View
     ///   徒增状态且容易在重连/换边时漂移。音效是"手感反馈"，与请求同时发声才有原版的即时感（服务端裁决一般通过）。
     /// </item>
     /// <item>死亡 —— <c>Events.Battle.Events</c> 的 <c>kind == 2</c>（<c>EvDeath</c>）⇒ <see cref="AudioPaths.Death"/>。
-    ///   （与 <see cref="BattleViewRoot"/> 在 kind==2 播的 <c>ResPaths.EffectHit</c> 受击闪光**同源同帧**。）</item>
+    ///   （与 <see cref="BattleViewRoot"/> 在 kind==2 播的死亡特效同帧：死亡只播音效 + die 档特效。）</item>
     /// <item>命中（非致死）—— <c>Events.Battle.Snapshot</c> 里同 id 的 <c>hp</c> 下降 ⇒ <see cref="AudioPaths.Hit"/>。
     ///   （协议没有「命中」事件，见 <see cref="OnSnapshot"/>；单帧上限 4 声。）</item>
     /// <item>敌方出牌 —— 同事件 <c>kind == 0</c>（<c>EvPlayCard</c>）且 <c>team != my_team</c> ⇒ <see cref="AudioPaths.EnemySummon"/>。</item>
@@ -206,8 +206,7 @@ namespace CR.View
                 switch (e.kind)
                 {
                     case EventKindDeath:
-                        // **死亡**（与 BattleViewRoot 在 kind==2 播的受击闪光同帧）。
-                        // ⛔ 这里不再播 Hit：非致死命中走快照 hp 比对（见 OnSnapshot）。
+                        // **死亡**（与 BattleViewRoot 在 kind==2 播的死亡特效同帧；命中音另走 OnSnapshot 的 hp 比对）。
                         Play(AudioPaths.Death);
                         break;
 

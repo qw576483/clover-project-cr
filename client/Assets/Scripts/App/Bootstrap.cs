@@ -135,7 +135,7 @@ namespace CR.App
             CloverRes.Init(string.Empty);
 
             // ⑤ 配表：**本项目客户端不落地 tsv**，因此这一步是"显式声明不接入"而不是一次调用。
-            //    理由：60 张卡的名称/费用/稀有度/图集键随 `GetCardPoolReply` 从服务端下发，
+            //    理由：卡池的名称/费用/稀有度/图集键随 `GetCardPoolReply` 从服务端下发，
             //    数值的权威在服务端 `game/table`；客户端再存一份必然漂移。
             //    ⛔ 也不要写 `CloverData.InitDataTable(CloverTable.Dir)`：`CloverTable.Dir` 在
             //    `CloverTable.LoadAll` 成功之前恒为 null，传进去只会让引擎打一条 Error。

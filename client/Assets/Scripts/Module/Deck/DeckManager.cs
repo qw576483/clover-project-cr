@@ -11,7 +11,7 @@ namespace CR.Module.Deck
     /// 卡组的 C2S 门面 + 卡池缓存（卡池 / 卡组的**唯一**读写处）。
     ///
     /// <para>
-    /// <b>数据从哪来</b>：60 张卡池走 <c>MsgDef.GetCardPool</c>，我的卡组走 <c>MsgDef.GetDeck</c>，
+    /// <b>数据从哪来</b>：卡池走 <c>MsgDef.GetCardPool</c>，我的卡组走 <c>MsgDef.GetDeck</c>，
     /// 保存走 <c>MsgDef.SaveDeck</c>。⛔ 客户端**不落地 tsv**（架构契约 D8 + `Bootstrap` 第 ⑤ 步的
     /// 显式声明）：卡牌的名称 / 费用 / 稀有度随回包下发，权威在服务端 `game/table`，
     /// 客户端再存一份必然漂移。
@@ -52,7 +52,7 @@ namespace CR.Module.Deck
         /// <summary>当前实例（纯 C# 单例，跨场景存活；见类注释「谁创建本类」）。</summary>
         public static DeckManager Instance { get; private set; }
 
-        private CardInfo[] _pool;                    // 60 张卡池（拉一次并缓存）
+        private CardInfo[] _pool;                    // 卡池（拉一次并缓存，张数以服务端下发为准）
         /// <summary>卡组号个数 = 5（界面上的 1..5 号；下标 0..4，与服务端 `logic.deckSlots` 同值）。</summary>
         public const int DeckSlots = 5;
 

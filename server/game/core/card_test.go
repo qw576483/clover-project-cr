@@ -9,7 +9,7 @@ import "testing"
 // cards_stats_projectile.json `speed`), which the table chain lands in
 // 战斗单位_cs's projectile rows (kind = 3):
 //
-//	MusketeerProjectile 1000   ArcherArrow 600   AxeManProjectile 550
+//	MusketeerProjectile 1000   ArcherArrow 600   BabyDragonProjectile 500
 //
 // The table here is built inline so the assertion is hermetic and touches no
 // shared fixture.
@@ -27,15 +27,15 @@ func TestCardProjectile(t *testing.T) {
 		SpeedMilliPerSec: SpeedMilliPerSec(1000), SpeedTilesPerMinute: 1000,
 	}
 	// A projectile whose official speed is not a multiple of 3: the raw value
-	// must survive unchanged (550 -> SpeedMilliPerSec 9166 -> back to 549).
-	tbl.units["Executioner"] = &UnitDef{
-		ID: 3, Key: "Executioner", Kind: KindTroop,
+	// must survive unchanged (500 -> SpeedMilliPerSec 8333 -> back to 499).
+	tbl.units["BabyDragon"] = &UnitDef{
+		ID: 3, Key: "BabyDragon", Kind: KindTroop,
 		SpeedMilliPerSec: SpeedMilliPerSec(60), SpeedTilesPerMinute: 60,
-		ProjectileKey: "AxeManProjectile",
+		ProjectileKey: "BabyDragonProjectile",
 	}
-	tbl.units["AxeManProjectile"] = &UnitDef{
-		ID: 4, Key: "AxeManProjectile", Kind: KindProjectile,
-		SpeedMilliPerSec: SpeedMilliPerSec(550), SpeedTilesPerMinute: 550,
+	tbl.units["BabyDragonProjectile"] = &UnitDef{
+		ID: 4, Key: "BabyDragonProjectile", Kind: KindProjectile,
+		SpeedMilliPerSec: SpeedMilliPerSec(500), SpeedTilesPerMinute: 500,
 	}
 	// A group card: the bodies (Archer) are what fight, so the projectile comes
 	// off the body unit, not off the card's "落点召唤" row.
@@ -55,7 +55,7 @@ func TestCardProjectile(t *testing.T) {
 	}
 
 	tbl.cards[10] = &CardDef{ID: 10, Key: "musketeer", Kind: CardTypeTroop, UnitKey: "Musketeer", UnitN: 1}
-	tbl.cards[11] = &CardDef{ID: 11, Key: "executioner", Kind: CardTypeTroop, UnitKey: "Executioner", UnitN: 1}
+	tbl.cards[11] = &CardDef{ID: 11, Key: "baby-dragon", Kind: CardTypeTroop, UnitKey: "BabyDragon", UnitN: 1}
 	tbl.cards[12] = &CardDef{ID: 12, Key: "archers", Kind: CardTypeTroop, UnitKey: "Archer", UnitN: 2}
 	tbl.cards[13] = &CardDef{ID: 13, Key: "knight", Kind: CardTypeTroop, UnitKey: "Knight", UnitN: 1}
 	tbl.cards[14] = &CardDef{ID: 14, Key: "fireball", Kind: CardTypeSpell, Spell: &SpellDef{ID: 1, Key: "fireball"}}
@@ -67,7 +67,7 @@ func TestCardProjectile(t *testing.T) {
 		wantSpd int32
 	}{
 		{"ranged troop", 10, "MusketeerProjectile", 1000},
-		{"non-multiple-of-3 speed is exact", 11, "AxeManProjectile", 550},
+		{"non-multiple-of-3 speed is exact", 11, "BabyDragonProjectile", 500},
 		{"group card uses its body's projectile", 12, "ArcherArrow", 600},
 		{"melee troop", 13, "", 0},
 		{"spell", 14, "", 0},

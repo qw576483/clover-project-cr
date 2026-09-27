@@ -90,9 +90,8 @@ type UnitDef struct {
 	SpawnN           int32
 	SpawnRadiusMilli int32
 	// SpawnIntervalMs is the **gap between waves** (`SpawnPauseTime` in the
-	// official data: Goblin Hut 10000, Barbarian Hut 14000, Tombstone 3500,
-	// Witch 7000). Zero means a one-shot spawner, not a fast one -- see
-	// stepBuildings.
+	// official data: Witch 7000). Zero means a one-shot spawner, not a fast
+	// one -- see stepBuildings.
 	SpawnIntervalMs int32
 	// SpawnStaggerMs is the stagger **within** a wave (`SpawnInterval` in the
 	// official data; 500 ms on every hut). Wave member i lands at
@@ -104,16 +103,16 @@ type UnitDef struct {
 
 	// AoeRadiusMilli is the splash radius of an attack, hitbox-to-hitbox
 	// (参考 `cr_sim/engine/battle.py:1301-1310`). Source: 官方 `area_damage_radius`
-	// for characters (Valkyrie 2000 / Dark Prince 1100 / Mega Knight 1300) and
-	// 官方 `radius` for **projectile rows** (Wizard 1500 / Executioner 1000 /
-	// Bowler 1800 / Bomber 1500 / Princess 2000 / Fire Spirits 2300 …).
+	// for characters (Valkyrie 2000) and
+	// 官方 `radius` for **projectile rows** (Wizard 1500 / Bomber 1500 /
+	// Baby Dragon 1200 …).
 	// 0 = single target.
 	AoeRadiusMilli int32
 
 	// JumpHeightMilli is how wide a stretch of water the unit can leap over
-	// (官方 `jump_height`, 4000 for Hog Rider / Prince / Dark Prince /
-	// Battle Ram; 0 elsewhere). JumpSpeedTilesPerMinute is the horizontal speed
-	// while airborne (官方 `jump_speed`, 160 on all four).
+	// (官方 `jump_height`, 4000 for Hog Rider; 0 elsewhere).
+	// JumpSpeedTilesPerMinute is the horizontal speed
+	// while airborne (官方 `jump_speed`, 160 on Hog Rider).
 	//
 	// ⚠ CONTRACT NOTE: the frozen column list (步骤文档 §4.2) has no jump
 	// column, yet 参考规格 §5 requires the river to be crossable only at the
@@ -134,35 +133,21 @@ type UnitDef struct {
 	// (cards_stats_characters.json; 18 rows), which is not in that list either.
 	// This field is appended after the frozen columns (appending a field cannot
 	// break a named-field struct literal), and isFlyingDef below falls back to
-	// the official flyer keys so the 60-card pool behaves correctly even if the
+	// the official flyer keys so the card pool behaves correctly even if the
 	// flag is never supplied.
 	Flying bool
 }
 
 // officialFlyerKeys are the unit keys the official data marks as flying
-// (`flying_height > 0`) among this project's 60-card pool, lower-cased for
+// (`flying_height > 0`) among this project's card pool, lower-cased for
 // case-insensitive matching. Source: 原版资源/cr-api-data/docs/json/
-// cards_stats_characters.json, rows Minion 1500 / Balloon 3000 / BabyDragon
-// 3500 / LavaHound 4000 / LavaPups 3500 / MegaMinion 1500 / InfernoDragon 4000
-// / Bat 2000 (plus rows outside the 60-card pool).
+// cards_stats_characters.json, rows Minion 1500 / BabyDragon
+// 3500 (plus rows outside the card pool).
 var officialFlyerKeys = map[string]bool{
-	"minion":          true,
-	"minions":         true,
-	"minionhorde":     true,
-	"minion-horde":    true,
-	"balloon":         true,
-	"babydragon":      true,
-	"baby-dragon":     true,
-	"lavahound":       true,
-	"lava-hound":      true,
-	"lavapups":        true,
-	"mega-minion":     true,
-	"megaminion":      true,
-	"bat":             true,
-	"bats":            true,
-	"infernodragon":   true,
-	"inferno-dragon":  true,
-	"skeletonballoon": true,
+	"minion":         true,
+	"minions":        true,
+	"babydragon":     true,
+	"baby-dragon":    true,
 }
 
 // isFlyingDef reports whether a unit flies.
@@ -179,18 +164,12 @@ func isFlyingDef(def *UnitDef) bool {
 // officialJumperKeys are the unit keys the official data marks as able to jump
 // (`jump_enabled = true`) among this project's cards, lower-cased for
 // case-insensitive matching. Source: 原版资源/cr-api-data/docs/json/
-// cards_stats_characters.json -- Prince / HogRider / DarkPrince / Ram (the
-// mount of Battle Ram) all read `jump_enabled=true, jump_height=4000,
-// jump_speed=160`; every other row in the file reads false with height 0.
+// cards_stats_characters.json -- HogRider reads `jump_enabled=true,
+// jump_height=4000, jump_speed=160`; every other row in the file reads false
+// with height 0.
 var officialJumperKeys = map[string]bool{
-	"hog-rider":   true,
-	"hogrider":    true,
-	"prince":      true,
-	"dark-prince": true,
-	"darkprince":  true,
-	"battle-ram":  true,
-	"battleram":   true,
-	"ram":         true,
+	"hog-rider": true,
+	"hogrider":  true,
 }
 
 // isJumpingDef reports whether a unit can leap the river.

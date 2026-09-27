@@ -231,7 +231,7 @@ func (l *gameLogic) onSaveDeck(c event.Ctx) error {
 	//
 	//	实测（2026-09-20，两个真人同房）：
 	//	  15:03:05 加入房间成功 room=r…-3 player=p_cr_b2 deck=0
-	//	  15:03:28 保存卡组成功 player=p_cr_b2 cards=[26010001 … 26010008]
+	//	  15:03:28 保存卡组成功 player=p_cr_b2 cards=[26010001 … 26010012]
 	//	  15:03:36 开打前置校验失败 room=r…-3 player=p_cr_cli: 座位 1（）还没有 8 张卡组
 	//
 	// 同步放在保存侧（而不是开打侧去逐个 loadPlayer）的理由：① 不额外加载别的玩家档案，

@@ -345,7 +345,7 @@ func (b *Battle) castSpell(team Team, card *CardDef, x, y int32) {
 			healPerSecond: sp.HealPerSecond,
 		})
 	}
-	// 4) deploy whatever the spell delivers (Goblin Barrel, Rage's bottle...)
+	// 4) deploy whatever the spell delivers (a summoned group, per the spell row)
 	if sp.SpawnKey != "" {
 		if def, ok := b.cfg.Table.Unit(sp.SpawnKey); ok && def != nil {
 			b.spawnGroup(team, def, card.ID, x, y, sp.SpawnN, sp.SpawnRadiusMilli, def.DeployMs, 0)
@@ -502,9 +502,9 @@ func (b *Battle) resolveDeath(e *entity) {
 //
 // 出处（用户第 3 条「法师不是 aoe 攻击吗？」）：
 //   - 官方把溅射半径放在两个不同的字段里：角色表 `area_damage_radius`
-//     （女武神 2000 / 黑暗王子 1100 / 超级骑士 1300）与**投射物表 `radius`**
-//     （法师 `chr_wizardProjectile` 1500 / 屠夫 `AxeManProjectile` 1000 /
-//     滚石 `BowlerProjectile` 1800 / 炸弹兵 1500 / 公主 2000 / 火精灵 2300 …）。
+//     （女武神 2000）与**投射物表 `radius`**
+//     （法师 `chr_wizardProjectile` 1500 / 炸弹兵 `BombSkeletonProjectile` 1500 /
+//     飞龙宝宝 `BabyDragonProjectile` 1200 …）。
 //   - 参考实现 `cr_sim/engine/battle.py:1301-1310` 的溅射判定是
 //     `distance <= reach + e.collision_radius + attacker.collision_radius`
 //     （与攻击距离同一口径：算到命中盒，不算到中心点），本函数照此实现。

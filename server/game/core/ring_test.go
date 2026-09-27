@@ -15,7 +15,7 @@ import (
 //	     当成"全部放原点"；
 //	帧 2823..2826 靠引擎"互相推开"在 4 帧内散到相距 ~1.0 格（≈7 格/s，稳态 1.5 格/s 的 5 倍）
 //	  —— 观感就是"啪一下炸开"，对应判据 A1b 实测 6.58× / 6.63× 稳态；
-//	`minion-horde`（n=6，表里 radius=600，单位半径 500）落地时相邻只隔 **0.600 格**，
+//	表里 radius=600、n=6、单位半径 500 的组落地时相邻只隔 **0.600 格**，
 //	  而身体直径是 **1.000 格** ⇒ 同样是"落地即重叠"。参考实现
 //	  `cr_sim/engine/battle.py::_summon_layout` 的第三条分支正是为它准备的：
 //	  "A stated radius that cannot physically hold the group still needs packing."
@@ -33,12 +33,12 @@ func TestSummonLayoutNoCoincidence(t *testing.T) {
 		{"minions n=3 radius=0 (表里的 0 = 没填)", 3, 0, 500},
 		{"archers n=2 radius=0", 2, 0, 500},
 		{"spear-goblins n=3 radius=0", 3, 0, 500},
-		{"skeleton-army n=15 radius=0", 15, 0, 500},
-		{"minion-horde n=6 radius=600（装不下 ⇒ 必须改 pack）", 6, 600, 500},
+		{"n=15 radius=0（超大多组）", 15, 0, 500},
+		{"n=6 radius=600（装不下 ⇒ 必须改 pack）", 6, 600, 500},
 		{"barbarians n=5 radius=700（装不下 ⇒ 必须改 pack）", 5, 700, 500},
 		{"goblins n=4 radius=700（装得下 ⇒ 用原半径）", 4, 700, 500},
 		{"skeletons n=3 radius=700", 3, 700, 500},
-		{"bats n=5 radius=750", 5, 750, 500},
+		{"n=5 radius=750（装不下 ⇒ pack）", 5, 750, 500},
 	}
 	for _, c := range cases {
 		off := SummonLayout(c.count, c.radius, c.unitRadius)
@@ -89,7 +89,7 @@ func TestSummonLayoutNoOverlap(t *testing.T) {
 // TestSummonLayoutPacksWhenRadiusTooSmall —— 判据：**给定半径装不下就改 pack**，
 // 这是参考实现 `_summon_layout` 的第三条分支，也是旧实现整条漏掉的那一条。
 //
-// `minion-horde`：n=6、单位半径 500、表里 radius=600。
+// n=6、单位半径 500、表里 radius=600：
 // 环周长 2π·600 = 3769.9 < 需要 6×2×500 = 6000 ⇒ 必须 pack；
 // pack 出来的单环半径 = max(1000, 1000/(2·sin(30°))) = 1000 ⇒ 相邻弦长 = 2·1000·sin(30°) = 1000 = 直径。
 //
@@ -105,7 +105,7 @@ func TestSummonLayoutPacksWhenRadiusTooSmall(t *testing.T) {
 		}
 	}
 	if minGap < 999 {
-		t.Fatalf("minion-horde（n=6 radius=600 单位半径 500）相邻间距 %.1f < 1000 —— "+
+		t.Fatalf("n=6 radius=600 单位半径 500 相邻间距 %.1f < 1000 —— "+
 			"没有走 pack 分支 ⇒ 落地即重叠（用户看到的'苍蝇海抽搐'）", minGap)
 	}
 	// 反面对照：半径真的装得下的组必须**原样**用给的半径（不许被 pack 掉）。

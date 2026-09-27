@@ -20,15 +20,16 @@ import (
 // 出处 = 参考实现 `原版资源/cr-sim/cr_sim/train/run.py:55` 的 `DEFAULT_DECK`
 // （逐字：`"Knight", "Musketeer", "Cannon", "Skeletons", "IceSpirits", "Log", "Fireball", "Goblins"`），
 // 同一份常量也在 `cr_sim/play/server.py:46`。
-// key 的对应关系：我方配表用连字符小写，其中 `IceSpirits` → `ice-spirit`、`Log` → `the-log`
-// 是本工程的命名（其余 6 张逐字相同）。⛔ 不新增任何数值 —— 只搬参考实现点名的这 8 张。
+// key 的对应关系：我方配表用连字符小写；参考卡组里的 `IceSpirits` / `Log`
+// 不在本项目卡池，按同形状（部队→部队、法术→法术）取 `giant` / `zap` 顶替，
+// 其余 6 张逐字相同。⛔ 不新增任何数值 —— 卡池里有的按参考实现搬，缺的从卡池取同形卡。
 //
 // ★ 为什么这副卡组同时给了 D148 的答案：参考实现 `cli.py:298` 另外三副卡组
 // （`hog_cycle` / `giant_beatdown` / `golem_beatdown`）**每一副都是 6 部队/建筑 + 2 法术**
 // ⇒「AI 卡组要带法术」在参考实现里是**每一副都成立**的形状，不是本项目的自定规则。
 var aiDeckRefKeys = []string{
 	"knight", "musketeer", "cannon", "skeletons",
-	"ice-spirit", "the-log", "fireball", "goblins",
+	"giant", "zap", "fireball", "goblins",
 }
 
 // buildAIDeck 组装 AI 的卡组：按 `aiDeckRefKeys` 逐张从配表取（6 部队/建筑 + 2 法术）。

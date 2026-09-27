@@ -653,7 +653,7 @@ namespace CR.UI
         // `原版资源/sc/ui_spells_v215.sc` 的 Export 表（**95 条 export 名** → clip id → `frame_NNN` 全表）。
         // 本表 = 该表按**服务端卡池** `server/game/table/tsv/card.tsv` 的 `key` 逐行对名的结果；
         // 每行行尾注明它对应的**原版 export 名**（卡池 key 与原版内部名不同的那些，对上名的依据就在行尾）。
-        // 60 张卡池里 **59 张查得中**，唯一缺口 = `goblin-hut`（见 <see cref="CardArtFrameMissing"/>）。
+        // 全表只有 `goblin-hut` 在原版 export 里对不上名（见 <see cref="CardArtFrameMissing"/>）。
 
         /// <summary>
         /// 「已登记、但原版 `ui_spells` 的 95 条 export 里**没有**对应名」的哨兵值
@@ -756,7 +756,7 @@ namespace CR.UI
             return CardArtFrameTable.TryGetValue(cardKey, out v) && v == CardArtFrameMissing;
         }
 
-        /// <summary>表里已登记的卡 key 数（自检/日志用：卡池 60 张应当一条不少）。</summary>
+        /// <summary>表里已登记的卡 key 数（自检/日志用：卡池里每张卡都应查得到帧号）。</summary>
         public static int CardArtFrameCount { get { return CardArtFrameTable.Count; } }
 
         /// <summary>

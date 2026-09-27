@@ -240,16 +240,6 @@ namespace CR.View
         /// <summary>出牌弹道的施法者退化到国王塔中心只 Warn 一次。</summary>
         private bool _casterFallbackWarned;
 
-        // ── 命中特效：协议没有「命中」事件，只能靠逐 id 比对前后两帧快照的 `hp` ──
-        //    （同 `BattleAudioView.OnSnapshot` 的做法，见该类 `:287-320` 的类注释：`Def/ProtoDef.cs:199`
-        //     只有 0..5 六种 kind，`kind==2` 只在死亡时发 ⇒ 非致死命中没有任何事件可挂。）
-
-        /// <summary>上一帧快照里每个实体的 `hp`（`entity_id → hp`）。</summary>
-        private Dictionary<int, int> _prevHp = new Dictionary<int, int>();
-
-        /// <summary>本帧 hp 的暂存（双缓冲：比完交换，⛔ 不每帧 new Dictionary）。</summary>
-        private Dictionary<int, int> _curHp = new Dictionary<int, int>();
-
         /// <summary>上一帧快照里每个实体的 `anim`（`entity_id → anim`）—— 用来判"这一帧刚进入攻击档"。
         /// 协议里没有"开火"事件（`server/game/core/combat.go:68-73` 只在挥砍那一 tick 把 anim 置 2），
         /// 所以"战斗中开火"的唯一可得信号 = **anim 从非 2 跳到 2** 的上升沿。</summary>
@@ -258,20 +248,7 @@ namespace CR.View
         /// <summary>本帧 anim 的暂存（双缓冲）。</summary>
         private Dictionary<int, int> _curAnim = new Dictionary<int, int>();
 
-        // ── 自检计数（供 EditMode 单测 / 实机 driver 读；判据 = "每次 hp 下降 ⇒ 恰好一次命中特效"）──
-
-        /// <summary>本局观察到的"某实体 hp 下降且**未死**"次数（= 应当播出的命中特效次数）。</summary>
-        public int HpDropObserved { get { return _hpDropObserved; } }
-
-        /// <summary>本局观察到"某实体 hp 降到 ≤0"的次数（由 `EvDeath` 的闪光分支负责，不计入命中特效）。</summary>
-        public int LethalDropObserved { get { return _lethalDropObserved; } }
-
-        /// <summary>本局真的播出去的命中特效次数。</summary>
-        public int HitFxPlayed { get { return _hitFxPlayed; } }
-
-        /// <summary>本局被丢掉的命中特效次数（同屏上限 / 素材目录为空）。
-        /// <b>自检断言</b>：<c>HitFxPlayed + HitFxSkipped == HpDropObserved</c>（不成立 = 有 hp 下降没播到特效 = 判红）。</summary>
-        public int HitFxSkipped { get { return _hitFxSkipped; } }
+        // ── 自检计数（供 EditMode 单测 / 实机 driver 读）──
 
         /// <summary>本局播出的出牌落地特效次数（= 收到的 `EvSpawn` 事件里成功播出的数量）。</summary>
         public int DeployFxPlayed { get { return _deployFxPlayed; } }
@@ -309,12 +286,9 @@ namespace CR.View
         /// <summary>本局从**塔开火事件**里真的播出弹道（`proj_speed &gt; 0`）的条数。</summary>
         public int TowerShotFlights { get { return _towerShotFlights; } }
 
-        /// <summary>本局塔开火里因取不到炮口 / 无目标 / 无速度而只播枪口闪光（不播飞行段）的条数。</summary>
-        public int TowerShotMuzzles { get { return _towerShotMuzzles; } }
-
         /// <summary>
-        /// 本局塔开火里**两段都没播出去**的次数（特效层同屏上限 / 素材目录为空）。
-        /// <para><b>自检断言</b>：<c>TowerShots == TowerShotFlights + TowerShotMuzzles + TowerShotSkipped</c>
+        /// 本局塔开火里没播出弹道的次数（无目标 / 无速度 / 特效层同屏上限 / 素材目录为空）。
+        /// <para><b>自检断言</b>：<c>TowerShots == TowerShotFlights + TowerShotSkipped</c>
         /// （不成立 = 有开火事件没被任何一条路径处理 = 判红）。</para>
         /// </summary>
         public int TowerShotSkipped { get { return _towerShotSkipped; } }
@@ -332,13 +306,6 @@ namespace CR.View
         /// <summary>本局被丢弃的法术特效次数（卡池未到 / 这张法术还没接帧 / 特效层同屏上限 / 目录为空）。</summary>
         public int SpellFxSkipped { get { return _spellFxSkipped; } }
 
-        /// <summary>命中特效的逐条日志上限（超过只计数）—— ⛔ 不刷屏，但计数仍然是全量的。</summary>
-        private const int HitLogLimit = 5;
-
-        private int _hpDropObserved;
-        private int _lethalDropObserved;
-        private int _hitFxPlayed;
-        private int _hitFxSkipped;
         private int _deployFxPlayed;
 
         /// <summary>
@@ -374,7 +341,6 @@ namespace CR.View
         private int _towerActivations;
         private int _towerActivatedShown;
         private int _towerShotFlights;
-        private int _towerShotMuzzles;
         private int _towerShotSkipped;
         private int _spellCasts;
         private int _spellFxPlayed;
@@ -828,10 +794,6 @@ namespace CR.View
             _fireCardMissingWarned = false;
             _fireNoTargetWarned = false;
             _casterFallbackWarned = false;
-            _hpDropObserved = 0;
-            _lethalDropObserved = 0;
-            _hitFxPlayed = 0;
-            _hitFxSkipped = 0;
             _deployFxPlayed = 0;
             _lastDeployCardId = 0;
             _lastDeployTime = -999f;
@@ -841,7 +803,6 @@ namespace CR.View
             _towerActivations = 0;
             _towerActivatedShown = 0;
             _towerShotFlights = 0;
-            _towerShotMuzzles = 0;
             _towerShotSkipped = 0;
             _spellCasts = 0;
             _spellFxPlayed = 0;
@@ -851,8 +812,6 @@ namespace CR.View
             _towerActivateMissingWarned = false;
             _towerActivateUnmatchedWarned = false;
             _lastEntities = null;
-            _prevHp.Clear();
-            _curHp.Clear();
             _prevAnim.Clear();
             _curAnim.Clear();
             _lastShotMs.Clear();
@@ -1001,10 +960,8 @@ namespace CR.View
                 _matchRoomId = n.room_id;
                 _matchSeed = n.seed;
             }
-            // hp / anim 比对表必须清零：⛔ 不清会把上一局的 hp 与新局比对出**假命中**，
-            // 也会让上一局的 `anim==2` 与开局第一帧比出一个假"开火"（同 BattleAudioView.OnBattleStarted 的处置）。
-            _prevHp.Clear();
-            _curHp.Clear();
+            // anim 比对表必须清零：⛔ 不清会让上一局的 `anim==2` 与开局第一帧比出一个假"开火"
+            // （同 BattleAudioView.OnBattleStarted 的处置）。
             _prevAnim.Clear();
             _curAnim.Clear();
             _lastShotMs.Clear();
@@ -1055,7 +1012,7 @@ namespace CR.View
             {
                 DeployFxDir,
                 ResPaths.EffectDeathBlue, ResPaths.EffectDeathPurple, ResPaths.EffectDeathGround,
-                ResPaths.EffectHit, ResPaths.EffectBlast, ResPaths.EffectArrow,
+                ResPaths.EffectBlast, ResPaths.EffectArrow,
                 ResPaths.EffectSpell, ResPaths.EffectSpellBarrel,
             };
             for (var i = 0; i < uses.Length; i++)
@@ -1207,9 +1164,7 @@ namespace CR.View
                     case EventKindDeath:
                         // 死亡：原版 **die 档**（出处 = `ResPaths.EffectDeathBlue` 上方的块：原版 `effects_out`
                         // 的 `Death_blue` / `Death_purple` / `death_ground`）。蓝方播蓝族、红方播紫族，
-                        // 之后都跟一段地面扬尘。⛔ 不用 `Hit`（f050..f056 是命中光球，不是死亡表现）。
-                        // ⚠️ 只覆盖**致死**那一击；**非致死**命中由快照 hp 下降补播（见 OnSnapshot），
-                        // 两者互斥（非致死才走 hp 下降分支），⛔ 不会同一击播两次。
+                        // 之后都跟一段地面扬尘。只覆盖致死那一击（原版没有全局受击特效）。
                         if (_effects != null)
                         {
                             var at = GameConst.MilliToWorld(e.x_milli, e.y_milli);
@@ -1235,7 +1190,7 @@ namespace CR.View
                         break;
 
                     case EventKindTowerShoot:
-                        // 塔开火（`EvTowerShoot`）：炮口闪光 + 有速度时飞一条弹道。
+                        // 塔开火（`EvTowerShoot`）：有速度且找得到目标时飞一条弹道。
                         PlayTowerShot(e);
                         break;
 
@@ -1327,11 +1282,6 @@ namespace CR.View
         /// <summary>
         /// 从**快照**里补两类"协议没有事件"的表现（位置一律取快照自带的实体坐标，⛔ 不另编）：
         /// <list type="number">
-        /// <item><b>非致死命中</b>：逐 id 比对 `hp` 下降 ⇒ 在**受击者位置**播 `Hit` 闪光
-        ///   （做法与 <see cref="BattleAudioView.OnSnapshot"/> 同源：协议只有 0..5 六种 `kind`、
-        ///    `kind==2` 只在死亡时发 ⇒ 非致死命中没有事件可挂，见 `Def/ProtoDef.cs:199` /
-        ///    `server/game/core/snapshot.go:4-11`）。致死（hp≤0）**不在这里播** —— 那一击由
-        ///    `EvDeath` 分支负责（⛔ 同一击不许闪两次）。</item>
         /// <item><b>战斗中开火</b>：逐 id 判"是否处在攻击档"（`anim == 2`）且该卡为远程
         ///   （`CardInfo.projectile_key` 非空）⇒ 从**攻击者自己的位置**飞一条弹道。节拍 = 该单位的
         ///   `hit_speed`（`UnitAnimTable.Table[dir].HitSpeedMs`，与 `UnitView` 播攻击档用的是同一份表），
@@ -1344,34 +1294,16 @@ namespace CR.View
             var list = s.entities;
             if (list == null) return;
 
-            _curHp.Clear();
             _curAnim.Clear();
             for (var i = 0; i < list.Length; i++)
             {
                 var e = list[i];
                 if (e == null) continue;
-                _curHp[e.id] = e.hp;
                 _curAnim[e.id] = e.anim;
 
                 var world = GameConst.MilliToWorld(e.x_milli, e.y_milli);
 
-                // ① 非致死命中（hp 下降且未死）。
-                int prevHp;
-                if (_prevHp.TryGetValue(e.id, out prevHp) && e.hp < prevHp)
-                {
-                    if (e.hp > 0)
-                    {
-                        _hpDropObserved++;
-                        PlayHitFx(world, e);
-                    }
-                    else
-                    {
-                        // 致死一击：走 `EvDeath` 的闪光分支（见 OnBattleEventNotify），只在计数器上留痕。
-                        _lethalDropObserved++;
-                    }
-                }
-
-                // ② 战斗中开火（anim == 2 且到点）。
+                // 战斗中开火（anim == 2 且到点）。
                 if (e.anim != UnitAnimTable.Attack) continue;
                 if (e.deploy_ms > 0) continue;              // 部署中不攻击（服务端 `acquirable()`：entity.go:149）
 
@@ -1399,31 +1331,7 @@ namespace CR.View
                 if (!_curAnim.ContainsKey(kv.Key)) _shotPrune.Add(kv.Key);
             for (var i = 0; i < _shotPrune.Count; i++) _lastShotMs.Remove(_shotPrune[i]);
 
-            var swapHp = _prevHp; _prevHp = _curHp; _curHp = swapHp;
             var swapAnim = _prevAnim; _prevAnim = _curAnim; _curAnim = swapAnim;
-        }
-
-        /// <summary>
-        /// 在 <paramref name="world"/> 播一次 `Hit` 受击闪光。计数判据见类字段：`HitFxPlayed +
-        /// HitFxSkipped == HpDropObserved`（不成立 = 有 hp 下降没播到特效 = 判红）。
-        /// </summary>
-        private void PlayHitFx(Vector2 world, EntitySnapshot hurt)
-        {
-            if (_effects == null) return;
-            var before = _effects.SpawnedTotal;
-            _effects.Play(world, ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount, EffectsView.WorldSize);
-            if (_effects.SpawnedTotal > before)
-            {
-                _hitFxPlayed++;
-                if (_hitFxPlayed <= HitLogLimit)
-                    Game.Logger?.Info(LogTag,
-                        $"命中特效（非致死）：ent={hurt.id} team={hurt.team} hp={hurt.hp}/{hurt.max_hp} " +
-                        $"位置=({world.x:F2},{world.y:F2}) 前 n={HitLogLimit} 条逐条记录，其后只计数（本局累计={_hitFxPlayed}）");
-            }
-            else
-            {
-                _hitFxSkipped++;
-            }
         }
 
         /// <summary>
@@ -1543,7 +1451,7 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 塔开火（`EvTowerShoot` / `kind == 6`）的一次性表现：**炮口闪光 + 有速度时飞一条弹道**。
+        /// 塔开火（`EvTowerShoot` / `kind == 6`）的一次性表现：**有速度时从炮口飞一条弹道**。
         ///
         /// <para>
         /// <b>与 <see cref="PlayBattleShot"/> 的分工</b>：那条是"从快照反推单位开火"（协议没有单位开火事件，
@@ -1553,24 +1461,24 @@ namespace CR.View
         ///
         /// <para>
         /// <b>炮口怎么取</b>：优先问 <see cref="ArenaView.TryTowerMuzzle"/> —— 塔贴图里"炮塔"是**独立一层**
-        /// （`Princess` / `Turret`），用塔根坐标会把闪光画在塔底座、看起来像没开枪。取不到才退回事件自带的
+        /// （`Princess` / `Turret`），用塔根坐标会把弹道起点画在塔底座。取不到才退回事件自带的
         /// 塔根坐标（`x_milli/y_milli`，服务端 `emitTowerShoot` 填的就是塔根）并**留痕一次**。
         /// </para>
         ///
         /// <para>
         /// <b>目标怎么来</b>：事件载荷**只有塔自己**、没有目标（`Event.ProjSpeed` 的注释里写明）。
         /// 故用**最近一帧快照**近似取"该塔阵营的最近合法敌方"，口径与 <see cref="NearestEnemy"/> 完全一致。
-        /// 快照还没到（进对局第一帧就开火）⇒ 取不到目标 ⇒ 只播枪口闪光，不编造飞行方向。
+        /// 快照还没到（进对局第一帧就开火）⇒ 取不到目标 ⇒ 不编造飞行方向。
         /// </para>
         ///
         /// <para>
         /// <b>速度口径</b>：`proj_speed` 单位 = 格/分钟，同官方 `cards_stats_projectile.json` 的 `speed`
         /// ⇒ <c>飞行秒数 = 距离(格) × 60 / proj_speed</c>（与出牌弹道 / 单位开火同一口径）。
-        /// `proj_speed &lt;= 0`（该塔没有投射物或投射物表缺速度）⇒ 只播枪口闪光。
+        /// `proj_speed &lt;= 0`（该塔没有投射物或投射物表缺速度）⇒ 不播弹道。
         /// </para>
         ///
         /// <para>
-        /// <b>计数自检</b>：<c>TowerShots == TowerShotFlights + TowerShotMuzzles + TowerShotSkipped</c>
+        /// <b>计数自检</b>：<c>TowerShots == TowerShotFlights + TowerShotSkipped</c>
         /// —— 不成立 = 有开火事件没被任何一条路径处理（判红）。
         /// </para>
         /// </summary>
@@ -1594,7 +1502,7 @@ namespace CR.View
                 _towerMuzzleMissingWarned = true;
                 Game.Logger?.Warn(LogTag,
                     $"塔开火：塔 id={e.entity_id} team={e.team} 在塔视图里找不到炮口层（塔视图未建 / 坐标对不上）⇒ " +
-                    $"用事件自带的塔根坐标 ({muzzle.x:F2},{muzzle.y:F2}) 兜底（炮口闪光看起来会偏到塔底）（只报一次）");
+                    $"用事件自带的塔根坐标 ({muzzle.x:F2},{muzzle.y:F2}) 兜底（弹道起点会偏到塔底）（只报一次）");
             }
 
             // ★ 兜底：这座国王塔**正在开火**却还是"未激活"（激活事件早于塔视图建好 / 本局中途加入）
@@ -1616,13 +1524,7 @@ namespace CR.View
                 ? null
                 : NearestEnemy(_lastEntities, e.team, e.entity_id, e.x_milli, e.y_milli);
 
-            // ③ 炮口闪光：无论有没有飞行段都该有（这是"塔开了枪"的那一下）。
-            var beforeHit = _effects.SpawnedTotal;
-            _effects.Play(muzzle, ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount,
-                EffectsView.WorldSize);
-            var hitPlayed = _effects.SpawnedTotal > beforeHit;
-
-            // ④ 飞行段：只有"有速度 且 有目标 且 距离>0"三个条件齐了才飞。
+            // ③ 飞行段：只有"有速度 且 有目标 且 距离>0"三个条件齐了才飞。
             if (e.proj_speed > 0 && target != null)
             {
                 var to = GameConst.MilliToWorld(target.x_milli, target.y_milli);
@@ -1640,15 +1542,14 @@ namespace CR.View
                             $"塔开火弹道：塔 id={e.entity_id} team={e.team} 炮口=({muzzle.x:F2},{muzzle.y:F2})" +
                             $"{(fromMuzzleLayer ? "" : "（兜底：塔根）")} 飞向最近敌方 ent={target.id} " +
                             $"=({to.x:F2},{to.y:F2}) 距离={dist:F2}格 速度={e.proj_speed}格/分 飞行={seconds:F3}s " +
-                            $"本局累计：开火={_towerShots} 飞行={_towerShotFlights} 闪光={_towerShotMuzzles} 跳过={_towerShotSkipped}");
+                            $"本局累计：开火={_towerShots} 飞行={_towerShotFlights} 跳过={_towerShotSkipped}");
                         return;
                     }
                 }
             }
 
-            // ⑤ 降级：只播枪口闪光（无速度 / 无目标 / 飞行素材为空）。两段都没播 = 计入跳过。
-            if (hitPlayed) _towerShotMuzzles++;
-            else _towerShotSkipped++;
+            // ④ 降级：没播出弹道（无速度 / 无目标 / 飞行素材为空 / 特效层同屏上限）⇒ 计入跳过。
+            _towerShotSkipped++;
         }
 
         /// <summary>
@@ -1822,7 +1723,7 @@ namespace CR.View
 
             var landing = GameConst.MilliToWorld(e.x_milli, e.y_milli);
 
-            // 远程但服务端没给出速度（`core.ProjectileOf` 在投射物行缺失时返回 0）⇒ 降级为落点命中闪光。
+            // 远程但服务端没给出速度（`core.ProjectileOf` 在投射物行缺失时返回 0）⇒ 算不出飞行时长，不播。
             if (card.proj_speed <= 0)
             {
                 if (!_projSpeedMissingWarned)
@@ -1830,9 +1731,8 @@ namespace CR.View
                     _projSpeedMissingWarned = true;
                     Game.Logger?.Warn(LogTag,
                         $"远程卡 card={e.card_id}（projectile_key={card.projectile_key}）的 proj_speed={card.proj_speed}（<=0）" +
-                        "⇒ 算不出飞行时长，降级为落点播一次命中闪光（只报一次）");
+                        "⇒ 算不出飞行时长，跳过弹道（只报一次）");
                 }
-                _effects.Play(landing, ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount, EffectsView.WorldSize);
                 return;
             }
 
@@ -1841,8 +1741,7 @@ namespace CR.View
             var seconds = dist * 60f / card.proj_speed; // 格 ÷ (格/分钟 ÷ 60)
             if (seconds <= 0f)
             {
-                // 距离为 0（落点正好压在国王塔上）：没有"飞行"可言 ⇒ 退化为落点命中闪光。
-                _effects.Play(landing, ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount, EffectsView.WorldSize);
+                // 距离为 0（落点正好压在国王塔上）：没有"飞行"可言 ⇒ 不播。
                 return;
             }
 

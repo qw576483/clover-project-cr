@@ -14,8 +14,8 @@ namespace CR.View
     /// <b>对外契约（⛔ 不许改签名）</b>：<see cref="Create(Transform)"/> 建层；
     /// <see cref="Play(Vector2, string, int, int, float)"/> 定点播一段；
     /// <see cref="PlayFlight(Vector2, Vector2, string, int, int, float)"/> 从 A 飞到 B 播一段。
-    /// `use` 取 <see cref="ResPaths.EffectHit"/> 等用途目录名；`firstFrame` = 原版起始帧号
-    /// （`ResPaths.EffectHitFirst` 之类），`frameCount` = 帧数，`size` = 目标世界高度（格）。
+    /// `use` 取 <see cref="ResPaths.EffectBlast"/> 等用途目录名；`firstFrame` = 原版起始帧号
+    /// （`ResPaths.EffectBlastFirst` 之类），`frameCount` = 帧数，`size` = 目标世界高度（格）。
     /// </para>
     ///
     /// <para>

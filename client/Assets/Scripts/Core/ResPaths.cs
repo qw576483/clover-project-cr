@@ -845,20 +845,11 @@ namespace CR
         /// <summary>特效精灵根：`Sprites/Effects/`（原版解包 `effects_out`）。</summary>
         public const string EffectsRoot = SpritesRoot + "/Effects";
 
-        /// <summary>用途目录：命中 / 受击闪光。</summary>
-        public const string EffectHit = "Hit";
-
         /// <summary>用途目录：爆炸 / 塔毁。</summary>
         public const string EffectBlast = "Blast";
 
         /// <summary>用途目录：弹道 / 飞行物（原版 `projectile_arrow_basic` 那条箭矢动画）。</summary>
         public const string EffectArrow = "Arrow";
-
-        /// <summary>命中闪光起始帧（原版 f050..f056，7 帧）。</summary>
-        public const int EffectHitFirst = 50;
-
-        /// <summary>命中闪光帧数。</summary>
-        public const int EffectHitCount = 7;
 
         /// <summary>爆炸 / 塔毁起始帧（原版 f418..f427，10 帧）。</summary>
         public const int EffectBlastFirst = 418;
@@ -923,7 +914,7 @@ namespace CR
         // 素材出处：`策划/单位动画分组表.md` 的 `effects` 小节（该文件是生成物，生成器
         // `tools/probes/sc-as1-index.py`）。10 张法术**共用同一本图集** `effects_out`（612 帧），
         // 每张只用其中一段连续帧 ⇒ 落地时只拷那一段（`Effects/{Spell,SpellBarrel}/`），
-        // 与既有 `Effects/Hit`（f050..f056）等目录同一约定。
+        // 与其他特效用途目录同一约定。
         // 落地：每张法术只拷它那一段连续帧进对应用途目录（帧号见下方常量）。
 
         /// <summary>

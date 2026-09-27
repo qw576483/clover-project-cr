@@ -15,7 +15,7 @@ namespace CR.Def
         public const uint GetProfile  = 1000102;   // C2S 拉个人档案
 
         // ---- 卡池与卡组 1000201+ ----
-        public const uint GetCardPool = 1000201;   // C2S 拉 60 张卡池
+        public const uint GetCardPool = 1000201;   // C2S 拉卡池（张数以服务端下发为准）
         public const uint GetDeck     = 1000202;   // C2S 拉我的卡组
         public const uint SaveDeck    = 1000203;   // C2S 保存卡组（8 张）
 

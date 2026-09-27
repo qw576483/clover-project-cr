@@ -116,8 +116,8 @@ func TestBuildProfileReplyFillsAllEightStats(t *testing.T) {
 	if r.CardsFound != int32(ct.CardCount()) {
 		t.Fatalf("已收集卡牌应等于卡表可用卡数 %d，实际 %d", ct.CardCount(), r.CardsFound)
 	}
-	if r.CardsFound != 60 {
-		t.Fatalf("本工程卡池应为 60 张（card.tsv），实际 %d", r.CardsFound)
+	if r.CardsFound != 20 {
+		t.Fatalf("本工程卡池应为 20 张（card.tsv），实际 %d", r.CardsFound)
 	}
 	if r.Matches != 13 || r.Wins != 7 || r.Losses != 5 || r.ThreeCrownWins != 2 {
 		t.Fatalf("计数搬运有误：matches=%d wins=%d losses=%d threeCrown=%d",

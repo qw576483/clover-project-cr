@@ -24,12 +24,12 @@ func testTable(t *testing.T) *cardTable {
 	return ct
 }
 
-// TestTableAdapterResolvesEveryCard 60 张卡必须全部能适配成 core.CardDef，
+// TestTableAdapterResolvesEveryCard 卡池里每张卡必须全部能适配成 core.CardDef，
 // 且非法术卡的召唤实体必须在战斗单位表里可解析（否则含它的卡组整局开不了）。
 func TestTableAdapterResolvesEveryCard(t *testing.T) {
 	ct := testTable(t)
-	if got := ct.CardCount(); got != 60 {
-		t.Fatalf("卡池应为 60 张，实际 %d 张", got)
+	if got := ct.CardCount(); got != 20 {
+		t.Fatalf("卡池应为 20 张，实际 %d 张", got)
 	}
 	spells := 0
 	for _, row := range ct.cardRows {
@@ -132,12 +132,13 @@ func TestCheckDeckRejects(t *testing.T) {
 //
 // 出处 = `原版资源/cr-sim/cr_sim/train/run.py:55` 的 `DEFAULT_DECK`
 // （也在 `cr_sim/play/server.py:46`）：Knight, Musketeer, Cannon, Skeletons,
-// IceSpirits, Log, Fireball, Goblins —— 6 部队/建筑 + **2 法术**。
+// IceSpirits, Log, Fireball, Goblins —— 6 部队/建筑 + **2 法术**；
+// 其中 IceSpirits / Log 不在本项目卡池，按同形状取 giant / zap 顶替（见 ai.go::aiDeckRefKeys）。
 //
 // 为什么"含法术"这条断言自己也能失败（防"恒绿"）：它逐个核 `core.CardDef.Kind`，
 // 数出法术张数必须 == 2；若谁把 `aiDeckRefKeys` 改回全部队卡，这条立刻红。
 func TestAIDeckMatchesReferenceDefaultDeck(t *testing.T) {
-	const wantSpells = 2 // cr-sim train/run.py:55 DEFAULT_DECK 里的法术张数（Log + Fireball）
+	const wantSpells = 2 // DEFAULT_DECK 形状里的法术张数（zap + fireball）
 
 	ct := testTable(t)
 	deck := buildAIDeck(ct)
@@ -146,7 +147,7 @@ func TestAIDeckMatchesReferenceDefaultDeck(t *testing.T) {
 	}
 
 	// ① 逐张对上参考卡组的 key（顺序也要对 —— `DEFAULT_DECK` 是有序元组）。
-	wantKeys := []string{"knight", "musketeer", "cannon", "skeletons", "ice-spirit", "the-log", "fireball", "goblins"}
+	wantKeys := []string{"knight", "musketeer", "cannon", "skeletons", "giant", "zap", "fireball", "goblins"}
 	gotKeys := make([]string, 0, len(deck))
 	for _, id := range deck {
 		cd, ok := ct.Card(id)

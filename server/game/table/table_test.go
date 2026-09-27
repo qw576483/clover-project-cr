@@ -19,7 +19,7 @@ import (
 // loadDir 是测试的工作目录（= 本包目录 server/game/table）下的 tsv 目录。
 const loadDir = "tsv"
 
-// TestLoadAllRowCounts 三张表的行数（源表 60 / 90 / 10）与逐表加载钩子。
+// TestLoadAllRowCounts 三张表的行数（源表 20 / 90 / 10）与逐表加载钩子。
 func TestLoadAllRowCounts(t *testing.T) {
 	loaded := map[string]int{}
 	table.OnLoadedOne = func(name string, count int) { loaded[name] = count }
@@ -27,11 +27,11 @@ func TestLoadAllRowCounts(t *testing.T) {
 	if err := tbl.LoadAll(loadDir); err != nil {
 		t.Fatalf("LoadAll(%s) 失败: %v", loadDir, err)
 	}
-	if tbl.Card.Len() != 60 || tbl.Unit.Len() != 90 || tbl.Spell.Len() != 10 {
-		t.Fatalf("行数应为 60/90/10，实际 %d/%d/%d", tbl.Card.Len(), tbl.Unit.Len(), tbl.Spell.Len())
+	if tbl.Card.Len() != 20 || tbl.Unit.Len() != 90 || tbl.Spell.Len() != 10 {
+		t.Fatalf("行数应为 20/90/10，实际 %d/%d/%d", tbl.Card.Len(), tbl.Unit.Len(), tbl.Spell.Len())
 	}
-	if loaded["card"] != 60 || loaded["unit"] != 90 || loaded["spell"] != 10 {
-		t.Fatalf("逐表钩子行数应为 card=60 unit=90 spell=10，实际 %v", loaded)
+	if loaded["card"] != 20 || loaded["unit"] != 90 || loaded["spell"] != 10 {
+		t.Fatalf("逐表钩子行数应为 card=20 unit=90 spell=10，实际 %v", loaded)
 	}
 	// ★ 判据 ①：下面这些访问器在**包外**必须能写出来（中文表名时它们写不出来，
 	// 报 "cannot refer to unexported field"，反射也读不到）。

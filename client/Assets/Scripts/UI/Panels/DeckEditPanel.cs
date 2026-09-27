@@ -9,7 +9,7 @@ using UnityEngine.UI;
 namespace CR.UI.Panels
 {
     /// <summary>
-    /// 卡组编辑（`MainMenu` 站点的 Popup 子面板，架构契约 §4）：60 张卡池里选 8 张 + 保存 / 取消。
+    /// 卡组编辑（`MainMenu` 站点的 Popup 子面板，架构契约 §4）：卡池里选 8 张 + 保存 / 取消。
     ///
     /// <para>
     /// <b>依赖方向（契约 §1 硬线）</b>：本面板⛔不许 `using CR.Module` —— 它只
@@ -153,10 +153,9 @@ namespace CR.UI.Panels
         private const int VisibleRows = 2;
 
         /// <summary>
-        /// 卡池格子总数 = **60**。出处 = 服务端配表 `server/game/table/tsv/card.tsv` 的 60 行
-        /// （`策划/registry.md` 记 `card_cs = 60`）—— 与"每页几张"无关：整池一次建好、拖动滚动查看。
+        /// 卡池格子总数 = **跟随运行时卡池**（`GetCardPoolReply.cards.Length`，服务端下发几张就几张）
+        /// —— 与"每页几张"无关：整池一次建好、拖动滚动查看。
         /// </summary>
-        private const int MaxPoolCells = 60;
 
         /// <summary>已选卡组的张位（原版是 8 张）；槽位数由 <see cref="_maxSelected"/> 决定，上限 <see cref="DefaultSlotCount"/>。</summary>
         private const int DefaultSlotCount = 8;
@@ -211,11 +210,15 @@ namespace CR.UI.Panels
         /// <summary>卡阵总宽 = 4×205 + 3×49.5 = **968.5**（= A3 的三步 254.5 + 一格 205）。</summary>
         private const float GridW = Columns * CardW + (Columns - 1) * ColGap;
 
-        /// <summary>卡池**内容**总行数 = ⌈60 / 4⌉ = **15**（整池一次建好，靠拖动滚动查看）。</summary>
-        private const int PoolRows = (MaxPoolCells + Columns - 1) / Columns;
+        /// <summary>卡池**内容**总行数 = ⌈格数 / 4⌉（格数 = 运行时卡池张数，见 <see cref="BuildPoolCells"/>）。</summary>
+        private int PoolRowsFor(int cells) => (cells + Columns - 1) / Columns;
 
-        /// <summary>卡池内容总高 = 15×256 + 14×46 = **4484**（视口 798.3 ⇒ 可滚约 5.6 屏）。</summary>
-        private const float PoolContentH = PoolRows * CardH + (PoolRows - 1) * RowGap;
+        /// <summary>卡池内容总高 = 行数×256 + (行数−1)×46（视口 798.3，可滚高度随卡池规模伸缩）。</summary>
+        private float PoolContentHeightFor(int cells)
+        {
+            var rows = PoolRowsFor(cells);
+            return rows <= 0 ? 0f : rows * CardH + (rows - 1) * RowGap;
+        }
 
         // ═══════════ 整屏分带的纵向锚点（原版整屏版式的骨架） ═══════════
         //
@@ -387,8 +390,8 @@ namespace CR.UI.Panels
         /// 卡池**视口**高 = **798.3**（= <see cref="CrUiStyle.DesignH"/> − <see cref="PoolTopY"/> − <see cref="PoolBottomGap"/>）。
         /// <para>
         /// ⚠️ <b>取值</b>：高度由**剩余空间**决定（上方的页签带 / 编号行 / 卡阵 / 底行各自有自己的实测几何），
-        /// 不按行数反算。当前可见 ≈ 2.6 行（行步进 <see cref="CardStepY"/> = 302）；可滚的行数不变
-        /// （<see cref="PoolRows"/> = 15）。
+        /// 不按行数反算。当前可见 ≈ 2.6 行（行步进 <see cref="CardStepY"/> = 302）；可滚的行数
+        /// 随运行时卡池张数伸缩（见 <see cref="BuildPoolCells"/>）。
         /// </para>
         /// </summary>
         private const float PoolViewportH = CrUiStyle.DesignH - PoolTopY - PoolBottomGap;
@@ -521,7 +524,7 @@ namespace CR.UI.Panels
         private int _dragPathCheckFrame = -1;           // 拖放自检的预定帧（-1 = 没有待跑的自检，见 RequestDragPathCheck）
         private int _maxSelected;                       // 服务端卡组张数（来自 PanelArgs，见 ResolveMaxSelected）
 
-        private CardInfo[] _pool;                       // 60 张卡池（可达 null：还没拉到）
+        private CardInfo[] _pool;                       // 运行时卡池（可达 null：还没拉到）
         private readonly Dictionary<int, CardInfo> _cards = new Dictionary<int, CardInfo>();
         private readonly List<int> _selected = new List<int>();  // **当前卡组号**的编辑缓冲（按点选 / 拖放顺序）
 
@@ -532,8 +535,8 @@ namespace CR.UI.Panels
 
         private RectTransform _content;                 // 内容框（所有元素的父节点 = 整屏根）
         private ScrollRect _poolScroll;                 // 卡池滚动列表（拖动滚动取代翻页按钮）
-        private RectTransform _poolContent;             // 卡池滚动**内容**（15 行，整池一次建好）
-        private readonly List<Cell> _cells = new List<Cell>();       // 60 个卡池格（整池一次建好，只按卡池长度切 active）
+        private RectTransform _poolContent;             // 卡池滚动**内容**（行数随卡池张数伸缩）
+        private readonly List<Cell> _cells = new List<Cell>();       // 卡池格（数量跟随运行时卡池，见 BuildPoolCells）
         private readonly List<Cell> _slotCells = new List<Cell>();
 
         // 卡阵（4×2）的几何（建完就固定；拖动落位判定要用它把屏幕点换算成"第几格"，见 HitTestSlot）
@@ -559,7 +562,6 @@ namespace CR.UI.Panels
         private bool _busy;                             // 保存在途（界面侧；权威在途闸是 DeckManager._saving）
         private Button _saveButton;                     // 「保 存」按钮（在途时置 interactable=false）
         private int _lastUnknownType = int.MinValue;    // 未知类型只告警一次（记录上一次报过的值）
-        private bool _poolTooBigWarned;                 // 「卡池比预建格子多」只告警一次
 
         private Action<CardInfo[]> _onPoolLoaded;
         private Action<DeckRef> _onDeckChanged;
@@ -983,9 +985,10 @@ namespace CR.UI.Panels
         ///
         /// <para>
         /// <b>结构</b>：<c>PoolScroll</c>（<see cref="ScrollRect"/> + <see cref="RectMask2D"/>，
-        /// 高 = <see cref="PoolViewportH"/>）→ <c>PoolContent</c>（高 = <see cref="PoolContentH"/> = 15 行）
-        /// → 60 个格子。格子一次性建好（不虚拟化：60 个节点在竖版 UI 里不构成负担），
-        /// 超出卡池长度的格子切 `SetActive`。
+        /// 高 = <see cref="PoolViewportH"/>）→ <c>PoolContent</c>（高随卡池张数伸缩）
+        /// → 每张卡一个格子（不虚拟化：卡池规模在竖版 UI 里不构成负担）。
+        /// 格子在卡池到达时按 `_pool.Length` 建满（见 <see cref="BuildPoolCells"/>），
+        /// null 槽位切 `SetActive`。
         /// </para>
         /// <para>
         /// <b>为什么转发手势而不是自己搬 content</b>：<see cref="CardDragHandle"/> 在纵向占优时把
@@ -1008,7 +1011,7 @@ namespace CR.UI.Panels
             viewport.gameObject.AddComponent<RectMask2D>();
 
             _poolContent = UIFactory.CreateNode("PoolContent", viewport);
-            UIFactory.AnchoredTopLeft(_poolContent, Vector2.zero, new Vector2(GridW, PoolContentH));
+            UIFactory.AnchoredTopLeft(_poolContent, Vector2.zero, new Vector2(GridW, PoolContentHeightFor(0)));
 
             _poolScroll.viewport = viewport;
             _poolScroll.content = _poolContent;
@@ -1019,8 +1022,16 @@ namespace CR.UI.Panels
             _poolScroll.inertia = true;
             _poolScroll.decelerationRate = ScrollDeceleration;
             _poolScroll.scrollSensitivity = 1f;
+        }
 
-            for (var i = 0; i < MaxPoolCells; i++)
+        /// <summary>
+        /// 把卡池格补建到 `count` 个（数量 = 运行时卡池张数，`GetCardPoolReply` 下发几张就几张）
+        /// 并把内容框高度调成对应行数。已建的格子复用，不重建。
+        /// </summary>
+        private void BuildPoolCells(int count)
+        {
+            if (_poolContent == null || count <= _cells.Count) return;
+            for (var i = _cells.Count; i < count; i++)
             {
                 var col = i % Columns;
                 var row = i / Columns;
@@ -1028,6 +1039,7 @@ namespace CR.UI.Panels
                 var index = i;
                 _cells.Add(CreateCell($"Card{index}", _poolContent, pos, new Vector2(CardW, CardH), index, false));
             }
+            _poolContent.sizeDelta = new Vector2(GridW, PoolContentHeightFor(_cells.Count));
         }
 
         /// <summary>编号行的标签 = 原版 07 的**卡组号** 1..5。</summary>
@@ -1082,7 +1094,7 @@ namespace CR.UI.Panels
         private void OnBrowseClicked()
         {
             if (_poolScroll != null) _poolScroll.verticalNormalizedPosition = 1f;
-            SetStatus($"浏览卡牌：卡池共 {PoolRows} 行；按住上下拖动翻看，把卡拖到上面的卡阵即选入",
+            SetStatus($"浏览卡牌：卡池共 {PoolRowsFor(_pool?.Length ?? 0)} 行；按住上下拖动翻看，把卡拖到上面的卡阵即选入",
                 CrUiStyle.TextDim);
         }
 
@@ -1090,7 +1102,7 @@ namespace CR.UI.Panels
         private void OnCollectionTabClicked()
         {
             if (_poolScroll != null) _poolScroll.verticalNormalizedPosition = 1f;
-            SetStatus($"卡池（共 {PoolRows} 行）：按住上下拖动翻看，把卡拖到上面的卡阵即选入",
+            SetStatus($"卡池（共 {PoolRowsFor(_pool?.Length ?? 0)} 行）：按住上下拖动翻看，把卡拖到上面的卡阵即选入",
                 CrUiStyle.TextDim);
         }
 
@@ -1965,14 +1977,7 @@ namespace CR.UI.Panels
             }
 
             Game.Logger?.Info(Tag, $"卡池已到达 {_pool.Length} 张（登记 id {_cards.Count} 个）");
-            if (_pool.Length > _cells.Count && !_poolTooBigWarned)
-            {
-                // 非预期分支：卡池比本面板预建的格子多（协议口径是 60 张，见 registry.md 的 card_cs = 60 行）。
-                // 留痕：多出来的卡**不会显示**，否则表现为"某张卡在卡池里找不到"。
-                _poolTooBigWarned = true;
-                Game.Logger?.Warn(Tag,
-                    $"卡池 {_pool.Length} 张 > 面板预建的 {_cells.Count} 个格子，多出的卡不显示（卡池规模变了？）");
-            }
+            BuildPoolCells(_pool.Length);
             RefreshCells();
             RefreshSlots();   // 卡池到达前选中的槽位显示的是占位文案，这里补上真名
             // ⚠️ 修正（V4 取证实测 2026-09-21）：这里漏了卡池行 —— `OnOpen` 里 `RefreshPoolLabel` 跑在
@@ -2167,7 +2172,7 @@ namespace CR.UI.Panels
                 SetInteractable(cell, true);
             }
 
-            // 判据行（数值类证据 = 运行时日志行）：`D167` 残余「卡组页 RefreshCells 的 60 次主线程裁剪」
+            // 判据行（数值类证据 = 运行时日志行）：`D167` 残余「卡组页 RefreshCells 的整池主线程裁剪」
             //   到底花在哪 —— 本调用自身的耗时 + 卡面加载请求数 + 自上次调用以来**真正做完**的裁剪张数与累计 ms。
             //   ⚠️ 裁剪不在本调用栈里：`ArtCache` 未命中时它发生在 `LoadAsset` 的**异步回调**里（每帧各一张）。
             var ms = Ms(t0);

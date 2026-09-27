@@ -15,7 +15,7 @@ import (
 // **数据侧没有缺陷** ——
 //   · `server/game/table/tsv/unit.tsv` 的 `range_mt` / `radius_mt` 与官方
 //     `原版资源/cr-api-data/docs/json/*.json` 的 `range` / `collision_radius`
-//     **逐行相等**（91 个数据行，0 处不等）。PEKKA 官方 `range=1200`、
+//     **逐行相等**（91 个数据行，0 处不等）。Giant 官方 `range=1200`、
 //     `collision_radius=750`，本表同值；公主塔官方 `collision_radius=1000`，
 //     本表同值（⛔ 不是某些记录里写的 1500 —— 1500 是
 //     `KingFootprintHalfMilli` 这个**部署区**常量，不是碰撞半径）。
@@ -33,8 +33,8 @@ import (
 // 的像素宽才能判定，本测试不覆盖。
 func TestAttackRangeGapSemantics(t *testing.T) {
 	// 官方数据（出处 = cr-api-data cards_stats_characters.json / cards_stats_building.json）
-	pekka := &UnitDef{Key: "pekka", Kind: KindTroop, RangeMilli: 1200, RadiusMilli: 750,
-		AtkGround: true, HitSpeedMs: 1800}
+	giant := &UnitDef{Key: "giant", Kind: KindTroop, RangeMilli: 1200, RadiusMilli: 750,
+		AtkGround: true, HitSpeedMs: 1500}
 	knight := &UnitDef{Key: "knight", Kind: KindTroop, RangeMilli: 1200, RadiusMilli: 500,
 		AtkGround: true, HitSpeedMs: 1200}
 	princessTower := &UnitDef{Key: KeyPrincessTower, Kind: KindTower, RangeMilli: 7500, RadiusMilli: 1000}
@@ -51,23 +51,23 @@ func TestAttackRangeGapSemantics(t *testing.T) {
 		want   bool
 		why    string
 	}{
-		// PEKKA(750) vs Knight(500): 上限 = 1200+750+500 = 2450。
-		{"pekka vs knight @2449", pekka, knight, 2449, true,
+		// Giant(750) vs Knight(500): 上限 = 1200+750+500 = 2450。
+		{"giant vs knight @2449", giant, knight, 2449, true,
 			"上限内 1 milli ⇒ 命中"},
-		{"pekka vs knight @2450 上界", pekka, knight, 2450, true,
+		{"giant vs knight @2450 上界", giant, knight, 2450, true,
 			"正好等于上限 ⇒ **含上界**（参考实现 `d2 < (limit+1)^2`）"},
-		{"pekka vs knight @2451", pekka, knight, 2451, false,
+		{"giant vs knight @2451", giant, knight, 2451, false,
 			"越界 1 milli ⇒ 必须为假（负控）"},
-		// PEKKA(750) vs 公主塔(1000): 上限 = 1200+750+1000 = 2950。
-		{"pekka vs princess tower @2949", pekka, princessTower, 2949, true,
+		// Giant(750) vs 公主塔(1000): 上限 = 1200+750+1000 = 2950。
+		{"giant vs princess tower @2949", giant, princessTower, 2949, true,
 			"塔半径必须用官方的 1000，上限才是 2950"},
-		{"pekka vs princess tower @2951", pekka, princessTower, 2951, false,
+		{"giant vs princess tower @2951", giant, princessTower, 2951, false,
 			"若有人把塔半径写成 1500（KingFootprintHalfMilli 的误用），这里会翻成真 ⇒ 本行就是那条错法的负控"},
-		{"pekka vs tower @3450（旧登记算错的数）", pekka, princessTower, 3450, false,
+		{"giant vs tower @3450（旧登记算错的数）", giant, princessTower, 3450, false,
 			"3.45 格 = 旧 D141 记录里「塔半径当 1500」算出来的数，必须为假"},
-		// 公主塔(1000) 打 PEKKA：上限 = 7500+1000+750 = 9250。
-		{"princess tower vs pekka @9249", princessTower, pekka, 9249, true, "塔射程 7.5 格 + 双方半径"},
-		{"princess tower vs pekka @9251", princessTower, pekka, 9251, false, "越界 1 milli ⇒ 假（负控）"},
+		// 公主塔(1000) 打 Giant：上限 = 7500+1000+750 = 9250。
+		{"princess tower vs giant @9249", princessTower, giant, 9249, true, "塔射程 7.5 格 + 双方半径"},
+		{"princess tower vs giant @9251", princessTower, giant, 9251, false, "越界 1 milli ⇒ 假（负控）"},
 	}
 
 	for _, c := range cases {
@@ -92,7 +92,7 @@ func TestAttackRangeGapSemantics(t *testing.T) {
 	//
 	// 有鉴别力的写法：在"错上限"之外、真上限之内各取 1 个点，断言**必须判真**。
 	// 漏掉哪个半径，对应的那一点就会翻成假。
-	atk := mk(pekka, 9000, 9000)
+	atk := mk(giant, 9000, 9000)
 	if !inAttackRange(atk, mk(knight, 9000+1200+750+500, 9000)) {
 		t.Fatalf("上限算式不自洽：range+ra+rt = %d 处必须命中", 1200+750+500)
 	}
@@ -107,7 +107,7 @@ func TestAttackRangeGapSemantics(t *testing.T) {
 			1200+750+1)
 	}
 	t.Logf("range 口径钉住：centre <= range + attacker.r + target.r "+
-		"(PEKKA range=%d vs Knight r=%d ⇒ %d；vs PrincessTower r=%d ⇒ %d)",
-		pekka.RangeMilli, knight.RadiusMilli, 1200+750+500,
+		"(Giant range=%d vs Knight r=%d ⇒ %d；vs PrincessTower r=%d ⇒ %d)",
+		giant.RangeMilli, knight.RadiusMilli, 1200+750+500,
 		princessTower.RadiusMilli, 1200+750+1000)
 }

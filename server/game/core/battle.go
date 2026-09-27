@@ -331,7 +331,7 @@ func (b *Battle) stepBuildings() {
 			e.lifeMsLeft -= MSecPerTick
 			if e.lifeMsLeft <= 0 {
 				// A building that runs out of life disappears, and its death
-				// payload still fires (that is how a Tombstone works).
+				// payload still fires (same path as being destroyed by damage).
 				e.lifeMsLeft = 0
 				e.hp = 0
 				e.alive = false

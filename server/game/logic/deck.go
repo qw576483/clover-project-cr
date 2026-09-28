@@ -83,6 +83,51 @@ func slotDeck(p *datadef.PlayerData, slot int) []int32 {
 	return p.Decks[slot]
 }
 
+// pruneDecksAgainstPool 丢掉档案里已经不在卡池的卡 id（`Decks` 五个槽 + `Deck` 镜像都过一遍）。
+//
+// 为什么必须有：卡池是卡牌配表的顺带产物（`cardPool()` = 配表全部行），配表一收缩（本工程只留
+// 20 张），库里**已存**的卡组就可能指向被移除的卡 id。不清洗的后果是玩家侧看得见的：
+// 那几个槽位空白、状态行报「不在卡池里（数据异常）」、平均圣水按剩下的张数算。
+//
+// 清洗口径（最小、不替玩家做选择）：只**跳过**不在卡池的卡，槽内其余卡的顺序原样保留；
+// 卡组因此可能少于 `deckSize` 张 —— ⛔ 不补别的卡、也不改别的槽（补一张等于替玩家重新编队）。
+// 剩下几张就显示几张，玩家在编队页补满即可。
+//
+// 调用点 = `loadPlayer`（读档案的唯一入口）：引擎在 handler 返回后自动 Commit，所以
+// 只要玩家发过任意一条消息，清洗结果就回写库，下一次读到的就是干净的卡组。
+// `l.cards` 未就绪（配表还没加载）时**不清洗** —— 那时候"不在卡池"这个判断本身不成立。
+func (l *gameLogic) pruneDecksAgainstPool(p *datadef.PlayerData, pid string) {
+	if p == nil || l.cards == nil {
+		return
+	}
+	for i := 0; i < len(p.Decks); i++ {
+		p.Decks[i] = l.keepPooledCards(p.Decks[i], fmt.Sprintf("player=%s slot=%d", pid, i+1))
+	}
+	p.Deck = l.keepPooledCards(p.Deck, fmt.Sprintf("player=%s mirror", pid))
+}
+
+// keepPooledCards 保留卡池里还有的卡；`where` 只用于日志定位（哪套卡组 / 是不是 `Deck` 镜像）。
+// 一张都没丢时原样返回**入参切片**（不产生无意义的拷贝，也让调用方可以直接判等）。
+func (l *gameLogic) keepPooledCards(ids []int32, where string) []int32 {
+	if len(ids) == 0 || l.cards == nil {
+		return ids
+	}
+	kept := make([]int32, 0, len(ids))
+	var dropped []int32
+	for _, id := range ids {
+		if _, ok := l.cards.Card(id); ok {
+			kept = append(kept, id)
+			continue
+		}
+		dropped = append(dropped, id)
+	}
+	if len(dropped) == 0 {
+		return ids
+	}
+	logger.Warnf("logic: 卡组清洗 %s 丢掉不在卡池的卡 %v（%d→%d 张）", where, dropped, len(ids), len(kept))
+	return kept
+}
+
 // ensureDefaultDeck 给还没有卡组的角色落一套默认卡组（落在 1 号槽 = 下标 0，并设为当前槽）。
 //
 // 为什么必须在创角那一刻落：卡组只有 `onSaveDeck` 会写，而开局的两条路

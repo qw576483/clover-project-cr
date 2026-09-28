@@ -510,6 +510,15 @@ namespace CR.UI.Panels
         /// <summary>被拖走的那一格的卡面不透明度（半透明 = "它正在被搬走"，用户第 5 条「放卡没有卡模型 透明的那种」）。</summary>
         private const float DraggedArtAlpha = 0.35f;
 
+        /// <summary>已选中的卡面染暖金（常态 = 白 = 原图原色；这是状态表达，不是给素材加滤镜）。</summary>
+        private static readonly Color SelectedArtTint = new Color(1f, 0.93f, 0.72f, 1f);
+
+        /// <summary>
+        /// 卡组已满时**未被选中**的卡池格的置灰倍率（乘到卡面 / 名字 / 圣水 / 品质框上）。
+        /// 与 `CrUiStyle` 各按钮禁用态同一个灰（0.55）—— 不用乌黑的底色块，只压暗。
+        /// </summary>
+        private static readonly Color PoolLockedTint = new Color(0.55f, 0.55f, 0.55f, 1f);
+
         // 本面板原先自存的「卡 `key` → `ui_spells_out` 帧号」表（60 条，依据 = 原版
         // `原版资源/sc/ui_spells_v215.sc` 的 95 条 export 名 → `frame_NNN`，登记在
         // `策划/原版UI素材名称索引.md` §3.5）已**整体上收到 `CrUiStyle.CardArtFrameTable`**（唯一真源）。
@@ -590,6 +599,13 @@ namespace CR.UI.Panels
             /// 与 <see cref="Tint"/> 分开存，因为这两个状态会叠加（"已选的卡被拖起来换位"）。
             /// </summary>
             public bool Dragging;
+
+            /// <summary>
+            /// 卡池格在**卡组已满**时的置灰态：卡面 / 名字 / 圣水 / 品质框一律乘 <see cref="PoolLockedTint"/>，
+            /// 同时按钮不可点（原版口径：选满 8 张后卡池不再受理点击）。
+            /// 槽位格恒为 false（卡阵里的卡要能点、要能拖）。
+            /// </summary>
+            public bool Locked;
         }
 
         /// <summary>卡组编辑是 `MainMenu` 的子面板（架构契约 §4 ⇒ Popup 层）。</summary>
@@ -2152,6 +2168,9 @@ namespace CR.UI.Panels
         {
             var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             var count = _pool?.Length ?? 0;
+            // 卡组已满 ⇒ 未选中的卡池格置灰且不可点（原版口径：选满后卡池不再受理点击）。
+            // 已选中的格仍可点 —— 那一下的语义是「从卡组里移除」，不是「再加一张」。
+            var poolFull = _selected.Count >= _maxSelected;
             for (var i = 0; i < _cells.Count; i++)
             {
                 var cell = _cells[i];
@@ -2168,8 +2187,9 @@ namespace CR.UI.Panels
                 if (card == null) continue;
 
                 var selected = _selected.Contains(card.id);
+                cell.Locked = poolFull && !selected;
                 SetCell(cell, card, card.id, selected);
-                SetInteractable(cell, true);
+                SetInteractable(cell, !cell.Locked);
             }
 
             // 判据行（数值类证据 = 运行时日志行）：`D167` 残余「卡组页 RefreshCells 的整池主线程裁剪」
@@ -2204,13 +2224,13 @@ namespace CR.UI.Panels
         private static int _cropCountTotal;             // 进程内裁剪张数累计
         private static double _cropMsTotal;             // 进程内裁剪耗时累计（ms）
 
-        /// <summary>把卡的数据写进一个格子（名字 / 圣水 / 卡面）。已选 = 卡面染暖金色 + 名字用强调色。</summary>
+        /// <summary>把卡的数据写进一个格子（名字 / 圣水 / 卡面）。已选 = 卡面染暖金色 + 名字用强调色；置灰态再乘 <see cref="PoolLockedTint"/>。</summary>
         private void SetCell(Cell cell, CardInfo card, int cardId, bool selected)
         {
             if (cell == null) return;
 
             // 选中态：只染**卡面**（常态 = 白 = 原图原色；这是状态表达，不是给素材加滤镜）。
-            cell.Tint = selected ? new Color(1f, 0.93f, 0.72f, 1f) : Color.white;
+            cell.Tint = selected ? SelectedArtTint : LockFactor(cell);
 
             if (card == null)
             {
@@ -2218,17 +2238,18 @@ namespace CR.UI.Panels
                 return;
             }
 
+            var textColor = selected ? CrUiStyle.Accent : CrUiStyle.TextColor * LockFactor(cell);
             if (cell.Name != null)
             {
                 cell.Name.text = (selected ? "[已选] " : string.Empty) + card.name_cn;
-                cell.Name.color = selected ? CrUiStyle.Accent : CrUiStyle.TextColor;
+                cell.Name.color = textColor;
             }
             if (cell.Elixir != null)
             {
                 cell.Elixir.text = card.elixir.ToString();
                 // 卡面满铺后这些字压在**卡面**上（白字黑描边，见 `CreateCell`）⇒ 未选 = 白字；
                 // 已选 = 金色强调（原版卡面的圣水数字本身是彩色的）。
-                cell.Elixir.color = selected ? CrUiStyle.Accent : CrUiStyle.TextColor;
+                cell.Elixir.color = textColor;
             }
             if (cell.Frame != null)
             {
@@ -2241,7 +2262,7 @@ namespace CR.UI.Panels
         private void ClearCell(Cell cell, string label)
         {
             if (cell == null) return;
-            cell.Tint = Color.white;
+            cell.Tint = LockFactor(cell);
             if (cell.Name != null)
             {
                 cell.Name.text = label;
@@ -2273,6 +2294,15 @@ namespace CR.UI.Panels
             var c = cell.Tint;
             if (cell.Dragging) c.a = DraggedArtAlpha;
             cell.Art.color = c;
+        }
+
+        /// <summary>
+        /// 本格当前的**置灰倍率**：卡组已满时未被选中的卡池格 = <see cref="PoolLockedTint"/>，
+        /// 其余 = 白（乘白不改变颜色）。颜色一律走这一处乘算，⛔ 不许各处自己写灰值。
+        /// </summary>
+        private static Color LockFactor(Cell cell)
+        {
+            return cell != null && cell.Locked ? PoolLockedTint : Color.white;
         }
 
         /// <summary>
@@ -2356,6 +2386,7 @@ namespace CR.UI.Panels
             if (cell == null || cell.Frame == null) return;
             var rt = cell.Frame.rectTransform;
             var size = cell.Chassis != null ? cell.Chassis.rectTransform.sizeDelta : Vector2.zero;
+            var frameColor = RarityFrameColor(cell.Rarity) * LockFactor(cell);
 
             if (cell.Rarity >= RarityLegendary)
             {
@@ -2376,12 +2407,11 @@ namespace CR.UI.Panels
                 //（导入态 `.meta` 的 `spriteBorder` 恒为 0 ⇒ 直接设 `type = Sliced` 等于没设）。
                 // tint = 本档实测稀有度色；Dress 的异步回调会贴回**它自己收到的这个色**，不会覆盖成白。
                 if (rt != null) rt.sizeDelta = size;
-                CrUiStyle.Dress(cell.Frame, ResPaths.CardFrameOutline, 0, BorderCardFrameOutline,
-                    RarityFrameColor(cell.Rarity));
+                CrUiStyle.Dress(cell.Frame, ResPaths.CardFrameOutline, 0, BorderCardFrameOutline, frameColor);
             }
 
             cell.Frame.gameObject.SetActive(true);
-            cell.Frame.color = RarityFrameColor(cell.Rarity);
+            cell.Frame.color = frameColor;
         }
 
         /// <summary>
@@ -2516,7 +2546,7 @@ namespace CR.UI.Panels
         }
 
         /// <summary>
-        /// 设置格子可点性（空槽位不可点；已选的格可点 = 移除）。
+        /// 设置格子可点性（空槽位不可点；已选的格可点 = 移除；卡组已满时未选中的卡池格不可点）。
         /// 色态由 Button 的四态负责，⛔ 本方法不碰 `Image.color`；禁用态**不染暗**（`CreateCell` 把
         /// `disabledColor` 设成白）⇒ 空槽位露出的仍是原版白卡底 `ui_out` 43。
         /// </summary>

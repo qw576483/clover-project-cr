@@ -79,6 +79,8 @@ func (l *gameLogic) loadPlayer(c event.Ctx, pid string) (*datadef.PlayerData, er
 		logger.Infof("logic: 补记战绩 player=%s win=%v draw=%v crowns=%d plays=%v matches=%d wins=%d losses=%d threeCrown=%d",
 			pid, r.Win, r.Draw, r.Crowns, r.Plays, p.Matches, p.Wins, p.Losses, p.ThreeCrownWins)
 	}
+	// 卡组里不在卡池的卡在这里丢掉（读档案的唯一入口 ⇒ 房间 / 对局 / 编队页看到的都是清洗过的卡组）。
+	l.pruneDecksAgainstPool(&p, pid)
 	return &p, nil
 }
 

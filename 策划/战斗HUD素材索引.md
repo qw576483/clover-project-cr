@@ -251,7 +251,7 @@ Export 表 = 显式 (名字, ClipID) 数组
 ### 5.5 结论：有没有比 `.sc` 更「成套」的 HUD 来源？
 
 - **游戏内 HUD 图元：没有。** `.sc` 的 Export 表 + `0c` 子元件名**就是原版自己的命名**，已是天花板。
-- 有语义命名的第三方素材只覆盖少数题材（`fan_kit/ui/` 的 13 个统计图标 + `crowns.png`、`ui/ui/chest-*.png`、
+-有语义命名的第三方素材只覆盖少数题材（`fan_kit/ui/` 的 13 个统计图标 +、`ui/ui/chest-*.png`
   `ui/leagues/league-*.png`，见上一片 §4.4），**替代不了** HUD 的条 / 槽 / 按钮 / 计时板。
 - ⇒ 本片结论：**针对战斗 HUD，已穷尽，无更优来源**；且**不必再用兜底素材**（原版素材已拿到）。
 
@@ -262,7 +262,7 @@ Export 表 = 显式 (名字, ClipID) 数组
 | 检查 | 命令 | 结果 |
 |---|---|---|
 | 落地文件存在 | `Test-Path client/Assets/Resources/Sprites/Ui/{Bars,Slots,Icons,Panels,Buttons}/ui_out/frame_NNN.png`（17 项） | **17/17 True**（含 `.meta` 也 17/17 True） |
-| 落地像素 = 原版像素 | `aa2-land.py` 写盘后回读比对 `crop.tobytes()` + `size` | **mismatch = 0** |
+| 落地像素 = 原版像素 | 写盘后回读比对 `crop.tobytes` + `size` | **mismatch = 0** |
 | 落地键账（b） | `powershell -NoProfile -ExecutionPolicy Bypass -File tools/probes/check-ui-keys.ps1` | `FAIL=2 keys=65 landed=84`（**基线 67 → 84**，FAIL 数与片前相同；原因见 §4 登记） |
 | 索引文档存在 | `Test-Path 策划/战斗HUD素材索引.md` | True |
 | 临时产物位置 | `Get-ChildItem client/_dev, tools, Assets -Filter *AA2*` | 0 命中（全部在 `.ai-tmp/test/`、`.ai-tmp/screenshots/`） |

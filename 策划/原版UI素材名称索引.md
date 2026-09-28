@@ -1947,7 +1947,7 @@ frame_NNN.png   ==   <dir>_sprite_NNN.png   ==   .sc 里第 NNN 条 `12` 记录�
 | 3 | `supercell sc file format animation block 0c 08 parser`（EN） | GitHub raw（参考实现）+ 本地工具 | ✔ `tools/probes/sc-anim-index.py` + `.ai-tmp/test/scdfull/sc_decode.py` 可直接解 `12`/`0c`；`0b` 无实现 ⇒ 坐标登记未解出 |
 | 4 | `clash royale 2.1.5 apk assets sc ui`（EN） | GitHub raw 单文件 | ✔ **命中**：2.1.5 的 `.sc` 与 `cr-assets-png/*_out` 指纹 100% 吻合 ⇒ 本片权威来源 |
 | 5 | `皇室战争 sc 解包 UI 图集 命名 索引`（CN） | 中文站 / 搜索引擎 | ⚠️ 本机无 web 搜索工具（宿主只给了本地检索 + curl），中文轮无法执行 ⇒ **如实登记为「未执行」** |
-| 6 | `皇室战争 官方 FanKit UI 组件包`（CN/EN） | GitHub 仓库树页（`fan_kit/`、`cr-fankit-official`） | ✔ 存在 `fan_kit/ui/`：`crowns.png` + `icons_stats_*.png`（13 个**语义命名**图标）；`ui/ui/chest-*.png`（9 种宝箱）、`ui/leagues/league-*.png`（9 个段位）—— 但**不含游戏内的 9-slice 面板/按钮** |
+| 6 | `皇室战争 官方 FanKit UI 组件包`（CN/EN） | GitHub 仓库树页（`fan_kit/`、`cr-fankit-official`） | ✔ 存在 `fan_kit/ui/`： + `icons_stats_*.png`（13 个**语义命名**图标）；`ui/ui/chest-*.png`（9 种宝箱）、`ui/leagues/league-*.png`（9 个段位）—— 但**不含游戏内的 9-slice 面板/按钮** |
 | 7 | `clash royale sprite atlas plist json index ui`（EN） | GitHub 仓库树页（`ui/ui_trim*`、`ui/chests/`、`ui/arenas/`） | ⚠️ `ui/ui_trim_215/` = 2.1.5 `ui_out` 的**裁剪版**（仍只有 `ui_sprite_NNN` 编号，**没有语义名**）⇒ 无更优来源 |
 | 8 | `clash royale assets sc hash file`（EN） | GitHub 仓库树页（`.hash` 文件） | ⚠️ `res/sc/` 里 26 个 `.hash` 只是校验/索引哈希串，**不含名称** |
 

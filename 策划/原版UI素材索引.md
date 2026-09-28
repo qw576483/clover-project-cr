@@ -6,7 +6,7 @@
 
 **尺寸口径**：`原始尺寸(画布)` = PNG 自身像素（同目录内大多相同，因为图元都躺在一张大透明画布上）；`图元尺寸(bbox)` = 非透明像素包围盒，是**真正要用的那块**的像素尺寸。
 
-**可重生成**：`python tools/probes/build-ui-index.py`（读 manifest 识别笔记）。
+**可重生成**：**不可** —— `tools/probes/build-ui-index.py` 需要两份输入：`ui-index-manifest.tsv`（在盘）**和**「逐页人眼标注」`t4-desc-*.tsv`（**未在盘**，已随一次性产物清理删除，且不可由脚本重建）；同时本表**第一列引用的联络图未在盘**（`.ai-tmp/screenshots/<目录>_pNN_fXXX-YYY.png`）⇒ 该列已清空。要恢复需重跑一次 Play 会话的 `tools/probes/ui-index.ps1`（重出联络图）**并**重做人眼标注。
 
 **「帧号 → 动画档位 / UI 元素名」元数据**：**已确认无**。
 `<项目根>/原版资源/cr-assets-png/` 整棵树里**非 PNG 文件只有 1 个**（`README.md`，内容 = 自述「本目录由 `find ... -name '*.png' | cpio -pdm .` 从 APK 的 `assets/` 直出」），**没有任何 README/json/txt 索引**：既没有「帧号 ↔ idle/walk/attack/die」，也没有「帧号 ↔ UI 元素名」。

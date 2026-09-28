@@ -1153,11 +1153,15 @@ namespace CR.View
         /// <summary>全项目共用的目录仓实例（引擎件在主线程使用，非线程安全）。</summary>
         private static readonly FrameBank Bank = new FrameBank(null, FallbackPixelsPerUnit);
 
+        /// <summary>上一次**取成功**的帧（键 = 锚点模式 + 目录）；见 <see cref="LoadDir(string, SpritePivotMode)"/>。</summary>
+        private static readonly Dictionary<string, Sprite[]> LastGood =
+            new Dictionary<string, Sprite[]>(System.StringComparer.Ordinal);
+
         /// <summary>取某目录下**全部**帧（同步），按帧号升序排；锚点按导入设置原样。</summary>
         /// <returns>帧数组（长度 0 = 该目录没有可用资源；⛔ 不返回 null）。</returns>
         public static Sprite[] LoadDir(string path)
         {
-            return Bank.LoadDir(path);
+            return LoadDir(path, SpritePivotMode.AsImported);
         }
 
         /// <summary>取某目录下**全部**帧（同步），按帧号升序排，并按 <paramref name="mode"/> 决定锚点。</summary>
@@ -1166,7 +1170,34 @@ namespace CR.View
         /// <returns>帧数组（长度 0 = 该目录没有可用资源；⛔ 不返回 null）。</returns>
         public static Sprite[] LoadDir(string path, SpritePivotMode mode)
         {
-            return Bank.LoadDir(path, (FrameBank.PivotMode)(int)mode);
+            var frames = Bank.LoadDir(path, (FrameBank.PivotMode)(int)mode);
+            var key = CacheKey(mode, path);
+            if (frames != null && frames.Length > 0)
+            {
+                LastGood[key] = frames;
+                return frames;
+            }
+
+            // 引擎把「本帧取不到」的**空数组**也写进了它自己的缓存（`FrameBank.LoadDir` 的缓存有效性检查
+            // 把长度 0 当成有效条目）⇒ 同一目录此后**不再重试**。于是一次短时取不到（引擎重启之间的
+            // `Game.Res` 为空、编辑器正在重导入这批资产）会让该目录在本次进程内**永久**取不到 ——
+            // 表现 = 落地 / 命中 / 弹道特效整段静默消失，零报错。
+            // 处置：本目录此前取成功过就沿用那一份（⛔ 不把空数组交给调用方）。
+            Sprite[] good;
+            if (LastGood.TryGetValue(key, out good) && good != null && good.Length > 0 && good[0] != null)
+            {
+                LogThrottle.WarnOnce(LogTag, "LoadDir.LastGood/" + key,
+                    $"整目录取帧本次为空（引擎已把这一空结果缓存下来 ⇒ 不会自己重试）：dir={path} 模式={mode}" +
+                    $" ⇒ 沿用本目录**上一次取成功**的 {good.Length} 帧（特效不会静默不播）");
+                return good;
+            }
+            return frames;
+        }
+
+        /// <summary><see cref="LastGood"/> 的键（锚点模式 + 目录，两个模式各存一份）。</summary>
+        private static string CacheKey(SpritePivotMode mode, string path)
+        {
+            return ((int)mode).ToString() + "|" + (path ?? string.Empty);
         }
 
         /// <summary>精灵目录已缓存的帧（`AsImported` 模式；调试 / 自检用）。没缓存过返回空数组（⛔ 不触发加载）。</summary>
@@ -1209,6 +1240,7 @@ namespace CR.View
         public static void ClearCache()
         {
             Bank.Clear();
+            LastGood.Clear();
             UnitView.ClearClipCache();
         }
 

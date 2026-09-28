@@ -30,27 +30,27 @@
 
 | 联络图 | 帧号区间 | 格数 |
 |---|---|---|
-| `loading_out_p01_f000-033.png` | 000–033 | `加载 / 启动画面图集（`loading_out`）` |
-| `tutorial_out_p01_f000-020.png` | 000–020 | `新手引导图集（`tutorial_out`）` |
-| `ui_arena_out_p01_f000-099.png` | 000–099 | `竞技场 / 段位 UI 图集（`ui_arena_out`）` |
-| `ui_arena_out_p02_f100-153.png` | 100–153 | `竞技场 / 段位 UI 图集（`ui_arena_out`）` |
-| `ui_battle_end_out_p01_f000-099.png` | 000–099 | `战斗结算 UI 图集（`ui_battle_end_out`）` |
-| `ui_battle_end_out_p02_f100-199.png` | 100–199 | `战斗结算 UI 图集（`ui_battle_end_out`）` |
-| `ui_battle_end_out_p03_f200-239.png` | 200–239 | `战斗结算 UI 图集（`ui_battle_end_out`）` |
-| `ui_chest_out_p01_f000-099.png` | 000–099 | `宝箱开箱 UI 图集（`ui_chest_out`）` |
-| `ui_chest_out_p02_f100-199.png` | 100–199 | `宝箱开箱 UI 图集（`ui_chest_out`）` |
-| `ui_chest_out_p03_f200-267.png` | 200–267 | `宝箱开箱 UI 图集（`ui_chest_out`）` |
-| `ui_out_p01_f000-099.png` | 000–099 | `通用 UI 图集（`ui_out`）` |
-| `ui_out_p02_f100-199.png` | 100–199 | `通用 UI 图集（`ui_out`）` |
-| `ui_out_p03_f200-299.png` | 200–299 | `通用 UI 图集（`ui_out`）` |
-| `ui_out_p04_f300-399.png` | 300–399 | `通用 UI 图集（`ui_out`）` |
-| `ui_out_p05_f400-499.png` | 400–499 | `通用 UI 图集（`ui_out`）` |
-| `ui_out_p06_f500-599.png` | 500–599 | `通用 UI 图集（`ui_out`）` |
-| `ui_out_p07_f600-699.png` | 600–699 | `通用 UI 图集（`ui_out`）` |
-| `ui_out_p08_f700-799.png` | 700–799 | `通用 UI 图集（`ui_out`）` |
-| `ui_out_p09_f800-899.png` | 800–899 | `通用 UI 图集（`ui_out`）` |
-| `ui_out_p10_f900-913.png` | 900–913 | `通用 UI 图集（`ui_out`）` |
-| `ui_spells_out_p01_f000-091.png` | 000–091 | `法术卡面（`ui_spells_out`）` |
+| | 000–033 | `加载 / 启动画面图集（`loading_out`）` |
+| | 000–020 | `新手引导图集（`tutorial_out`）` |
+| | 000–099 | `竞技场 / 段位 UI 图集（`ui_arena_out`）` |
+| | 100–153 | `竞技场 / 段位 UI 图集（`ui_arena_out`）` |
+| | 000–099 | `战斗结算 UI 图集（`ui_battle_end_out`）` |
+| | 100–199 | `战斗结算 UI 图集（`ui_battle_end_out`）` |
+| | 200–239 | `战斗结算 UI 图集（`ui_battle_end_out`）` |
+| | 000–099 | `宝箱开箱 UI 图集（`ui_chest_out`）` |
+| | 100–199 | `宝箱开箱 UI 图集（`ui_chest_out`）` |
+| | 200–267 | `宝箱开箱 UI 图集（`ui_chest_out`）` |
+| | 000–099 | `通用 UI 图集（`ui_out`）` |
+| | 100–199 | `通用 UI 图集（`ui_out`）` |
+| | 200–299 | `通用 UI 图集（`ui_out`）` |
+| | 300–399 | `通用 UI 图集（`ui_out`）` |
+| | 400–499 | `通用 UI 图集（`ui_out`）` |
+| | 500–599 | `通用 UI 图集（`ui_out`）` |
+| | 600–699 | `通用 UI 图集（`ui_out`）` |
+| | 700–799 | `通用 UI 图集（`ui_out`）` |
+| | 800–899 | `通用 UI 图集（`ui_out`）` |
+| | 900–913 | `通用 UI 图集（`ui_out`）` |
+| | 000–091 | `法术卡面（`ui_spells_out`）` |
 | **合计 21 张** | — | — |
 
 ## 3. 未识别帧清单（形状无明确语义 / 联络图上太小看不清 ⇒ 如实登记，⛔ 不猜）

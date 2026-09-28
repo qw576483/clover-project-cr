@@ -18,7 +18,7 @@ namespace CR.Module.Battle
     /// </para>
     ///
     /// <para>
-    /// <b>逐条对应已冻结协议</b>（`docs/步骤文档.md` §4.1，消息号一律走 <see cref="MsgDef"/>，
+    /// <b>逐条对应已冻结协议</b>（消息号一律走 <see cref="MsgDef"/>，
     /// ⛔ 不许出现裸消息号）：
     /// C2S = <c>BattlePlayCard</c> / <c>BattleSurrender</c> / <c>BattleSync</c>；
     /// 推送 = <c>PushBattleStart</c> / <c>PushBattleSnapshot</c> / <c>PushBattleEvent</c> / <c>PushBattleEnd</c>。

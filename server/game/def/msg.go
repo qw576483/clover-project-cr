@@ -1,13 +1,12 @@
 // Package def 是本项目**服务端唯一的消息号与协议定义处**（无业务逻辑、无引擎依赖）。
 //
-// 契约出处：docs/步骤文档.md §4.1（★ 唯一依据，不许私自改）。
 // 客户端镜像：client/Assets/Scripts/Def/MsgDef.cs + ProtoDef.cs（两端同名同值、同一批改动）。
 //
 // 铁律：
 //   - 业务消息号必须 >= 10001（引擎占 [1,10000]，启动期统一校验，误用 panic）；
 //   - **回包不占消息号**：引擎按 requestID 配对，回包帧 msgID 恒为 0，
 //     所以这里**只定义回包结构体**，绝不给 Reply 定义常量；
-//   - JSON tag 一律 snake_case，字段名与 docs/步骤文档.md §4.1 逐字一致。
+//   - JSON tag 一律 snake_case，字段名与客户端 Def/{MsgDef.cs,ProtoDef.cs} 逐字一致。
 package def
 
 // C2S（客户端 → 服务端）消息号。

@@ -26,7 +26,7 @@ var errNotLoggedIn = errors.New("未登录")
 
 // playerIDOf 返回本次请求的角色 ID，必要时把它绑定到连接上。
 //
-// 为什么由账号派生：冻结契约（docs/步骤文档.md §4.1）里**没有**创角报文
+// 为什么由账号派生：已冻结的协议里**没有**创角报文
 // （只有 MsgSetNickname），而引擎的 Ctx.PlayerID 是「创角 / 进入游戏后才有值」的
 // —— 不绑定的话 PlayerSchema（OwnerType=OwnerPlayer）会以空 ID 为键，
 // 所有玩家的昵称 / 卡组 / 战绩会互相串（典型的静默失败）。

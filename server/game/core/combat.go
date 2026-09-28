@@ -165,7 +165,7 @@ type projectile struct {
 // place instead of being silently dropped: core has no logger,
 // and losing the damage would be a much worse failure than losing the travel
 // time. Every projectile key in the 60-card pool resolves, because
-// 战斗单位_cs carries the projectile rows (步骤文档 §4.2).
+// 战斗单位_cs carries the projectile rows.
 func (b *Battle) fireProjectile(src *entity, target *entity, damage int32) {
 	if src == nil || target == nil || !target.alive {
 		return

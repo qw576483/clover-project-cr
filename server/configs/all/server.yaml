@@ -2,7 +2,7 @@
 #
 # 字段为**平铺结构**（如 gateway.listen_tcp，而非 gateway.tcp.addr）。
 # 模板出处：clover-engine skill 的 scaffold/new-project.md §1.3（最小可用集）。
-# 本项目特化项（出入见 docs/agents/agent-01-server-skeleton.md §4.3）：
+# 本项目特化项：
 #   - gateway 三个监听口 + enable_wt
 #   - logic.listen_addr / auth.listen / auth.verify_addr
 #   - gateway.reconnect_grace: 30s / disconnect_grace: 10s（对局断线重连）
@@ -82,7 +82,7 @@ nats:
   #   `if co.notifyPub == nil { return nil }` —— notifyPub 为 nil 时**所有 Push* 静默返回 nil**
   #   （不报错、不打日志）。后果：PushRoomList / PushRoomState / PushBattleStart /
   #   PushBattleSnapshot / PushBattleEvent / PushBattleEnd 全部发不出去，客户端进对局必然黑屏。
-  #   实测出处：agent-03 端到端（补上这一行后 35 条断言全 PASS；不补则只收到 0 条推送）。
+  #   补上这一行后 35 条断言全 PASS；不补则只收到 0 条推送。
   addr: "127.0.0.1:4222"
 nats_subject: "clover.notify"
 

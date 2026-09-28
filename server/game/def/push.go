@@ -1,6 +1,6 @@
 package def
 
-// 推送消息号 + 推送体。契约出处：docs/步骤文档.md §4.1。
+// 推送消息号 + 推送体。
 //
 // 段位：3002001 起（房间列表 / 房间状态 / 开打 / 快照 / 事件 / 结算）。
 // **推送消息号必须定义常量**（与回包不同：回包不占消息号）。
@@ -36,8 +36,7 @@ type RoomStateNotify struct {
 
 // BattleStartNotify 开打：对局配置。
 //
-// 与 docs/步骤文档.md §4.1 的载荷一并对齐：该表列了 `server_ms`，
-// 故本结构体保留之（docs/步骤文档.md §4.1 给出的字段全部在内，未删未改名）。
+// 载荷含 `server_ms`，本结构体保留该字段；字段全集，未删未改名。
 type BattleStartNotify struct {
 	RoomID   string         `json:"room_id"`
 	Seed     int64          `json:"seed"`

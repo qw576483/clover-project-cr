@@ -1,7 +1,7 @@
 package def
 
 // 本文件放**跨请求 / 推送共享**的协议类型（快照、时间线、房间信息等）。
-// 字段名与 docs/步骤文档.md §4.1 逐字一致；`BattleSnapshot` 与 `BattleStartNotify`
+// 字段名与客户端 `Def/{MsgDef.cs,ProtoDef.cs}` 逐字一致；`BattleSnapshot` 与 `BattleStartNotify`
 // 的字段与 `core.Snapshot` 对齐。
 
 // TowerState 一座塔的状态。
@@ -102,8 +102,7 @@ type RoomMember struct {
 // CardInfo 卡池里的一张卡（GetCardPoolReply.cards 的元素）。
 //
 // 字段取自配表 `卡牌_cs`（server/game/table），服务端下发后客户端可直接渲染卡池。
-// 出处：docs/步骤文档.md §4.1 的 `GetCardPoolReply{cards[]}`（元素结构草案未在该表给出，
-// 本文件按下发给客户端所需的最小集确定）。
+// 出处：`GetCardPoolReply{cards[]}`（元素结构按下发给客户端所需的最小集确定）。
 type CardInfo struct {
 	ID     int32  `json:"id"`
 	Key    string `json:"key"`

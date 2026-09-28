@@ -687,7 +687,7 @@ namespace CR.Module.Flow
             // 房间站点（`RoomPanel`）属 `Module/Room`：本类不引它的类型，
             // 只把站点切好并广播 —— 那边的模块订阅 `Events.Flow.StationChanged` 后自己开面板。
             Game.UI?.CloseAll();
-            Game.Logger?.Info(Tag, "已进入 Room 站点（RoomPanel 由 agent-06 的 Module/Room 负责打开）");
+            Game.Logger?.Info(Tag, "已进入 Room 站点（RoomPanel 由 Module/Room 负责打开）");
         }
 
         private void EnterBattle()
@@ -695,14 +695,14 @@ namespace CR.Module.Flow
             // 读条面板在场景加载完成时由 EnterSceneAsync 收掉，这里只收尾 + 广播。
             Game.UI?.CloseAll();
             Game.Logger?.Info(Tag,
-                "已进入 Battle 站点（竞技场/HUD 由 agent-07 的 Module/Battle + View + HudPanel 负责）");
+                "已进入 Battle 站点（竞技场/HUD 由 Module/Battle + View + HudPanel 负责）");
         }
 
         private void EnterPause()
         {
             // 对战不真暂停（参考规格 §7 S22：暂停只覆盖菜单 + 投降），所以这里**不动 timeScale**，
             // 也不关下层 HUD —— PausePanel 是 Popup 层，UIManager 会自动压遮罩。
-            Game.Logger?.Info(Tag, "已进入 Pause 站点（PausePanel 由 agent-07 负责打开）");
+            Game.Logger?.Info(Tag, "已进入 Pause 站点（PausePanel 由 UI/Panels 负责打开）");
         }
 
         // ═════════════════════════ 登录 / 注册 / 创角 ═════════════════════════

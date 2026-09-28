@@ -17,7 +17,7 @@ server_dir: "../server/game/table"
 
 # 客户端产物：client/ 尚未创建，默认落到一次性目录；客户端片落地后用
 #   tools/table.ps1 -ClientDir <root>/client/Assets/Scripts/Table
-# 覆盖（见 docs/步骤文档.md §4 的客户端目录约定）。
+# 覆盖。
 client_dir: "../.ai-tmp/test/table-client"
 
 default_side: "cs"

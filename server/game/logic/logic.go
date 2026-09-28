@@ -10,8 +10,6 @@
 //	room.go    房间注册表 + room.Kernel + 建房/列表/加入/离开/准备/开打/设 AI
 //	battle.go  出牌 / 投降 / 主动同步 + 对局 tick + 快照与结算推送
 //	ai.go      主菜单「人机对战」入口 + 房间 AI 补位 + AI 卡组
-//
-// 契约出处：docs/步骤文档.md §4.1（消息号与协议）。
 package logic
 
 import (

@@ -11,7 +11,7 @@ namespace CR.Module.Room
     /// 房间的 C2S 门面 + 推送接收（列表 / 创建 / 加入 / 离开 / 准备 / 开打 / AI 补位）。
     ///
     /// <para>
-    /// <b>逐条对应已冻结协议</b>（`docs/步骤文档.md` §4.1，消息号常量一律走 <see cref="MsgDef"/>，
+    /// <b>逐条对应已冻结协议</b>（消息号常量一律走 <see cref="MsgDef"/>，
     /// 业务脚本里⛔不许出现裸消息号）：
     /// C2S = <c>RoomCreate</c> / <c>RoomList</c> / <c>RoomJoin</c> / <c>RoomLeave</c> /
     /// <c>RoomReady</c> / <c>RoomStart</c> / <c>RoomSetAi</c>；

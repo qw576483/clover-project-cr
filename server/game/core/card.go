@@ -114,7 +114,7 @@ type UnitDef struct {
 	// JumpSpeedTilesPerMinute is the horizontal speed
 	// while airborne (官方 `jump_speed`, 160 on Hog Rider).
 	//
-	// ⚠ CONTRACT NOTE: the frozen column list (步骤文档 §4.2) has no jump
+	// ⚠ CONTRACT NOTE: the frozen column list has no jump
 	// column, yet 参考规格 §5 requires the river to be crossable only at the
 	// bridges **except** for units that jump. These two fields are therefore a
 	// **backward-compatible addition** (appending a column cannot break a
@@ -268,7 +268,7 @@ type CardTable interface {
 
 // Tower table keys. The official data names the two crown towers
 // `PrincessTower` / `KingTower` (cards_stats_building.json), which is what the
-// 战斗单位_cs table is generated from (步骤文档 §4.2 lists 塔 as rows of that
+// 战斗单位_cs table is generated from (塔 are rows of that
 // table, so Table.Unit must resolve them).
 const (
 	KeyPrincessTower = "PrincessTower"

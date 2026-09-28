@@ -177,6 +177,26 @@ namespace CR.Module.Flow
         }
 
         /// <summary>
+        /// 进入 Play 时复位静态单例。**为什么必须有它**：<see cref="Instance"/> 是裸静态，而本工程
+        /// 关闭了域重载（`client/ProjectSettings/EditorSettings.asset` 的
+        /// `m_EnterPlayModeOptionsEnabled: 1` + `m_EnterPlayModeOptions: 1`）⇒ 静态量跨 Play 存活。
+        /// 正常停 Play 时 `Bootstrap.OnApplicationQuit` 会调 <see cref="Shutdown"/>（它把 Instance 置空），
+        /// 但停 Play 时若不在 `Main` 场景（例如停在对局里），`Bootstrap` 节点已经不在 ⇒ 那一步不跑，
+        /// 残留的实例连同上一次的 `_started` / `_busy` / `_enteringBattle` / `_returningToMainMenu` /
+        /// `_aiBattleInFlight` 一起被新一次 Play 复用（表现 = 首屏停在启动画面、点「人机对战」走 DUP-DROP）。
+        /// <para>
+        /// ⛔ 只复位**静态入口**：`EnsureCreated` 的"返回同一个实例"是同一次 Play 内
+        /// "回主菜单再进 `Main` 场景"所必需的（见其注释），那一条不能动。本钩子在
+        /// `SubsystemRegistration` 时刻跑，早于任何场景的 `Bootstrap.Start`。
+        /// </para>
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticStateOnEnterPlay()
+        {
+            Instance = null;
+        }
+
+        /// <summary>
         /// 总线换了（= 引擎重新 Launch）⇒ 把"必须跟着当前引擎走"的东西补挂到**当前**总线上。
         /// <para>
         /// 为什么只做这三件（订阅 / 消息处理器 / 站点注册）而**不**调 <see cref="Start"/>：

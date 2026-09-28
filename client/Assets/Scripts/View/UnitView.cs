@@ -491,9 +491,11 @@ namespace CR.View
                 _spritePath = string.IsNullOrEmpty(_spriteDir)
                     ? string.Empty
                     : (isBuilding ? ResPaths.BuildingDir(_spriteDir) : ResPaths.UnitDir(_spriteDir));
+                // 用**预载口径**：帧数组与「帧号 → 下标」映射表一次建好 —— 下面 `AssertFrameMapping`、
+                // `ClipIndices`、`BuildLayers` 读同一张表时是纯读（⛔ 不在这条装配路径上现建）。
                 _frames = string.IsNullOrEmpty(_spritePath)
                     ? System.Array.Empty<Sprite>()
-                    : SpriteBank.LoadDir(_spritePath, _pivotMode);
+                    : SpriteBank.Preload(_spritePath, _pivotMode).Frames;
                 if (_frames.Length == 0)
                     // 非预期分支必须留痕：素材索引缺失时静默画白块是最难查的现象之一。
                     Game.Logger?.Warn(LogTag, $"精灵取不到，回落占位色：dir={_spriteDir} isBuilding={isBuilding}");
@@ -1192,6 +1194,36 @@ namespace CR.View
                 return good;
             }
             return frames;
+        }
+
+        /// <summary>
+        /// 预载某目录：**帧数组 +「帧号 → 帧数组下标」映射表一次建好**（同步）。
+        /// <para>
+        /// 与 <see cref="LoadDir(string, SpritePivotMode)"/> 的差别只在**多建一张派生表**（帧数组是同一份
+        /// 缓存条目，⛔ 不重复加载）：映射表按**目录首次**现建、要逐帧解析 `frame_NNN` 的名字，开销随帧数
+        /// 线性增长（658 帧的目录上一次约 6.6 ms）⇒ 建在"该目录第一个单位出场那一帧"就是一处可归因的卡顿。
+        /// 进图前 / 读条阶段用本方法把两样一次建掉，战斗期 <see cref="LoadDir"/> 与
+        /// <see cref="FrameNumberMap(string, SpritePivotMode)"/> 都是**纯读**。
+        /// </para>
+        /// <para>
+        /// ⚠️ 同步阻塞主线程（与 <see cref="LoadDir(string, SpritePivotMode)"/> 同一条硬需求）
+        /// —— ⛔ 不要在战斗热路径里第一次调用。
+        /// </para>
+        /// </summary>
+        /// <returns>
+        /// 帧数组与映射表；帧数组取不到时按 <see cref="LoadDir(string, SpritePivotMode)"/> 的口径沿用本目录
+        /// **上一次取成功**的那份（并留一次 Warn）—— ⛔ 两者都不为 null。
+        /// </returns>
+        public static FrameBank.Preloaded Preload(string path, SpritePivotMode mode)
+        {
+            var key = CacheKey(mode, path);
+            var pre = Bank.Preload(path, (FrameBank.PivotMode)(int)mode);
+            if (pre.Frames != null && pre.Frames.Length > 0)
+            {
+                LastGood[key] = pre.Frames;
+                return pre;
+            }
+            return new FrameBank.Preloaded(LoadDir(path, mode), pre.FrameMap);
         }
 
         /// <summary><see cref="LastGood"/> 的键（锚点模式 + 目录，两个模式各存一份）。</summary>

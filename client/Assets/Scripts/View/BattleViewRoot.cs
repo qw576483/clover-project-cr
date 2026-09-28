@@ -1135,18 +1135,18 @@ namespace CR.View
                 CardVisual v;
                 if (!CardVisuals.TryGetValue(cardIds[i], out v) || string.IsNullOrEmpty(v.Dir)) continue;
                 var path = v.IsBuilding ? ResPaths.BuildingDir(v.Dir) : ResPaths.UnitDir(v.Dir);
-                var f = SpriteBank.LoadDir(path, SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
+                // ★ 用**预载口径**（帧数组 +「帧号 → 数组下标」映射表一次建好，见引擎 `FrameBank.Preload`）：
+                //   映射表是**按目录首次**建的（逐帧解析每个 `frame_NNN` 的名字），658 帧的目录上一次约 6.6 ms、
+                //   117 帧的约 4.0 ms —— 建在出场那一帧就是"出一张卡 / 单位出场卡一下"里可归因的那一步。
+                //   单位装配（`UnitView`）读同一张表（引擎按 目录+锚点 缓存 ⇒ 这里是**预建**）。
+                //   表数落进上面的判据行，可离线核对"预热期建了几张表"。
+                var pre = SpriteBank.Preload(path, SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
                 dirs++;
-                if (f.Length > 0)
+                if (pre.Frames.Length > 0)
                 {
                     hits++;
-                    frames += f.Length;
-                    // ★ 「帧号 → 帧数组下标」映射表也在这里建（不是只 `LoadDir`）：它是**按目录首次**建的
-                    //   （逐帧解析每个 `frame_NNN` 的名字），658 帧的目录实测 6.6 ms、117 帧的实测 4.0 ms ——
-                    //   建在出场那一帧就是"出一张卡 / 单位出场卡一下"里可归因的那一步。
-                    //   单位装配时 `UnitView.ClipIndices` 会问同一张表（引擎按 目录+锚点 缓存 ⇒ 这里是**预建**）。
-                    //   数量与 `frames` 一起落进上面的判据行，可离线核对"预热期建了几张表"。
-                    if (SpriteBank.FrameNumberMap(path, SpriteBank.SpritePivotMode.UnifiedCanvasAnchor).Length > 0) maps++;
+                    frames += pre.Frames.Length;
+                    if (pre.FrameMap.Length > 0) maps++;
                 }
             }
         }

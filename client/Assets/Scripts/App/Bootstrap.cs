@@ -60,6 +60,8 @@ namespace CR.App
                 // 但那是"绕过正确路径"，不该依赖它）。这里只需保证面板供给者与流程实例在 —— 两者都幂等。
                 PanelFactory.Install();
                 AppFlow.EnsureCreated(_settings);
+                // 重入路径同样确保常驻署名单件在（幂等：正常流程下它在上一次完整拉起时就已建好）。
+                CreditOverlay.EnsureCreated();
                 Game.Logger?.Info(Tag, "引擎已在运行且总线未变：仅确保流程存在（从对局返回主菜单的重入路径）");
                 return;
             }
@@ -72,6 +74,10 @@ namespace CR.App
             _settings.Init();
 
             AppFlow.EnsureCreated(_settings);
+
+            // 跨页面常驻的引擎署名（`by clover-engine`）。★ 必须在 `Game.Launch` **之后**建：
+            // 它的画布适配直接读 `CloverPresentation` 的生效值，而那两个值由 LaunchEngine 写入。
+            CreditOverlay.EnsureCreated();
 
             Game.Logger?.Info(Tag, $"启动完成：addr={Cfg.Server.addr} tls={Cfg.Server.tls} auth={Cfg.Server.auth_addr}");
         }

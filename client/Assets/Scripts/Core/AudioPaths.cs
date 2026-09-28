@@ -60,6 +60,26 @@ namespace CR
         /// <summary>圣水满。</summary>
         public const string ElixirFull = "ElixirFull/get_elixir_02";
 
+        /// <summary>
+        /// 圣水进入 **2 倍段**（`elixir_phase_ms[0]` 走完那一刻）。
+        /// <para>源：<c>Game/roayle_2x_elixir_vo_01.ogg</c> —— 原版对局播报「双倍圣水」的 VO，与
+        /// <see cref="ElixirRate3x"/> 同目录同组；原版 `battle_timelines.json` 的 `elixir_notify_change`
+        /// 三段均为 `true`（= 每次倍率变化都要提示）。</para>
+        /// </summary>
+        public const string ElixirRate2x = "ElixirRate2x/roayle_2x_elixir_vo_01";
+
+        /// <summary>
+        /// 圣水进入 **3 倍段**（`elixir_phase_ms[0] + elixir_phase_ms[1]` 走完那一刻）。
+        /// <para>源：<c>Game/roayle_3x_elixir_vo_01.ogg</c>（原版「三倍圣水」播报 VO）。</para>
+        /// </summary>
+        public const string ElixirRate3x = "ElixirRate3x/roayle_3x_elixir_vo_01";
+
+        /// <summary>
+        /// 进入**加时赛**（快照 `phase` 由 `0` 变 `1`）。
+        /// <para>源：<c>Game/extratime_jingle_02.ogg</c>（原版加时开场 jingle；`extratime_*` 是整包唯一的加时音）。</para>
+        /// </summary>
+        public const string OvertimeJingle = "OvertimeJingle/extratime_jingle_02";
+
         /// <summary>对局胜利。</summary>
         public const string Win = "Win/scroll_win_02";
 

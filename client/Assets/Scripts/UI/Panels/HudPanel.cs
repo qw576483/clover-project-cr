@@ -619,6 +619,27 @@ namespace CR.UI.Panels
         /// <summary>`start.timeline == null` 只报一次 —— **每局重置**（见 `OnStarted`），⛔ 不换 `WarnOnce`。</summary>
         private bool _noTimelineWarned;
 
+        // ── 圣水倍率段 / 阶段提示（音效） ──
+        //
+        // 为什么挂在 **HUD** 而不是 `View/BattleAudioView`：这一条链上**同时**有 `timeline.elixir_phase_ms`
+        //   与快照的 `server_ms`；`BattleAudioView` 由对局场景建，晚于 `Battle.Started`（实测 16:09:39.387
+        //   HudPanel 收到开打配置、16:09:40.173 BattleAudioView 才订阅）⇒ 它拿不到时间线。
+
+        /// <summary>
+        /// 圣水**倍率段**各自时长（毫秒）= `start.timeline.elixir_phase_ms`（原版 [120000,120000,60000]）；
+        /// 空 = 时间线未到（见 <see cref="_noElixirPhaseWarned"/>）。
+        /// </summary>
+        private int[] _elixirPhaseMs;
+
+        /// <summary>上一次的圣水**倍率段下标**（0=1 倍 / 1=2 倍 / 2=3 倍）；`-1` = 本局还没定基线。</summary>
+        private int _elixirRateStage = -1;
+
+        /// <summary>上一次的快照阶段；`-1` = 本局还没定基线。</summary>
+        private int _lastPhase = -1;
+
+        /// <summary>`elixir_phase_ms` 为空只报一次 —— **每局重置**（见 `OnStarted`）。</summary>
+        private bool _noElixirPhaseWarned;
+
         /// <summary>倒计时最后 <see cref="CountdownWarnMs"/> 毫秒的滴答：上一声播在"剩余第几秒"（-1 = 还没进窗口）。</summary>
         private long _lastTickSec = -1;
 
@@ -1593,9 +1614,15 @@ namespace CR.UI.Panels
             _overtimeMs = start.timeline != null ? start.timeline.overtime_ms : 0;
             _noTimelineWarned = false;
 
+            // 倍率段：整局重新定基线（⛔ 不沿用上一局的，否则第 2 局会漏播或多播提示音）。
+            _elixirPhaseMs = start.timeline != null ? start.timeline.elixir_phase_ms : null;
+            _elixirRateStage = -1;
+            _lastPhase = -1;
+            _noElixirPhaseWarned = false;
+
             Game.Logger?.Info(Tag,
                 $"开打配置到达 my_team={_myTeam}（0=蓝 1=红）圣水上限={_maxElixirMilli / (float)ElixirMilliPerUnit:0} " +
-                $"常规={_regulationMs}ms 加时={_overtimeMs}ms");
+                $"常规={_regulationMs}ms 加时={_overtimeMs}ms 倍率段={PhaseMsText()}");
 
             RefreshAll();
         }
@@ -1614,6 +1641,9 @@ namespace CR.UI.Panels
             RefreshElixir();
             RefreshHand();
             RefreshNext();
+
+            // 倍率段 / 加时的提示音（与刷新无关的副作用，放最后，⛔ 不影响任何几何）。
+            TickElixirRate(snap);
         }
 
         private void OnEnded(BattleEndNotify result)
@@ -1815,6 +1845,96 @@ namespace CR.UI.Panels
             if (sec == _lastTickSec) return;
             _lastTickSec = sec;
             if (sec > 0) PlaySfx(AudioPaths.CountdownTick);
+        }
+
+        /// <summary>
+        /// 圣水**倍率段**与**加时**的提示音（原版 `battle_timelines.json` 的 `elixir_notify_change`
+        /// 三段均为 `true` ⇒ 每次倍率变化都要给玩家提示）。
+        /// <para>
+        /// 段界口径 = 服务端 <c>server/game/core/units.go</c> 的 <c>ElixirPhaseAt(elapsedMs)</c>：
+        /// 逐段累加 <c>ElixirPhaseMs</c>（[120000,120000,60000]）取第一个"未走完"的段；
+        /// 同一组数在 <c>原版资源/cr-api-data/docs/json/battle_timelines.json</c> 的
+        /// <c>elixir_rate_length = [120,120,60]</c>。客户端用的是同一份
+        /// <c>BattleTimeline.elixir_phase_ms</c>，快照的 <c>server_ms</c> 就是 <c>elapsedMs</c>
+        /// ⇒ 两边同口径；⛔ 不用本地计时（掉帧 / 挂起会让倍率切换与画面上的秒数错位）。
+        /// </para>
+        /// <para>
+        /// <b>基线语义</b>：只对"进入本局后观察到的跳变"发声 —— 第一帧只记基线
+        /// （重连 / 中途入局时已经处在 2 倍 / 3 倍段 ⇒ 不补播一段本局没发生的提示）。
+        /// </para>
+        /// </summary>
+        private void TickElixirRate(BattleSnapshot snap)
+        {
+            if (snap == null || snap.phase == PhaseEnded) return;
+
+            var phases = _elixirPhaseMs;
+            if (phases == null || phases.Length == 0)
+            {
+                if (!_noElixirPhaseWarned)
+                {
+                    _noElixirPhaseWarned = true;
+                    // 非预期分支：时间线里没有倍率段（服务端没下发 / 客户端没解出）⇒ 提示音不播。留痕一次。
+                    Game.Logger?.Warn(Tag,
+                        "时间线缺 elixir_phase_ms ⇒ 圣水倍率段提示音不播（只报一次，检查服务端 BattleTimeline 下发）");
+                }
+                return;
+            }
+
+            var stage = phases.Length - 1;
+            var at = 0;
+            for (var i = 0; i < phases.Length; i++)
+            {
+                at += phases[i];
+                if (snap.server_ms < at)
+                {
+                    stage = i;
+                    break;
+                }
+            }
+
+            if (_elixirRateStage < 0)
+            {
+                _elixirRateStage = stage;      // 第一帧：只定基线，不发声
+            }
+            else if (stage > _elixirRateStage)
+            {
+                _elixirRateStage = stage;
+                if (stage == 1)
+                {
+                    Game.Logger?.Info(Tag, $"圣水进入 2 倍段（server_ms={snap.server_ms}）⇒ 播 {AudioPaths.ElixirRate2x}");
+                    PlaySfx(AudioPaths.ElixirRate2x);
+                }
+                else if (stage >= 2)
+                {
+                    Game.Logger?.Info(Tag, $"圣水进入 {stage + 1} 倍段（server_ms={snap.server_ms}）⇒ 播 {AudioPaths.ElixirRate3x}");
+                    PlaySfx(AudioPaths.ElixirRate3x);
+                }
+            }
+
+            if (_lastPhase < 0)
+            {
+                _lastPhase = snap.phase;       // 第一帧：只定基线
+            }
+            else if (snap.phase > _lastPhase)
+            {
+                var prev = _lastPhase;
+                _lastPhase = snap.phase;
+                if (prev == 0 && snap.phase == PhaseOvertime)
+                {
+                    Game.Logger?.Info(Tag, $"进入加时赛（server_ms={snap.server_ms}）⇒ 播 {AudioPaths.OvertimeJingle}");
+                    PlaySfx(AudioPaths.OvertimeJingle);
+                }
+            }
+        }
+
+        /// <summary>倍率段时长的日志文案（诊断用；缺时间线时写 `未到`）。</summary>
+        private string PhaseMsText()
+        {
+            var phases = _elixirPhaseMs;
+            if (phases == null || phases.Length == 0) return "未到";
+            var parts = new string[phases.Length];
+            for (var i = 0; i < phases.Length; i++) parts[i] = phases[i].ToString();
+            return string.Join("/", parts);
         }
 
         /// <summary>

@@ -39,6 +39,10 @@ namespace CR.View
     /// <item>塔毁 —— 同事件 <c>kind == 3</c>（<c>EvTowerDestroyed</c>）⇒ <see cref="AudioPaths.TowerDown"/>
     ///   （与 kind==3 播的 <c>ResPaths.EffectBlast</c> 爆炸同源）。</item>
     /// <item>圣水满 —— 同事件 <c>kind == 4</c>（圣水满）⇒ <see cref="AudioPaths.ElixirFull"/>。</item>
+    /// <item>圣水倍率段（2 倍 / 3 倍）与加时赛 —— 由 <c>UI/Panels/HudPanel</c> 播
+    ///   （<see cref="AudioPaths.ElixirRate2x"/> / <see cref="AudioPaths.ElixirRate3x"/> /
+    ///   <see cref="AudioPaths.OvertimeJingle"/>）：那一条链上才**同时**有 `timeline.elixir_phase_ms`
+    ///   与快照的 `server_ms` —— 本组件由对局场景晚建，会**错过** `Battle.Started`（时间线拿不到）。</item>
     /// <item>胜负 —— <c>Events.Battle.Ended</c>（<c>BattleEndNotify</c>，<c>win</c> 字段）⇒ <see cref="AudioPaths.Win"/> / <see cref="AudioPaths.Lose"/>。</item>
     /// </list>
     /// </para>

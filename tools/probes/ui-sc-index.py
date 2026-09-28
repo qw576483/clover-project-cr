@@ -16,7 +16,6 @@
 输出（**生成物，⛔ 不要手改**）
 -----------------------------
   · 策划/原版UI素材名称索引.md    （每个 .sc 一节 + 全量 export 表 + 穷尽记录）
-  · 策划/原版UI图元更正表.md      （65 个落地图元逐条：命中/不符/无法判定 + 建议）
   · 策划/对照表.md                 （W1 的行已由 AC1 折入；本脚本的草稿另写到 .ai-tmp/test/W1-index-draft.md）
 
 关键事实（本脚本依赖，均已实测）
@@ -338,79 +337,13 @@ os.makedirs(os.path.join(ROOT, '策划'), exist_ok=True)
 open(os.path.join(ROOT, '策划', '原版UI素材名称索引.md'), 'w', encoding='utf-8').write('\n'.join(L) + '\n')
 print('OK 策划/原版UI素材名称索引.md')
 
-# =========================== 更正表 md ===========================
-M = []
-B = M.append
-B('# 原版 UI 图元更正表（现在 → 应该）')
-B('')
-B('> 依据 = `策划/原版UI素材名称索引.md`（2.1.5 `.sc` 的显式导出表）。')
-B('> **本表可直接照改**：`现用帧号` 一律是 `client/Assets/Resources/Sprites/Ui/<用途>/<源图集>/frame_NNN.png` 的 NNN。')
-B('')
-B('- 核对总数：**65 个** ResPaths 登记的落地图元（`client/**/Sprites/Ui/**` 下另有 2 个未登记的文件，见 §4）')
-B('- **判定：命中 %d / 不符 %d / 无法判定 %d（合计 %d）**' % (nh, nb, nk, nh + nb + nk))
-B('')
-B('## 1. 逐条清单')
-B('')
-B('| # | 现用途键 | 现用帧号 | 原版命名（导出表显式引用） | 判定 | 建议改用 / 改名 | 依据 |')
-B('|---|---|---|---|---|---|---|')
-for i, (pur, src, fr, key, vd, act, sug, basis) in enumerate(V):
-    nm = '—'
-    for e in EX.get(src.replace('_out', '') if src in ('ui_out', 'ui_battle_end_out') else src, []):
-        pass
-    scn = {'ui_out': 'ui', 'ui_battle_end_out': 'ui_battle_end', 'loading_out': 'loading'}[src]
-    hitnames = []
-    if fr < len(sids[scn]):
-        sid = sids[scn][fr]
-        for e in EX[scn]:
-            if sid in e['sid_list'] and e['name'] not in hitnames:
-                hitnames.append(e['name'])
-    nm = ('`%s`' % '`, `'.join(hitnames[:3]) + (' …(%d 条)' % len(hitnames) if len(hitnames) > 3 else '')) if hitnames else '—（该 shape 不被任何 `0c` 动画引用）'
-    B('| %d | `%s` | `%s` frame_%03d | %s | **%s** | %s | %s |'
-      % (i + 1, key, src, fr, nm, vd, sug, basis))
-B('')
-B('## 2. 不符（%d 条）——照改' % nb)
-B('')
-for i, (pur, src, fr, key, vd, act, sug, basis) in enumerate(V):
-    if vd != '不符':
-        continue
-    B('### %s：`%s` frame_%03d' % (key, src, fr))
-    B('')
-    B('- 实际是：%s' % act)
-    B('- 动作：%s' % sug)
-    B('- 依据：%s' % basis)
-    B('')
-B('## 3. `源内无对应` 的用途（找不到同名/同义的原版命名）')
-B('')
-B('| 用途键 | 源内情况 | 该用途的素材该从哪来 |')
-B('|---|---|---|')
-B('| `ButtonCapsule`（白色圆角胶囊按钮底框） | `ui.sc` 的 export 里**没有**"白色胶囊"命名；`button_*` 只有 `button_timeline`/`button_small_orange`/`button_small_square_orange`/`button_share_deck`/`full_page_button_tab*` | 白色按钮底用 `ui_out 476`（白色按钮底）或自绘 9-slice；or 用 `ui_battle_end` 的白条 |')
-B('| `ElixirBarTrack/Frame/Fill`（圣水条三件） | `ui.sc` 里 `elixir` 命名的只有 `Elixir_bar_drop_anim`/`elixir_float_txt`/`print_elixir_speed`/HUD 相关 clip，**均无 shapeID**（空 clip）⇒ 圣水条本体不在 `ui.sc` 的 shape 表里 | 圣水条是 **HUD 层**（战斗内 UI），本批 `.sc` 里没有 HUD 的图集；若要用原版圣水条，需另找 HUD 素材（`ui.sc` 里的 `HUD_*` 命名只有 clip 无 shape）⇒ **保留现状并登记差异** |')
-B('| `IconHeal`（治疗图标） | `ui.sc` 里没有任何 heal 命名 | 保留现状（若确有治疗展示需求），或换 `IconPlus`(521) 语义 |')
-B('| `IconGear/Gampad/Chat/ArrowUp/Question`（设置/手柄/聊天/升级/问号） | 视觉一致但**原版无命名引用**（都是静态图形） | 保留现状（视觉已对上，只是原版没给名字） |')
-B('| `PanelPaper*`/`PanelFrame*` 的 9-slice 方位 | 原版 `.sc` 对这些 shape **无任何命名引用** ⇒ 哪个件是哪一角在本片无权威依据 | 保留现状，并在 `client/资源欠缺清单.md` 登记「9-slice 方位待原版布局数据确认」 |')
-B('')
-B('## 4. 附：`Sprites/Ui/**` 下**未登记进 ResPaths** 的落地文件')
-B('')
-B('| 文件 | 实际是什么 | 建议 |')
-B('|---|---|---|')
-B('| `Bars/loading_out/frame_015.png` | 绿色圆角条（加载界面进度条底；原版 `loading.sc` 无命名引用；同目录 `loading_bar_bloe` 覆盖 frame 19-23） | 若做加载进度条，改用 `loading_out` frame 19-23（原版 `loading_bar_bloe`）；否则删 |')
-B('| `Icons/loading_out/frame_028.png` | **「CLASH ROYALE」整幅 Logo**（520×224，非透明覆盖完整） | 启动/登录页可直接用（原版命名引用为空，但视觉唯一且无歧义） |')
-B('')
-B('## 5. 本片**没有**做的事（不要当成已完成）')
-B('')
-B('1. 没有改 `client/**` 一个字（本片只出表）。')
-B('2. 没有解出坐标/缩放（`0b` 不存在；`08` 矩阵与 `0c` 三元组的对应关系未验证 ⇒ 未解出）。')
-B('3. `ui_chest`/`ui_chest_3d`/`ui_spells`/`ui_arena`/`tutorial`/`arena_training`/`debug`/`spell_goblin_barrel`/`effects` 的 export 表已生成（见索引 md §3），但**未逐条核对视觉**（客户端未引用它们）。')
-open(os.path.join(ROOT, '策划', '原版UI图元更正表.md'), 'w', encoding='utf-8').write('\n'.join(M) + '\n')
-print('OK 策划/原版UI图元更正表.md')
-
 # ============ 对照表行 ============
 C = []
 D = C.append
 D('> W1 待折入 `策划/对照表.md` 的行（本片不直接改 `对照表.md`，由主 agent 折入）。全部内容来自 `.sc` 显式导出表。')
 D('| 项 | 原版来源（权威） | 结论 | 落地 |')
 D('|---|---|---|---|')
-D('| UI 图元身份 | CR **2.1.5** APK `assets/sc/<name>`（`.sc` 导出表） | 65 个落地图元：命中 %d / 不符 %d / 无法判定 %d | `策划/原版UI素材名称索引.md`、`策划/原版UI图元更正表.md` |' % (nh, nb, nk))
+D('| UI 图元身份 | CR **2.1.5** APK `assets/sc/<name>`（`.sc` 导出表） | 65 个落地图元：命中 %d / 不符 %d / 无法判定 %d | `策划/原版UI素材名称索引.md` |' % (nh, nb, nk))
 D('| 版本指纹 | `ShapeCount` + `_tex.png` 尺寸 | `cr-assets-png/*_out` = **2.1.5** 解包产物（非 2.2.1，非 v1.0.0） | 同上 §0 |')
 D('| `frame_NNN` 语义 | `12` 记录序号（`sid ≠ 序号`） | `frame_NNN` = 第 NNN 条 shape 记录；`sid` 要经 `序号→sid` 才能查 clip | 同上 §0.1 |')
 D('| 坐标 | tag `08` 矩阵（36843 条） | **未解出**（`0b` 不存在；`0c` 三元组语义未验证） | 同上 §1.1 |')

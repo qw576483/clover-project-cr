@@ -46,7 +46,7 @@ namespace CR.UI.Panels
         //   · 面板宽 = `CrUiStyle.ContentW` = 1000（A 面板宽实测 711px@750 × 1.44）
         //   · 贴顶距 = `CrUiStyle.PanelTopOffset` = 167（A 面板顶边 y=116@1334）
         //   · 标题条高 = `CrUiStyle.TitleBarH` = 92、内缩 = `CrUiStyle.PanelPad` = 40
-        // 只有**竖版重排本身**（上下排布、按钮由左右并排改上下两行）与 BoxH 是内容驱动（登记在 `G4-自审.md`）。
+        // 只有**竖版重排本身**（上下排布、按钮由左右并排改上下两行）与 BoxH 是内容驱动。
 
         /// <summary>面板高（内容驱动：标题条 92 + 徽记 90 + 结局 100 + 冠数 80 + **奖励条 230** + 两条数据条 188 + 两按钮 221 + 三行说明 224 + 间隔）。</summary>
         private const float BoxH = 1330f;

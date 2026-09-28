@@ -134,6 +134,12 @@ namespace CR.App
             //    那会让所有加载去找 `Resources/Assets/Resources/...`，一个资源都命中不了。
             CloverRes.Init(string.Empty);
 
+            // ④' UI 图元预热。★ 必须在**第一次建 UI 之前**就发起：异步加载的回调恒晚 1 帧，
+            //     而 `HudPanel` 是在 Battle 站点当场 Build 的（`BattleManager.EnterBattleStation`），
+            //     那一刻才第一次取图元的话，Build 帧里 17 个图元节点全是纯色兜底。
+            //     开机 → 登录 → 主菜单 → 进对局之间隔着好几秒，预热必定已完成 ⇒ Build 帧同帧出图。
+            CrUiStyle.WarmUiSprites();
+
             // ⑤ 配表：**本项目客户端不落地 tsv**，因此这一步是"显式声明不接入"而不是一次调用。
             //    理由：卡池的名称/费用/稀有度/图集键随 `GetCardPoolReply` 从服务端下发，
             //    数值的权威在服务端 `game/table`；客户端再存一份必然漂移。

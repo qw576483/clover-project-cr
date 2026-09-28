@@ -67,6 +67,29 @@ namespace CR.View
         };
 
         /// <summary>
+        /// <see cref="TryGetProjectileFx"/> 能返回的**全部用途目录**（含兜底箭矢）。
+        /// <para>
+        /// 用途：战斗开始前把这几个目录**整目录**预热一遍（<see cref="SpriteBank.LoadDir"/> 是同步阻塞的
+        /// 整目录加载）—— 漏一个目录，该投射物的**第一次开火**就要在战斗热路径里现加载一整目录。
+        /// </para>
+        /// <para>⛔ 往 <see cref="TryGetProjectileFx"/> 加新段落时必须同步加到这里（两处同源）。</para>
+        /// </summary>
+        public static readonly string[] ProjectileUses =
+        {
+            ResPaths.EffectArrow,
+            ResPaths.EffectSpear,
+            ResPaths.EffectBowler,
+            ResPaths.EffectAxe,
+            ResPaths.EffectCannonball,
+            ResPaths.EffectCatapult,
+            ResPaths.EffectBomb,
+            ResPaths.EffectIceWizard,
+            ResPaths.EffectIceSpirit,
+            ResPaths.EffectFireSpirit,
+            ResPaths.EffectDragon,
+        };
+
+        /// <summary>
         /// 按**官方投射物名**取该投射物自己的原版图元段。
         /// <para>
         /// key 的来源：服务端随卡池下发的 `CardInfo.projectile_key`，= 官方
@@ -302,6 +325,20 @@ namespace CR.View
             Spawn(world, world, use, firstFrame, 1, size, 0f, holdSeconds);
         }
 
+        /// <summary>
+        /// 在 <paramref name="world"/> 播一段，**整段时长 = <paramref name="seconds"/> 秒**（逐帧均匀播完）。
+        /// <para>
+        /// 用途：原版该 export 自己的时间轴长度与"帧数 ÷ <see cref="DefaultFps"/>"不一致时，按原版时长播。
+        /// 例：命中闪光 `effect_Hit1` = timeline 5 条 ÷ 60 fps ≈ 0.083 s，而 4 帧 ÷ 14 fps = 0.286 s
+        /// （慢 3.4 倍）⇒ 走本方法。⛔ 不去改 <see cref="DefaultFps"/>，那会连带改掉其它定点效果的时长。
+        /// </para>
+        /// </summary>
+        /// <param name="seconds">整段时长（秒）；<c>&lt;= 0</c> 或单帧时退回 <see cref="DefaultFps"/>。</param>
+        public void PlayTimed(Vector2 world, string use, int firstFrame, int frameCount, float size, float seconds)
+        {
+            Spawn(world, world, use, firstFrame, frameCount, size, 0f, 0f, seconds);
+        }
+
         /// <summary>从 <paramref name="from"/> 飞到 <paramref name="to"/> 的弹道。</summary>
         public void PlayFlight(Vector2 from, Vector2 to, string use, int firstFrame, int frameCount, float size)
         {
@@ -322,7 +359,17 @@ namespace CR.View
             Spawn(from, to, use, firstFrame, frameCount, size, durationSeconds > 0f ? durationSeconds : FlightSeconds, 0f);
         }
 
-        private void Spawn(Vector2 from, Vector2 to, string use, int firstFrame, int frameCount, float size, float duration, float hold)
+        /// <param name="duration">飞行时长（秒）；`0` = 定点播放。</param>
+        /// <param name="hold">定格时长（秒）；`&gt; 0` 时只显示第 0 帧。</param>
+        /// <param name="seconds">定点播放的**整段时长**（秒，见 <see cref="PlayTimed"/>）；`&lt;= 0` 时用 <see cref="DefaultFps"/>。</param>
+        private void Spawn(Vector2 from, Vector2 to, string use, int firstFrame, int frameCount, float size, float duration, float hold, float seconds = 0f)
+        {
+            var tap = CrTap.T0();
+            SpawnInner(from, to, use, firstFrame, frameCount, size, duration, hold, seconds);
+            CrTap.End("fx.spawn", tap, use);
+        }
+
+        private void SpawnInner(Vector2 from, Vector2 to, string use, int firstFrame, int frameCount, float size, float duration, float hold, float seconds)
         {
             var frames = SpriteBank.LoadDir(ResPaths.EffectDir(use), SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
             if (frames.Length == 0) { SkippedTotal++; return; }
@@ -368,8 +415,11 @@ namespace CR.View
             // ⛔ 不这么算的后果（默认 14 fps）：20 帧要播 1.43 s，而子弹几十毫秒就打到了 —
             //    `T` 到 1 之后节点仍留在落点继续换帧，等于"弹体到了还在扇翅膀"，
             //    且这段多余的动画正好是 f452..f458（冰雪精灵投射物）⇒ 满场冰精灵。
-            // 定点播放（`duration == 0`）没有"到达时刻"，仍按 `DefaultFps`。
-            node.Fps = (duration > 0f && count > 1) ? count / duration : DefaultFps;
+            // 定点播放（`duration == 0`）没有"到达时刻"：显式给了整段时长（`seconds`）就按它摊帧，
+            // 否则仍按 `DefaultFps`。
+            node.Fps = (duration > 0f && count > 1) ? count / duration
+                : (seconds > 0f && count > 1) ? count / seconds
+                : DefaultFps;
 
             var scale = size > 0f ? size / WorldSize : 1f;
             node.Go.transform.position = new Vector3(from.x, from.y, 0f);
@@ -434,6 +484,13 @@ namespace CR.View
         }
 
         private void Update()
+        {
+            var tap = CrTap.T0();
+            UpdateInner();
+            CrTap.End("fx.upd", tap);
+        }
+
+        private void UpdateInner()
         {
             if (_live.Count == 0) return;
             var dt = Time.deltaTime;

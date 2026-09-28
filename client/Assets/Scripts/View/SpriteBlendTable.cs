@@ -66,7 +66,7 @@ namespace CR.View
         };
 
         /// <summary>表内帧数（生成期常量）。</summary>
-        private const int _frameCount = 141;
+        private const int _frameCount = 140;
 
         /// <summary>取某资源目录（与 <see cref="SpriteBank.LoadDir"/> 入参同形的路径）下某一帧的原始 blend_mode。</summary>
         /// <param name="resPath">资源路径，如 <c>Sprites/Units/chr_princess_out</c>。</param>

@@ -10,7 +10,7 @@
 落点： client/Assets/Resources/Sprites/Effects/<用途>/frame_NNN.png   （NNN = **原版源帧号**）
       （命名规则与 `Core/ResPaths.cs` 的 `FrameName` 必须一致：`frame_` + 3 位十进制）
 
-⛔ **只复制 RANGES 里列的那几组**（120 张）；612 帧整目录搬是被明令禁止的。
+⛔ **只复制 RANGES 里列的那几组**（张数以脚本末尾打印的实际计数为准）；612 帧整目录搬是被明令禁止的。
    要哪几组、为什么，见下方 RANGES 的注释。
 
 导入设置 = **照抄 `client/Assets/Resources/Sprites/Ui/loading_bg.png.meta`** 的 TextureImporter
@@ -39,7 +39,9 @@ CANVAS_W, CANVAS_H = 474, 537
 # 用途目录 → 原版源帧号区间（闭区间）。**这份清单 = 落地清单**，改它必须同时改
 # `Core/ResPaths.cs` 的特效区段。
 RANGES = [
-    ("Hit", 50, 56),        # 命中/受击闪光：紫光球→黄光球→白四角星芒→淡蓝碎冰
+    # 命中闪光：原版独立 export `effect_Hit1`（clip 829｜60fps｜timeline 5｜唯一像素帧 `295-298`，
+    # 档位列 = hit），像素 = 逐帧放大的暖色星芒（46×44 → 57×57）。出处 `策划/单位动画分组表.md:5179`。
+    ("Hit", 295, 298),
     ("Blast", 418, 427),    # 爆炸/塔毁：黄橙漩涡大火球（由大缩到亮核）
     # 弹道/飞行物 = 原版 export `projectile_arrow_basic`（clip 1388｜60fps｜15 帧｜帧列 `437-451`）：
     # 红羽白镞箭矢。⛔ **不能**取 440..459 —— 那一段里 f452..f458 是**冰雪精灵的投射物**（飞的冰精灵本体）、

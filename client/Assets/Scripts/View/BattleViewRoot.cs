@@ -352,6 +352,19 @@ namespace CR.View
         /// <summary>本局被丢弃的法术特效次数（卡池未到 / 这张法术还没接帧 / 特效层同屏上限 / 目录为空）。</summary>
         public int SpellFxSkipped { get { return _spellFxSkipped; } }
 
+        /// <summary>
+        /// 本局从快照里推出的**命中**次数（逐 id 比对前后两帧快照的 `hp`，掉血即一次）——
+        /// 协议没有独立的命中事件（`Def/ProtoDef.cs` 的 `BattleEvent.kind` 只有 0..6），
+        /// 与 <see cref="BattleAudioView"/> 喂命中音效用的是同一条规则。
+        /// </summary>
+        public int HitsObserved { get { return _hitsObserved; } }
+
+        /// <summary>
+        /// 本局真的播出去的命中闪光次数（= <see cref="HitsObserved"/> 里成功播出闪光的那些）。
+        /// <para>两者之差 = 同帧超过 <see cref="MaxHitFxPerSnapshot"/> 的溢出（见该常量的注释）+ 特效层同屏上限 / 素材目录为空。</para>
+        /// </summary>
+        public int HitFxPlayed { get { return _hitFxPlayed; } }
+
         private int _deployFxPlayed;
 
         /// <summary>
@@ -391,6 +404,21 @@ namespace CR.View
         private int _spellCasts;
         private int _spellFxPlayed;
         private int _spellFxSkipped;
+        private int _hitsObserved;
+        private int _hitFxPlayed;
+
+        /// <summary>
+        /// 单帧快照里最多播几个命中闪光。**本项目自定**：一帧里可能同时有十几只单位掉血，
+        /// 逐条都播会让画面糊成一片；原版是"每一次真实命中各闪一下"，而我们只能从 `hp` 总量反推、
+        /// 分不出"一次大伤害"和"三次小伤害" ⇒ 取 8 作为上限（只影响同帧并发数，不影响单挑/小规模交火）。
+        /// </summary>
+        private const int MaxHitFxPerSnapshot = 8;
+
+        /// <summary>上一帧快照里每个实体的 `hp`（`entity_id → hp`）—— 判"这一帧谁掉血了"。</summary>
+        private Dictionary<int, int> _prevHp = new Dictionary<int, int>();
+
+        /// <summary>本帧 `hp` 的暂存（双缓冲）。</summary>
+        private Dictionary<int, int> _curHp = new Dictionary<int, int>();
 
         /// <summary>法术特效"这张法术还没接帧"只报一次（⛔ 不刷屏）。</summary>
         private bool _spellFxUnknownWarned;
@@ -722,6 +750,13 @@ namespace CR.View
 
         private void Update()
         {
+            var tap = CrTap.T0();
+            UpdateInner();
+            CrTap.End("bvr.upd", tap);
+        }
+
+        private void UpdateInner()
+        {
             // 时序：本组件可能早于 `Game.Launch` 存在（那时 `Game.Event` 为 null），所以轮询到可订阅为止。
             if (!_subscribed)
             {
@@ -867,6 +902,8 @@ namespace CR.View
             _curAnim.Clear();
             _lastShotMs.Clear();
             _shotPrune.Clear();
+            _prevHp.Clear();
+            _curHp.Clear();
             // 时间轴归零：`_renderMs = NaN` ⇒ 新的一局会在首个快照上重新对齐一次服务端时间戳。
             _prevMs = 0f;
             _currMs = 0f;
@@ -1016,6 +1053,10 @@ namespace CR.View
             _prevAnim.Clear();
             _curAnim.Clear();
             _lastShotMs.Clear();
+            // 上一局的 hp 双缓冲必须清（同 `BattleAudioView.OnBattleStarted`）：不清会把上一局末尾的 hp
+            // 与新局同一 id 的 hp 比对出假命中。
+            _prevHp.Clear();
+            _curHp.Clear();
             // 上一局没等到施法者的出牌弹道：同一场景连开新局时清掉（那些实体 id 属于上一局）。
             _pendingCasterShots.Clear();
             if (!_built) RebuildIfWanted("Events.Battle.Started"); // 兜底：万一 StationChanged 没到（例如直接由服务端推送进对局）
@@ -1061,13 +1102,22 @@ namespace CR.View
             WarmCardList(n.hand_b, ref dirs, ref hits, ref frames);
             var cardDirs = dirs;
 
-            var uses = new[]
+            // 覆盖 = 本类与 `EffectsView` 能播到的**全部**战斗期目录。⛔ 不是"常用那几个"：
+            //    漏一个目录 ⇒ 该特效**第一次**播出时在战斗热路径里同步整目录加载（那一帧现卡一下）。
+            //    投射物清单与 `EffectsView.TryGetProjectileFx` 同源（见 `EffectsView.ProjectileUses`）。
+            var fixedUses = new[]
             {
                 DeployFxDir,
                 ResPaths.EffectDeathBlue, ResPaths.EffectDeathPurple, ResPaths.EffectDeathGround,
                 ResPaths.EffectBlast, ResPaths.EffectArrow,
+                ResPaths.EffectHit,
                 ResPaths.EffectSpell, ResPaths.EffectSpellBarrel,
             };
+            var uses = new string[fixedUses.Length + EffectsView.ProjectileUses.Length];
+            for (var i = 0; i < fixedUses.Length; i++) uses[i] = fixedUses[i];
+            for (var i = 0; i < EffectsView.ProjectileUses.Length; i++)
+                uses[fixedUses.Length + i] = EffectsView.ProjectileUses[i];
+
             for (var i = 0; i < uses.Length; i++)
             {
                 var f = SpriteBank.LoadDir(ResPaths.EffectDir(uses[i]), SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
@@ -1097,6 +1147,13 @@ namespace CR.View
         }
 
         private void OnSnapshot(BattleSnapshot s)
+        {
+            var tap = CrTap.T0();
+            OnSnapshotInner(s);
+            CrTap.End("bvr.snap", tap);
+        }
+
+        private void OnSnapshotInner(BattleSnapshot s)
         {
             if (s == null) return;
             if (!_built) RebuildIfWanted("Events.Battle.Snapshot");
@@ -1193,12 +1250,20 @@ namespace CR.View
 
         private void OnBattleEventNotify(BattleEventNotify n)
         {
+            var tap = CrTap.T0();
+            OnBattleEventNotifyInner(n);
+            CrTap.End("bvr.evt", tap);
+        }
+
+        private void OnBattleEventNotifyInner(BattleEventNotify n)
+        {
             if (n == null || n.events == null) return;
             if (!_built) RebuildIfWanted("Events.Battle.Events"); // 兜底：事件可能早于快照 / 站点切换到达
             for (var i = 0; i < n.events.Length; i++)
             {
                 var e = n.events[i];
                 if (e == null) continue;
+                var et = CrTap.T0();
                 // 表现层只消费"离散事件里必须有的一次性表现"。**不在这里生成单位** ——
                 // 单位的真假一律以快照的 entities 为准（事件与快照都会到，双份生成会画出两个兵）。
                 Game.Logger?.Info(LogTag,
@@ -1274,6 +1339,7 @@ namespace CR.View
                         }
                         break;
                 }
+                CrTap.End("evt.k" + e.kind, et);
             }
         }
 
@@ -1347,6 +1413,13 @@ namespace CR.View
         /// </summary>
         private void TrackCombatSignals(BattleSnapshot s)
         {
+            var tap = CrTap.T0();
+            TrackCombatSignalsInner(s);
+            CrTap.End("sig", tap);
+        }
+
+        private void TrackCombatSignalsInner(BattleSnapshot s)
+        {
             var list = s.entities;
             if (list == null) return;
 
@@ -1378,7 +1451,10 @@ namespace CR.View
                     || (s.server_ms - lastShot) >= anim.HitSpeedMs;
                 if (!due) continue;
 
-                if (PlayBattleShot(e, list, world)) _lastShotMs[e.id] = s.server_ms;
+                var ts = CrTap.T0();
+                var fired = PlayBattleShot(e, list, world);
+                CrTap.End("shot", ts);
+                if (fired) _lastShotMs[e.id] = s.server_ms;
             }
 
             // 清理已离场的实体（⛔ 不用 `_prevAnim`：它是双缓冲的，这里直接按本帧名单剪）。
@@ -1387,7 +1463,55 @@ namespace CR.View
                 if (!_curAnim.ContainsKey(kv.Key)) _shotPrune.Add(kv.Key);
             for (var i = 0; i < _shotPrune.Count; i++) _lastShotMs.Remove(_shotPrune[i]);
 
+            // ── 命中：逐 id 比对前后两帧快照的 `hp`（协议没有命中事件，与 `BattleAudioView` 喂命中音效同一规则）──
+            // 三条防误报：① 新单位出场那帧不判（`_prevHp` 里还没有它）；② 只有 hp 变小才算；
+            // ③ 单帧最多 `MaxHitFxPerSnapshot` 个（理由见该常量）。
+            _curHp.Clear();
+            var hitSlots = 0;
+            for (var i = 0; i < list.Length; i++)
+            {
+                var e = list[i];
+                if (e == null) continue;
+                _curHp[e.id] = e.hp;
+
+                int prevHp;
+                if (!_prevHp.TryGetValue(e.id, out prevHp)) continue;
+                if (e.hp >= prevHp) continue;
+
+                _hitsObserved++;
+                if (hitSlots >= MaxHitFxPerSnapshot) continue;
+                hitSlots++;
+                var th = CrTap.T0();
+                PlayHitFx(e, prevHp);
+                CrTap.End("hitfx", th);
+            }
+
+            var swapHp = _prevHp; _prevHp = _curHp; _curHp = swapHp;
+
             var swapAnim = _prevAnim; _prevAnim = _curAnim; _curAnim = swapAnim;
+        }
+
+        /// <summary>
+        /// 命中闪光：在**被打中那个实体自己的位置**播原版 `effect_Hit1`
+        /// （帧段与时长见 <see cref="ResPaths.EffectHit"/> / <see cref="ResPaths.EffectHitSeconds"/>）。
+        /// <para>
+        /// 触发 = 快照 `hp` 下降（协议没有命中事件 ⇒ 只能这么推，见 <see cref="TrackCombatSignals"/>）。
+        /// 位置取快照自带的实体坐标，⛔ 不另算。
+        /// </para>
+        /// </summary>
+        private void PlayHitFx(EntitySnapshot target, int prevHp)
+        {
+            if (_effects == null) return;
+            var at = GameConst.MilliToWorld(target.x_milli, target.y_milli);
+            var before = _effects.SpawnedTotal;
+            _effects.PlayTimed(at, ResPaths.EffectHit, ResPaths.EffectHitFirst, ResPaths.EffectHitCount,
+                EffectsView.WorldSize, ResPaths.EffectHitSeconds);
+            if (_effects.SpawnedTotal > before) _hitFxPlayed++;
+            // 数值类证据 = 运行时日志行（本类不靠截图判命中）：目标 id / 队伍 / 掉血前后 / 帧段 / 本局累计。
+            Game.Logger?.Info(LogTag,
+                $"命中闪光：ent={target.id} team={target.team} hp {prevHp}→{target.hp} " +
+                $"位置=({at.x:F2},{at.y:F2}) 帧=f{ResPaths.EffectHitFirst}..f{ResPaths.EffectHitFirst + ResPaths.EffectHitCount - 1}" +
+                $"（{ResPaths.EffectHit}，{ResPaths.EffectHitCount} 帧）本局累计：命中={_hitsObserved} 播出={_hitFxPlayed}");
         }
 
         /// <summary>
@@ -2225,7 +2349,9 @@ namespace CR.View
                         continue;
                     }
                     var visual = ResolveVisual(e);
+                    var tn = CrTap.T0();
                     view = UnitView.Acquire(_unitRoot, visual.Dir, visual.IsBuilding);
+                    CrTap.End("newunit", tn, visual.Dir);
                     _units[e.id] = view;
                     Game.Logger?.Info(LogTag,
                         $"新建单位视图：id={e.id} kind={e.kind} card={e.card_id} " +

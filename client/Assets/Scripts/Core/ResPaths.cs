@@ -868,6 +868,32 @@ namespace CR
         /// <summary>弹道帧数（f437..f451 = `projectile_arrow_basic` 的 15 帧）。</summary>
         public const int EffectArrowCount = 15;
 
+        // ── 命中闪光（原版独立 export `effect_Hit1`；差异登记见 `策划/差异登记.tsv`）──
+        //
+        // 出处：`策划/单位动画分组表.md:5179` —— export `effect_Hit1` / clip 829 / 60 fps /
+        // timeline 5 条 / 唯一像素帧 `295-298`（46×44 → 49×46 → 57×57 → 53×55）/ **档位列 = hit**。
+        // 像素内容（联络图 `.ai-tmp/screenshots/fx2-hit-src.png`）= 逐帧放大的暖色星芒，是"打中了一下"的通用闪光。
+        // ⛔ **不许**再拿 `effects_out` 的 f050..f056 当命中件 —— 那些帧分属 `Death_blue` / `Death_purple` /
+        //    `death_particle` 三个死亡族 export（该段里 50 与 65 就不是同一条动画），拼起来只是"死亡特效换了个播法"。
+
+        /// <summary>用途目录：命中闪光（原版 `effect_Hit1`，唯一像素帧 295-298）。</summary>
+        public const string EffectHit = "Hit";
+
+        /// <summary>命中闪光起始帧（原版 f295）。</summary>
+        public const int EffectHitFirst = 295;
+
+        /// <summary>命中闪光帧数（f295..f298，原版 4 帧）。</summary>
+        public const int EffectHitCount = 4;
+
+        /// <summary>
+        /// 命中闪光**整段时长**（秒）= 原版该 export 自己的时间轴长度（timeline 5 条 ÷ 60 fps）。
+        /// <para>
+        /// 为什么要显式给：这一段的 4 帧是按"帧数 ÷ 默认 14 fps"播的 0.286 s，比原版的 0.083 s 慢 3.4 倍
+        /// ⇒ 必须走 <see cref="View.EffectsView.PlayTimed"/> 按原版时长播，而不是改默认帧率（默认帧率还管别的效果）。
+        /// </para>
+        /// </summary>
+        public const float EffectHitSeconds = 5f / 60f;
+
         // ── 死亡特效（原版 die 档；差异登记见 `策划/差异登记.tsv`）──
         //
         // 出处：`策划/单位动画分组表.md:4697-4700` 的 `effects` 小节 —— die 档只有四个 export：

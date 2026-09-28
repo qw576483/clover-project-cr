@@ -15,7 +15,8 @@ namespace CR.View
     /// <see cref="Play(Vector2, string, int, int, float)"/> 定点播一段；
     /// <see cref="PlayFlight(Vector2, Vector2, string, int, int, float)"/> 从 A 飞到 B 播一段。
     /// `use` 取 <see cref="ResPaths.EffectBlast"/> 等用途目录名；`firstFrame` = 原版起始帧号
-    /// （`ResPaths.EffectBlastFirst` 之类），`frameCount` = 帧数，`size` = 目标世界高度（格）。
+    /// （`ResPaths.EffectBlastFirst` 之类），`frameCount` = 帧数，`size` = 目标画布高度（格）。
+    /// 实际世界尺寸 = `size` × 该段的缩放系数（见 <see cref="SegmentScale"/>，由 `.sc` 反解）。
     /// </para>
     ///
     /// <para>
@@ -42,8 +43,103 @@ namespace CR.View
         /// <summary>同屏特效上限（超出忽略 + 只 Warn 一次）。</summary>
         public const int MaxLive = 64;
 
-        /// <summary>特效世界高度（格）。原版画布 474x537，meta 的 PPU=100 ⇒ 537/100 = 5.37 格。</summary>
+        /// <summary>特效画布高度（格）。原版画布 474x537，meta 的 PPU=100 ⇒ 537/100 = 5.37 格。</summary>
         public const float WorldSize = 5.37f;
+
+        /// <summary>
+        /// 逐段缩放系数：`用途目录` →（`起始原版帧号` → 系数）。
+        /// <para>
+        /// <b>出处（原版数据反解，口径与 `View/UnitView.cs` 的 `UnitSpriteScale` 同一套）</b>：
+        /// `原版资源/sc/effects_v215.sc` 的 shape 记录（tag `0x12`）同时给出形状多边形的外接框
+        ///（**`.sc` 单位**，即权威世界尺寸）与同一多边形在图集上占的矩形（**px**），两者之比 =
+        /// 「1 图集 px = 多少 `.sc` 单位」（记 `upp`；只取「多边形与图集矩形 1:1 贴图」的那批 shape 取中位，
+        /// 旋转过的形状外接框随角度变，会把中位带偏）。换算常数 = **1000 `.sc` 单位 = 1 格**
+        ///（证据：PEKKA `.sc` 多边形半宽 747 ≈ 官方 `collision_radius` 750 = 0.75 格；
+        /// `rage_effect` / `freeze_effect` 的地面圈 6141 单位 = 6.14 格 ≈ 官方法术半径 3 格的两倍直径）。
+        /// </para>
+        /// <para>
+        /// 本工程特效素材一律 `spritePixelsToUnits = 100`（= 100 图集 px = 1 格，见 `tools/probes/copy-fx-assets.py`），
+        /// 而按上面两条推出的正确 PPU 是 `1000 / upp` ⇒ 相对现用 PPU=100 的换算系数就是 **`upp / 10`**。
+        /// 各段 `upp` 实测 6.45～19.81 ⇒ 不做这一步时逐段偏大/偏小最高到 **2 倍**
+        ///（`effect_Hit1` 的命中闪光只按画布 PPU=100 摆，只有正确尺寸的一半）。
+        /// </para>
+        /// <para>
+        /// 为什么按「用途目录 + 起始帧」两级索引：`Spell` 一个目录里并了 9 张法术各自的段
+        ///（`ResPaths.EffectFireballFirst` / `EffectFreezeFirst` …），逐段 `upp` 不同（13.05～19.81）。
+        /// </para>
+        /// <para>生成路径：`tools/probes/sc-placement.py`（解析 `.sc`）+ `tools/probes/fx-scale-table.py`（出表；
+        /// 表项由该脚本打印，⛔ 不许手改，改素材后重跑）。</para>
+        /// </summary>
+        private static readonly Dictionary<string, Dictionary<int, float>> SegmentScale =
+            new Dictionary<string, Dictionary<int, float>>
+        {
+            // effect_Hit1（upp 取值 strict）
+            { "Hit", Single(295, 1.9668f) },
+            // fireball_projectile1（upp 取值 strict）
+            { "Blast", Single(418, 1.0022f) },
+            // projectile_arrow_basic_enemy（upp 取值 strict）
+            { "Arrow", Single(437, 0.975f) },
+            // deploy_arrows_effect（upp 取值 strict）
+            { "Deploy", Single(119, 1.9455f) },
+            // Death_blue（帧列 52 62 65）（upp 取值 strict）
+            { "Death/Blue", Single(52, 0.9823f) },
+            // Death_purple（帧列 52 63）（upp 取值 strict）
+            { "Death/Purple", Single(52, 1.9283f) },
+            // death_ground（帧列 67-69）（upp 取值 geo）
+            { "Death/Ground", Single(67, 0.9805f) },
+            // projectile_spear_360（upp 取值 strict）
+            { "Spear", Single(363, 0.9313f) },
+            // projectile_cannonball_small/_large（upp 取值 strict）
+            { "Cannonball", Single(480, 1.918f) },
+            // bowler_projectile（upp 取值 strict）
+            { "Bowler", Single(356, 0.9852f) },
+            // executioner_projectile（upp 取值 strict）
+            { "Axe", Single(469, 1.9644f) },
+            // catapult_projectile1（upp 取值 strict）
+            { "Catapult", Single(471, 1.2893f) },
+            // projectile_bomb（upp 取值 strict）
+            { "Bomb", Single(482, 0.9815f) },
+            // ice_wizard_projectile（upp 取值 geo）
+            { "IceWizard", Single(459, 1.9604f) },
+            // projectile_icespirit（upp 取值 strict）
+            { "IceSpirit", Single(453, 1.183f) },
+            // projectile_firespirit（upp 取值 strict）
+            { "FireSpirit", Single(512, 1.9046f) },
+            // dragon_projectile（upp 取值 geo）
+            { "Dragon", Single(470, 0.6445f) },
+            // Spell：一个目录里并了多段（逐段 upp 不同）
+            { "Spell", new Dictionary<int, float>
+                {
+                    { 396, 1.9727f },   // fireball（upp 取值 strict）
+                    { 498, 1.4257f },   // Arrow_enemy_ground_anim（upp 取值 strict）
+                    { 206, 1.9732f },   // rage_effect（upp 取值 strict）
+                    { 536, 1.3052f },   // projectile_rocket（upp 取值 strict）
+                    { 73, 1.9807f },   // freeze_effect（upp 取值 strict）
+                    { 172, 1.9532f },   // lightning / zap（同一段）（upp 取值 strict）
+                    { 263, 1.9745f },   // poison（upp 取值 strict）
+                    { 180, 1.3063f },   // log（upp 取值 geo）
+                } },
+            // spell_goblin_barrel（帧列 0 2-12）（upp 取值 strict）
+            { "SpellBarrel", Single(0, 1.2912f) },
+        };
+
+        private static Dictionary<int, float> Single(int first, float scale)
+        {
+            return new Dictionary<int, float> { { first, scale } };
+        }
+
+        /// <summary>
+        /// 取该段（用途目录 + 起始原版帧号）的缩放系数。未登记 / 非正值 ⇒ `1.0`（= 只按画布 PPU=100 摆）。
+        /// <para>⛔ 新加特效段落时必须同步登记到 <see cref="SegmentScale"/>，否则该段按 1.0 播（= 尺寸无校正）。</para>
+        /// </summary>
+        public static float SegmentScaleFor(string use, int firstFrame)
+        {
+            if (use == null) return 1f;
+            Dictionary<int, float> byFirst;
+            if (!SegmentScale.TryGetValue(use, out byFirst) || byFirst == null) return 1f;
+            float s;
+            return byFirst.TryGetValue(firstFrame, out s) && s > 0f ? s : 1f;
+        }
 
         /// <summary>一条投射物的原版图元段 = 用途目录 + 起始原版帧号 + 帧数（同 `PlayFlight` 的三个入参）。</summary>
         public struct ProjectileFx
@@ -364,13 +460,6 @@ namespace CR.View
         /// <param name="seconds">定点播放的**整段时长**（秒，见 <see cref="PlayTimed"/>）；`&lt;= 0` 时用 <see cref="DefaultFps"/>。</param>
         private void Spawn(Vector2 from, Vector2 to, string use, int firstFrame, int frameCount, float size, float duration, float hold, float seconds = 0f)
         {
-            var tap = CrTap.T0();
-            SpawnInner(from, to, use, firstFrame, frameCount, size, duration, hold, seconds);
-            CrTap.End("fx.spawn", tap, use);
-        }
-
-        private void SpawnInner(Vector2 from, Vector2 to, string use, int firstFrame, int frameCount, float size, float duration, float hold, float seconds)
-        {
             var frames = SpriteBank.LoadDir(ResPaths.EffectDir(use), SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
             if (frames.Length == 0) { SkippedTotal++; return; }
 
@@ -421,7 +510,8 @@ namespace CR.View
                 : (seconds > 0f && count > 1) ? count / seconds
                 : DefaultFps;
 
-            var scale = size > 0f ? size / WorldSize : 1f;
+            // 画布缩放 × 该段的 `.sc` 世界尺寸换算（见 `SegmentScale`）：只按画布摆会逐段偏 6.45/10～19.81/10 倍。
+            var scale = (size > 0f ? size / WorldSize : 1f) * SegmentScaleFor(use, firstFrame);
             node.Go.transform.position = new Vector3(from.x, from.y, 0f);
             node.Go.transform.localScale = new Vector3(scale, scale, 1f);
             node.Renderer.sprite = frames[start];
@@ -484,13 +574,6 @@ namespace CR.View
         }
 
         private void Update()
-        {
-            var tap = CrTap.T0();
-            UpdateInner();
-            CrTap.End("fx.upd", tap);
-        }
-
-        private void UpdateInner()
         {
             if (_live.Count == 0) return;
             var dt = Time.deltaTime;

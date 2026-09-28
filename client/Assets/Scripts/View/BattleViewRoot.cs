@@ -750,13 +750,6 @@ namespace CR.View
 
         private void Update()
         {
-            var tap = CrTap.T0();
-            UpdateInner();
-            CrTap.End("bvr.upd", tap);
-        }
-
-        private void UpdateInner()
-        {
             // 时序：本组件可能早于 `Game.Launch` 存在（那时 `Game.Event` 为 null），所以轮询到可订阅为止。
             if (!_subscribed)
             {
@@ -1096,10 +1089,11 @@ namespace CR.View
             var dirs = 0;
             var hits = 0;
             var frames = 0;
-            WarmCardList(n.deck_a, ref dirs, ref hits, ref frames);
-            WarmCardList(n.deck_b, ref dirs, ref hits, ref frames);
-            WarmCardList(n.hand_a, ref dirs, ref hits, ref frames);
-            WarmCardList(n.hand_b, ref dirs, ref hits, ref frames);
+            var maps = 0;
+            WarmCardList(n.deck_a, ref dirs, ref hits, ref frames, ref maps);
+            WarmCardList(n.deck_b, ref dirs, ref hits, ref frames, ref maps);
+            WarmCardList(n.hand_a, ref dirs, ref hits, ref frames, ref maps);
+            WarmCardList(n.hand_b, ref dirs, ref hits, ref frames, ref maps);
             var cardDirs = dirs;
 
             // 覆盖 = 本类与 `EffectsView` 能播到的**全部**战斗期目录。⛔ 不是"常用那几个"：
@@ -1128,11 +1122,12 @@ namespace CR.View
             // 判据行：`hits` 必须等于 `dirs`（取不到 = 目录名错 / 素材没落地 ⇒ 战斗期仍会首触并留 Warn）。
             Game.Logger?.Info(LogTag,
                 $"精灵预热：卡组+手牌目录 {cardDirs} 个 + 战斗特效目录 {uses.Length} 个（含重复）⇒ " +
-                $"命中 {hits} / 取不到 {dirs - hits}，共 {frames} 帧；战斗期不再首触 LoadDir");
+                $"命中 {hits} / 取不到 {dirs - hits}，共 {frames} 帧；帧号映射预建 {maps} 张；" +
+                $"战斗期不再首触 LoadDir / 不再首建帧号映射");
         }
 
         /// <summary>预热一批卡 id 的精灵目录（见 <see cref="WarmBattleSprites"/>）。⛔ 表外的卡跳过（法术卡走特效目录）。</summary>
-        private static void WarmCardList(int[] cardIds, ref int dirs, ref int hits, ref int frames)
+        private static void WarmCardList(int[] cardIds, ref int dirs, ref int hits, ref int frames, ref int maps)
         {
             if (cardIds == null) return;
             for (var i = 0; i < cardIds.Length; i++)
@@ -1142,18 +1137,21 @@ namespace CR.View
                 var path = v.IsBuilding ? ResPaths.BuildingDir(v.Dir) : ResPaths.UnitDir(v.Dir);
                 var f = SpriteBank.LoadDir(path, SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
                 dirs++;
-                if (f.Length > 0) { hits++; frames += f.Length; }
+                if (f.Length > 0)
+                {
+                    hits++;
+                    frames += f.Length;
+                    // ★ 「帧号 → 帧数组下标」映射表也在这里建（不是只 `LoadDir`）：它是**按目录首次**建的
+                    //   （逐帧解析每个 `frame_NNN` 的名字），658 帧的目录实测 6.6 ms、117 帧的实测 4.0 ms ——
+                    //   建在出场那一帧就是"出一张卡 / 单位出场卡一下"里可归因的那一步。
+                    //   单位装配时 `UnitView.ClipIndices` 会问同一张表（引擎按 目录+锚点 缓存 ⇒ 这里是**预建**）。
+                    //   数量与 `frames` 一起落进上面的判据行，可离线核对"预热期建了几张表"。
+                    if (SpriteBank.FrameNumberMap(path, SpriteBank.SpritePivotMode.UnifiedCanvasAnchor).Length > 0) maps++;
+                }
             }
         }
 
         private void OnSnapshot(BattleSnapshot s)
-        {
-            var tap = CrTap.T0();
-            OnSnapshotInner(s);
-            CrTap.End("bvr.snap", tap);
-        }
-
-        private void OnSnapshotInner(BattleSnapshot s)
         {
             if (s == null) return;
             if (!_built) RebuildIfWanted("Events.Battle.Snapshot");
@@ -1250,20 +1248,12 @@ namespace CR.View
 
         private void OnBattleEventNotify(BattleEventNotify n)
         {
-            var tap = CrTap.T0();
-            OnBattleEventNotifyInner(n);
-            CrTap.End("bvr.evt", tap);
-        }
-
-        private void OnBattleEventNotifyInner(BattleEventNotify n)
-        {
             if (n == null || n.events == null) return;
             if (!_built) RebuildIfWanted("Events.Battle.Events"); // 兜底：事件可能早于快照 / 站点切换到达
             for (var i = 0; i < n.events.Length; i++)
             {
                 var e = n.events[i];
                 if (e == null) continue;
-                var et = CrTap.T0();
                 // 表现层只消费"离散事件里必须有的一次性表现"。**不在这里生成单位** ——
                 // 单位的真假一律以快照的 entities 为准（事件与快照都会到，双份生成会画出两个兵）。
                 Game.Logger?.Info(LogTag,
@@ -1339,7 +1329,6 @@ namespace CR.View
                         }
                         break;
                 }
-                CrTap.End("evt.k" + e.kind, et);
             }
         }
 
@@ -1413,13 +1402,6 @@ namespace CR.View
         /// </summary>
         private void TrackCombatSignals(BattleSnapshot s)
         {
-            var tap = CrTap.T0();
-            TrackCombatSignalsInner(s);
-            CrTap.End("sig", tap);
-        }
-
-        private void TrackCombatSignalsInner(BattleSnapshot s)
-        {
             var list = s.entities;
             if (list == null) return;
 
@@ -1451,9 +1433,7 @@ namespace CR.View
                     || (s.server_ms - lastShot) >= anim.HitSpeedMs;
                 if (!due) continue;
 
-                var ts = CrTap.T0();
                 var fired = PlayBattleShot(e, list, world);
-                CrTap.End("shot", ts);
                 if (fired) _lastShotMs[e.id] = s.server_ms;
             }
 
@@ -1481,9 +1461,7 @@ namespace CR.View
                 _hitsObserved++;
                 if (hitSlots >= MaxHitFxPerSnapshot) continue;
                 hitSlots++;
-                var th = CrTap.T0();
                 PlayHitFx(e, prevHp);
-                CrTap.End("hitfx", th);
             }
 
             var swapHp = _prevHp; _prevHp = _curHp; _curHp = swapHp;
@@ -1806,7 +1784,7 @@ namespace CR.View
         ///
         /// <para>
         /// <b>尺寸取原版 1:1</b>：传 <see cref="EffectsView.WorldSize"/> ⇒ `EffectsView` 里
-        /// `scale = size / WorldSize = 1` ⇒ 精灵按美术自己的像素尺寸（PPU=100）落位。
+        /// `scale = size / WorldSize` × 该段的 `.sc` 换算系数（见 `EffectsView.SegmentScale`）。
         /// 这与既有 `Hit` / `Blast` / `Arrow` 三个用途目录同一口径，⛔ 不按"法术半径"另算一个缩放
         /// （客户端没有半径数据；要按半径缩放得先让服务端随卡池下发，那是另一片）。
         /// </para>
@@ -2349,9 +2327,7 @@ namespace CR.View
                         continue;
                     }
                     var visual = ResolveVisual(e);
-                    var tn = CrTap.T0();
                     view = UnitView.Acquire(_unitRoot, visual.Dir, visual.IsBuilding);
-                    CrTap.End("newunit", tn, visual.Dir);
                     _units[e.id] = view;
                     Game.Logger?.Info(LogTag,
                         $"新建单位视图：id={e.id} kind={e.kind} card={e.card_id} " +

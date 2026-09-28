@@ -60,12 +60,18 @@ Assets/Configs/config.json
 | **D10** | 一切日志走 `Game.Logger.Info/Warn/Error(tag, msg)` | ⛔ 裸 `Debug.Log` 一律算错（`tools/verify.ps1` 的 `hard-rules` 会报）。非预期分支必须留痕 |
 | **D11** | 事件名、资源路径、消息号**各自只有一个定义处** | `Core/Events.cs` / `Core/ResPaths.cs` / `Def/MsgDef.cs`。⛔ 业务脚本里出现裸事件名字符串或裸资源路径一律算错 |
 
-## 3. 服务端 ↔ 客户端契约（已冻结，见 `docs/步骤文档.md` §4.1）
+## 3. 服务端 ↔ 客户端契约（已冻结）
 
-- C2S 16 个 + 推送 6 个，**已逐字落进 `client/Assets/Scripts/Def/{MsgDef.cs,ProtoDef.cs}`**（两端同名同值）。
-- ⛔ **回包不占消息号**（回包帧 msgID 恒为 0）—— 用 `await Game.Net.Call<XxxReply>(MsgDef.Xxx, req)`。
+> 唯一真源 = 两端的定义文件：服务端 `server/game/def/{msg.go,push.go,types.go}`，
+> 客户端 `client/Assets/Scripts/Def/{MsgDef.cs,ProtoDef.cs}`。**两端同名同值、同一批改动**（手工维护，⛔ 无代码生成）。
+
+- **C2S 16 个**（`def/msg.go`，1000101–1000501）：昵称 / 档案 2、卡池卡组 3、房间 7、对局 3、人机开打 1。
+- **推送 6 个**（`def/push.go`，3002001–3002006）：房间列表 / 房间状态 / 开打 / 快照 / 事件 / 结算。
+- ⛔ **回包不占消息号**（回包帧 msgID 恒为 0，引擎按 requestID 配对）—— 只定义回包结构体，用 `await Game.Net.Call<XxxReply>(MsgDef.Xxx, req)`。
 - 推送：`Game.OnMsg(MsgDef.PushXxx, ctx => { var n = ctx.Bind<XxxNotify>(); … })`。
+- 协议字段一律 snake_case（与 Go `json` tag 对齐）；对局坐标带单位后缀 `x_milli` / `y_milli`（1/1000 格）。
 - **快照只在 `Game.OnMsg(MsgDef.PushBattleSnapshot, …)` 一条路上进来**；玩家自己的手牌/圣水也在快照里（`hand_a`/`elixir_a`，`my_team` 由 `PushBattleStart` 给出）——所以客户端**不需要**为"我的手牌"再开一条协议。
+- 段位分配（`tools/ai-skill/conventions.md`）：引擎 1–10000；业务 C2S 1000101+ / 推送 3002001+；回包不占号。
 
 ## 4. 站点（App Flow）与面板清单
 
@@ -132,8 +138,8 @@ Assets/Configs/config.json
 反推出格 0 在 px 208.4、格 18 在 1029，**另外三处独立特征也落在该映射说的地方**），
 并按「后沿 0 / 广场 6.5 / 河心 16 / 内容顶 22.3」四点做**两段定标**（原版美术带透视，
 纵向 px/格 近处≈58、河附近≈22，**不存在**单一线性映射能同时让河与广场落对格）。
-RED 半场 = 同一帧 `flipY` 镜像。**未纳入合成的 22 帧**（不共位）与
-**未认出的塔摧毁态下标**见 `tools/ai-skill/registry.md` / `constraints.md` 的已知缺口条目。
+RED 半场 = 同一帧 `flipY` 镜像。**未纳入合成的 22 帧**（不共位）不参与合成；
+**未认出的塔摧毁态下标**暂缺。
 
 ### 6.5 对局 HUD 的**图元来源**与**坐标来源**（只记结构）
 
@@ -143,15 +149,14 @@ RED 半场 = 同一帧 `flipY` 镜像。**未纳入合成的 22 帧**（不共�
 |---|---|---|
 | 图元来源 | 战斗 HUD 的图元**不在**独立的 `.sc` 文件里，而在 **`ui.sc` 的 `HUD_*` export 内部的 `0c` 具名子元件**里（`HUD_player`(1091) → `slots`(1070) / `elixir_bar`(1080)；`printScore_*`(1026/1031)；`HUD_topRight`(1017)；`replay_HUD_left`(962)） | 出处文档 `策划/战斗HUD素材索引.md`（§1 结论表 / §3 逐项明细 / §4 落地表）；键集中在 `Core/ResPaths.cs` 的 `UiRoot` 段 |
 | 圣水条三件 | `ElixirBarTrack` = `ui_out` **155**（原版 `elixir_bar/bar_bg`）、`ElixirBarFrame` = **158**（`bar_end`）、`ElixirBarFill` = **157**（`bar_body`/`ghost`） | `Core/ResPaths.cs`（三个键）；对照行 `策划/对照表.md` C60–C62（差值 0） |
-| HUD 新增键（按用途） | `Slots/ui_out`：`HudHandSlot`(200) ×4 +「下一张」同件复用、`HudHandSlotDraft`(201)；`Icons/ui_out`：`HudStarPlayer`(187)/`HudStarEnemy`(188)/`HudStarPlayerAlt`(197)/`HudStarEnemyAlt`(198)、`HudClockIcon`(042)、`HudPauseIconPlay`(170)/`HudPauseIconPause`(171)、`IconElixirBarLeft`(159)、`IconQuitCross`(164)；`Panels/ui_out`：`HudScoreNamePlate`(196)、`HudTopRightPlate`(193)；`Buttons/ui_out`：`HudPauseButtonPlate`(163)；`Bars/ui_out`：`ElixirBarTrackAlt`(156)、`ElixirBarTick`(160)、`ElixirRequirementTrack`(161)、`ElixirRequirementEnd`(162) | `Core/ResPaths.cs`；清单同步在 `tools/probes/copy-ui-assets.py`（⛔ 业务代码不写路径字面量） |
-| 坐标来源 | HUD 的 21 个几何常量**逐条带出处**：底部 HUD 全部取 `策划/参考图/几何量取.md` §1.3（基线 `18_对局HUD_1080x1920.jpg`，与本项目画布**同尺寸 ⇒ k=1.0**）；量不到的项（冠数 / 暂停 / 阶段 / 时钟图标摆放尺寸 / 手牌字号 / 新帧九宫格切边）**保持现状并在注释里写明未量到**，⛔ 不编绝对值 | `UI/Panels/HudPanel.cs` 的常量区（每条注释带 `D1..D17` 或 `§2 C4/C4c` 出处）；对照行 `策划/对照表.md` A38–A53 |
-| 顺序纠正（结构级） | ① **圣水条在手牌下方**（原版条 y1797..1841、卡 y1614..1785）；② **「下一张」在左下**（x 33..97 / y 1634..1716）；③ 手牌整排**不再"居中推算"**，改用 `TextAnchor.LowerLeft` 直接落在量到的 x=144 | 同上；出处 = `几何量取.md` §1.3 D1/D2/D12/D14/D15/D9 |
+| HUD 键（按用途） | `Slots/ui_out`：`HudHandSlot`(200) ×4 +「下一张」同件复用、`HudHandSlotDraft`(201)；`Icons/ui_out`：`HudStarPlayer`(187)/`HudStarEnemy`(188)/`HudStarPlayerAlt`(197)/`HudStarEnemyAlt`(198)、`HudClockIcon`(042)、`HudPauseIconPlay`(170)/`HudPauseIconPause`(171)、`IconElixirBarLeft`(159)、`IconQuitCross`(164)；`Panels/ui_out`：`HudScoreNamePlate`(196)、`HudTopRightPlate`(193)；`Buttons/ui_out`：`HudPauseButtonPlate`(163)；`Bars/ui_out`：`ElixirBarTrackAlt`(156)、`ElixirBarTick`(160)、`ElixirRequirementTrack`(161)、`ElixirRequirementEnd`(162) | `Core/ResPaths.cs`；清单同步在 `tools/probes/copy-ui-assets.py`（⛔ 业务代码不写路径字面量） |
+| 坐标来源 | HUD 的 21 个几何常量**逐条带出处**：底部 HUD 全部取 `策划/参考图/几何量取.md` §1.3（基线 `18_对局HUD_1080x1920.jpg`，与本项目画布**同尺寸 ⇒ k=1.0**）；量不到的项（冠数 / 暂停 / 阶段 / 时钟图标摆放尺寸 / 手牌字号 / 新帧九宫格切边）**在注释里写明未量到**，⛔ 不编绝对值 | `UI/Panels/HudPanel.cs` 的常量区（每条注释带 `D1..D17` 或 `§2 C4/C4c` 出处）；对照行 `策划/对照表.md` A38–A53 |
+| 顺序约定（结构级） | ① **圣水条在手牌下方**（原版条 y1797..1841、卡 y1614..1785）；② **「下一张」在左下**（x 33..97 / y 1634..1716）；③ 手牌整排用 `TextAnchor.LowerLeft` 直接落在量到的 x=144 | 同上；出处 = `几何量取.md` §1.3 D1/D2/D12/D14/D15/D9 |
 | 三向一致的把关 | `ResPaths` 键 ↔ `Sprites/Ui/**` 磁盘文件 ↔ `copy-ui-assets.py` 清单条目，由 `tools/probes/check-ui-keys.ps1` 机械对账 | `tools/probes/check-ui-keys.ps1`、`tools/probes/copy-ui-assets.py` |
 
 > ⚠️ **已知缺口（结构级）**：
 > ① `check-ui-keys.ps1` 只扫 `ResPaths` 的**常量键**，扫不到 `CrUiStyle` 里经 `ResPaths.UiFrame(...)` 拼出的
-> **动态路径**（`CrUiStyle.LogoOfficial` / `LoadingBarFill`）⇒ 这两个引用对"未引用"探针**不可见**
-> （历史后果与恢复记录见 `策划/验收表.md` 的 **D75**）。
+> **动态路径**（`CrUiStyle.LogoOfficial` / `LoadingBarFill`）⇒ 这两个引用对"未引用"探针**不可见**。
 > ② `HudPauseIconPlay`(170) 已登记键但 HUD 不使用（该按钮恒定进暂停菜单，没有播放态）；
 > ③ 圣水刻度 / 需求条（160/161/162）已登记键但 HUD 未绘制。
 
@@ -207,7 +212,7 @@ Game View 右上角 Aspect 下拉 → `+` → Fixed Resolution `1080 × 1920`。
 
 ### 8.1 `Boot` 场景（Build Settings index 0）
 
-启动链路由「单场景 + 面板切换」改为**两段场景**：
+启动链路 = **`Boot` → `Main` → `Battle01`** 三段场景，站内切换走面板：
 
 | 项 | 结构 | 落点 |
 |---|---|---|
@@ -227,14 +232,14 @@ Game View 右上角 Aspect 下拉 → `+` → Fixed Resolution `1080 × 1920`。
 - **接线方向**：服务端对局事件（`Event.Kind`）由 `BattleViewRoot.OnBattleEventNotify` 翻译成特效播放；
   位置**取事件自带**的 `x_milli / y_milli`（服务端在 `combat.go` 里对 `EvDeath` / `EvTowerDestroyed` 都填了实体自身坐标）
   ⇒ 客户端⛔ 不另算位置。特效节点独立于单位与塔，排序层在二者之上（`order=3000`）。
-- **远程弹道**：`PlayFlight` 带 `durationSeconds` 的重载（既有签名保留）；`BattleViewRoot` 订阅 `Deck.PoolLoaded`
+- **远程弹道**：`PlayFlight` 提供带 `durationSeconds` 的重载；`BattleViewRoot` 订阅 `Deck.PoolLoaded`
   建 `card_id → CardInfo` 索引，`case EventKindPlayCard` 里 `CardInfo.projectile_key` 非空 ⇒ 播飞行弹道，
   时长 = 距离(格) × 60 / `proj_speed`（`proj_speed` 单位 = **格/分钟**）。
   施法者位置**降级**为出牌方国王塔中心（事件载荷不带施法者）。
 
-## 9. 后续片接入的结构（只记结构，不记进度）
+## 9. 部件接线（只记结构）
 
-> 本节记的是**部件之间的接线形状**（谁持有谁、入口在哪），进度见 `策划/验收表.md`。
+> 本节记的是**部件之间的接线形状**（谁持有谁、入口在哪）。
 
 ### 9.1 单位动画：帧段表 → `UnitView.AnimRanges`
 

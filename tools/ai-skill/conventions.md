@@ -46,7 +46,7 @@ client/Assets/Scripts/View/      战斗表现（竞技场/单位/血条/特效�
 client/Assets/Scripts/App/       唯一组装点 Bootstrap（≤200 行）
 策划/数值文档/                  配表源表 + -pack.xlsx
 策划/策划案/                    参考规格 + 策划案
-docs/                           过程文档（步骤文档 + agent 任务书），任务结束即冻结
+docs/                           客户端架构 + 引擎 API 参考（当前形态）
 原版资源/                       下载/解包的 A 素材（含素材调研.md 里的清单）
 .ai-tmp/test|hosts|drivers/     一次性产物（⛔ 不许散落到别处）
 ```

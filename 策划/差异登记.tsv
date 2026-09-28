@@ -4,7 +4,7 @@ D2	卡池 20 张而非原版 120+	用户裁决「只保留 20 张左右」；保
 D3	塔血量取 hitpoints_per_level 自洽解	官方同一数据文件内 damage_per_level 与 dps_per_level 不自洽	cards_stats_projectile.json	拿到更权威口径时
 D4	服务端 tick = 20 TPS（非 60）	官方所有时长均为 50ms 倍数，20 TPS 可整除	cr-sim/cr_sim/engine/constants.py:34	—
 D21	S28 单位动画帧段只接入 3 个目录	原始资源/sc/ 只有 3 个 .sc，扩展不出别的目录	策划/单位帧段表.md / 验收表 S28 D21	拿到更多 .sc 时
-D22	unit_cs 的 9 个本项目自定列（id/key/name_cn/kind/sprite_dir/summon_* 共 9 列）	列名由本项目定义（官方 JSON 无同名列）；取值口径已逐列写入 unit_cs.txt 说明行	docs/步骤文档.md §4.2 / 策划/数值文档/unit_cs.txt 说明行	用户要求扩充列时
+D22	unit_cs 的 9 个本项目自定列（id/key/name_cn/kind/sprite_dir/summon_* 共 9 列）	列名由本项目定义（官方 JSON 无同名列）；取值口径已逐列写入 unit_cs.txt 说明行	策划/数值文档/unit_cs.txt 说明行	用户要求扩充列时
 D23	chr_goblin_archer_out（342 帧）在 .cs 语料里零引用	假阳性：该目录被 unit_cs.txt 的 SpearGoblin 行 sprite_dir 数据引用（→ server/game/table/tsv/unit.tsv），不是代码字面量 ⇒ 按「目录名出现在 .cs」判 ⇒ 漏判数据驱动引用	client/Assets/Resources/Sprites/Units/chr_goblin_archer_out + unit_cs.txt:SpearGoblin.sprite_dir	枚举脚本口径改为「代码 + 配表」双源扫描时
 D1	不实现冠军（Champion）稀有度与其英雄能力	① 冠军卡的英雄技能是独立机制；② A 的素材集**没有**冠军卡的逐帧精灵	`原版资源/cr-assets-png/assets/sc/` 目录清单无 `chr_archer_queen` 等；`cards.json` 有 5 张 Champion	用户要求补做时
 D6	P.E.K.K.A 伤害取官方逐级表的 **816**，而非 `anchors.json` 的 842	`anchors.json` 自述 842 是「交互断点推导」而非读数；同索引血量 3760 两边逐字一致 ⇒ 索引可信。816 仍能一击杀 721 HP 火枪手、打不死 1766 骑士，与文档化交互不冲突	`cards_stats_characters.json` → `damage_per_level[5]`；`anchors.json`；`unit_cs.txt:13`	拿到 live 读数时

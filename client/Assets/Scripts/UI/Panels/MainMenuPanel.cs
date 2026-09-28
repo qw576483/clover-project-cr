@@ -7,7 +7,7 @@ namespace CR.UI.Panels
 {
     /// <summary>
     /// 主菜单（`MainMenu` 站点，`Main` 场景，Normal 层）：两段式 ——
-    /// **顶带**（资源条 78 + 名字条 89 = 167，贴屏幕顶沿）与**底部导航带**（172.8，贴屏幕底沿），
+    /// **顶带**（资源条 83.5 + 名字条 83.5 = 167，贴屏幕顶沿）与**底部导航带**（172.8，贴屏幕底沿），
     /// 中间只留背景美术。
     ///
     /// <para>
@@ -34,18 +34,19 @@ namespace CR.UI.Panels
     {
         // ═══════════════════ 顶部两条固定带（原版 y0..167@1080） ═══════════════════
         //
-        // 出处：基线 `策划/基线图/12_主菜单_750x1334.png` 顶部两条带（资源条 y0..54.2@750、
-        // 名字条 y54.2..116@750）×1.44 ⇒ 资源条 **78** + 名字条 **89** = **167**，
-        // 与 <see cref="CrUiStyle.PanelTopOffset"/>（同一张图上面板顶边 y=116@750 的读数）同值。
+        // 出处：基线 `策划/基线图/12_主菜单_750x1334.png` 顶部两条带的分界（x=300 / x=400 竖剖：
+        // 资源槽内区止于 y57、名字带自 y58 起）⇒ 分界 y58@750 ×1.44 = **83.5**；顶带总高 = 原版
+        // y0..116@750 ×1.44 = **167**，与 <see cref="CrUiStyle.PanelTopOffset"/>（同一张图上面板顶边
+        // y=116@750 的读数）同值 ⇒ 两条带各 83.5。
         // 两条带各自贴屏幕左右沿全宽。
 
-        /// <summary>资源条高 = **78**（原版 y0..54.2@750 ×1.44）。</summary>
-        private const float ResBarH = 78f;
+        /// <summary>资源条高 = **83.5**（原版两条带分界 y58@750 ×1.44）。</summary>
+        private const float ResBarH = 83.5f;
 
-        /// <summary>名字条高 = **89**（原版 y54.2..116@750 ×1.44）。</summary>
-        private const float NameBarH = 89f;
+        /// <summary>名字条高 = **83.5**（原版 y58..116@750 ×1.44）。</summary>
+        private const float NameBarH = 83.5f;
 
-        /// <summary>名字条顶边 = 资源条底边 = **78**（两条带上下相接，合计 = <see cref="CrUiStyle.PanelTopOffset"/>）。</summary>
+        /// <summary>名字条顶边 = 资源条底边 = **83.5**（两条带上下相接，合计 = <see cref="CrUiStyle.PanelTopOffset"/>）。</summary>
         private const float NameBarY = ResBarH;
 
         /// <summary>两条带的内容左 / 右边界留白 = **32**（= <see cref="CrUiStyle.PopupBorder"/> + <see cref="CrUiStyle.PopupPad"/>，与面板亮面体内缩同一口径）。</summary>
@@ -350,7 +351,7 @@ namespace CR.UI.Panels
             const float gemX = 737.3f;
             const float gemW = 263.5f;
             // 行内容顶边 = **23**（基线 `12_主菜单_750x1334` 资源槽盘顶边 y16@750 ×1.44 = 23.0；
-            // 盘高 40@750 ⇒ 底边 80.6 —— 原版同样是槽盘底边压住两条带的分界）。
+            // 盘高 40@750 ⇒ 底边 80.6，落在资源条 83.5 之内）。
             const float slotY = 23f;
 
             // 左端整组：等级盘 + 经验条（见本文件「顶带左端的等级盘 + 经验条」段）。

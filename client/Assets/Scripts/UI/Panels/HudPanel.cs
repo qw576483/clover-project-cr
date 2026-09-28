@@ -363,7 +363,7 @@ namespace CR.UI.Panels
         /// <summary>计时板宽 <b>198</b>。出处：D16（x 882..1080）。
         /// 板素材 = `HudTopRightPlate`（`ui_out/193`，原版 `HUD_topRight` 的底板，原生 212×124，
         /// 出处 `策划/战斗HUD素材索引.md` §3.4）⇒ 按量取值 198×100 铺（0.93×/0.81× 轻微缩放；
-        /// 该帧**切边未量到** ⇒ 用 border = 0 的整幅拉伸，差值登记在 `策划/验收表.md`（D63））。</summary>
+        /// 该帧**切边未量到** ⇒ 用 border = 0 的整幅拉伸，差值登记在 `策划/差异登记.tsv`（D63））。</summary>
         private const float TimerBoxW = 198f;
 
         /// <summary>计时板高 <b>100</b>。出处：D16（y 0..100）。</summary>
@@ -822,7 +822,7 @@ namespace CR.UI.Panels
             //    （出处 18 图 purple bbox；另有实机 dump 与节点树读数交叉验证）。
             //    若取原 `-10` ⇒ px y 10..40 ⇒ **与徽章重叠 26px**（「常规时间」四字压到紫徽 + 金星上）。
             //    徽章坐标是**量取来的**、⛔ 不让位 ⇒ 让这一行让位：px y **44..74**（徽章底边 y=36 之下留 8px 缝）。
-            //    阶段/状态两行是本项目自定件（验收表 D34 已登记「多出 Phase/Status 两行」），
+            //    阶段/状态两行是本项目自定件（差异登记 D34 已登记「多出 Phase/Status 两行」），
             //    ⛔ 不动任何量取来的几何（TimerBox 冻结几何、徽章位、手牌、圣水条）。
             _phaseText = UIFactory.CreateText("Phase", _root, string.Empty, CrUiStyle.FontSmall,
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);

@@ -2477,7 +2477,7 @@ namespace CR.UI.Panels
         private static void WarnOnce(string message)
         {
             if (!WarnedMissing.Add(message)) return;
-            Game.Logger?.Warn(Tag, message + "（本条只报一次；已登记进 策划/验收表.md §3「允许的差异」）");
+            Game.Logger?.Warn(Tag, message + "（本条只报一次；已登记进 策划/差异登记.tsv §3「允许的差异」）");
         }
 
         /// <summary>

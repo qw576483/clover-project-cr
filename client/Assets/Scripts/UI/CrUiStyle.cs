@@ -40,7 +40,7 @@ namespace CR.UI
     /// 路径全部走 <see cref="ResPaths"/>）。"面板底 / 按钮 / 标题条 / 输入框底 / 进度条"这类**可拉伸**部件
     /// 必须走**九宫格**（`Image.type = Sliced` + `Sprite.border`），见 <see cref="NineSlice"/> 的注释；
     /// ⛔ 不许把原图直接拉成任意尺寸（圆角/描边会被拉变形）。
-    /// 缺素材时才允许纯色兜底，且必须打一条 Warn（只报一次）并登记进 `策划/验收表.md` §3「允许的差异」`。
+    /// 缺素材时才允许纯色兜底，且必须打一条 Warn（只报一次）并登记进 `策划/差异登记.tsv` §3「允许的差异」`。
     /// </para>
     ///
     /// <para>
@@ -69,7 +69,7 @@ namespace CR.UI
         /// <b>出处</b>：竖版口径「内容框宽 ≤ 1000」。A 侧可量值 = 12_主菜单_750x1334 的
         /// Player Profile 面板（census 实测 x=17..727 ⇒ 711px @750 宽 = 屏宽 94.8%）
         /// ⇒ 折算 1080 画布 = 711×1.44 = **1023.84**。为守住 ≤1000 的口径取 <b>1000</b>，
-        /// 与 A 的差值 −23.84px（−2.3%）登记在 `策划/验收表.md` 的「允许的差异」。
+        /// 与 A 的差值 −23.84px（−2.3%）登记在 `策划/差异登记.tsv` 的「允许的差异」。
         /// </para>
         /// </summary>
         public const float ContentW = 1000f;
@@ -657,7 +657,7 @@ namespace CR.UI
 
         /// <summary>
         /// 「已登记、但原版 `ui_spells` 的 95 条 export 里**没有**对应名」的哨兵值
-        /// （当前只有 `goblin-hut` ⇒ 该卡只画卡底 + 卡名，⛔ 不猜帧号；已登记进 `策划/验收表.md`）。
+        /// （当前只有 `goblin-hut` ⇒ 该卡只画卡底 + 卡名，⛔ 不猜帧号；已登记进 `策划/差异登记.tsv`）。
         /// </summary>
         public const int CardArtFrameMissing = -1;
 
@@ -967,7 +967,7 @@ namespace CR.UI
         /// 所以把锚点交给调用方。<paramref name="size"/> 的宽高按调用方定；四角与四边由 border 保原样。
         /// </para>
         /// <para>⛔ 取不到图时退化为 <paramref name="fallback"/> 纯色**并打一条 Warn（只报一次）**；
-        /// 每个退化都必须登记进 `策划/验收表.md` §3「允许的差异」`。</para>
+        /// 每个退化都必须登记进 `策划/差异登记.tsv` §3「允许的差异」`。</para>
         /// </summary>
         public static Image NineSlice(string name, Transform parent, string resPath, Vector4 border,
             Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size, Color fallback, bool raycast = false)
@@ -991,7 +991,7 @@ namespace CR.UI
         /// <para>贴顶距离 = <see cref="PanelTopOffset"/>（A 的面板顶边实测比例）；宽 = <see cref="ContentW"/>。</para>
         /// <para>素材 = <see cref="ResPaths.PanelPaper"/>（A 的原版羊皮纸面板底）+ <see cref="BorderPaper"/>。
         /// 与 A 的浅灰蓝面板（12_主菜单）**不是同一张** —— A 图集里没有可九宫格拉伸的浅灰蓝**实心**面板帧
-        /// （最接近的 `ui_out` 592 是空心描边、014/015 是深蓝灰实心），该差异登记在 `策划/验收表.md` §3「允许的差异」。</para>
+        /// （最接近的 `ui_out` 592 是空心描边、014/015 是深蓝灰实心），该差异登记在 `策划/差异登记.tsv` §3「允许的差异」。</para>
         /// </summary>
         public static Image ContentPanel(string name, Transform parent, float height)
         {
@@ -1554,7 +1554,7 @@ namespace CR.UI
         private static void WarnOnce(string message)
         {
             if (!WarnedMissing.Add(message)) return;
-            Game.Logger?.Warn("CrUiStyle", message + "（本条只报一次；兜底外观已登记进 策划/验收表.md` §3「允许的差异」）");
+            Game.Logger?.Warn("CrUiStyle", message + "（本条只报一次；兜底外观已登记进 策划/差异登记.tsv` §3「允许的差异」）");
         }
 
         /// <summary>

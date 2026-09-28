@@ -714,7 +714,7 @@ func applySeparation(a *Arena, e *entity, d sepDelta, neighbours int) bool {
 // `advanceAlongRoute(e.Def.SpeedMilliPerSec)`，而 fine 单位 = milli × TicksPerSecond）。
 // 物理上自洽：被推开的速率不超过主动移动的速率。
 // ⚠️ 这是**本项目新增**的约束（参考实现 `cr-sim engine/movement.py:68` 只规定"最终要分开"，
-// 不含任何速率约束）⇒ 已登记在 `策划/验收表.md` 的「允许的差异」。
+// 不含任何速率约束）⇒ 已登记在 `策划/差异登记.tsv` 的「允许的差异」。
 //
 // ⚠️ 额度按**整个 tick 的位移向量模长**计（`applySeparation` 对累加后的
 // `sepDelta` 收缩一次），⛔ 不是"每对推力各裁一次"：后者在"被夹在两只同伴中间"

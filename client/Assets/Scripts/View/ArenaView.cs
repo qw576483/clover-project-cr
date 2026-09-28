@@ -209,7 +209,7 @@ namespace CR.View
         /// </para>
         /// <para>
         /// <b>本常量的消费点</b>：代码内**无**（另一处引用只是注释里的脚注）；
-        /// 按名字引用它的只有 `策划/对照表.md`、`策划/验收表.md`、`tools/probes/FlowProbe.cs`（探针读值）。
+        /// 按名字引用它的只有 `策划/对照表.md`、`策划/差异登记.tsv`、`tools/probes/FlowProbe.cs`（探针读值）。
         /// ⛔ 保留本名不删 —— 那三处按它引用「f006 唯一与 18×32 自洽」这条结论；
         /// 但**判「地面用什么帧」一律看 <see cref="NearGroundFrameNumber"/>**。
         /// </para>

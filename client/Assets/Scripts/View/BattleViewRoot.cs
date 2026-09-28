@@ -817,7 +817,8 @@ namespace CR.View
             _effects = EffectsView.Create(_content.transform); // 特效层（原版帧序列，见 ResPaths 特效区段）
             // 音效层（⛔ **唯一挂点**）：挂在 BattleContent 下 ⇒ 生命周期跟着对局画面走
             //（出图时随场景卸载，OnDestroy 自动退订 Core/Events.cs 的战斗事件）。与 EffectsView 同一范式。
-            _audio = BattleAudioView.Create(_content.transform);
+            // 传入 `this`：本控制器先于它订阅 `Battle.Started` 且整场常驻 ⇒ 音效侧的敌我判定读 `MyTeam`。
+            _audio = BattleAudioView.Create(_content.transform, this);
 
             _cam = Camera.main;
             if (_cam == null)

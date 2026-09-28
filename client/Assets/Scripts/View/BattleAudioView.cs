@@ -21,16 +21,16 @@ namespace CR.View
     /// <b>事件 → 音效映射（逐条对 <c>Core/Events.cs</c>）</b>：
     /// <list type="bullet">
     /// <item>出牌 —— <c>Events.Battle.PlayCardRequest</c>（<c>(int cardId, Vector2 worldPos)</c>）⇒ <see cref="AudioPaths.PlayCard"/>。
-    ///   <b>为什么用"请求"而不是 kind==0 的"出牌事件"</b>：请求只由**本机玩家**抬手触发（<c>HudPanel</c> 发出），
-    ///   语义上必然是"己方出牌"，正好对上原版的己方召唤音（<c>summon_own_07</c>，见 <c>AudioPaths</c>）；
-    ///   而 kind==0 的 <c>EvPlayCard</c> 是**双方共用**的（带 <c>team</c>），用它就得额外跟踪 <c>my_team</c> 才能区分敌我，
-    ///   徒增状态且容易在重连/换边时漂移。音效是"手感反馈"，与请求同时发声才有原版的即时感（服务端裁决一般通过）。
+    ///   请求只由**本机玩家**抬手触发（<c>HudPanel</c> 发出），语义上必然是"己方出牌"，
+    ///   正好对上原版的己方召唤音（<c>summon_own_07</c>，见 <c>AudioPaths</c>）；
+    ///   与请求同帧发声才有原版的即时感（服务端裁决一般通过）。
     /// </item>
     /// <item>死亡 —— <c>Events.Battle.Events</c> 的 <c>kind == 2</c>（<c>EvDeath</c>）⇒ <see cref="AudioPaths.Death"/>。
     ///   （与 <see cref="BattleViewRoot"/> 在 kind==2 播的死亡特效同帧：死亡只播音效 + die 档特效。）</item>
     /// <item>命中（非致死）—— <c>Events.Battle.Snapshot</c> 里同 id 的 <c>hp</c> 下降 ⇒ <see cref="AudioPaths.Hit"/>。
     ///   （协议没有「命中」事件，见 <see cref="OnSnapshot"/>；单帧上限 4 声。）</item>
-    /// <item>敌方出牌 —— 同事件 <c>kind == 0</c>（<c>EvPlayCard</c>）且 <c>team != my_team</c> ⇒ <see cref="AudioPaths.EnemySummon"/>。</item>
+    /// <item>敌方出牌 —— 同事件 <c>kind == 0</c>（<c>EvPlayCard</c>）且 <c>team != 我方队伍</c> ⇒ <see cref="AudioPaths.EnemySummon"/>。
+    ///   我方队伍取 <see cref="BattleViewRoot.MyTeam"/>（见 <see cref="Create"/>）。</item>
     /// <item>塔激活 —— 同事件 <c>kind == 5</c>（<c>EvTowerActivated</c>）⇒ <see cref="AudioPaths.TowerActivate"/>。</item>
     /// <item>平局 —— <c>Events.Battle.Ended</c> 的 <c>draw == true</c> ⇒ <see cref="AudioPaths.Draw"/>。</item>
     /// <item>UI 点击 / 卡牌拖起 / 放置被拒 / 倒计时最后 10 秒 —— 分别由 <c>UI/CrUiStyle</c>（按钮统一点）
@@ -61,7 +61,8 @@ namespace CR.View
     ///
     /// <para>
     /// <b>挂点</b>：唯一挂点是 <see cref="BattleViewRoot.Build"/> 里对
-    /// <see cref="Create"/> 的一次调用（挂在 <c>BattleContent</c> 下，与 <c>EffectsView</c> 并列）——
+    /// <see cref="Create"/> 的一次调用（挂在 <c>BattleContent</c> 下，与 <c>EffectsView</c> 并列，
+    /// 并把该控制器自身作为队伍来源传进来）——
     /// 于是它的生命周期天然跟着"对局画面"走：进图建、出图（<c>BattleContent</c> 随场景卸载）时
     /// <c>OnDestroy</c> 自动退订。⛔ 别在别处再挂一次。
     /// </para>
@@ -110,7 +111,7 @@ namespace CR.View
         private Action<BattleStartNotify> _onStarted;
         private Action<BattleSnapshot> _onSnapshot;
 
-        /// <summary>我方队伍（0=BLUE 1=RED）—— `BattleStartNotify.my_team`。用于区分「己方/敌方出牌」。</summary>
+        /// <summary>`BattleStartNotify.my_team`（0=BLUE 1=RED）。仅作 <see cref="_root"/> 缺失时的兜底，见 <see cref="MyTeam"/>。</summary>
         private int _myTeam;
 
         /// <summary>
@@ -129,18 +130,48 @@ namespace CR.View
         /// <summary>命中音单帧上限：一次快照里有多个单位同时掉血时，最多播这么多次（防空爆刷屏）。</summary>
         private const int MaxHitPerSnapshot = 4;
 
-        /// <summary>建出音效节点（幂等）。照 <see cref="EffectsView.Create"/> 的范式。</summary>
-        public static BattleAudioView Create(Transform parent)
+        /// <summary>我方队伍（0=BLUE 1=RED）—— 统一从 <see cref="BattleViewRoot.MyTeam"/> 读，见 <see cref="Create"/>。</summary>
+        private BattleViewRoot _root;
+
+        /// <summary>
+        /// 建出音效节点（幂等）。照 <see cref="EffectsView.Create"/> 的范式。
+        ///
+        /// <para>
+        /// <paramref name="root"/> = <see cref="BattleViewRoot"/>（由它在 <c>Build()</c> 里传入）。
+        /// 本组件由对局场景建出、订阅时刻**晚于** <c>Events.Battle.Started</c>（首次进图时该事件先于
+        /// <c>Scene.Load</c> 发出）⇒ 拿不到 <c>my_team</c>。该控制器先于本组件订阅同一事件、且整场常驻，
+        /// 所以「我方是哪一队」一律取 <see cref="BattleViewRoot.MyTeam"/>（View → View 的一条只读引用）。
+        /// </para>
+        /// </summary>
+        public static BattleAudioView Create(Transform parent, BattleViewRoot root)
         {
             if (parent != null)
             {
                 var existing = parent.GetComponentInChildren<BattleAudioView>(true);
-                if (existing != null) return existing;
+                if (existing != null)
+                {
+                    existing.Bind(root);
+                    return existing;
+                }
             }
             var go = new GameObject("BattleAudio");
             if (parent != null) go.transform.SetParent(parent, false);
-            return go.AddComponent<BattleAudioView>();
+            var view = go.AddComponent<BattleAudioView>();
+            view.Bind(root);
+            return view;
         }
+
+        /// <summary>绑定队伍来源（幂等：重复绑定只更新引用）。</summary>
+        public void Bind(BattleViewRoot root)
+        {
+            _root = root;
+        }
+
+        /// <summary>
+        /// 我方队伍（0=BLUE 1=RED）：优先取 <see cref="BattleViewRoot.MyTeam"/>（先于本组件订阅、整场常驻），
+        /// <see cref="_root"/> 缺失时退回本组件自己订阅到的 <see cref="_myTeam"/>。
+        /// </summary>
+        public int MyTeam { get { return _root != null ? _root.MyTeam : _myTeam; } }
 
         private void Update()
         {
@@ -227,7 +258,12 @@ namespace CR.View
                         // 出牌：**己方**走 PlayCardRequest（`summon_own_07`，只由本机玩家拖放触发）；
                         // **敌方**没有那条请求事件 ⇒ 这里按 team 补 `enemy_summon_01`（A 有 ⇒ 做）。
                         // 两侧互斥 ⇒ 不会对同一次出牌播两声。
-                        if (e.team != _myTeam) Play(AudioPaths.EnemySummon);
+                        if (e.team != MyTeam)
+                        {
+                            // 这一支的判据就是"事件队伍 ≠ 我方队伍"，两个取值都必须可见（否则验不了红蓝两侧）。
+                            Game.Logger?.Info(LogTag, $"敌方出牌：事件 team={e.team} 我方={MyTeam}（0=BLUE 1=RED）");
+                            Play(AudioPaths.EnemySummon);
+                        }
                         break;
 
                     case EventKindTowerActivated:
@@ -274,8 +310,8 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 开打：记下 `my_team`（区分己方 / 敌方出牌的唯一依据），并清空 hp 比对表
-        ///（⛔ 不清会把上一局的 hp 与新局比对出假命中）。
+        /// 开打：清空 hp 比对表（⛔ 不清会把上一局的 hp 与新局比对出假命中），并把本事件带的
+        /// `my_team` 记为兜底值（正常判定走 <see cref="MyTeam"/>，见 <see cref="Create"/>）。
         /// </summary>
         private void OnBattleStarted(BattleStartNotify start)
         {
@@ -283,7 +319,7 @@ namespace CR.View
             _myTeam = start.my_team;
             _prevHp.Clear();
             _curHp.Clear();
-            Game.Logger?.Info(LogTag, $"对局开始：my_team={_myTeam}（音效按此区分己方出牌 summon_own_07 / 敌方 enemy_summon_01）");
+            Game.Logger?.Info(LogTag, $"对局开始：my_team={_myTeam}（兜底值；出牌敌我判定读 BattleViewRoot.MyTeam）");
         }
 
         /// <summary>

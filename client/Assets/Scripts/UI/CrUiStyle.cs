@@ -1681,11 +1681,16 @@ namespace CR.UI
         }
 
         /// <summary>
-        /// 预热 `ResPaths` 里登记的**全部 UI 图元**（`Sprites/Ui/**`）—— 开机（登录 / 主菜单之前）调一次。
+        /// 预热**全部 UI 图元**（`Sprites/Ui/**`）—— 开机（登录 / 主菜单之前）调一次。
         /// <para>
-        /// 清单由 `ResPaths` 的公开静态 string 属性**反射枚举**得到：`ResPaths` 是资源路径的唯一所有者，
-        /// 手抄一份清单必然与它漂移（加/删一个图元键就漏一处）。反射只在开机跑一次、只读属性 getter，
-        /// 之后往 `ResPaths` 增删键，预热清单自动跟随。
+        /// 清单 = <see cref="CollectUiSpritePaths"/>（`ResPaths` ∪ `CrUiStyle` 的公开静态 string 属性反射）：
+        /// 手抄一份清单必然与它漂移（加/删一个图元键就漏一处）。
+        /// </para>
+        /// <para>
+        /// ⚠️ **为什么必须扫两个类**：`CrUiStyle` 自己声明了两个 `ResPaths` 里没有的图元键 ——
+        /// <see cref="LogoOfficial"/>（`loading_out` 028）与 <see cref="LoadingBarFill"/>（`loading_out` 015，
+        /// 源图集 `loading_out` 在 `ResPaths` 里没有常量）。只扫 `ResPaths` 时它们**永远进不了预热清单**，
+        /// 于是 `LoadingPanel` 第一次取读条填充（进对局后开读条）就落在冷路径上、那一帧画兜底色。
         /// </para>
         /// <para>
         /// 为什么必须开机预热：`HudPanel` 是在 `Battle` 站点**当场** `Build()` 的（见
@@ -1696,9 +1701,30 @@ namespace CR.UI
         /// </summary>
         public static void WarmUiSprites()
         {
-            var props = typeof(ResPaths).GetProperties(BindingFlags.Public | BindingFlags.Static);
-            var list = new List<string>(props.Length);
+            WarmSprites(CollectUiSpritePaths(),
+                "UI 图元（" + ResPaths.UiRoot + "/**，清单 = ResPaths ∪ CrUiStyle 静态属性反射）");
+        }
+
+        /// <summary>
+        /// 开机预热清单 = `ResPaths` 与 `CrUiStyle` 的公开静态 string 属性里**值落在 `Sprites/Ui/` 下**的那些
+        /// （按遍历顺序去重）。
+        /// <para>
+        /// 纯查询、不加载 ⇒ 可在编辑器里离线自检「某个图元键在不在清单里」（不需要 `Game.Res`）。
+        /// 反射只在开机跑一次、只读属性 getter；之后往这两个类增删图元键，清单自动跟随。
+        /// </para>
+        /// </summary>
+        public static List<string> CollectUiSpritePaths()
+        {
             var prefix = ResPaths.UiRoot + "/";
+            var list = new List<string>(128);
+            CollectUiSpritePaths(typeof(ResPaths), prefix, list);
+            CollectUiSpritePaths(typeof(CrUiStyle), prefix, list);
+            return list;
+        }
+
+        private static void CollectUiSpritePaths(Type owner, string prefix, List<string> list)
+        {
+            var props = owner.GetProperties(BindingFlags.Public | BindingFlags.Static);
             for (var i = 0; i < props.Length; i++)
             {
                 var p = props[i];
@@ -1707,7 +1733,6 @@ namespace CR.UI
                 if (string.IsNullOrEmpty(v) || !v.StartsWith(prefix, StringComparison.Ordinal)) continue;
                 if (!list.Contains(v)) list.Add(v);
             }
-            WarmSprites(list, "UI 图元（" + prefix + "**，清单 = ResPaths 静态属性反射）");
         }
 
         private static void WarnOnce(string message)

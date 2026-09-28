@@ -105,9 +105,6 @@ namespace CR.UI
         /// <summary>次操作按钮高度。本项目新增界面自定。</summary>
         public const float ButtonSecondaryH = 95f;
 
-        /// <summary>按钮宽（居中摆放）。本项目新增界面自定。</summary>
-        public const float ButtonW = 620f;
-
         // ═══════════════════ 配色 ═══════════════════
         //
         // <b>角色</b>：这些 Color 现在只剩**兜底**用途（素材取不到时的底色、UI 未接素材的通用件），

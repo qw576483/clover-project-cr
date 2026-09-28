@@ -110,6 +110,10 @@ SPRITES = {
         ("ui_out", 802, "PanelFrameOutline"),
         ("ui_out", 532, "CardFrameGlowLegendary"),
         ("ui_out", 592, "PanelFrameGrey"),
+        # -- The same frame under its consuming key: `DeckEditPanel` draws the three rarity card
+        #    borders through `ResPaths.CardFrameOutline` (= `ui_out` 592), so the registry has to
+        #    name it too -- check-ui-keys.ps1 section C compares ResPaths keys against this file. --
+        ("ui_out", 592, "CardFrameOutline"),
         ("ui_out", 505, "PanelCornerBlueGold"),
         ("ui_out", 506, "PanelEdgeBlueGold"),
         ("ui_battle_end_out", 108, "PanelFrameDark"),
@@ -211,6 +215,11 @@ SPRITES = {
         ("ui_out", 518, "MenuXpBarFill"),
     ],
     "Slots": [
+        # -- HudCardFrameGold: `ui_out` 547, the gold card-frame plate. Registered although the
+        #    HUD deliberately leaves it unwired -- frame 547 belongs to the `20_对局` baseline,
+        #    judged a different game version (差异登记 D113). Registration keeps the registry
+        #    complete; see HudPanel.cs's note at the hand-card build site. --
+        ("ui_out", 547, "HudCardFrameGold"),
         ("ui_out", 43, "SlotCard"),
         ("ui_out", 54, "ChatBubble"),
         ("ui_out", 531, "SlotCardPlain"),
@@ -291,6 +300,9 @@ SPRITES = {
         #    sec 3.1 / 3.3 / 3.4 / 3.5 for the per-frame original `.sc` evidence) --
         ("ui_out", 159, "IconElixirBarLeft"),      # elixir_bar/elixirBarLeft + elixirRegen  (sec 3.1 / 3.4)
         ("ui_out", 164, "IconQuitCross"),          # quit_button cross icon                (sec 3.5)
+        # -- The same frame under its other registered key: `IconClose` (the X inside the red
+        #    close block of the menu profile page). Both keys point at `ui_out` 164. --
+        ("ui_out", 164, "IconClose"),
         ("ui_out", 197, "HudStarPlayerAlt"),       # printScore_player star, 2nd state     (sec 3.3)
         ("ui_out", 198, "HudStarEnemyAlt"),        # printScore_enemy  star, 2nd state     (sec 3.3)
         # -- AD1/D75: boot-screen "CLASH ROYALE" logo. Referenced by CrUiStyle.LogoOfficial

@@ -389,7 +389,7 @@ namespace CR.UI.Panels
             // 板内的元素留白 = GapM（板本身已从屏幕边内缩 BarPadX）⇒ ⛔ 不再叠一层 BarPadX。
             // 昵称：服务端权威值（`PlayerSession.Nickname`），白字黑描边（原版名字条的读法）。
             // 右端给奖杯 + 设置齿轮留位，右边界 = 板右沿 −（GapM + 奖杯宽 + GapM + 齿轮宽 + GapM）。
-            _nicknameLabel = CrUiStyle.Outlined("Nickname", pr, "玩家", CrUiStyle.FontBody,
+            _nicknameLabel = CrUiStyle.Outlined("Nickname", pr, Cfg.Game.default_nick, CrUiStyle.FontBody,
                 Color.white, Color.black,
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(GapM, 0f),

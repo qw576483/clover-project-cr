@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using CloverEngine;
 using CR.Def;
+using CR.UI;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace CR.View
 {
@@ -1107,15 +1109,11 @@ namespace CR.View
         public const float PrincessTowerScale = 1.65f;
 
         /// <summary>
-        /// 底衬纯色（取自 f022 的草地均色 ≈(154,182,85)）：铺在整块 18×32 之下的**最底层**（order = <see cref="SortingLayers.Ground"/>）。
+        /// 底衬**退化色**（取自 f022 的草地均色 ≈(154,182,85)）。
         /// <para>
-        /// <b>它不是场地的最终表现</b>：六个地面段 + 两条边界带垫层（<see cref="EdgeFillSrcPyTop"/>）盖住它 98% 以上。
-        /// 余下不足 2% 是 f022 草地边缘的**抗锯齿透明孔**（逐行实测该窗口透明像元 1.24%..1.72%，散布、不连成带），
-        /// 底衬用草地同色正好补掉这些孔 —— 去掉它，这 ~2% 的孔会露出相机底色（深灰蓝）。
-        /// </para>
-        /// <para>
-        /// 地面美术整帧取不到时（目录空 / 帧号 <see cref="NearGroundFrameNumber"/> 缺失），它是屏幕上唯一的场地
-        /// —— 这是它存在的唯一"兜底"语义（见 <see cref="BuildBaseQuad"/>）。
+        /// 正常路径下底衬是原版草地裁条（<see cref="BuildBaseQuad"/> / <see cref="MakeGrassBacking"/>），
+        /// 本常量只在**地面帧按帧号取不到**时使用（目录空 / 帧号 <see cref="NearGroundFrameNumber"/> 缺失）
+        /// —— 那时底衬是纯色，<see cref="BuildArt"/> 也会 Warn（不是静默降级）。
         /// </para>
         /// </summary>
         public static readonly Color BaseGrassColor = new Color(154f / 255f, 182f / 255f, 85f / 255f, 1f);
@@ -1155,8 +1153,10 @@ namespace CR.View
             _towerRoot = new GameObject("Towers").transform;
             _towerRoot.SetParent(transform, false);
 
-            BuildBaseQuad();
-            BuildArt();
+            // 美术帧只取一次，底衬与地层共用（取帧失败的分支各自留痕）。
+            var frames = SpriteBank.LoadDir(ResPaths.ArenaRoot);
+            BuildBaseQuad(frames);
+            BuildArt(frames);
             BuildTowers();
         }
 
@@ -1358,30 +1358,98 @@ namespace CR.View
         /// </summary>
         private const float OuterCliffRowGapRows = 0f;
 
-        private void BuildBaseQuad()
+        /// <summary>
+        /// 铺场地的**底衬**：18×32 整块（order = <see cref="ArenaLayers"/>.Instance 的 Ground 层）。
+        /// <para>
+        /// <b>件 = 原版底图帧的草地裁条</b>：<see cref="NearGroundFrameNumber"/>（`arena_training` 的
+        /// `training_area_bg` 场内整幅帧）里那块**干净草地** —— 画布
+        /// <c>px [<see cref="GroundFieldLeftPx"/>, <see cref="GroundFieldRightPx"/>] ×
+        /// py [<see cref="EdgeFillSrcPyTop"/>, <see cref="BluePrincessPyTop"/>]</c>（与后沿带垫层同一块源，
+        /// 出处见 <see cref="EdgeFillSrcPyTop"/>）；横向窗口 = 场地那一段（格 0..18），纵向按 32 格拉伸。
+        /// </para>
+        /// <para>
+        /// <b>它不是场地的最终表现</b>：六个地面段 + 两条边界带垫层盖住它 98% 以上。它承担两件事：
+        /// ① 补掉地面美术的抗锯齿透明孔（该窗口逐行实测透明像元 1.24%..1.72%，散布、不连成带）；
+        /// ② 地面美术整帧取不到时，它仍是原版草地的像素（此时 <see cref="BuildArt"/> 会 Warn，不是静默降级）。
+        /// </para>
+        /// <para>整帧取不到 ⇒ 退化为 <see cref="BaseGrassColor"/> 纯色（同为草地均色）并留一条 Warn。</para>
+        /// </summary>
+        /// <param name="frames">整个竞技场目录的帧（用来按帧号取 <see cref="NearGroundFrameNumber"/>）。</param>
+        private void BuildBaseQuad(Sprite[] frames)
         {
-            // 纯色底衬：18×32 的**最底层**（order = SortingLayers.Ground），色值见 BaseGrassColor。
-            // 它的两个语义：① 补掉地面美术的抗锯齿透明孔（f022 各窗口透明像元 1.24%..1.72%，散布不成带）；
-            // ② 地面美术整帧取不到时，它是屏幕上唯一的场地（此时 BuildArt 会 Warn，不是静默降级）。
-            // 它把 18×32 的场地边界"画实"，比透明背景更容易发现坐标错位。
-            var white = SpriteBank.WhiteSprite();
+            var ground = FindFrameByNumber(frames, NearGroundFrameNumber);
+            Sprite backing = null;
+            if (ground != null && ground.texture != null)
+            {
+                backing = MakeGrassBacking(ground);
+            }
+            else
+            {
+                Game.Logger?.Warn(LogTag,
+                    $"底衬取不到地面帧（帧号 {NearGroundFrameNumber}）⇒ 底衬退化为纯色 ({BaseGrassColor.r * 255f:F0}," +
+                    $"{BaseGrassColor.g * 255f:F0},{BaseGrassColor.b * 255f:F0})，且地面六段也必然缺");
+            }
+
             var go = new GameObject("Base");
             go.transform.SetParent(_artRoot, false);
             var r = go.AddComponent<SpriteRenderer>();
-            r.sprite = white;
-            r.color = BaseGrassColor;
             r.sortingOrder = ArenaLayers.Instance.Ground;
-            // WhiteSprite 是 1×1、PPU=1 ⇒ 天然 1 世界单位；直接缩放到 18×32 格。
             go.transform.position = GameConst.TileToWorld(GameConst.ArenaTilesW * 0.5f, GameConst.ArenaTilesH * 0.5f);
-            go.transform.localScale = new Vector3(GameConst.ArenaTilesW, GameConst.ArenaTilesH, 1f);
+
+            if (backing == null)
+            {
+                // WhiteSprite 是 1×1、PPU=1 ⇒ 天然 1 世界单位；直接缩放到 18×32 格。
+                r.sprite = SpriteBank.WhiteSprite();
+                r.color = BaseGrassColor;
+                go.transform.localScale = new Vector3(GameConst.ArenaTilesW, GameConst.ArenaTilesH, 1f);
+                return;
+            }
+
+            r.sprite = backing;
+            r.color = Color.white;
+            var native = backing.bounds.size;
+            go.transform.localScale = new Vector3(GameConst.ArenaTilesW / native.x, GameConst.ArenaTilesH / native.y, 1f);
+            Game.Logger?.Info(LogTag,
+                $"底衬 = 原版草地裁条：源={Name(ground)}（帧号 {NearGroundFrameNumber}）" +
+                $" 画布px x{GroundFieldLeftPx}..{GroundFieldRightPx:F1} py{EdgeFillSrcPyTop}..{BluePrincessPyTop}" +
+                $" ⇒ 铺满格 x0..{GameConst.ArenaTilesW} y0..{GameConst.ArenaTilesH}（order={r.sortingOrder}）");
         }
 
-        private void BuildArt()
+        /// <summary>
+        /// 从地面帧裁出底衬用的**草地** Sprite（窗口见 <see cref="BuildBaseQuad"/>）。
+        /// <para><c>Sprite.Create</c> 造出来的 Sprite 不归 Resources 管 ⇒ 记进 `_generated`，随场重建释放。</para>
+        /// </summary>
+        private Sprite MakeGrassBacking(Sprite ground)
         {
-            var frames = SpriteBank.LoadDir(ResPaths.ArenaRoot);
-            if (frames.Length == 0)
+            var texW = ground.texture.width;
+            var texH = ground.texture.height;
+            var ppu = ground.pixelsPerUnit > 0.01f ? ground.pixelsPerUnit : SpriteBank.FallbackPixelsPerUnit;
+
+            var cropL = Mathf.Clamp(GroundFieldLeftPx, 0f, texW);
+            var cropR = Mathf.Clamp(GroundFieldRightPx, 0f, texW);
+            var cropT = Mathf.Clamp(EdgeFillSrcPyTop, 0f, texH);
+            var cropB = Mathf.Clamp(BluePrincessPyTop, 0f, texH);
+            if (cropR - cropL <= 1f || cropB - cropT <= 1f)
             {
-                Game.Logger?.Warn(LogTag, "竞技场美术一帧都没取到 ⇒ 只有纯色底图");
+                Game.Logger?.Warn(LogTag,
+                    $"底衬草地裁条参数非法：贴图 {texW}x{texH}，需要 px x{GroundFieldLeftPx}..{GroundFieldRightPx:F1}" +
+                    $" py{EdgeFillSrcPyTop}..{BluePrincessPyTop} ⇒ 底衬退化为纯色");
+                return null;
+            }
+
+            // 画布 py 向下 ↔ 贴图 y 向上：与 MakeCrop 同一次翻转。
+            var sp = Sprite.Create(ground.texture,
+                new Rect(cropL, texH - cropB, cropR - cropL, cropB - cropT), new Vector2(0.5f, 0.5f), ppu);
+            sp.name = "BaseGrass";
+            _generated.Add(sp);
+            return sp;
+        }
+
+        private void BuildArt(Sprite[] frames)
+        {
+            if (frames == null || frames.Length == 0)
+            {
+                Game.Logger?.Warn(LogTag, "竞技场美术一帧都没取到 ⇒ 只有底衬");
                 return;
             }
 
@@ -2025,13 +2093,122 @@ namespace CR.View
             //     ⇒ 此处**显式传 `SortingLayers.Overlay`（= 2000）**，与单位血条同口径（先例
             //     `UnitView.cs:261` 的 `WorldHpBar.Create(..., ArenaLayers.Instance.Overlay)`）；塔体 50 < 2000 <
             //     特效 3000 ⇒ 压在塔之上、特效之下。
-            //   ⚠️ 原版塔血条还带**数字**（基线图 04 的 `1740`）与**左侧等级徽章**（同一张 04 的放大裁切
-            //     的放大裁切里"1740"与金色徽章都在条上）——我们的 `WorldHpBar`
-            //     是两个纯色 Quad（引擎 `UIWidgets.cs` 的 `Build`），无文本/徽章，且工程里**没有字体资源**
-            //     ⇒ 未做（登记 `策划/差异登记.tsv` D125）。
+            //   · **条上的数字与等级牌**（原版 04 图底部公主塔条上「1740」+ 左侧金色等级牌）：
+            //     挂在引擎血条的**附属版面**插槽上（`WorldHpBar.GetAttachment`，见
+            //     `AttachTowerBarDeco` 的常量出处），跟着条体做广告牌朝向 / 显隐 / 改尺寸。
             var bar = WorldHpBar.Create(go.transform, isKing ? 1.8f : 1.4f, 0.20f,
                 isKing ? 2.6f : 2.0f, LogTag + (isKing ? ".KingHp" : ".PrinHp"), ArenaLayers.Instance.Overlay);
-            _towers.Add(new TowerView(team, isKing, xTile, yTile, FindLayerRenderer(go.transform), bar, rubble, muzzle, turret));
+            var hpNumber = AttachTowerBarDeco(bar, LogTag);
+            _towers.Add(new TowerView(team, isKing, xTile, yTile, FindLayerRenderer(go.transform), bar,
+                rubble, hpNumber, muzzle, turret));
+        }
+
+        // ═══════════════ 塔血条上的数字与等级牌（版面单位；版面高恒 = 100，见 WorldHpBar.GetAttachment） ═══════════════
+        //
+        // <b>量取口径</b>：基线图 `策划/参考图/04_对局_1320x2868.jpg`（底部两座公主塔，条在 y 1983..2025）。
+        //   掩膜：金 = R>170 & G∈(110,215) & B<120 & R−B>80 & G−B>40；条 = B>150 & B−R>40 & B−G>8；
+        //         数字芯 = R>170 & G>200 & B>215（只取条内窗口）。
+        //   读数（复跑 = `python .ai-tmp/test/hpbar-ref-measure2.py`）：
+        //     · 条高 **42 px**（= 本工程 `WorldHpBar` 的 Bg 外高；该算式见 AddTower 的「高 0.20」段）
+        //     · 金等级牌 **59×55 px** ⇒ 高/条高 = **1.310**（→ 版面 131 单位）、宽高比 **1.072**
+        //     · 数字字形芯 **106×26 px**，左缘缩进 **13 px**，中心比条中心低 **6 px**
+        //   ⚠️ 原版数字用的是**位图数字字模**（`ui_v215.sc` 的 `hp_player_tower_withNumber` 只给条体/徽章帧，
+        //     数字字模不在 `ui_out` 里；工程内也无字体资源）⇒ 数字用引擎内置字体（`UIFactory.DefaultFont`）
+        //     按上面的**芯高**折算字号，这是"字体形状不同、字号口径来自原版"的如实降级。
+
+        /// <summary>血条附属版面的节点名（`WorldHpBar.GetAttachment` 的名字，幂等复用靠它）。</summary>
+        private const string BarDecoNodeName = "BarDeco";
+
+        /// <summary>
+        /// 等级牌上的**等级数字**。出处 = 服务端数值表**整套按 11 级建表**：
+        /// `server/game/table/base/base_unit.go:12`「生命值（11 级）← 官方 hitpoints_per_level[tournament_level_index]」，
+        /// 塔也在同一张表里（`kind = 2`）⇒ 我方的塔就是 11 级，牌上写 11。
+        /// </summary>
+        private const int TowerLevelPlateValue = 11;
+
+        /// <summary>等级牌高（版面单位）。出处 = 04 图实测 55 px ÷ 条高 42 px = 1.310 ⇒ 131。</summary>
+        private const float LevelPlateH = 131f;
+
+        /// <summary>
+        /// 等级牌宽高比。出处 = **帧自身**：原版帧 `ui_out` 883 的非透明包围盒 **66×62**（`ui-sc-index` 的
+        /// 尺寸列）⇒ 1.065。⛔ 不用量到的 1.072 去拉伸素材（那会把原版像素拉变形）。
+        /// </summary>
+        private const float LevelPlateAspect = 66f / 62f;
+
+        /// <summary>等级牌中心相对条体中心的 y（版面单位，正 = 向上）。出处 = 04 图实测 金牌中心 1996.5 − 条中心 2004 = −7.5 px ÷ 42 ⇒ +17.9 ⇒ 18。</summary>
+        private const float LevelPlateCenterY = 18f;
+
+        /// <summary>
+        /// 等级数字字号（版面单位）。出处 = `策划/基线图/20_对局_1080x1920.jpg` 的 3× 放大裁切上量取：
+        /// 数字芯高 ≈ **0.53 × 金牌高**（该图金牌 38 px、牌内数字 ≈20 px）⇒ 0.53 × 131 ÷ 0.72
+        /// （数字字形高/字号比，与 `CrUiStyle` 字号档同一分母）= **96**。
+        /// ⚠️ 未做逐像素量取：金牌自身的高光/暗缘会把数字掩膜吃掉（04 图上试过，见 `.ai-tmp/test/hpbar-ref-level.py`）。
+        /// </summary>
+        private const int LevelPlateFontSize = 96;
+
+        /// <summary>等级数字色。原版是深色数字压在金牌上（04 图上量得中位 (132,107,23)，被金牌自身混合）⇒ 取黑（与全项目描边色同一支）。</summary>
+        private static readonly Color LevelPlateInk = Color.black;
+
+        /// <summary>
+        /// 血量数字字号（版面单位）。出处 = 04 图实测 数字芯高 26 px ÷ 条高 42 px = 0.619 ⇒ 61.9 单位
+        /// ÷ **0.72**（数字字形高/字号比，`CrUiStyle` 字号档同一分母）= **86**。
+        /// </summary>
+        private const int HpNumberFontSize = 86;
+
+        /// <summary>数字左缘相对条体外框左缘的缩进（版面单位）。出处 = 04 图实测 数字左缘 127 − 条左缘 114 = 13 px ÷ 42 ⇒ 31。</summary>
+        private const float HpNumberLeftInset = 31f;
+
+        /// <summary>
+        /// 数字中心相对条体中心的 y（版面单位，负 = 向下）。出处 = 04 图实测 数字中心 2010 − 条中心 2004
+        /// = 6 px 偏下 ÷ 42 ⇒ −14。
+        /// </summary>
+        private const float HpNumberCenterY = -14f;
+
+        /// <summary>
+        /// 给一条塔血条挂上原版的**血量数字 + 左侧金色等级牌**，返回数字文本节点（每帧血量更新时改它）。
+        /// <para>
+        /// 挂点 = 引擎血条的附属版面（`WorldHpBar.GetAttachment`）：世界空间 uGUI Canvas，随条体做广告牌
+        /// 朝向 / 显隐 / 尺寸变化 —— ⛔ 业务侧不自己写跟随，否则两套跟随口径一漂移就是"血条和等级牌分家"。
+        /// </para>
+        /// <para>
+        /// 版面锚点 <c>(0,0)/(1,1)</c> 正好是条体外框的左下/右上角，所以"等级牌贴在条左端外""数字按缩进
+        /// 排在条内"这两个位置**不用知道条有多宽**（见各级常量）。
+        /// </para>
+        /// <para>等级牌素材 = 原版帧 `ui_out` **883**（金色皇冠牌）：它就是原版
+        /// `ui_v215.sc` 的 `hp_player_tower_withNumber`（clip 6903）引用的那一帧（另有 900/901 = 条的填充片）。</para>
+        /// </summary>
+        /// <param name="bar">血条；<c>null</c>（建件失败）时返回 <c>null</c>。</param>
+        /// <param name="logTag">日志标签（沿用该塔的标签）。</param>
+        private static Text AttachTowerBarDeco(WorldHpBar bar, string logTag)
+        {
+            if (bar == null) return null;
+            var slot = bar.GetAttachment(BarDecoNodeName);
+            if (slot == null)
+            {
+                // 非预期分支：没有挂点 ⇒ 塔条上没有数字与等级牌（表现退化，必须留痕）。
+                Game.Logger?.Warn(logTag, "血条附属版面取不到（WorldHpBar.GetAttachment 返回 null）⇒ 塔条上没有数字与等级牌");
+                return null;
+            }
+
+            var plateW = LevelPlateH * LevelPlateAspect;
+            // 等级牌：右缘贴条体外框左缘、竖直方向按 04 图的读数抬高。
+            CrUiStyle.Icon("LevelPlate", slot, ResPaths.IconCrownBig,
+                new Vector2(0f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(0f, LevelPlateCenterY), new Vector2(plateW, LevelPlateH));
+
+            // 等级数字：压在同一块牌上（同一锚点/尺寸 ⇒ 准居中）。
+            var level = UIFactory.CreateText("LevelValue", slot, TowerLevelPlateValue.ToString(),
+                LevelPlateFontSize, TextAnchor.MiddleCenter, LevelPlateInk);
+            UIFactory.Place(level.rectTransform, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(0f, LevelPlateCenterY), new Vector2(plateW, LevelPlateH));
+
+            // 血量数字：白字 + 黑描边（原版口径；描边件与 `CrUiStyle.Outlined` 同一支），左对齐排在条内左端。
+            var number = CrUiStyle.Outlined("HpNumber", slot, string.Empty, HpNumberFontSize,
+                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(HpNumberLeftInset, HpNumberCenterY),
+                new Vector2(slot.sizeDelta.x - HpNumberLeftInset, LevelPlateH),
+                TextAnchor.MiddleLeft);
+            return number;
         }
 
         /// <summary>
@@ -2453,6 +2630,12 @@ namespace CR.View
             private readonly WorldHpBar _bar;
 
             /// <summary>
+            /// 血条上的**血量数字**（引擎附属版面里的 uGUI 文本，见 <see cref="ArenaView.AttachTowerBarDeco"/>）。
+            /// <c>null</c> = 版面没接上（已 Warn），此时只有条体。
+            /// </summary>
+            private readonly Text _hpNumber;
+
+            /// <summary>
             /// **炮口**层（公主塔 = 乘员层 `Princess`；国王塔 = 炮塔层 `Turret`）的 Transform。
             /// <para>
             /// 用途（差异登记 D145）：服务端开火事件 <c>EvTowerShoot</c> 只在载荷里给**塔根**坐标，
@@ -2504,7 +2687,8 @@ namespace CR.View
             public bool Alive { get; private set; } = true;
 
             public TowerView(int team, bool isKing, float tileX, float tileY, SpriteRenderer renderer,
-                WorldHpBar bar, SpriteRenderer[] rubbleRenderers, Transform muzzle = null, Transform turret = null)
+                WorldHpBar bar, SpriteRenderer[] rubbleRenderers, Text hpNumber = null,
+                Transform muzzle = null, Transform turret = null)
             {
                 Team = team;
                 IsKing = isKing;
@@ -2512,6 +2696,7 @@ namespace CR.View
                 TileY = tileY;
                 _renderer = renderer;
                 _bar = bar;
+                _hpNumber = hpNumber;
                 _rubbleRenderers = rubbleRenderers ?? new SpriteRenderer[0];
                 _muzzle = muzzle != null ? muzzle : (renderer != null ? renderer.transform : null);
                 _turret = turret;
@@ -2598,6 +2783,9 @@ namespace CR.View
                 if (_bar != null)
                 {
                     _bar.SetHp(s.hp, s.max_hp);
+                    // 条上的血量数字（原版 04 图塔条上的「1740」）：与条体同一条快照口径，
+                    // ⛔ 不在别处另算 —— 数字与条体长度必须永远同一个 hp 值。
+                    if (_hpNumber != null) _hpNumber.text = s.hp.ToString();
                     // ★ D133 改：**满血也显示**（原版塔血条是常显）。
                     //   反面取证 —— 基线图 `策划/参考图/04_对局_1320x2868.jpg` 底部两座公主塔各 `1740`
                     //   （= 满血同值）**血条仍是完整满格条**（青色掩膜 x 段 114..312 与 1068..1267 整段着色，

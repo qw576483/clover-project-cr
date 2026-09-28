@@ -16,7 +16,7 @@
 | `Game.Net.Call(...)`（非泛型） | **`await Game.Net.Call<T>(msgID, req)`**（`Contracts.cs:354`） |
 | `Game.Res.LoadSprite/LoadPrefab/LoadTexture` | **`Game.Res.LoadAsset<T>(path, cb)`**（`Contracts.cs:1027`），`T` = `Sprite`/`Texture2D`/`GameObject` |
 | `Game.Res.Load<T>(path)`（同步加载） | 只有 **`T TryGet<T>(path)`**（仅取已驻留缓存，`Contracts.cs:1072`）+ 先 `Preload` |
-| `Runtime/Presentation/UI/` 目录 | 不存在；UI 控件在 **`Runtime/Presentation/UIWidgets.cs` + `UIWidgetComponents.cs`** 的 `UIFactory` |
+| `Runtime/Presentation/UI/` 目录 | 不存在；UI 控件在 **`Runtime/Presentation/UIWidgets.cs` + `UIWidgetControls.cs`** 的 `UIFactory` |
 | `Game.Fsm.OnEnter(...)` | 不是方法；`OnEnter` 是 **`RegisterState` 的参数** |
 | `Game.Input.PointerPosition` | **`Game.Input.MousePosition`**（`Vector3`，`Input.cs:130`）/ `MouseDelta`（`Vector2`，`:133`） |
 | `Game.Res` 自动挂载 | 必须显式 **`CloverRes.Init(root)`**，否则 `Game.Res` 恒 null |
@@ -47,7 +47,7 @@ CloverAuth.AuthAddr = Cfg.Server.auth_addr;
 Game.Net.SetupSession(account, null, Cfg.Account.line);   // ⚠️ 见下 (c)
 ```
 
-### ★ 启动顺序里四个**实测纠正**（agent-05 在引擎源码里逐条核对出来的）
+### ★ 启动顺序的四个要点（均以引擎源码为出处）
 
 **(a) `CloverRes.Init` 的参数是 `Resources` 下的子目录前缀，不是工程路径。**
 `ResourceBackend` 内部按 `root + "/" + path` 拼（`Runtime/Resource/ResourceBackend.cs:227`）。
@@ -142,7 +142,7 @@ public enum UILayer { Background=0, Normal=1, Popup=2, Top=3, System=4 }  // :20
 默认预制体加载：`Resources.Load<GameObject>($"UI/{typeof(T).Name}")`（`Runtime/Presentation/UI.cs:119-127`），
 **找不到就报 Error 且面板不打开**。可用 `CloverPresentation.PanelProvider`（`Runtime/Presentation/CloverPresentation.cs:69`）替换该加载逻辑。
 
-★ **`UIFactory`（`Runtime/Presentation/UIWidgets.cs` + `UIWidgetComponents.cs`，`public static partial class`）—— 代码里直接造 UI：**
+★ **`UIFactory`（`Runtime/Presentation/UIWidgets.cs` + `UIWidgetControls.cs`，`public static partial class`）—— 代码里直接造 UI：**
 ```csharp
 Font DefaultFont()                                                  // UIWidgets.cs:44
 RectTransform CreateNode(string name, Transform parent)             // :93
@@ -180,7 +180,7 @@ ToggleRow CreateToggleRow(string name, Transform parent, string label, Vector2 p
 | `Game.Timer` | `After(float,Action)` / `After(float,Action,string scope)` / `Every` / `AfterUnscaled` / `EveryUnscaled` / `AfterName` / `EveryName` / `Stop(long)` / `StopNamed` / `StopScope` / `StopAll` | `Timer.cs:19-112` |
 | `Game.Sound` | `PlayBGM(string,float fadeTime=0.5f)` · `StopBGM` · `PlaySFX(string)` · `PlaySFXAt(string,Vector3)` · `PlayVoice` · `StopAll` · `SetVolume(SoundGroup,float)` · `GetVolume` · `SetMute`；`enum SoundGroup{BGM,SFX,Voice}` | `PresentationContracts.cs:292-395` |
 | `Game.Input` | `State`(`InputState`: `MoveDirection`,`Skill1-4Down`,`JumpDown`,`DodgeDown`,`InteractDown`,`TouchDown`) · `GetKey/GetKeyDown/GetKeyUp(GameKey)` · `GetMouseButton*` · `MousePosition(Vector3)` · `MouseDelta(Vector2)` · `GetAxis(string,bool)` · `Lock()/Unlock()`；`enum GameKey`（A-Z/Num0-9/方向/`MouseLeft`…） | `Input.cs:14-187` |
-| `Game.Res` | `LoadAsset<T>(path, cb)` / `LoadAsset<T>(path, progress, cb)` / `TryGet<T>(path)` / `Exists(path)` / `LoadAll<T>(path)` / `Release` / `UnloadAll` / `Preload(List<string>, onDone, progress)` / `CachedBytes` / `CacheWatermark` | `Contracts.cs:1019-1137` |
+| `Game.Res` | `LoadAsset<T>(path, cb)` / `LoadAsset<T>(path, progress, cb)` / `TryGet<T>(path)` / `Exists(path)` / `LoadAll<T>(path)` / `Release` / `UnloadAll` / `Preload(List<string>, onDone, progress)` / `CachedBytes` / `CacheWatermark`。⚠️ `Preload` 以无类型（主资源）发起：其后同路径的 `LoadAsset<T>` 会按 `T` 重载（缓存里的无类型条目清掉重载、在途请求按 `T` 重启），「预热后再取」不再失效；但 `LoadAsset<UnityEngine.Object>` 仍只返回主资源，且类型升级会让同一路径短时两次真实加载 ⇒ **预热直接用业务真正要的类型** | `Contracts.cs:1019-1137` + `Runtime/Resource/ResourceManager.cs` 类注释 |
 | `Game.Table` | `CloverTable.Dir` / `CloverTable.LoadAll(streamingAssetsDir, dataDir)`（成功返 null） / `CloverTable.Get<T>(tableName, id)` / `Get<T>(tableName, key)` / `RequiredTables`；行类要求「public 无参构造 + public 字段」，**不实现 `IDataRow`** | `Runtime/Data/CloverTable.cs:69-258` |
 | `Game.Logger` | `Debug/Info/Warn(tag,msg)` · `Error(tag,msg,Exception ex=null)` · `Fatal(...)`；`enum LogLevel` | `Logger.cs:52-94` |
 | `Game.Pool` | `Spawn(string key, Transform parent=null, string group=null)`（`key` = `Resources` 下的预制体路径） / `Despawn` / `Preload` / `Clear*` / `GetActiveCount` / `GetInactiveCount` / `TrimIdle`；`ReferencePool.Acquire<T>()/Release<T>()` | `EntityPool.cs:100-163, 321-397` |

@@ -192,6 +192,130 @@ func TestCrowdWalkDisplacementIsBounded(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// vs. the reference implementation
+// ---------------------------------------------------------------------------
+
+// refTouchToleranceMilli mirrors cr-sim `movement.py:44` `_TOUCH_TOLERANCE`
+// (60 subtiles, i.e. ~3.33 milli-tile) at this project's integer resolution.
+const refTouchToleranceMilli = 3
+
+// refBody is the subset of an entity the reference solver reads.
+type refBody struct {
+	x, y   int32
+	radius int32
+	mass   int32
+}
+
+// refSeparate ports cr-sim's `separate()` (原版资源/cr-sim/cr_sim/engine/movement.py:68)
+// verbatim: the overlap splits by inverse mass and both displacements are applied
+// immediately, with no rate limit. `resolve_collisions` (`:134`) then runs that
+// pairwise step for a fixed number of relaxation passes.
+//
+// The port truncates integer division the way Go does; callers therefore use
+// geometries whose divisions are exact, so a mismatch cannot come from rounding.
+func refSeparate(a, b *refBody) {
+	limit := a.radius + b.radius
+	if limit <= 0 {
+		return
+	}
+	dx := b.x - a.x
+	dy := b.y - a.y
+	gap := int32(math.Sqrt(float64(dx)*float64(dx) + float64(dy)*float64(dy)))
+	overlap := limit - gap
+	if overlap <= refTouchToleranceMilli {
+		return
+	}
+	if gap == 0 {
+		if a.mass <= b.mass {
+			dx, dy, gap = limit, 0, limit
+		} else {
+			dx, dy, gap = -limit, 0, limit
+		}
+	}
+	total := a.mass + b.mass
+	shareA := overlap * b.mass / total
+	shareB := overlap - shareA
+	a.x -= dx * shareA / gap
+	a.y -= dy * shareA / gap
+	b.x += dx * shareB / gap
+	b.y += dy * shareB / gap
+}
+
+// TestSeparationMatchesReferenceWhenWithinBudget pins the part of the solver that
+// is reference-exact: for an isolated overlapping pair whose overlap fits inside
+// one tick's rate budget, this solver and the reference implementation move the
+// two units to the **same** coordinates.
+//
+// 重叠量取 100 milli（= 半份位移 50 ≤ 一个行走步 75）⇒ 额度不生效、`neighbours`
+// 恒为 1 ⇒ 除"先累加后落地"外没有任何额外变换，两条实现必须逐坐标相等。
+func TestSeparationMatchesReferenceWhenWithinBudget(t *testing.T) {
+	b := mustBattle(t, troopDeck, troopDeck, 31)
+	def, _ := b.cfg.Table.Unit("Minion")
+
+	a := b.spawnUnit(TeamBlue, def, cardMinion, 9000, 1000, 0)
+	c := b.spawnUnit(TeamBlue, def, cardMinion, 9000, 1000, 0)
+	a.setPos(9000, 1000)
+	c.setPos(9000+900, 1000) // 两半径 500+500 = 1000，重叠 100
+
+	var dA, dC sepDelta
+	if !accumulateSeparation(a, c, &dA, &dC) {
+		t.Fatal("accumulateSeparation reported nothing for an overlapping pair")
+	}
+	applySeparation(b.arena, a, dA, 1)
+	applySeparation(b.arena, c, dC, 1)
+
+	ra := refBody{9000, 1000, a.radiusMilli(), def.Mass}
+	rc := refBody{9000 + 900, 1000, c.radiusMilli(), def.Mass}
+	refSeparate(&ra, &rc)
+
+	if a.xMilli != ra.x || a.yMilli != ra.y || c.xMilli != rc.x || c.yMilli != rc.y {
+		t.Fatalf("one tick of separation disagrees with the reference solver: ours a=(%d,%d) c=(%d,%d), "+
+			"reference a=(%d,%d) c=(%d,%d)",
+			a.xMilli, a.yMilli, c.xMilli, c.yMilli, ra.x, ra.y, rc.x, rc.y)
+	}
+	t.Logf("overlap=100 (within one walk step) => identical: a=(%d,%d) c=(%d,%d) for both solvers",
+		a.xMilli, a.yMilli, c.xMilli, c.yMilli)
+}
+
+// TestSeparationRateLimitIsTheOnlyDivergenceFromReference quantifies the one
+// registered difference (策划/差异登记.tsv D149/D150): the reference has no rate
+// limit, so a fully coincident pair is torn apart by the whole overlap inside a
+// single call, while this solver moves each unit at most its own walk step per
+// tick. The divergence is bounded, monotone in the same direction, and gone as
+// soon as the remaining overlap fits inside the budget.
+func TestSeparationRateLimitIsTheOnlyDivergenceFromReference(t *testing.T) {
+	b := mustBattle(t, troopDeck, troopDeck, 37)
+	def, _ := b.cfg.Table.Unit("Minion")
+
+	walk := def.SpeedMilliPerSec / TicksPerSecond
+	a := b.spawnUnit(TeamBlue, def, cardMinion, 9000, 1000, 0)
+	c := b.spawnUnit(TeamBlue, def, cardMinion, 9000, 1000, 0)
+	a.setPos(9000, 1000)
+	c.setPos(9000, 1000)
+
+	var dA, dC sepDelta
+	if !accumulateSeparation(a, c, &dA, &dC) {
+		t.Fatal("accumulateSeparation reported nothing for a fully coincident pair")
+	}
+	applySeparation(b.arena, a, dA, 1)
+	applySeparation(b.arena, c, dC, 1)
+
+	ours := math.Hypot(float64(a.xMilli-9000), float64(a.yMilli-1000))
+	ra := refBody{9000, 1000, a.radiusMilli(), def.Mass}
+	rc := refBody{9000, 1000, c.radiusMilli(), def.Mass}
+	refSeparate(&ra, &rc)
+	ref := math.Hypot(float64(ra.x-9000), float64(ra.y-1000))
+
+	t.Logf("fully coincident pair, one tick: ours=%.1f milli (walk step=%d), reference=%.1f", ours, walk, ref)
+	if ours > float64(walk) {
+		t.Fatalf("our one-tick displacement %.1f exceeds the walk step %d", ours, walk)
+	}
+	if ref <= ours {
+		t.Fatalf("fixture error: the reference should move farther than the rate limit (ref=%.1f ours=%.1f)", ref, ours)
+	}
+}
+
 // TestSeparationDoesNotOscillate is bound B: the rate limit above must not turn
 // a one-tick lunge into a permanent ping-pong.
 //

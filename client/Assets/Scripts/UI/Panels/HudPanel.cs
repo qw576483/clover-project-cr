@@ -293,16 +293,15 @@ namespace CR.UI.Panels
         // ── 卡框 + 卡面（两个节点）在卡槽里的贴合 ──
         //
         // **卡框**：`ResPaths.SlotCard`（`ui_out/43`，原生 107×159）铺满整个卡槽 `CardW×CardH`；
-        //   `CrUiStyle.Skin(corner: HudCardBodyCorner)` 的九宫格角块**按 1:1 绘制**
-        //   ⇒ 卡框那圈深色**恒为 6px**、不随卡片缩放变化。
-        //   （43 的右边没有深色边：mid-row 剖面 = x0..5 黑、x6..106 全白 ⇒ 走九宫格会在右带画出白块，
-        //     `Skin` 的四角镜像路径四边都是深色边。）
+        //   先裁掉该帧左/上/下那三条 6px 投影带（见 `CardBodyCrop`），再走四角镜像
+        //   （`CrUiStyle.Dress(img, sprite, corner: CardBodyCorner, ...)`，角块**按 1:1 绘制**）
+        //   ⇒ 卡的四边都是**件自身的亮卡体像素**，没有深色环。
+        //   裁带的原因与量取见 `CardBodyCrop` / `CardBodyCorner`。
         // **卡面**：画在卡框**内部**的子节点（`HandArt{i}`），不参与卡框绘制。
         //
         // <b>卡面内缩 = 5px</b>（四个方向同值）—— 口径 = 原版手牌"卡缘可见厚度"：
         //   `策划/参考图/18_对局HUD_1080x1920.jpg` 手牌第 3 张逐列中位色 —— x571..574 是亮卡缘
-        //   （亮占比 0.90~0.93、色 ≈(201,202,207)），x≤570 即背景 ⇒ 卡缘可见 ≈5px（细深线 1px + 亮带 4px）。
-        //   ⚠️ 卡框自带的深色环是 6px，比原版可见厚度厚 1px（差异登记 D111）。
+        //   （亮占比 0.90~0.93、色 ≈(201,202,207)），x≤570 即背景 ⇒ 卡缘可见 ≈5px。
         //   卡面尺寸因此 = 136−2×5 × 171−2×5 = **126×161**（四边同值 ⇒ 卡面中心与卡槽中心重合）。
         //
         // 内缩按**比例**折到 `CardW`/`CardH`（本文件画布单位 = 画布像素）；
@@ -533,24 +532,37 @@ namespace CR.UI.Panels
         //     ② 旧槽底 `ui_out/200` 实测 **全图 α ≤ 60（23.5%）**、色 ≈(18,12,10) ⇒ 是"半透明深色覆盖层"，
         //        实机在卡缘处的像素 = **竞技场草地原色（161，纯草 ~158）** ⇒ **视觉上没有框**。
         //   ⇒ 槽底 = `ResPaths.SlotCard`（`ui_out` 43），切边沿用 deck 的实测值 20。
-        /// <summary>手牌卡体（`ResPaths.SlotCard` = `ui_out` 43，原生 107×159）的九宫格切边 = **20**（四边同值）。
-        /// 出处：与 `DeckEditPanel.BorderCard` 同一量取值（该帧圆角半径 ≈20px；
-        /// 复核：顶行 alpha 宽度 82 → 第 15 行才到 103 ⇒ 半径确实 ≈20）。</summary>
-        /// <h1>⛔ 不要用本 `border` 常量：卡体走 <see cref="HudCardBodyCorner"/> 的 `Skin(corner: 20)` 路径，
-        /// 本常量无任何调用点（仅留存上述量取值）。</h1>
-        private static readonly Vector4 HudCardBodyBorder = new Vector4(20f, 20f, 20f, 20f);
-
         /// <summary>
-        /// 卡体（`ResPaths.SlotCard` = `ui_out` 43）的**四角镜像边长** = <b>20</b>（= 该帧的圆角半径）。
+        /// 卡体件（`ResPaths.SlotCard` = `ui_out` 43，原生 107×159）里**不属于卡体**的那三条投影带：
+        /// 左 6px / 上 6px / 下 6px（该帧**右边没有**这条带）。
         /// <para>
-        /// <b></b>：卡体改走 `CrUiStyle.Skin(..., corner: 20, ...)`（`MakeRounded`：取该帧左上
-        /// 20×20 的四角/四边镜像拼成对称九宫格）而不是 `NineSlice` —— 因为实测 43 的**右边没有深色边**
-        /// （mid-row 剖面 x0..5 黑、x6..106 白），`NineSlice` 会把白块画到卡的右边
-        /// （实机读数 `x 421..427 = (248,248,248)`）。
-        /// 量法：逐像素量取。
+        /// 逐像素剖面（`frame_043.png`）：mid-row = `x0..5 (0,0,0) α255`、`x6..106 (255,255,255) α255`；
+        /// mid-col `y0..5` 同上；近底行 y150 又整行黑 ⇒ 卡体真身 = 裁掉这三条带后的 **101×147**
+        /// （纹理坐标 `(6, 6, 101, 147)`）。
+        /// </para>
+        /// <para>
+        /// <b>为什么要裁</b>：卡体走四角镜像（`CrUiStyle.MakeRounded`），取的是该帧左上的方块 ⇒
+        /// 那 6px 纯黑带会被镜像到**卡的四边**，画出一圈 6px 黑环；而原版手牌没有这圈环
+        /// （见 <see cref="CardBodyCorner"/> 的量取）。
         /// </para>
         /// </summary>
-        private const int HudCardBodyCorner = 20;
+        private static readonly Rect CardBodyCrop = new Rect(6f, 6f, 101f, 147f);
+
+        /// <summary>
+        /// 裁掉投影带后卡体件的**四角镜像边长** = **14**（= 原件圆角半径 20 − 被裁掉的 6px 带）。
+        /// <para>
+        /// <b>原版手牌卡缘没有深色环</b>（量取 = `策划/参考图/18_对局HUD_1080x1920.jpg`）：
+        /// 逐列（y=1700，第 3 张卡的右缘）x556 `(121,116,122)` / x557 `(172,167,173)` / x558 `(235,230,236)`
+        /// 之后即 HUD 蓝底 `(65,84,126)`，x570 起是下一张卡的亮缘 `(204,212,235)` ⇒
+        /// 那 1~2 个中间值像素是**蓝底与亮卡缘之间的过渡**，不是一条描边；
+        /// 同一张卡**顶**缘逐行（x=480）从 y1636 起就是 `(190,188,191)`→`(213,211,214)`、全程无暗线。
+        /// 可见卡缘厚度（亮带）≈4~5px = 卡面内缩量（见 `ArtInset*Frac`）。
+        /// </para>
+        /// </summary>
+        private const int CardBodyCorner = 14;
+
+        /// <summary>裁掉投影带的卡体 Sprite（`Sprite.Create` 造的不归 Resources 管 ⇒ 全局面板实例复用）。</summary>
+        private static Sprite _cardBodySprite;
 
         /// <summary>状态行文字保留时长（秒）。本项目自定：只为不让上一条提示永远留在屏幕上。</summary>
         private const float StatusHoldSeconds = 4f;
@@ -967,17 +979,13 @@ namespace CR.UI.Panels
             {
                 var index = i; // 闭包捕获：槽位下标只用于建节点，卡 id 在刷新时按下标取
 
-                // 卡框 = 原版 `ui_out/43`（18 图未灰化卡体 ≈ 247 与 43 的主色 248 一致，
-                // 且 43 自带 6px 深色描边 + 圆角半径 ≈20 ⇒ 它就是"卡体 + 深色卡框"那一件），铺满整个槽位。
-                // 用 `Skin(corner: 20)` 而不是 `NineSlice`：43 的**右边没有深色边**
-                //   （mid-row 剖面 = x0..5 黑、x6..106 全白）⇒ 九宫格的右带会画成白块
-                //   （右侧出现 6px 白色条，与另外三边的深色边不对称）。
-                //   `Skin` 走引擎既有的"取左上 20×20 四角镜像拼"路径（`CrUiStyle.MakeRounded`，
-                //   014/019/165 等件同一条路）⇒ **四边都是 6px 深色边**。
-                var card = CrUiStyle.Skin($"Hand{index}", bar, ResPaths.SlotCard, HudCardBodyCorner, BorderNone,
-                    new Vector2(0f, 1f), new Vector2(0f, 1f),
-                    new Vector2(index * (CardW + CardGap), 0f), new Vector2(CardW, CardH),
-                    CrUiStyle.ButtonBg, false);
+                // 卡体 = 原版 `ui_out/43`（18 图未灰化卡体 ≈ 247 与 43 的主色 248 一致），铺满整个槽位；
+                //   走 <see cref="DressCardBody"/>（先裁掉该帧左/上/下那三条 6px 投影带，再做四角镜像，
+                //   见 `CardBodyCrop` / `CardBodyCorner` 的量取）。
+                var card = UIFactory.CreatePanel($"Hand{index}", bar, CrUiStyle.ButtonBg, false);
+                UIFactory.Place(card.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                    new Vector2(index * (CardW + CardGap), 0f), new Vector2(CardW, CardH));
+                DressCardBody(card);
                 _handCards[index] = card;
 
                 // 卡面：原版 `ui_spells_out` 帧（透明包围盒裁掉），画在卡框**内部**（后建 ⇒ 画在卡框之上）。
@@ -1009,16 +1017,56 @@ namespace CR.UI.Panels
             }
         }
 
+        /// <summary>
+        /// 给卡体节点套上**裁掉投影带**的原版卡体件（`ResPaths.SlotCard` = `ui_out/43`）的四角镜像九宫格。
+        /// <para>
+        /// 取不到件时保持兜底色并留一条 Warn（⛔ 不静默、也不换成别的帧）。
+        /// </para>
+        /// </summary>
+        private static void DressCardBody(Image card)
+        {
+            if (card == null) return;
+
+            if (_cardBodySprite != null)
+            {
+                CrUiStyle.Dress(card, _cardBodySprite, CardBodyCorner, Vector4.zero, null);
+                return;
+            }
+
+            Game.Res.LoadAsset<Sprite>(ResPaths.SlotCard, s =>
+            {
+                if (card == null) return;
+                if (s == null || s.texture == null)
+                {
+                    WarnOnceCardBody($"卡体件加载不到（{ResPaths.SlotCard}）⇒ 卡体保持兜底色");
+                    return;
+                }
+                _cardBodySprite = Sprite.Create(s.texture, CardBodyCrop, new Vector2(0.5f, 0.5f), s.pixelsPerUnit);
+                _cardBodySprite.name = "SlotCardBody";
+                CrUiStyle.Dress(card, _cardBodySprite, CardBodyCorner, Vector4.zero, null);
+            });
+        }
+
+        /// <summary>卡体件缺口只报一次（每次战斗都会重建手牌，逐张报到刷屏）。</summary>
+        private static void WarnOnceCardBody(string message)
+        {
+            if (_cardBodyWarned) return;
+            _cardBodyWarned = true;
+            Game.Logger?.Warn(Tag, message);
+        }
+
+        private static bool _cardBodyWarned;
+
         private void BuildNextPreview()
         {
             // 位置纠正：「下一张」在原版里是**底排左端**的一张更小的卡
             //（出处 几何量取.md §1.3 D14：x 33..97 / y 1634..1716 ⇒ 64×83），标签在它下方（D15）。
             // 上一版把它放在右端是错的 —— 那一版做的时候基线图底部被宣传字压住、该项未量到；§1.3 已用 18 图补量。
-            // 卡槽底沿用同一件原版槽底 `HudHandSlot`（原版 `slots`，索引 §3.2）。
-            // 与手牌同一条口径 —— `Skin(corner: 20)`（四边都有深色卡框，见手牌处注释）。
-            _nextCard = CrUiStyle.Skin("NextCard", _root, ResPaths.SlotCard, HudCardBodyCorner, BorderNone,
-                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(NextLeft, NextBottomOffset),
-                new Vector2(NextW, NextH), CrUiStyle.ButtonBg, false);
+            // 卡体与手牌**同一件、同一口径**（见 `DressCardBody`）。
+            _nextCard = UIFactory.CreatePanel("NextCard", _root, CrUiStyle.ButtonBg, false);
+            UIFactory.Place(_nextCard.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(NextLeft, NextBottomOffset), new Vector2(NextW, NextH));
+            DressCardBody(_nextCard);
 
             var label = UIFactory.CreateText("NextLabel", _root, "下一张", CrUiStyle.FontSmall,
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);

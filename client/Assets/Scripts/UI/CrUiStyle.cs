@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using CloverEngine;
 using UnityEngine;
 using UnityEngine.UI;
@@ -454,6 +455,30 @@ namespace CR.UI
                 var made = MakeSliced(s, border, resPath);
                 if (made != null) ApplySliced(img, made, face);
             });
+        }
+
+        /// <summary>
+        /// <see cref="Dress(Image, string, int, Vector4, Color?)"/> 的**已加载 Sprite 重载**。
+        /// <para>
+        /// 用途：件**整幅不是都要用**的时候（该帧自带投影带 / 留白，只有其中一块子矩形是本体）——
+        /// 路径版只能整幅用，子矩形要调用方先 <c>Sprite.Create(src.texture, rect, ...)</c> 造出来，
+        /// 本重载把这个 Sprite 直接接进同一条四角镜像 / 九宫格路径（缓存口径同路径版）。
+        /// </para>
+        /// </summary>
+        public static void Dress(Image img, Sprite source, int corner, Vector4 border, Color? tint)
+        {
+            if (img == null || source == null || source.texture == null) return;
+            var face = tint ?? Color.white;
+
+            if (corner > 0)
+            {
+                var made = MakeRounded(source, corner, source.name + "#" + corner + "#" + source.rect);
+                if (made != null) ApplySliced(img, made, face);
+                return;
+            }
+
+            var sliced = MakeSliced(source, border, source.name + "#" + source.rect);
+            if (sliced != null) ApplySliced(img, sliced, face);
         }
 
         /// <summary>
@@ -1529,14 +1554,79 @@ namespace CR.UI
         /// <summary>已经 Warn 过的路径（缺素材只报一次，避免每次开面板刷屏）。</summary>
         private static readonly HashSet<string> WarnedMissing = new HashSet<string>();
 
+        /// <summary>已经发起过预热的路径（同路径只发一次真实加载，⛔ 不重复占引用）。</summary>
+        private static readonly HashSet<string> WarmIssued = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// 路径 → **已经取到手的原版图元**。`Game.Res.LoadAsset&lt;Sprite&gt;` 只有异步版，冷路径的回调
+        /// **恒晚 1 帧**（引擎 `ResourcesBackend.BeginLoad` = `Resources.LoadAsync`）⇒ 面板 `Build()` 那一帧
+        /// 建出来的图元节点全是兜底色块；本表在取到图元时留下它（见 <see cref="LoadSprite"/>），
+        /// 之后的每一次取用都**同帧**返回 ⇒ 配合 <see cref="WarmUiSprites"/> 的开机预热，
+        /// 进对局首帧画的就是原版图元。
+        /// <para>⛔ 只存**原版图元本身**：<see cref="SliceCache"/> 里那些现造的九宫格副本另有缓存。</para>
+        /// </summary>
+        private static readonly Dictionary<string, Sprite> RawCache = new Dictionary<string, Sprite>(StringComparer.Ordinal);
+
+        /// <summary>已驻留（<see cref="RawCache"/> 命中）而**同帧**给图的次数；判据见 <see cref="AsyncSpriteLoads"/>。</summary>
+        public static int SyncSpriteHits { get; private set; }
+
+        /// <summary>
+        /// 走了**异步** `Game.Res.LoadAsset` 的次数（= 调用方那一帧拿不到图、只能先画兜底色）。
+        /// <para>
+        /// 判据口径：建一个面板期间的 <c>ΔAsyncSpriteLoads == 0</c> 就等于"该面板的图元**首帧**就是原版图元"。
+        /// 归零入口 <see cref="ResetSpriteLoadStats"/>。
+        /// </para>
+        /// </summary>
+        public static int AsyncSpriteLoads { get; private set; }
+
+        /// <summary>最近走异步（那一帧拿不到图）的图元路径，供判据点名（上限 <see cref="AsyncPathCap"/> 条）。</summary>
+        private static readonly List<string> AsyncPathLog = new List<string>(AsyncPathCap);
+
+        private const int AsyncPathCap = 64;
+
+        /// <summary>把 <see cref="SyncSpriteHits"/> / <see cref="AsyncSpriteLoads"/> 与点名清单归零（判据用）。</summary>
+        public static void ResetSpriteLoadStats()
+        {
+            SyncSpriteHits = 0;
+            AsyncSpriteLoads = 0;
+            AsyncPathLog.Clear();
+        }
+
+        /// <summary>最近一次 <see cref="ResetSpriteLoadStats"/> 之后走异步的图元路径（一行一条，便于点名）。</summary>
+        public static string AsyncPathsDump()
+        {
+            if (AsyncPathLog.Count == 0) return "(none)";
+            var sb = new System.Text.StringBuilder();
+            for (var i = 0; i < AsyncPathLog.Count; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append(AsyncPathLog[i]);
+            }
+            if (AsyncSpriteLoads > AsyncPathLog.Count) sb.Append("(+").Append(AsyncSpriteLoads - AsyncPathLog.Count).Append(" more)");
+            return sb.ToString();
+        }
+
         private static void LoadSprite(string resPath, Action<Sprite> onLoaded)
         {
+            if (string.IsNullOrEmpty(resPath)) return;
+
+            Sprite warm;
+            if (RawCache.TryGetValue(resPath, out warm) && warm != null)
+            {
+                // 已预热 / 已取过 ⇒ 同帧给图（⛔ 不走异步，否则调用方那一帧仍是兜底色）。
+                SyncSpriteHits++;
+                onLoaded(warm);
+                return;
+            }
+
             if (Game.Res == null)
             {
                 // 非预期分支：CloverRes.Init 缺失 ⇒ 全部素材都加载不到。留痕（否则表现为"UI 莫名其妙是纯色"）。
                 WarnOnce("Game.Res 为空（漏了 CloverRes.Init？），原版图元加载不了，退化为纯色兜底");
                 return;
             }
+            AsyncSpriteLoads++;
+            if (AsyncPathLog.Count < AsyncPathCap) AsyncPathLog.Add(resPath);
             Game.Res.LoadAsset<Sprite>(resPath, sprite =>
             {
                 if (sprite == null)
@@ -1545,8 +1635,79 @@ namespace CR.UI
                     WarnOnce("原版图元加载不到（退化为纯色兜底）：" + resPath);
                     return;
                 }
+                RawCache[resPath] = sprite;
                 onLoaded(sprite);
             });
+        }
+
+        /// <summary>
+        /// 把一批**单帧图元**路径发起异步加载（装进 `Game.Res` 的缓存与 <see cref="RawCache"/>）。
+        /// <para>
+        /// 预热那次加载的引用计数当场还掉（`Game.Res.Release`）⇒ 条目不长期占引用、水位压力下仍可淘汰；
+        /// 之后任何一次 `LoadAsset&lt;Sprite&gt;` 同路径都是**缓存命中**（引擎 `ResourceManager.LoadAsset` 的
+        /// 同步分支）⇒ 调用方同帧拿到图。
+        /// </para>
+        /// <para>⚠️ 预热是**异步**的：要它生效必须**早于**用图那一帧调用（见 <see cref="WarmUiSprites"/> 的调用点）。</para>
+        /// </summary>
+        /// <returns>本次新发起的加载条数（已预热过的路径不计）。</returns>
+        public static int WarmSprites(IList<string> paths, string why)
+        {
+            if (paths == null || paths.Count == 0) return 0;
+            if (Game.Res == null)
+            {
+                WarnOnce("Game.Res 为空（漏了 CloverRes.Init？），" + why + " 的图元预热没做成");
+                return 0;
+            }
+
+            var issued = 0;
+            for (var i = 0; i < paths.Count; i++)
+            {
+                var path = paths[i];
+                if (string.IsNullOrEmpty(path)) continue;
+                if (!WarmIssued.Add(path)) continue;
+                issued++;
+                Game.Res.LoadAsset<Sprite>(path, sprite =>
+                {
+                    if (sprite != null) RawCache[path] = sprite;
+                    Game.Res?.Release(path);   // 还掉预热自己那一次引用（`LoadAsset` 会 +1）
+                    if (sprite == null)
+                        WarnOnce("图元预热取不到（该路径的兜底色不会消失）：" + path);
+                });
+            }
+
+            Game.Logger?.Info("CrUiStyle",
+                $"图元预热（{why}）：本批 {paths.Count} 条，新发起 {issued} 条，其余已在预热表内");
+            return issued;
+        }
+
+        /// <summary>
+        /// 预热 `ResPaths` 里登记的**全部 UI 图元**（`Sprites/Ui/**`）—— 开机（登录 / 主菜单之前）调一次。
+        /// <para>
+        /// 清单由 `ResPaths` 的公开静态 string 属性**反射枚举**得到：`ResPaths` 是资源路径的唯一所有者，
+        /// 手抄一份清单必然与它漂移（加/删一个图元键就漏一处）。反射只在开机跑一次、只读属性 getter，
+        /// 之后往 `ResPaths` 增删键，预热清单自动跟随。
+        /// </para>
+        /// <para>
+        /// 为什么必须开机预热：`HudPanel` 是在 `Battle` 站点**当场** `Build()` 的（见
+        /// `Module/Battle/BattleManager.EnterBattleStation`），那一刻才第一次取图元的话，
+        /// Build 帧里 17 个图元节点全是兜底色块（异步回调恒晚 1 帧）。开机到进对局之间隔着登录与主菜单，
+        /// 届时必定已驻留 ⇒ Build 帧同帧出图。
+        /// </para>
+        /// </summary>
+        public static void WarmUiSprites()
+        {
+            var props = typeof(ResPaths).GetProperties(BindingFlags.Public | BindingFlags.Static);
+            var list = new List<string>(props.Length);
+            var prefix = ResPaths.UiRoot + "/";
+            for (var i = 0; i < props.Length; i++)
+            {
+                var p = props[i];
+                if (p.PropertyType != typeof(string) || p.GetIndexParameters().Length != 0) continue;
+                var v = p.GetValue(null, null) as string;
+                if (string.IsNullOrEmpty(v) || !v.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                if (!list.Contains(v)) list.Add(v);
+            }
+            WarmSprites(list, "UI 图元（" + prefix + "**，清单 = ResPaths 静态属性反射）");
         }
 
         private static void WarnOnce(string message)

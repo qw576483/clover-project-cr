@@ -25,15 +25,15 @@ namespace CR.UI.Panels
     ///
     /// <para>
     /// <b>竖版排版</b>：画布 = <see cref="CrUiStyle.DesignW"/>×<see cref="CrUiStyle.DesignH"/> = 1080×1920、`match = 0`。
-    /// 面板底 = <see cref="CrUiStyle.SettingsPopup"/>（居中弹窗：`ui_out` 014 板岩外框 + 019 亮面体，
-    /// 与主菜单 / 设置同语言；宽 = <see cref="CrUiStyle.ContentW"/> = 1000 ≤ 竖版口径上限 1000），
-    /// 标题 = <see cref="CrUiStyle.BandTitle"/>（板岩带上的白字黑描边），
-    /// 按钮 = <see cref="CrUiStyle.BlueButton"/>（`ui_out` 165 蓝底白字），
+    /// 版式 = **整屏页**（⛔ 不是居中弹窗）：面板根节点自己就是内容父节点（<see cref="Build"/> 的
+    /// `UIFactory.Stretch`，实测 1080×1920），自上而下 = 整屏深蓝底 `DeckBg` + 顶区斜格底纹 `TopBackdrop`
+    /// + 页签带（页面只有卡池这一屏 ⇒ 只有 `Collection` 一颗页签）+ 卡组编号行（1..5）
+    /// + 4×2 卡阵 + 底行（平均圣水 pill + 工具钮）+ 卡池列表。
     /// 格子底 = <see cref="ResPaths.SlotCard"/>（原版白色卡片底九宫格，**经联络图复核后判定不改**，
     /// 见 <see cref="CreateCell"/> 的注释）。
     /// 全部几何数字量自原版基线图 `策划/参考图/07_卡组编辑_1242x2208.jpg`（折算 ×(1080/1242) = 0.8696，
-    /// 与 1242×2208 → 1080×1920 同宽高比）。
-    /// 卡宽 205 / 槽宽 95 为本面板的整屏版式取值（见下方版式常量）。
+    /// 与 1242×2208 → 1080×1920 同宽高比），逐条编号 <c>E*</c>/<c>A*</c> 见 `策划/参考图/几何量取.md`
+    /// §1.1 / §1.4 / §1.6。卡宽 205 / 槽宽 95 为本面板的整屏版式取值（见下方版式常量）。
     /// </para>
     ///
     /// <para>

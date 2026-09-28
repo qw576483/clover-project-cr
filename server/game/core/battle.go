@@ -216,6 +216,10 @@ func (b *Battle) PlayCard(team Team, cardID, xMilli, yMilli int32) error {
 	if !h.play(cardID) {
 		return fmt.Errorf("%w: %d", ErrCardNotInHand, cardID)
 	}
+	// EvPlayCard 先入队、施法者 id 生成后回填（单位是这条事件之后才产生的）：
+	// EntityID = 本次出牌生成的第一支单位（客户端据此取出弹道起点）。
+	// 法术卡不生成施法者实体 ⇒ 保持 0。
+	evIdx := len(b.events)
 	b.events = append(b.events, Event{
 		Kind: EvPlayCard, CardID: cardID, XMilli: xMilli, YMilli: yMilli, Team: int32(team),
 	})
@@ -232,7 +236,10 @@ func (b *Battle) PlayCard(team Team, cardID, xMilli, yMilli int32) error {
 		if deployMs <= 0 {
 			deployMs = def.DeployMs
 		}
-		b.spawnGroup(team, def, card.ID, xMilli, yMilli, card.UnitN, card.UnitRadiusMilli, deployMs, card.UnitStaggerMs)
+		spawned := b.spawnGroup(team, def, card.ID, xMilli, yMilli, card.UnitN, card.UnitRadiusMilli, deployMs, card.UnitStaggerMs)
+		if len(spawned) > 0 {
+			b.events[evIdx].EntityID = spawned[0].ID
+		}
 	}
 	return nil
 }

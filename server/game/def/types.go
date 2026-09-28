@@ -64,10 +64,15 @@ type BattleTimeline struct {
 
 // BattleEvent 对局中的一个离散事件。
 type BattleEvent struct {
-	Kind     int32  `json:"kind"` // 0=出牌 1=生成 2=死亡 3=塔毁 4=圣水满 5=塔激活 6=塔开火
-	CardID   int32  `json:"card_id"`
-	XMilli   int32  `json:"x_milli"`
-	YMilli   int32  `json:"y_milli"`
+	Kind   int32 `json:"kind"` // 0=出牌 1=生成 2=死亡 3=塔毁 4=圣水满 5=塔激活 6=塔开火
+	CardID int32 `json:"card_id"`
+	XMilli int32 `json:"x_milli"`
+	YMilli int32 `json:"y_milli"`
+
+	// EntityID 是这条事件指向的实体：
+	//   kind=0（出牌）    = 施法者，即本次出牌生成的第一支单位（法术卡不生成实体 ⇒ 0）；
+	//   kind=1（生成）    = 刚生成的那支单位；
+	//   kind=6（塔开火）  = 开火那座塔。
 	EntityID int32  `json:"entity_id"`
 	Team     int32  `json:"team"`
 	Text     string `json:"text"`

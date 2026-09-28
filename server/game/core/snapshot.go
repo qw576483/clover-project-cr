@@ -29,10 +29,16 @@ const (
 
 // Event is one discrete, one-shot client-visible occurrence.
 type Event struct {
-	Kind     int32 // see the Ev* constants
-	CardID   int32
-	XMilli   int32
-	YMilli   int32
+	Kind   int32 // see the Ev* constants
+	CardID int32
+	XMilli int32
+	YMilli int32
+
+	// EntityID 是这条事件指向的实体（客户端靠它取该实体的坐标）：
+	//   EvSpawn（1）      = 刚生成的那支单位；
+	//   EvPlayCard（0）   = **施法者**，即本次出牌生成的第一支单位（`Battle.PlayCard` 回填）；
+	//                       法术卡不生成实体 ⇒ 0；
+	//   EvTowerShoot（6） = 开火那座塔（与 TowerSnap.ID 同源）。
 	EntityID int32
 	Team     int32
 	Text     string

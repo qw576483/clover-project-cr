@@ -245,6 +245,8 @@ namespace CR.Def
         public int card_id;
         public int x_milli;
         public int y_milli;
+        // 这条事件指向的实体：kind=0（出牌）= 施法者（本次出牌生成的第一支单位，法术卡为 0）；
+        // kind=1（生成）= 刚生成的单位；kind=6（塔开火）= 开火那座塔。
         public int entity_id;
         public int team;
         public string text;

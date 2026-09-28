@@ -240,6 +240,40 @@ namespace CR.View
         /// <summary>出牌弹道的施法者退化到国王塔中心只 Warn 一次。</summary>
         private bool _casterFallbackWarned;
 
+        /// <summary>挂起的出牌弹道等施法者进快照的上限（毫秒，服务端时间轴口径）。</summary>
+        private const float CasterWaitMs = 2000f;
+
+        /// <summary>
+        /// 挂起中的出牌弹道（等施法者实体进快照）。
+        /// <para>
+        /// 为什么要挂起：`EvPlayCard` 只带施法者 **id**（`BattleEvent.entity_id`，坐标不在载荷里），
+        /// 而该实体是**出牌之后**才生成的，服务端又把事件推在对应快照**之前** ⇒ 事件到达那一刻施法者
+        /// 还没进任何快照，取不到它的坐标。留在这里等下一帧快照（通常 100 ms）即可取到。
+        /// </para>
+        /// </summary>
+        private readonly List<PendingCasterShot> _pendingCasterShots = new List<PendingCasterShot>();
+
+        /// <summary>一条等施法者进快照的出牌弹道（见 <see cref="_pendingCasterShots"/>）。</summary>
+        private struct PendingCasterShot
+        {
+            public int EntityId;
+            public int CardId;
+            public int Team;
+            public string ProjectileKey;
+            public int ProjSpeed;
+            public Vector2 Landing;
+            public float GiveUpMs;   // 超过这个服务端时刻还没等到 ⇒ 退回旧口径
+        }
+
+        /// <summary>本局出牌弹道里"起点取到施法者实体坐标"的条数。</summary>
+        private int _casterOrigins;
+
+        /// <summary>本局出牌弹道里"起点 = 施法者、但施法者就在落点上（距离 0，无飞行段）"的条数。</summary>
+        private int _casterZeroDist;
+
+        /// <summary>本局出牌弹道里施法者迟迟没进快照、退回旧口径的条数。</summary>
+        private int _casterTimedOut;
+
         /// <summary>上一帧快照里每个实体的 `anim`（`entity_id → anim`）—— 用来判"这一帧刚进入攻击档"。
         /// 协议里没有"开火"事件（`server/game/core/combat.go:68-73` 只在挥砍那一 tick 把 anim 置 2），
         /// 所以"战斗中开火"的唯一可得信号 = **anim 从非 2 跳到 2** 的上升沿。</summary>
@@ -266,6 +300,18 @@ namespace CR.View
         /// 这条 = "出牌"（有事件可挂）—— 两者的触发源不同，合起来才覆盖任务 3 的两半要求。</para>
         /// </summary>
         public int CardProjectileShots { get { return _projectileShots; } }
+
+        /// <summary>本局出牌弹道里起点取到**施法者实体坐标**的条数（= 服务端 `EvPlayCard` 的施法者 id 被用上的次数）。</summary>
+        public int CasterOrigins { get { return _casterOrigins; } }
+
+        /// <summary>本局出牌弹道里施法者**就在落点上**（距离 0）⇒ 无飞行段的条数（单单位卡的常态，出牌即落地）。</summary>
+        public int CasterZeroDistance { get { return _casterZeroDist; } }
+
+        /// <summary>本局出牌弹道里施法者没进快照、退回旧口径（本方最近单位 / 国王塔中心）的条数。</summary>
+        public int CasterTimedOut { get { return _casterTimedOut; } }
+
+        /// <summary>当前还在等施法者进快照的出牌弹道条数。</summary>
+        public int CasterPending { get { return _pendingCasterShots.Count; } }
 
         /// <summary>
         /// 本局收到的**塔开火**事件（`kind == 6` / `EvTowerShoot`）条数。
@@ -790,6 +836,10 @@ namespace CR.View
             _snapshotCount = 0;
             _overCapWarned = false;
             _projectileShots = 0;
+            _casterOrigins = 0;
+            _casterZeroDist = 0;
+            _casterTimedOut = 0;
+            _pendingCasterShots.Clear();
             _unknownKindWarned = false;
             _fireCardMissingWarned = false;
             _fireNoTargetWarned = false;
@@ -965,6 +1015,8 @@ namespace CR.View
             _prevAnim.Clear();
             _curAnim.Clear();
             _lastShotMs.Clear();
+            // 上一局没等到施法者的出牌弹道：同一场景连开新局时清掉（那些实体 id 属于上一局）。
+            _pendingCasterShots.Clear();
             if (!_built) RebuildIfWanted("Events.Battle.Started"); // 兜底：万一 StationChanged 没到（例如直接由服务端推送进对局）
             // 精灵预热：画面已建 ⇒ 当场做；画面待建（首次进图，本事件早于 `Scene.Load`）⇒ 记下待办、由 `Build()` 补做。
             _warmNotify = n;
@@ -1114,6 +1166,9 @@ namespace CR.View
             _newestMs = serverMs;
             // 记下这一帧快照的**到达时刻**：`ServerNowMs` 靠它把阶梯状的时间戳外推成连续时间轴。
             _arrivalReal = Time.realtimeSinceStartup;
+
+            // 施法者进快照了 ⇒ 把挂起的出牌弹道补播（起点 = 施法者实体坐标，见 ResolvePendingCasterShots）。
+            ResolvePendingCasterShots();
             if (first)
             {
                 // 渲染时钟**只在首帧对齐一次**：对齐到"服务端现在 - 目标落后量"，
@@ -1343,10 +1398,10 @@ namespace CR.View
         /// 取最近（本项目口径，登记在报告里）。
         /// </para>
         /// <para>
-        /// ⚠️ **契约缺口（登记见 `策划/差异登记.tsv`）**：协议里没有"开火"事件、`EvPlayCard` 的 `entity_id` 恒 0
-        /// （`server/game/core/battle.go:219-221`）⇒ 客户端既拿不到施法者、也拿不到真实目标，
-        /// 只能这样反推。正解 = 服务端为每次开火发一条带 `caster_entity_id` + `target_entity_id` 的事件
-        /// （⛔ 客户端不改服务端协议）。
+        /// ⚠️ **契约缺口（登记见 `策划/差异登记.tsv`）**：协议里没有"开火"事件 ⇒ 客户端拿不到
+        /// "这一帧哪个单位开了火"、也拿不到**真实目标**，只能这样反推（`EvPlayCard` 的施法者 id 只覆盖
+        /// "出牌"那一条路，不覆盖单次挥砍）。正解 = 服务端为每次开火发一条带 `caster_entity_id` +
+        /// `target_entity_id` 的事件（⛔ 客户端不改服务端协议）。
         /// </para>
         /// </summary>
         /// <returns>真的播出去了才返回 true（用于记录该实体的下一次开火时刻）。</returns>
@@ -1454,8 +1509,8 @@ namespace CR.View
         /// 塔开火（`EvTowerShoot` / `kind == 6`）的一次性表现：**有速度时从炮口飞一条弹道**。
         ///
         /// <para>
-        /// <b>与 <see cref="PlayBattleShot"/> 的分工</b>：那条是"从快照反推单位开火"（协议没有单位开火事件，
-        /// 见 D48）；这条是**服务端明确发来的**塔开火事件，位置与速度都是真值 —— 塔的射击链路
+        /// <b>与 <see cref="PlayBattleShot"/> 的分工</b>：那条是"从快照反推单位开火"（协议没有单位开火事件）；
+        /// 这条是**服务端明确发来的**塔开火事件，位置与速度都是真值 —— 塔的射击链路
         /// （国王塔 + 公主塔）的攻击特效就是靠它播出来的。
         /// </para>
         ///
@@ -1693,12 +1748,19 @@ namespace CR.View
         /// </para>
         ///
         /// <para>
-        /// <b>「施法者位置」怎么取</b>：事件载荷（`BattleEvent`）只有单点 `x_milli/y_milli` + `team`，
-        /// 且 `EvPlayCard` 的 `entity_id` 恒为 0（`server/game/core/battle.go:219-221` 未填 `EntityID`）
-        /// ⇒ **载荷里没有施法者**。这里不再退化成"本方国王塔中心"（那是 D48 的降级，用户看到的是
-        /// "箭从塔里射出"），而是取**本方在落点附近最近的一个单位**（通常就是刚落下的那张卡自己）。
-        /// 都取不到（例如全场本方无单位）时才回退国王塔中心并**留痕**。
-        /// **落点 = 事件自带的 `x_milli/y_milli`（真值，未降级）。**
+        /// <b>「施法者位置」怎么取</b>：`EvPlayCard` 的 `entity_id` = **施法者实体**
+        /// （服务端 `Battle.PlayCard` 在生成单位后回填，见 `server/game/core/battle.go`），
+        /// 坐标按该 id 在快照里取（<see cref="TryCasterWorld"/>）。该实体是**出牌之后**才生成的、
+        /// 而事件又推在对应快照**之前** ⇒ 事件到达那一刻取不到坐标，先挂起
+        /// （<see cref="_pendingCasterShots"/>），等它进了快照再由 <see cref="ResolvePendingCasterShots"/> 补播；
+        /// 挂起超时（或载荷里没有施法者 id）才退回旧口径（<see cref="CasterWorld"/>：本方离落点最近单位 →
+        /// 国王塔中心 + 留痕）。**落点 = 事件自带的 `x_milli/y_milli`（真值，未降级）。**
+        /// </para>
+        ///
+        /// <para>
+        /// 出牌单位通常**就落在落点上**（单单位卡的 `SummonLayout` 偏移 = 0，见 `server/game/core/units.go`）
+        /// ⇒ 起点与落点重合、距离 0、没有飞行段可播（<see cref="PlayCasterFlight"/> 会记一行读数）；
+        /// 群体卡的第一支单位带环/打包偏移 ⇒ 才有短飞行段。
         /// </para>
         /// </summary>
         private void PlayProjectileFlight(BattleEvent e)
@@ -1736,24 +1798,119 @@ namespace CR.View
                 return;
             }
 
-            var from = CasterWorld(e.team, landing);
-            var dist = Vector2.Distance(from, landing);
-            var seconds = dist * 60f / card.proj_speed; // 格 ÷ (格/分钟 ÷ 60)
-            if (seconds <= 0f)
+            if (e.entity_id > 0)
             {
-                // 距离为 0（落点正好压在国王塔上）：没有"飞行"可言 ⇒ 不播。
+                Vector2 caster;
+                if (TryCasterWorld(e.entity_id, out caster))
+                {
+                    PlayCasterFlight(e.card_id, card.projectile_key, card.proj_speed, caster, landing, true, e.entity_id);
+                    return;
+                }
+
+                // 施法者还没进快照（事件先于对应快照到达）⇒ 挂起，等它出现再播。
+                _pendingCasterShots.Add(new PendingCasterShot
+                {
+                    EntityId = e.entity_id,
+                    CardId = e.card_id,
+                    Team = e.team,
+                    ProjectileKey = card.projectile_key,
+                    ProjSpeed = card.proj_speed,
+                    Landing = landing,
+                    GiveUpMs = _newestMs + CasterWaitMs,
+                });
+                Game.Logger?.Info(LogTag,
+                    $"出牌弹道：card={e.card_id} key={card.projectile_key} 施法者 ent={e.entity_id} 还没进快照 ⇒ " +
+                    $"挂起等它出现再播（当前挂起 {_pendingCasterShots.Count} 条）");
                 return;
             }
 
-            var fx = ResolveProjectileFx(card.projectile_key);
+            // 载荷里没有施法者 id（法术卡 / 不带该字段的服务端）：旧口径。
+            PlayCasterFlight(e.card_id, card.projectile_key, card.proj_speed,
+                CasterWorld(e.team, landing), landing, false, 0);
+        }
+
+        /// <summary>
+        /// 用给定起点播一条出牌弹道。<paramref name="fromCasterEntity"/> = 起点是不是**施法者实体**的坐标
+        /// （false = 退回旧口径取的本方最近单位 / 国王塔中心）。
+        /// <para>起点与落点重合（距离 0）时没有"飞行"可言 ⇒ 不播，只记一行读数。</para>
+        /// </summary>
+        private void PlayCasterFlight(int cardId, string projectileKey, int projSpeed,
+            Vector2 from, Vector2 landing, bool fromCasterEntity, int casterEntityId)
+        {
+            if (_effects == null) return;
+
+            if (fromCasterEntity) _casterOrigins++;
+            var origin = fromCasterEntity
+                ? $"弹道起点 = 出牌单位 ent={casterEntityId}=({from.x:F2},{from.y:F2})"
+                : $"弹道起点 = 旧口径（本方最近单位/国王塔中心）=({from.x:F2},{from.y:F2})";
+
+            var dist = Vector2.Distance(from, landing);
+            var seconds = dist * 60f / projSpeed; // 格 ÷ (格/分钟 ÷ 60)
+            if (seconds <= 0f)
+            {
+                _casterZeroDist++;
+                Game.Logger?.Info(LogTag,
+                    $"出牌弹道：card={cardId} key={projectileKey} {origin} 落点=({landing.x:F2},{landing.y:F2}) " +
+                    $"距离=0.00格 ⇒ 无飞行段可播（出牌即落地）" +
+                    $" 本局累计：起点=出牌单位 {_casterOrigins} 零距 {_casterZeroDist} 超时 {_casterTimedOut} 播出 {_projectileShots}");
+                return;
+            }
+
+            var fx = ResolveProjectileFx(projectileKey);
 
             _effects.PlayFlight(from, landing, fx.Use, fx.First, fx.Count, EffectsView.WorldSize, seconds);
             _projectileShots++;
             Game.Logger?.Info(LogTag,
-                $"弹道 card={e.card_id} key={card.projectile_key} proj_speed={card.proj_speed}格/分钟 " +
-                $"施法者[本方最近单位，见 CasterWorld]=({from.x:F2},{from.y:F2}) 落点=({landing.x:F2},{landing.y:F2}) " +
-                $"距离={dist:F2}格 飞行={seconds:F3}s（={dist:F2}×60/{card.proj_speed}） " +
+                $"弹道 card={cardId} key={projectileKey} proj_speed={projSpeed}格/分钟 {origin} " +
+                $"落点=({landing.x:F2},{landing.y:F2}) " +
+                $"距离={dist:F2}格 飞行={seconds:F3}s（={dist:F2}×60/{projSpeed}） " +
                 $"图元={fx.Use} f{fx.First}..f{fx.First + fx.Count - 1}（{fx.Count} 帧） 本局累计={_projectileShots}");
+        }
+
+        /// <summary>按实体 id 在**最近一帧快照**里扫出该实体的世界坐标；它还没进快照 ⇒ false。</summary>
+        private bool TryCasterWorld(int entityId, out Vector2 world)
+        {
+            world = default(Vector2);
+            var list = _lastEntities;
+            if (list == null) return false;
+            for (var i = 0; i < list.Length; i++)
+            {
+                var c = list[i];
+                if (c == null || c.id != entityId) continue;
+                world = GameConst.MilliToWorld(c.x_milli, c.y_milli);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 补播挂起中的出牌弹道（每帧快照到达时调）：施法者一进快照就取它的坐标当起点
+        /// （见 <see cref="_pendingCasterShots"/>）；超过 <see cref="CasterWaitMs"/> 还没出现 ⇒
+        /// 退回旧口径（<see cref="CasterWorld"/>）并留痕。
+        /// </summary>
+        private void ResolvePendingCasterShots()
+        {
+            if (_pendingCasterShots.Count == 0) return;
+            for (var i = _pendingCasterShots.Count - 1; i >= 0; i--)
+            {
+                var p = _pendingCasterShots[i];
+                Vector2 caster;
+                if (TryCasterWorld(p.EntityId, out caster))
+                {
+                    _pendingCasterShots.RemoveAt(i);
+                    PlayCasterFlight(p.CardId, p.ProjectileKey, p.ProjSpeed, caster, p.Landing, true, p.EntityId);
+                    continue;
+                }
+                if (_newestMs < p.GiveUpMs) continue;
+
+                _pendingCasterShots.RemoveAt(i);
+                _casterTimedOut++;
+                Game.Logger?.Warn(LogTag,
+                    $"出牌弹道：施法者 ent={p.EntityId}（card={p.CardId}）在 {CasterWaitMs:F0}ms 内没进快照 ⇒ " +
+                    $"退回旧口径（本方离落点最近单位 / 国王塔中心） 本局累计超时 {_casterTimedOut} 次");
+                PlayCasterFlight(p.CardId, p.ProjectileKey, p.ProjSpeed,
+                    CasterWorld(p.Team, p.Landing), p.Landing, false, p.EntityId);
+            }
         }
 
         /// <summary>
@@ -1775,16 +1932,16 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 出牌方「施法者」世界位置。**优先 = 本方在 <paramref name="landing"/> 附近最近的一支单位**
-        /// （用当前插值窗口末尾那一帧快照的实体坐标；通常是刚落下的那张卡自己）；
-        /// 本方在该帧**一个单位都没有**时，才回退到**出牌方国王塔中心**（固定几何
-        /// `GameConst.KingTowerTileX/Y`，出处 `anchors.json`）并留痕一次。
+        /// 出牌弹道的**退回口径**起点（只在施法者实体取不到时才走这里）：
+        /// **优先 = 本方在 <paramref name="landing"/> 附近最近的一支单位**
+        /// （用当前插值窗口末尾那一帧快照的实体坐标）；本方在该帧**一个单位都没有**时，
+        /// 才回退到**出牌方国王塔中心**（固定几何 `GameConst.KingTowerTileX/Y`，出处 `anchors.json`）并留痕一次。
         ///
         /// <para>
-        /// <b>为什么不再无条件用国王塔中心</b>：那是 D48 登记的降级值 —— 现象是"箭从本方塔里射出来"。
-        /// 事件载荷不带施法者（`BattleEvent` 只有单点 + `team`，`EvPlayCard` 的 `entity_id` 恒 0，
-        /// 见 `server/game/core/battle.go:219-221`），但快照里**有**本方实体的实时坐标 ⇒ 可以退而取
-        /// "离落点最近的本方单位"，比国王塔贴合实际。真正正解 = 服务端在事件里补 `caster_entity_id`（D48）。
+        /// <b>为什么不直接用它当默认值</b>：它是**近似**（离落点最近的单位不一定是施法者），
+        /// 且全场本方无单位时会退成国王塔中心 —— 画面上就是"箭从本方塔里射出来"。
+        /// 正解是施法者实体（`EvPlayCard` 的 `entity_id` + 快照坐标，见 <see cref="PlayProjectileFlight"/>），
+        /// 本方法只在那个实体取不到（超时 / 载荷没带）时兜底。
         /// </para>
         /// </summary>
         private Vector2 CasterWorld(int team, Vector2 landing)
@@ -1810,7 +1967,7 @@ namespace CR.View
                 _casterFallbackWarned = true;
                 Game.Logger?.Warn(LogTag,
                     $"出牌弹道：team={team} 在落点({landing.x:F2},{landing.y:F2})附近**找不到任何本方单位** ⇒ " +
-                    "施法者退化为本方国王塔中心（D48 的降级值）；若持续出现说明出牌与单位落地不在同一帧快照里（只报一次）");
+                    "施法者退化为本方国王塔中心；出现即说明施法者实体也没能按 id 取到（只报一次）");
             }
             return GameConst.TileToWorld(GameConst.KingTowerTileX,
                 GameConst.MirrorTileYForTeam(GameConst.KingTowerTileY, team));

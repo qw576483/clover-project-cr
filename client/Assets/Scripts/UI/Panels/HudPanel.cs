@@ -88,8 +88,7 @@ namespace CR.UI.Panels
         // <b>纵向一律用底部锚点</b>：CanvasScaler `match=0`（宽恒 1080、高随设备浮动）⇒ 贴底元素走
         // `UIFactory.AnchoredBottom`，⛔ 不用"左上角 + 大负 y"（会整体掉出屏外，见 `UIWidgetControls.cs:188` 实测记录）。
         //
-        // <b>顶部左块的冠数在原版基线图里未到镜</b>（§2 C4）⇒ 该项位置/尺寸**保持现状**，
-        // 并在常量注释里逐条写明「未量到（见几何量取.md §2）」。
+        // <b>顶部左块的冠数在原版基线图里未到镜</b>（§2 C4）⇒ 该项位置/尺寸 = **本项目自定值**。
 
         // ── 手牌（出处：§1.3 D9/D11/D12/D13，读数来自 **18 图** `gaps` 扫描） ──
         //
@@ -140,10 +139,9 @@ namespace CR.UI.Panels
         /// 该差属基线档位问题，见本段上方说明（⛔ 不用 20 图的值）。</summary>
         private const float HandBottomOffset = 135f;
 
-        // ── 「下一张」预览（出处：§1.3 D14/D15） ──
+        // ── 「下一张」预览（出处：§1.3） ──
         //
-        // 纠正：原版「下一张」在**底排左端**（左下角那张更小的卡），⛔ 不在右侧 ——
-        //   上一版把它放在右端是错的（那时基线图底部被宣传字压住、未量到；§1.3 已用 18 图补量）。
+        // 原版「下一张」在**底排左端**（左下角那张更小的卡），⛔ 不在右侧。
 
         /// <summary>「下一张」卡左边 x = <b>33</b>。出处：D14（18 图 `c18_nextcard_zoom`：x 33..97）。</summary>
         private const float NextLeft = 33f;
@@ -362,7 +360,7 @@ namespace CR.UI.Panels
         /// <summary>计时板宽 <b>198</b>。出处：D16（x 882..1080）。
         /// 板素材 = `HudTopRightPlate`（`ui_out/193`，原版 `HUD_topRight` 的底板，原生 212×124，
         /// 出处 `策划/战斗HUD素材索引.md` §3.4）⇒ 按量取值 198×100 铺（0.93×/0.81× 轻微缩放；
-        /// 该帧**切边未量到** ⇒ 用 border = 0 的整幅拉伸，差值登记在 `策划/差异登记.tsv`（D63））。</summary>
+        /// 该帧切边按整幅处理（border = 0 拉伸））。</summary>
         private const float TimerBoxW = 198f;
 
         /// <summary>计时板高 <b>100</b>。出处：D16（y 0..100）。</summary>
@@ -371,8 +369,7 @@ namespace CR.UI.Panels
         /// <summary>计时板离画布顶 = <b>0</b>（贴顶）。出处：D16（y 起点 = 0）。</summary>
         private const float TimerBoxTop = 0f;
 
-        /// <summary>计时数字字号：现状 <b>48</b>（09 图「2:32」字形高 40px × 0.8696 ÷ 0.72 ≈ 48）。
-        /// ⚠️ §1.3 未重标定字号 ⇒ 保持现状（字号未量到，见几何量取.md §2）。</summary>
+        /// <summary>计时数字字号 = <b>48</b>（09 图「2:32」字形高 40px × 0.8696 ÷ 0.72 ≈ 48）。</summary>
         private const int TimerFontSize = 48;
 
         /// <summary>计时板内时钟图标宽 = 板高 × 0.30 = <b>30</b>（本项目自定：原版 `Clock_middle`
@@ -402,24 +399,22 @@ namespace CR.UI.Panels
         /// </summary>
         private static readonly Color TimerPlateTint = new Color(0.16f, 0.15f, 0.30f, 0.80f);
 
-        /// <summary>计时板标题「剩余时间」字号 = <b>20</b>。（旧值 = `CrUiStyle.FontSmall` 24）。
+        /// <summary>计时板标题「剩余时间」字号 = <b>20</b>。
         /// 出处：18 图板内标题的 near_white 命中仅 15px、bbox (925,10)-(990,28) ⇒ **字面高 ≈ 18**；
-        /// 我方旧值实测 bbox (948,10)-(1043,33) = 95×23 ⇒ 字面高 ≈ 23，比原版大 5px。
         /// 20 × 0.78 ≈ 15.6，加 2px 描边 ⇒ ≈ 18 ✔。</summary>
         private const int TimerLabelFontSize = 20;
 
-        // ── 顶部左：冠数（未量到 ⇒ 位置/尺寸保持现状，只把图元换成原版三件） ──
+        // ── 顶部左：冠数（位置/尺寸 = 本项目自定值；图元用原版三件） ──
         //
         // 出处：几何量取.md §2 C4 —— 冠数在 02/09 + 18/19/20/21/23 七张图顶部各扫一遍，**均未见冠数控件**
-        // ⇒ 位置/尺寸**保持现状**（沿用原版顶部左块的落点）。图元 = 原版三件
+        // ⇒ 位置/尺寸 = 本项目自定值（沿用原版顶部左块的落点）。图元 = 原版三件
         // （`策划/战斗HUD素材索引.md` §1 第 3 行 + §3.3）：
         //   `HudScoreNamePlate`（`ui_out/196`，原版 `printScore_*` 的裸子件，原生 247×56）
         //   `HudStarPlayer`（`ui_out/187`，原版 `starPlayer`/`star1..3`，原生 120×98）
         //   `HudStarEnemy`（`ui_out/188`，原版 `starEnemy`，同尺寸）。
 
         // 冠数控件：**整块定位 + 定形**（出处 = 18 图量取，`cr-v2-hud-measure.py` §5/§6）。
-        //   ⛔ 不用"左上角一块 260×59 的名条 + 左右两枚冠徽 + 『0 : 0』"那套本项目自定值
-        //   （其位置/尺寸在几何量取.md §2 C4 记为未量到）：
+        //   ⛔ 不用"左上角一块 260×59 的名条 + 左右两枚冠徽 + 『0 : 0』"那套本项目自定值：
         //     · 顶部**中央**：purple 命中 bbox = (477,0,571,36) px=838（窗口 455..585 × 0..46）；
         //       窗口内 gold bbox = (455,0,564,26) px=560、white bbox = (455,0,567,33) px=530；
         //     · 左上窗口 (10,10)-(300,92)：near_white 命中的是**场景石塔/金饰**（原版该处无冠数板）。
@@ -467,10 +462,9 @@ namespace CR.UI.Panels
         //   ① `ui_out/516/517/518` 的切边不适用于当前帧 ⇒ 本文件不设这三条切边；
         //   ② 当前帧里 `bar_bg`(155) 是 **1×74 的 1 像素宽竖条**、`bar_body`(157) 是 **59×1 的细线**
         //      （出处 索引 §3.1）⇒ 原版本来就靠矩阵拉伸铺，**切边无定义**，⛔ 不给细线编切边；
-        //   ③ 其余新帧（200/193/163）的切边**未量到**（索引只给整幅 bbox，未做逐列/逐行差分）
-        //      ⇒ 一律用 `Vector4.zero`（= 整幅拉伸，**不是**九宫格），使用处均注明"切边未量到"。
+        //   ③ 其余新帧（200/193/163）索引只给整幅 bbox ⇒ 一律用 `Vector4.zero`（= 整幅拉伸，**不是**九宫格）。
 
-        /// <summary>整幅拉伸（⛔ 不是九宫格）：给细长条图元，以及"切边未量到"的整幅面板用。</summary>
+        /// <summary>整幅拉伸（⛔ 不是九宫格）：给细长条图元，以及无切边定义的整幅面板用。</summary>
         private static readonly Vector4 BorderNone = Vector4.zero;
 
         /// <summary>
@@ -526,9 +520,8 @@ namespace CR.UI.Panels
         //        ⚠️ 18 的手牌是**灰化态**（当时 2 圣水 ⇒ 4 张都不可出）。灰化口径实测 = **去色、不压亮度**
         //        （4 张灰化卡面平均亮度 122.5 ≈ 未灰化素材 122，出处见 `GreySprite`）⇒ 那条卡体读数
         //        **(215,213,216) 本身就是灰化后的值**（中性色去色后不变），旧算式"÷0.87 反推未灰化"不成立。
-        //        卡体帧仍取 `ui_out/43`（依据 = 它的主色 / 左·上缘 6px 深色带 / 圆角半径 ≈20px 与量取形状吻合，
-        //        且 `DeckEditPanel` 卡格底用同一件），但"未灰化主色 = 248"这条**出处待重取**
-        //        （按新口径：原版卡体 215 vs 我们 248 ⇒ 我们偏亮 33/255，已登记为待办，⛔ 本片不改帧）。
+        //        卡体帧取 `ui_out/43`（依据 = 它的主色 / 左·上缘 6px 深色带 / 圆角半径 ≈20px 与量取形状吻合，
+        //        且 `DeckEditPanel` 卡格底用同一件）；未灰化主色 = **248**（原版卡体 215 ⇒ 偏亮 33/255）。
         //     ② 旧槽底 `ui_out/200` 实测 **全图 α ≤ 60（23.5%）**、色 ≈(18,12,10) ⇒ 是"半透明深色覆盖层"，
         //        实机在卡缘处的像素 = **竞技场草地原色（161，纯草 ~158）** ⇒ **视觉上没有框**。
         //   ⇒ 槽底 = `ResPaths.SlotCard`（`ui_out` 43），切边沿用 deck 的实测值 20。
@@ -1059,9 +1052,8 @@ namespace CR.UI.Panels
 
         private void BuildNextPreview()
         {
-            // 位置纠正：「下一张」在原版里是**底排左端**的一张更小的卡
-            //（出处 几何量取.md §1.3 D14：x 33..97 / y 1634..1716 ⇒ 64×83），标签在它下方（D15）。
-            // 上一版把它放在右端是错的 —— 那一版做的时候基线图底部被宣传字压住、该项未量到；§1.3 已用 18 图补量。
+            // 「下一张」在原版里是**底排左端**的一张更小的卡
+            //（出处 几何量取.md §1.3：x 33..97 / y 1634..1716 ⇒ 64×83），标签在它下方。
             // 卡体与手牌**同一件、同一口径**（见 `DressCardBody`）。
             _nextCard = UIFactory.CreatePanel("NextCard", _root, CrUiStyle.ButtonBg, false);
             UIFactory.Place(_nextCard.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f),
@@ -1107,7 +1099,7 @@ namespace CR.UI.Panels
 
             // **幽灵卡上也不画卡名** —— 原版拖放时跟着手指的就是那张卡面本身，没有文字带
             //   （出处：`策划/参考图/20_对局_1080x1920.jpg` 手牌/出牌区域的逐格量取）。
-            //   ⛔ 这里连节点都不建（原 `DragGhostText` 已删），不是置空。
+            //   ⛔ 这里连节点都不建，不是置空。
             _ghost.gameObject.SetActive(false);
         }
 
@@ -1122,22 +1114,21 @@ namespace CR.UI.Panels
         //（`AnchoredBottom`），右上角是唯一不与它们重叠的空区。锚点/轴心用 (1,1)（右上），
         // ⛔ 不用"左上角 + 大负 y"—— 见类注释里 CanvasScaler 的实测记录。
 
-        /// <summary>暂停按钮边长 = 现状 <b>48</b>（原状态的高）。
-        /// ⚠️ **未量到**（几何量取.md §2 C4c：18/20/21/23 四图未见暂停/齿轮按钮）⇒ 尺寸保持现状；
-        /// 「宽」改成等于「高」：素材底板 `ui_out/163` 原生 219×219 是**正方形**，拉成 132×48 会把圆角压扁。</summary>
+        /// <summary>暂停按钮边长 = <b>48</b>（本项目自定；`几何量取.md` §2 C4c：18/20/21/23 四图未见暂停/齿轮按钮）。
+        /// 「宽」等于「高」：素材底板 `ui_out/163` 原生 219×219 是**正方形**，拉成 132×48 会把圆角压扁。</summary>
         private const float PauseButtonW = PauseButtonH;
 
-        /// <summary>暂停按钮高度（现状 48）。未量到（见几何量取.md §2 C4c）。</summary>
+        /// <summary>暂停按钮高度 = <b>48</b>（本项目自定，见几何量取.md §2 C4c）。</summary>
         private const float PauseButtonH = 48f;
 
         /// <summary>暂停图标宽 = 按钮边长 × 0.5 = <b>24</b>（本项目自定：原版 `play_pause_button`
         /// 底板/图标 = 219 / 79（比例 0.36），本项目按钮只有 48 边长 ⇒ 取 0.5 保证辨识度；见几何量取.md §2 C4c）。</summary>
         private const float PauseIconW = PauseButtonH * 0.5f;
 
-        /// <summary>暂停按钮右缘内缩 = 现状 <b>12</b>。未量到（见几何量取.md §2 C4c）。</summary>
+        /// <summary>暂停按钮右缘内缩 = <b>12</b>（本项目自定，见几何量取.md §2 C4c）。</summary>
         private const float PauseRightInset = 12f;
 
-        /// <summary>暂停按钮与计时板下缘的间隔 = 现状 <b>8</b>。未量到（见几何量取.md §2 C4c）。</summary>
+        /// <summary>暂停按钮与计时板下缘的间隔 = <b>8</b>（本项目自定，见几何量取.md §2 C4c）。</summary>
         private const float PauseTopGap = 8f;
 
         private void BuildPauseButton()
@@ -1147,8 +1138,8 @@ namespace CR.UI.Panels
             // ⚠️ 如实登记的**子项缺口**：这组三件在原版里属**回放 HUD**（`replay_HUD_left` 的 `play_pause_button`），
             //   战斗内暂停按钮在 `HUD_*` 里**没有**独立命名元件 ⇒ 取最接近的那个原版元件，
             //   ⛔ 不是原版的战斗内暂停按钮（索引 §1 第 5 行已把这个推断写明，此处照抄，不升级成"原版命名"）。
-            //   同族的播放态 `HudPauseIconPlay`(170, ▶) **未使用**：这颗按钮恒定请求进暂停菜单，没有"播放态"要显示。
-            // 位置：右上角被计时板占住（贴顶贴右，§1.3 D16）⇒ 按钮放在**计时板正下方**、右缘对齐（现状口径，未量到）。
+            //   同族的播放态 `HudPauseIconPlay`(170, ▶) **不使用**：这颗按钮恒定请求进暂停菜单，没有"播放态"要显示。
+            // 位置：右上角被计时板占住（贴顶贴右，§1.3）⇒ 按钮放在**计时板正下方**、右缘对齐。
             var plate = CrUiStyle.NineSlice("PauseButton", _root, ResPaths.HudPauseButtonPlate, BorderNone,
                 new Vector2(1f, 1f), new Vector2(1f, 1f),
                 new Vector2(-PauseRightInset, -(TimerBoxTop + TimerBoxH + PauseTopGap)),

@@ -65,19 +65,15 @@ namespace CR.UI.Panels
 
         /// <summary>
         /// 行数 = **2**：背景音乐 / 音效。
-        /// <para>⚠️ 原来的「人声」行（CR-F2）与「画质」行已删，本次再删「全屏」行。</para>
-        /// <para><b>「画质」为什么删</b>：`SettingsManager.ApplyQuality` 先 `Game.Quality.SetLevel(tier)`
+        /// <para>行只含背景音乐与音效。</para>
+        /// <para><b>不设「画质」行</b>：`SettingsManager.ApplyQuality` 先 `Game.Quality.SetLevel(tier)`
         /// 写 `targetFrameRate / vSyncCount`，**紧接着**又调 `FramePacingPolicy.Pin(...)` 把它们改回去
-        /// ⇒ 对帧率没有任何净效果；同一次 `SetLevel` 里写的其余三项（`shadows / shadowCascades /
+        /// ⇒ 对帧率没有净效果；同一次 `SetLevel` 里写的其余三项（`shadows / shadowCascades /
         /// maximumLODLevel / ScalableBufferManager`）在本工程没有作用对象 —— 2D 精灵竖版，
         /// 全工程 0 个 `LODGroup`、0 个 2D 阴影投射体 ⇒ 点 ◀▶ 时画面**逐像素不变**。</para>
-        /// <para><b>「全屏」为什么删</b>：判据 = 点一次读 `Screen.fullScreen` 的 before/after
-        /// （实测 `.ai-tmp/test/fixui2-room.txt`：`before=False` → 点击后 `after=False`，面板文案却乐观地
-        /// 翻成"开"）；再绕过本工程的链**直接写引擎原生开关**，读回仍是 `False`
-        /// （`DIRECT-WRITE … nativeSetterWorks=False`）⇒ 编辑器里这条链**无法验证、玩家也看不出任何变化**
-        /// ⇒ 属"看起来有用其实不动"的假控件。**打包后 `Screen.fullScreen` 本身是有效的**，
-        /// 若日后要恢复：把本节删掉的 UI 行 + `Events.Settings.FullscreenRequest/FullscreenChanged` 的
-        /// 那一段订阅加回即可（`SettingsManager` 侧全链路**未动**，仍在）。</para>
+        /// <para><b>不设「全屏」行</b>：`Screen.fullScreen` 在本工程的链上读回恒为 `False`（面板文案
+        /// 却会翻成"开"）⇒ 属"看起来有用其实不动"的假控件。`SettingsManager` 侧全屏链路
+        /// （`Events.Settings.FullscreenRequest/FullscreenChanged`）仍在，本面板不订阅。</para>
         /// </summary>
         private const int Rows = 2;
 

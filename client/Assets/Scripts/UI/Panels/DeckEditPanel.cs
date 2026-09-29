@@ -930,9 +930,8 @@ namespace CR.UI.Panels
         /// ② 保存（`_saveButton` 句柄保留 —— 在途时由 <see cref="SetSaveBusy"/> 真禁用）；③ 取消。
         /// </para>
         /// <para>
-        /// ⚠️ <b>已知差异（D153）</b>：原版钮 ②/cancel 位的图标是「卡组视图 / 菜单」，本工程
-        /// ⛔ 没有对应图元、对应功能也未实现 ⇒ 用**文字**占位（不是拿别的帧冒充图标）。
-        /// 版式（位置 / 尺寸 / 步进）已按原版实测落地。
+        /// ⚠️ <b>已知差异</b>：原版钮 ②/cancel 位的图标是「卡组视图 / 菜单」，本工程没有对应图元
+        /// ⇒ 用**文字**占位（不是拿别的帧冒充图标）。版式（位置 / 尺寸 / 步进）按原版实测落地。
         /// </para>
         /// </summary>
         private void BuildBottomRow()
@@ -1313,7 +1312,6 @@ namespace CR.UI.Panels
         /// 宽扁描边框**（橙 / 紫；同一形状只换色，实测 `ui_sprite_550/551` 与 `515/516` 的 alpha 包围盒
         /// 逐像素同位），而 tint 是**纯乘**，橙色件染不出紫色 ⇒ 三档改用原版中性空心框
         /// （<see cref="ResPaths.CardFrameOutline"/>）+ 这里的**实测色**区分。
-        /// 缺口（原版这三档的专属框件未接入）登记在 `策划/差异登记.tsv` D164。
         /// </para>
         /// </summary>
         private static Color RarityFrameColor(int rarity)

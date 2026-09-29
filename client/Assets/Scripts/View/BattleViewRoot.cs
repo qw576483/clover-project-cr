@@ -1053,7 +1053,7 @@ namespace CR.View
             // 上一局没等到施法者的出牌弹道：同一场景连开新局时清掉（那些实体 id 属于上一局）。
             _pendingCasterShots.Clear();
             if (!_built) RebuildIfWanted("Events.Battle.Started"); // 兜底：万一 StationChanged 没到（例如直接由服务端推送进对局）
-            // 精灵预热：画面已建 ⇒ 当场做；画面待建（首次进图，本事件早于 `Scene.Load`）⇒ 记下待办、由 `Build()` 补做。
+            // 精灵预热：画面已建 ⇒ 当场做；画面待建（首次进图，本事件早于 `Scene.Load`）⇒ 记下通知，由 `Build()` 补做。
             _warmNotify = n;
             if (_built) WarmBattleSprites();
             var regulation = n.timeline != null ? n.timeline.regulation_ms : 0;

@@ -39,10 +39,9 @@ namespace CR.UI.Panels
 
         // ───────────────────────── 竖版排版常量（G4 重排） ─────────────────────────
         //
-        // ⚠️ **原版结算界面在基线图里未取到**（`策划/参考图/清单.md` §2「结算(胜负/三冠) = 未取到」，
-        // 试过 Fandom 文件名搜索 victory/defeat/result + App Store 全槽位）⇒ **面板宽高、胜负字样/皇冠位置、
-        // 按钮布局在 A 侧全部「未量到」**，不许填估计值冒充。所以本面板的**框架量**一律沿用项目里
-        // **有实测出处**的那一套竖版口径（`CrUiStyle` 的 A 侧实测值）：
+        // ⚠️ **原版结算界面无基线**（`策划/参考图/清单.md` §2「结算(胜负/三冠) = 未取到」）⇒
+        // 面板宽高、胜负字样/皇冠位置、按钮布局一律沿用项目里**有实测出处**的竖版口径
+        // （`CrUiStyle` 的 A 侧实测值），不许填估计值冒充：
         //   · 面板宽 = `CrUiStyle.ContentW` = 1000（A 面板宽实测 711px@750 × 1.44）
         //   · 贴顶距 = `CrUiStyle.PanelTopOffset` = 167（A 面板顶边 y=116@1334）
         //   · 标题条高 = `CrUiStyle.TitleBarH` = 92、内缩 = `CrUiStyle.PanelPad` = 40
@@ -51,7 +50,7 @@ namespace CR.UI.Panels
         /// <summary>面板高（内容驱动：标题条 92 + 徽记 90 + 结局 100 + 冠数 80 + **奖励条 230** + 两条数据条 188 + 两按钮 221 + 三行说明 224 + 间隔）。</summary>
         private const float BoxH = 1330f;
 
-        /// <summary>全屏暗底色（结算页压住对局画面；原版结算页也是暗底 —— 具体色值未量到，本项目自定）。</summary>
+        /// <summary>全屏暗底色（结算页压住对局画面；原版结算页也是暗底 —— 具体色值本项目自定）。</summary>
         private static readonly Color DimColor = new Color(0f, 0f, 0f, 0.62f);
 
         /// <summary>结局徽记显示宽（原版结算图元 `ui_battle_end_out/195` 原生 96×89）。</summary>

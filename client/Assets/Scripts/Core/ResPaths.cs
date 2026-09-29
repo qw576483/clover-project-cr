@@ -724,10 +724,9 @@ namespace CR
         /// 倒计时 底板**实心填充** —— 同族 `ui_out` **frame_177**（1×1 纯黑），`HudTopRightPlate`(193) 是**空心**圆角框，
         /// 原版 `HUD_topRight` 另有无名子件（clip 1005）供实心底。
         /// <para>
-        /// ⚠️ AF1 补登记（键登记缺口）：`tools/probes/copy-ui-assets.py` 的台账行 `("ui_out", 177, "HudTimerPlateFill")`
-        /// （AV2 加）**一直没在 ResPaths 登记**，而 `HudPanel.cs` 用**本地常量** `TimerPlateFill`
-        /// 直接拼同一个路径 ⇒ `check-ui-keys.ps1` 的 C 项（台账 ↔ 注册表）报 `<= HudTimerPlateFill`。
-        /// 本键与 `HudPanel.TimerPlateFill` 指向同一路径（逐字相同），登记后 C 项一致；面板侧改用本键属后续片。
+        /// `tools/probes/copy-ui-assets.py` 的台账行 `("ui_out", 177, "HudTimerPlateFill")` 与本键对应；
+        /// `HudPanel.cs` 用**本地常量** `TimerPlateFill` 直接拼同一个路径（与本键逐字相同）
+        /// ⇒ `check-ui-keys.ps1` 的 C 项（台账 ↔ 注册表）一致。
         /// 盘上文件 = `client/Assets/Resources/Sprites/Ui/Panels/ui_out/frame_177.png`（AF1 `Test-Path` True）。
         /// </para>
         /// <para>出处 `策划/战斗HUD素材索引.md` §3.4（AV2 引 索引：`177(1×1) / 193(212×124)`）。</para>
@@ -832,7 +831,7 @@ namespace CR
         /// 王冠 蓝方起始帧（`ui_battle_end_out` 027，176×126；下缘**蓝色**饰带）。
         /// <para>
         /// 原版王冠是**两段 80 帧动画**：蓝方 027–106 / 红方 115–194（逐帧辨认 `.sc` 的 clip 边界）；
-        /// 本键 = 蓝方那段的**起始帧**（只接静态帧，逐帧动画未接）。
+        /// 本键 = 蓝方那段的**起始帧**（静态帧）。
         /// ⚠️ 240 帧里**没有** 2 冠 / 3 冠的堆叠帧 ⇒ N 冠 = 同一张**复制 N 次**。
         /// </para>
         /// </summary>

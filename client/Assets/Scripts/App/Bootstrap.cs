@@ -151,7 +151,7 @@ namespace CR.App
             //    数值的权威在服务端 `game/table`；客户端再存一份必然漂移。
             //    ⛔ 也不要写 `CloverData.InitDataTable(CloverTable.Dir)`：`CloverTable.Dir` 在
             //    `CloverTable.LoadAll` 成功之前恒为 null，传进去只会让引擎打一条 Error。
-            Game.Logger?.Info(Tag, "配表未接入：客户端不落地 tsv，卡池/卡组数据一律走服务端协议");
+            Game.Logger?.Info(Tag, "配表走服务端协议：客户端不落地 tsv，卡池/卡组数据一律走服务端协议");
 
             // ⑥ 账号服地址 —— 不设的话 LoginAsync/SignupAsync 直接抛 InvalidOperationException。
             CloverAuth.AuthAddr = Cfg.Server.auth_addr;

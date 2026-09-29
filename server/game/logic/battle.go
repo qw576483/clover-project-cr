@@ -449,6 +449,7 @@ func snapshotToDef(s core.Snapshot) def.BattleSnapshot {
 			Anim:     e.Anim,
 			Facing:   e.Facing,
 			DeployMs: e.DeployMs,
+			TargetID: e.TargetID,
 		})
 	}
 	return out

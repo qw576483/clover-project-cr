@@ -1268,11 +1268,12 @@ namespace CR.View
             //    `EvSpawn` 是逐单位发的（一张 3 单位的卡 = 3 条事件；召唤物也是同父卡 id 的一条条 spawn），
             //    而原版玩家看到的是"这张卡在就位"的**一枚**标记 + **一个**只转一圈的计时件。
             //
-            //    ⛔ 曾经把计时件摆在这道去重**之前** ⇒ 每一条 `EvSpawn`（**不分敌我、不分卡**）都把那个
-            //    全局唯一的 `_deployRing` 的倒计时**重起**、并把它挪到该条 spawn 的落点 ⇒ 玩家看到
-            //    「转好几圈才落地、和实际落地时间不符合」。2026-09-29 复证：同一窗口内 15:44:49 我方
-            //    加农炮与 15:44:53 敌方火枪手各把表盘重起一次，**两次都是单单位卡** ⇒ 与"多单位卡同窗口"
-            //    无关，是任意 spawn 都生效。
+            //    ⛔ 这道链上曾经**两处都错**：① 计时件摆在这道去重**之前** ⇒ 每一条 `EvSpawn`（**不分敌我、
+            //    不分卡**）都把它那块表盘的倒计时**重起**；② 表盘**全局只有一块** ⇒ 后到的出牌（含敌方）
+            //    会把那一块挪到自己的落点。合起来就是玩家看到的「转好几圈才落地、和落地时间不符」。
+            //    2026-09-29 复证：同一窗口内 15:44:49 我方加农炮与 15:44:53 敌方火枪手各把表盘重起一次，
+            //    **两次都是单单位卡** ⇒ 与"多单位卡同窗口"无关，是任意 spawn 都生效。
+            //    ① 由下面这道去重解决；② 由 `_deployRings` **池**解决（一次出牌各占一块，见 AcquireDeployRing）。
             //    钥匙里含**阵营**：敌我同卡在 0.5 s 内先后落下时，敌方的那个仍要画自己的环（红了半边）。
             var sameCard = e.card_id == _lastDeployCardId
                            && e.team == _lastDeployTeam
@@ -2210,6 +2211,23 @@ namespace CR.View
                         }
                         moveDir = world - baselineWorld;
                         world = Vector2.Lerp(prevWorld, world, t);
+                    }
+                }
+
+                // 攻击档朝向**目标**（原版"打谁朝谁"）：服务端随快照下发 `target_id`
+                //（`def.EntitySnapshot.TargetID`），目标同帧在场 ⇒ 用「目标 − 自身」当朝向向量，
+                // 覆盖下面按位移选出来的方向。
+                // ⛔ 为什么必须覆盖：位移方向只在**行进**时有意义 —— 一个"往北走 → 停下开打"的单位，
+                // 位移方向仍是北 ⇒ 视角永远是背身档 `_1`，而原版是转向目标。实测（2026-09-29，
+                // `verify4-facing*.tsv`）：`chr_wizard_out` 整段攻击 100 帧恒为背身、其最近敌 30 帧全在身后 1.6~3.0 格。
+                // 目标不在 `Entities` 里（打塔）或旧服务端没下发（`target_id == 0`）⇒ 保持原位移口径。
+                if (e.anim == UnitAnimTable.Attack && e.target_id != 0 && e.target_id != e.id)
+                {
+                    EntitySnapshot tgt;
+                    if (cur.TryGetValue(e.target_id, out tgt) && tgt != null)
+                    {
+                        var toTarget = GameConst.MilliToWorld(tgt.x_milli, tgt.y_milli) - world;
+                        if (toTarget.sqrMagnitude > 0.0001f) moveDir = toTarget;
                     }
                 }
 

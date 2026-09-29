@@ -128,6 +128,18 @@ namespace CR.View
         private bool _deployTimerMode;
 
         /// <summary>
+        /// 本实例的落位计时件**是否正在走**（形态是计时件且还剩时间）—— 供**实例池**分配空闲块用
+        /// （`BattleViewRoot.AcquireDeployRing` 优先取"没在走"的那块）。
+        /// </summary>
+        public bool DeployTimerActive { get { return _deployTimerMode && _deployLeft > 0f; } }
+
+        /// <summary>
+        /// 落位计时件的**剩余秒数**（= 0 表示没在走）。池在"全忙"时按它取**最先到期**的那块复用
+        /// （先到期的先让位 ⇒ 尽量保住"刚开始转的那块"完整走完一圈）。
+        /// </summary>
+        public float DeployLeft { get { return _deployLeft; } }
+
+        /// <summary>
         /// 落位计时件的尺寸口径。原版件自身像素 ÷ <see cref="ArenaView.GroundPxPerTileX"/>（45.545 px/格）——
         /// 与 <see cref="DeployAreaView"/> 的 `deployArea_*` 一族**同一条**换算（同一张 `ui` 图集、同一批尺寸）。
         /// </summary>

@@ -26,6 +26,15 @@ type EntitySnapshot struct {
 	Anim     int32 `json:"anim"`      // 0=idle 1=walk 2=attack 3=die
 	Facing   int32 `json:"facing"`    // -1 / 1
 	DeployMs int32 `json:"deploy_ms"` // 剩余部署时间
+
+	// TargetID = 该实体**当前交战的目标**（0 = 无目标）。
+	//
+	// 为什么要下发：客户端要播"打谁朝谁"的朝向，而 `Facing` 只有左/右一位（±1），
+	// **喂不出 16 档视角** ⇒ 一个"往北走、停下开打南面敌人"的单位会永远保持背身档
+	// （实测 `chr_wizard_out` 整段攻击 100 帧恒为背身 `viewNo=1`）。服务端在选目标时
+	// **本来就有**这个方向（`core/entity.go` 的 `targetID` / `faceToward`），故直接下发 id 让客户端算。
+	// 塔不在 `Entities` 里 ⇒ 打塔的单位这条是塔 id，客户端查不到坐标时回落"按位移选朝向"。
+	TargetID int32 `json:"target_id"`
 }
 
 // BattleSnapshot 周期全量快照（10 Hz，BestEffort）。

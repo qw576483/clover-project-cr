@@ -83,6 +83,10 @@ type EntitySnap struct {
 	Anim     int32 // 0=idle 1=walk 2=attack 3=die
 	Facing   int32 // -1 / 1
 	DeployMs int32 // remaining deploy time
+
+	// TargetID 是该实体当前交战的目标（0 = 无目标）。客户端用它播"打谁朝谁"的朝向
+	// （`Facing` 只有 ±1，喂不出 16 档视角）；口径与 `def.EntitySnapshot.TargetID` 同值。
+	TargetID int32
 }
 
 // Snapshot is the full client-visible state of the match.
@@ -162,6 +166,8 @@ func entitySnapOf(e *entity) EntitySnap {
 		Anim:     e.anim,
 		Facing:   e.facing,
 		DeployMs: e.deployMsLeft,
+		// TargetID 供客户端播"打谁朝谁"的朝向（见 def.EntitySnapshot.TargetID 的注释）。
+		TargetID: e.targetID,
 	}
 }
 

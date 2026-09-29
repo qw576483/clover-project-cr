@@ -197,6 +197,11 @@ namespace CR.Def
         public int anim;                 // 0=idle 1=walk 2=attack 3=die
         public int facing;               // -1 / 1
         public int deploy_ms;            // 剩余部署时间
+
+        // 该实体**当前交战的目标**（0 = 无目标；服务端 `def.EntitySnapshot.TargetID`，同名同值）。
+        // 用途：攻击档时"打谁朝谁"——`facing` 只有 ±1，喂不出 16 档视角（`UnitAnimTable.StepToView`）；
+        // 缺省（旧服务端未下发）= 0 ⇒ 客户端回落到"按位移选朝向"（见 BattleViewRoot.ApplyEntities）。
+        public int target_id;
     }
 
     /// <summary>

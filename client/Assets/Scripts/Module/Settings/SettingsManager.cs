@@ -254,7 +254,7 @@ namespace CR.Module.Settings
             if (Game.Quality == null)
             {
                 // 非预期分支：表现域未挂载时画质档位本就无从谈起，留痕（别静默）。
-                Game.Logger?.Warn(Tag, "Game.Quality 为空，引擎侧自动降档不会同步到本项目事件（面板可能显示旧值）");
+                Game.Logger?.Warn(Tag, "Game.Quality 为空，引擎侧自动降档不会同步到本项目事件（面板可能显示滞后值）");
                 return;
             }
 

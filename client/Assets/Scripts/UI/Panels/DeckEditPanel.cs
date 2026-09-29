@@ -77,10 +77,10 @@ namespace CR.UI.Panels
         //    —— 量法 = 「**整行中位数**」（对带内卡面内容鲁棒），逐带量取；
         //    原 §2 的 **C7** 把「Tab 带 / 编号行的精确边界」记为**量不到**，本节的 E\* 编号取代它。
 
-        /// <summary>整屏深蓝底 —— 量取 **E18** <c>(2,35,90)</c>（`几何量取.md` §1.4 卡池底中位色）。</summary>
+        /// <summary>整屏深蓝底 —— 量取 <c>(2,35,90)</c>（`几何量取.md` §1.4 卡池底中位色）。</summary>
         private static readonly Color DeckBgColor = new Color32(2, 35, 90, 255);
 
-        /// <summary>页签底填充（贴不到图元时的兜底色）= 量取 **E15** <c>(33,124,193)</c>（亮蓝）。</summary>
+        /// <summary>页签底填充（贴不到图元时的兜底色）= 量取 <c>(33,124,193)</c>（`几何量取.md` §1.4 Tab 选中亮蓝）。</summary>
         private static readonly Color TabOnColor = new Color32(33, 124, 193, 255);
 
         /// <summary>页签带顶边 = **33.9**。出处 **E2**（y=39@1242；该处行中位色差 d=15.0）。</summary>
@@ -90,7 +90,7 @@ namespace CR.UI.Panels
         private const float TabBarH = 102.6f;
 
         /// <summary>
-        /// 页签左边 = **568.7**。出处 **E50**（原分辨率逐像素扫 y=55/100@1242，
+        /// 页签左边 = **568.7**。出处 `几何量取.md` §1.6.5（原分辨率逐像素扫 y=55/100@1242，
         /// 填充色在 **x=654@1242** 从 `#072853` 跳到 `#0C3761` ⇒ 654 × 0.8696 = 568.7）。
         /// <para>
         /// ⚠️ 该边取**实测**值：⛔ 不能"由左页签右边 + 推定缝 40"反解（§2 **C7b** 已消除）。
@@ -101,7 +101,7 @@ namespace CR.UI.Panels
         private const float TabCollectionX = 568.7f;
 
         /// <summary>
-        /// 页签宽 = **394.0**。出处 **E51**（右缘 **x=1107@1242** ⇒ 962.7@1080；
+        /// 页签宽 = **394.0**。出处 `几何量取.md` §1.6.5（右缘 **x=1107@1242** ⇒ 962.7@1080；
         /// 962.7 − 568.7 = 394.0）。两次独立确认：① y=55@1080 细扫在 x=964 从 `#0E3761` 掉到 `#072A57`；
         /// ② 减背景放大图上可**目视**看到右上圆角（放大 4×，圆角起弯 ≈950@1080、直边止于 ≈963）。
         /// </summary>
@@ -118,14 +118,14 @@ namespace CR.UI.Panels
         private const float NumRowH = 152.2f;
 
         /// <summary>
-        /// 卡格阵列第 1 行**主体**顶边 = **335.7**。出处 §1.1 **A4**（y=386@1242）+ §1.4 **E10**（同值）。
+        /// 卡格阵列第 1 行**主体**顶边 = **335.7**。出处 `几何量取.md` §1.1（y=386@1242）+ §1.4（同值）。
         /// ⚠️ 选中卡的**外发光**比主体再高 33（量取 **E9** = y=348@1242 ⇒ 302.6）—— 发光是卡框帧自身的
         /// 外扩，⛔ 不在几何里补偿（否则未选中的格子会整体上移 33）。
         /// </summary>
         private const float GridTopY = 335.7f;
 
         /// <summary>
-        /// 卡格阵列**左**边界 = **71.2**。出处 **E14 = §1.1 A1**（第 1 格左边 x=82@1242 ⇒ 71.3）。
+        /// 卡格阵列**左**边界 = **71.2**。出处 `几何量取.md` §1.1（第 1 格左边 x=82@1242 ⇒ 71.3）。
         /// <para>
         /// ⚠️ <b>卡阵**不是**整屏居中的</b>：右边 = 71.2 + 968.5 = 1039.7 ⇒ 右边距 40.3 ≠ 左边距 71.2。
         /// 这是**原版实测**（A1 与 A2 两条独立读数互证：第 4 格左边 960@1242 ⇒ 960 − 3×292.7 = 81.9 ≈ 82）
@@ -178,7 +178,7 @@ namespace CR.UI.Panels
 
         /// <summary>
         /// 列间距 = **49.5**。出处 §1.1 **A3**：原版列步进 292.7px@1242 ⇒ **254.5**@1080 ⇒
-        /// `ColGap = 254.5 − CardW(205)`。（旧值 58 对应步进 263，比原版宽 3.3%。）
+        /// `ColGap = 254.5 − CardW(205)`。
         /// </summary>
         private const float ColGap = 49.5f;
 
@@ -225,10 +225,10 @@ namespace CR.UI.Panels
         // 每一条都由 `07_卡组编辑_1242x2208.jpg` 量出，逐条列在 `策划/参考图/几何量取.md` §1.4 / §1.6。
         // ⛔ 全部按**屏幕左上角**为原点、y 向下为正（写进代码时取负，见 `At`）。
 
-        /// <summary>顶部安全区 = E13 <c>(7,38,92)</c>（整宽，高 = 页签带底边 <see cref="TabBarY"/> + <see cref="TabBarH"/>）。</summary>
+        /// <summary>顶部安全区 = <c>(7,38,92)</c>（整宽，高 = 页签带底边 <see cref="TabBarY"/> + <see cref="TabBarH"/>）。</summary>
         private static readonly Color TopAreaColor = new Color32(7, 38, 92, 255);
 
-        /// <summary>页签顶部亮线 = 实测 <c>(33,194,227)</c>。出处 **E66**：
+        /// <summary>页签顶部亮线 = 实测 <c>(33,194,227)</c>。出处 `几何量取.md` §1.6.8：
         /// 原分辨率 x=358..362 逐行读得 y28 `#34C4E7` / y29 `#1FC2E3` / y30 `#21B9E0`，
         /// 三行逐通道中位 = (33,194,227)。<para>
         /// ⚠️ ⛔ 不能取 "y32..64 的中位色"（<c>(48,148,210)</c>）：那一段已经**含渐变**（y32 之后就走下坡），
@@ -239,11 +239,11 @@ namespace CR.UI.Panels
         /// 页签底 **tint** = 实测页签色 ÷ 源帧内填色 <c>(76,176,255)</c>
         /// （与 <see cref="CrUiStyle.ButtonBlueTint"/> **同一口径**，只是分母取页签自己那件
         /// <see cref="CrUiStyle.TabCornerArt"/> = `ui_out` 447 的九宫格中心像素）。
-        /// 出处 **E65**：实测页签色 <c>(33,124,193)</c> ⇒ (0.4342, 0.7045, 0.7569)。
+        /// 出处 `几何量取.md` §1.6.8：页签色 <c>(33,124,193)</c> ⇒ (0.4342, 0.7045, 0.7569)。
         /// <para>
         /// <b>为什么要 tint</b>：源帧的内填色是 **(76,176,255)**（B=255，很艳），
         /// 而参考图上页签实测只有 B=193 ⇒ 不染色直接铺会**明显偏艳**。
-        /// 分母是实测的（离屏复刻 `MakeRounded` 后读中心像素，见 `.ai-tmp/test/cr-deckui-mirror9.py`），
+        /// 分母是实测的（离屏复刻 `MakeRounded` 后读中心像素），
         /// ⛔ 不是随手调色。
         /// </para>
         /// </summary>
@@ -255,7 +255,7 @@ namespace CR.UI.Panels
         /// <summary>编号行带的带体 = 实测 <c>(1,96,234)</c>（x=40 列 y240，介于上下亮边之间）。</summary>
         private static readonly Color NumBarColor = new Color32(1, 96, 234, 255);
 
-        /// <summary>编号按钮常态 = E16 <c>(56,107,195)</c>。</summary>
+        /// <summary>编号按钮常态 = <c>(56,107,195)</c>。</summary>
         private static readonly Color NumBtnColor = new Color32(56, 107, 195, 255);
 
         /// <summary>编号按钮**选中**（金色）= 实测 <c>(252,200,64)</c>（金按钮 1 的填充中位色，避开白色数字）。</summary>
@@ -268,7 +268,7 @@ namespace CR.UI.Panels
         private static readonly Color ToolBtnColor = new Color32(58, 129, 188, 255);
 
         /// <summary>
-        /// 页签的**顶边** = **23.5**（= 27@1242 × 0.8696）。出处 **E25**，两条独立判据：
+        /// 页签的**顶边** = **23.5**（= 27@1242 × 0.8696）。出处 `几何量取.md` §1.6.1，两条独立判据：
         /// ① 「逐列首个**暗于面板−9** 的行」在 x=680..1080 上取中位 = 27@1242；
         /// ② 「逐列首个**亮于面板+40** 的行」在原版页签上取中位 = 27@1242（5%/95% 分位同为 27）。
         /// </summary>
@@ -282,7 +282,7 @@ namespace CR.UI.Panels
         // 但它是页签「顶部暗斜面 → 签体填充」这条**内部**边，⛔ 不是页签的外上缘；
         // 外上缘在它**上面 13 行**处（面板 `#09275B`(V=92) 掉到暗斜面 `#021E4B`(V=78)）。
 
-        /// <summary>页签顶部**亮线**高 = **3.5**（= 4px@1242）。出处 **E66**：高光只占 y27..y30 共 4 行。
+        /// <summary>页签顶部**亮线**高 = **3.5**（= 4px@1242）。出处 `几何量取.md` §1.6.8：高光只占 y27..y30 共 4 行。
         /// ⚠️ 取**实测值**（4px@1242；⛔ 不用"取 6 便于看清"）。</summary>
         private const float TabEdgeH = 3.5f;
 
@@ -309,7 +309,7 @@ namespace CR.UI.Panels
         /// <para>
         /// 出处两条实测：① 原版卡阵最后一行卡片的下缘 = **1309@1242** ⇒ **1138.3@1080**
         /// （y=918 起 + 卡片整块 391，见 <see cref="RowGap"/> 的出处段）；
-        /// ② 原版底行钮板顶边 = **1351@1242** ⇒ **1174.8@1080**（§1.6.3 **E41**）。
+        /// ② 原版底行钮板顶边 = **1351@1242** ⇒ **1174.8@1080**（`几何量取.md` §1.6.3）。
         /// ⇒ 空档 = 1174.8 − 1138.3 = **36.5**。
         /// </para>
         /// <para>
@@ -325,7 +325,7 @@ namespace CR.UI.Panels
         private const float GridToBottomRowGap = 1174.8f - 1138.3f;
 
         /// <summary>
-        /// 底行钮板高 = **103.5**。出处 **E41**。
+        /// 底行钮板高 = **103.5**。出处 `几何量取.md` §1.6.3。
         /// <para>
         /// <b>量取口径</b>（不同算子在同一对象上会得到不同读数，本条取最后一种）：
         /// · 口径 `x800..880` 的亮掩码跨在钮 1/钮 2 的**缝**上 ⇒ 偏低（"118@1242" = 102.6@1080）；
@@ -341,7 +341,7 @@ namespace CR.UI.Panels
         private const float BottomRowH = 103.5f;
 
         /// <summary>
-        /// 平均圣水 pill 左边 = **20.9**。出处 **E59**。
+        /// 平均圣水 pill 左边 = **20.9**。出处 `几何量取.md` §1.6.3。
         /// <para>
         /// 量法：pill 底 = `#1C4280` / 底行带 = `#02458B`，在 **y=1370@1242**（文字上方那一行，
         /// 避开白色数字）逐列取色 —— x=18 仍是带色 `#02458B`，**x=24 转 pill 的暗边 `#003575`**
@@ -351,7 +351,7 @@ namespace CR.UI.Panels
         private const float AvgPillX = 20.9f;
 
         /// <summary>
-        /// 平均圣水 pill 宽 = **231.3**。出处 **E60**。
+        /// 平均圣水 pill 宽 = **231.3**。出处 `几何量取.md` §1.6.3。
         /// 同一行读到右缘 **x=290@1242**（x=282 转暗边 `#013475`、x=294 已回到带色 `#03468D`）
         /// ⇒ (290 − 24) × 0.8696 = **231.3**（⛔ 不用"按内容估"的 261.8 / 7.8）。
         /// </summary>
@@ -365,19 +365,19 @@ namespace CR.UI.Panels
         //   钮 1（放大镜 `ResPaths.IconSearch` = `ui_out` 279，原版同一件图元）= **浏览卡牌**（卡池滚回顶部）
         //   钮 2 = **保存**，钮 3 = **取消**
         // ⚠️ 原版钮 2/钮 3 的图标（卡组视图 / 菜单）本工程**没有对应图元**、对应功能也没实现 ⇒
-        //    用文字占位，差异登记在 `策划/差异登记.tsv` **D153**（⛔ 不拿别的帧冒充图标）。
+        //    用文字占位，差异登记在 `策划/差异登记.tsv`（⛔ 不拿别的帧冒充图标）。
         //
         // 量法：钮板 = `#4B92C8`（R≈75）/ 底行带 = `#02488E`（R≈2）
         // ⇒ 用 **R>40** 在 **y=1360@1242**（钮板内、图标之上）逐列分段，得到三段各 **119@1242** 宽：
         //   (783,901) (936,1054) (1088,1206) ⇒ 步进 152.5@1242。
 
-        /// <summary>底行第 1 颗工具钮左边 = **680.9**（实测 783@1242）。出处 **E61**。</summary>
+        /// <summary>底行第 1 颗工具钮左边 = **680.9**（实测 783@1242）。出处 `几何量取.md` §1.6.3。</summary>
         private const float BottomBtnX0 = 680.9f;
 
-        /// <summary>工具钮宽 = **103.5**（实测 119@1242）。出处 **E62**。</summary>
+        /// <summary>工具钮宽 = **103.5**（实测 119@1242）。出处 `几何量取.md` §1.6.3。</summary>
         private const float BottomBtnW = 103.5f;
 
-        /// <summary>工具钮步进 = **132.6**（实测 152.5@1242；第 3 颗右缘 = 1080 − 30.4 = 1049.6）。出处 **E63**。</summary>
+        /// <summary>工具钮步进 = **132.6**（实测 152.5@1242；第 3 颗右缘 = 1080 − 30.4 = 1049.6）。出处 `几何量取.md` §1.6.3。</summary>
         private const float BottomBtnPitch = 132.6f;
 
         /// <summary>卡池视口顶边 = **1073.7**（= 底行底边 1033.7 + 40 留白；原版该处往下是宣传插图区，⛔ 无 UI 出处）。</summary>
@@ -414,7 +414,7 @@ namespace CR.UI.Panels
         /// 卡阵上方的 `已选 N/8` 标签是**原版没有**的东西：它对开发有用，但会破坏"1:1 复刻原版 UI"这条铁律
         /// （用户 2026-09-24「**你的UI都不是原版UI啊**」）。
         /// ⇒ 默认 **false = 不建**（= 原版版式）；需要时改这一处即可回来，⛔ 不是把代码删掉。
-        /// 这条差异登记在 `策划/差异登记.tsv` **D154**。
+        /// 这条登记在 `策划/差异登记.tsv`。
         /// </para>
         /// </summary>
         /// <remarks>
@@ -467,7 +467,7 @@ namespace CR.UI.Panels
         private const float HoverBlend = 0.15f;
 
         // ── 拖动 / 滚动（⛔ 下面这几个数是**本项目自定**，原版客户端的手势与滚动手感参数
-        //    不在原版资源里；逐条登记在 `策划/差异登记.tsv` D146） ──
+        //    不在原版资源里；逐条登记在 `策划/差异登记.tsv`） ──
 
         /// <summary>
         /// 落位吸附的**半径系数**（K）：松手点落在某个卡格中心 **± 半格×(1+K)** 之内即算命中该格。
@@ -559,7 +559,7 @@ namespace CR.UI.Panels
         private Text _status;
         private Text _avgElixir;                        // 底行 pill 的「平均圣水」读数（原版 07 是 "3.8"）
 
-        // ── D146 拖动状态 ──
+        // ── 拖动状态 ──
         private Image _ghost;                           // 跟着指针走的半透明幽灵卡（唯一一个，反复复用）
         private int _dragCardId = -1;                   // 本次拖的是哪张卡（卡池卡 / 槽位卡的 id）
         private int _dragIndex = -1;                     // 源下标（卡池下标 或 槽位下标）
@@ -622,7 +622,7 @@ namespace CR.UI.Panels
                 _built = true;
             }
 
-            // CR-F2：面板重开时把「保存在途」标记归零。
+            // 面板重开时把「保存在途」标记归零。
             //    为什么要归零而不是原样保留：`DeckManager` 才是*权威*的在途闸（`DeckManager._saving`），
             //    面板这个 `_busy` 只负责界面；若上一次保存的 `SaveFailed` 是在面板关闭期间到达的
             //    （面板已 `Unsubscribe`，没人清标记），原样保留会让按钮**永久禁用**、玩家再也存不了卡组。
@@ -723,7 +723,7 @@ namespace CR.UI.Panels
             _content = root;                                    // 整屏：所有元素的父节点 = 面板根
 
             // ── ① 整屏底（两块，⛔ 都必须 raycast=false）──
-            // 全屏底 = 卡池底深蓝 E18 (2,35,90)；顶部到页签带底 = 安全区 E13 (7,38,92)。
+            // 全屏底 = 卡池底深蓝 (2,35,90)；顶部到页签带底 = 安全区 (7,38,92)。
             UIFactory.CreateBoxRect("DeckBg", root, Vector2.zero,
                 new Vector2(CrUiStyle.DesignW, CrUiStyle.DesignH), DeckBgColor, false);
             // 顶区底 = 原版斜格底纹**平铺**（源帧 `ui_out` 276；出处 = `UI_menu_background`（clip 4890）
@@ -824,17 +824,17 @@ namespace CR.UI.Panels
         /// </para>
         /// <para>
         /// <b>圆角口径</b>：447 的弧 = 23px（`ui_out` 166 只有 11px、165 的左上角是方角）
-        /// ⇒ 实机圆角 23@1080 = 26.5@1242，参考图实测 **25@1242**（E68：x140→118 收口于 y52）
+        /// ⇒ 实机圆角 23@1080 = 26.5@1242，参考图实测 **25@1242**（`几何量取.md` §1.6.8：x140→118 收口于 y52）
         /// ⇒ 差 **+1.5px@1242**（在读数容差 ±5px@1242 内）。447 的内填色与 166 **逐像素相同**
         /// (76,172,255) ⇒ tint 分母未变、无需重标。
         /// </para>
         /// <para>
         /// <b>仍未复刻</b>：页签底**没有竖向渐变**（原版顶部 → 底部有渐变）。源内已实测**排除**
         /// `ui_out` 265（剖面有"膝"），其余图集已扫过、无剖面一致的渐变件 ⇒ 保留单色。
-        /// 登记在 `策划/差异登记.tsv` D155 第 ② 条。
+        /// 登记在 `策划/差异登记.tsv`。
         /// </para>
         /// <para>
-        /// <b>顶部那条线</b>（实测 E66）：亮线 <see cref="TabEdgeH"/> 高 <see cref="TabOnEdgeColor"/>。
+        /// <b>顶部那条线</b>（实测）：亮线 <see cref="TabEdgeH"/> 高 <see cref="TabOnEdgeColor"/>。
         /// 页签只有一颗、恒为当前页 ⇒ 只用这一态。
         /// </para>
         /// </summary>
@@ -923,7 +923,7 @@ namespace CR.UI.Panels
 
         /// <summary>
         /// 底行：左 = **平均圣水** pill（原版位置 + 原版圣水图标 `ui_out` 99）；
-        /// 右 = **原版那 3 颗方形工具钮**（几何全部实测 E61..E63）。
+        /// 右 = **原版那 3 颗方形工具钮**（几何全部实测，见 `几何量取.md` §1.6.3）。
         /// <para>
         /// 三颗钮各自接**真功能**（⛔ 不画假按钮）：
         /// ① 放大镜（`ResPaths.IconSearch` = `ui_out` 279，**原版同一件图元**）= 浏览卡牌（卡池滚回顶部）；
@@ -955,7 +955,7 @@ namespace CR.UI.Panels
                 BottomBtnW * 0.66f, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Color.white, false);
 
-            // CR-F2：保存按钮句柄留下来 —— 在途时必须**真的禁用**（见 `SetSaveBusy`）。
+            // 保存按钮句柄留下来 —— 在途时必须**真的禁用**（见 `SetSaveBusy`）。
             _saveButton = CrUiStyle.BlueButton("SaveButton", _content, "保 存",
                 At(BottomBtnX0 + BottomBtnPitch, BottomRowY), new Vector2(BottomBtnW, BottomRowH),
                 OnSaveClicked).GetComponent<Button>();
@@ -1012,7 +1012,7 @@ namespace CR.UI.Panels
         /// </para>
         /// <para>
         /// ⚠️ <b>本项目自定值</b>：<see cref="ScrollElasticity"/> / <see cref="ScrollDeceleration"/>
-        /// 与原版客户端的真实手感参数**无出处**（原版资源里没有滚动条配置），已登记 `策划/差异登记.tsv` D146。
+        /// 与原版客户端的真实手感参数**无出处**（原版资源里没有滚动条配置），已登记 `策划/差异登记.tsv`。
         /// </para>
         /// </summary>
         private void BuildGrid()
@@ -1265,7 +1265,7 @@ namespace CR.UI.Panels
         private static readonly Vector4 BorderCard = new Vector4(20f, 20f, 20f, 20f);
 
         /// <summary>
-        /// 品质边框相对卡格的放大系数 = **1.06**（**本项目自定值**，登记在 `策划/差异登记.tsv` D164）。
+        /// 品质边框相对卡格的放大系数 = **1.06**（**本项目自定值**，登记在 `策划/差异登记.tsv`）。
         /// <para>
         /// 为什么不是 1.0：原版卡框图元 `ui_out` 532 的 143×185 画布里**含外发光**（bbox 按 alpha&gt;8 量），
         /// 环本体贴在画布内圈 ⇒ 按 1.0 铺会把环压到卡面**里面**、边缘露出卡面。
@@ -1412,7 +1412,7 @@ namespace CR.UI.Panels
         /// （引擎 `Runtime/Presentation/UI.cs` 里 `canvas.renderMode = RenderMode.ScreenSpaceOverlay`），
         /// 它的世界坐标**就是屏幕像素**；而 <see cref="RectTransformUtility"/> 收到**非空**相机时
         /// 会把屏幕点当成"相机视锥里的一个方向"再投到画布平面上 ⇒ 两者相差一次相机投影，
-        /// 命中判定**恒为 false**（`HudPanel.UiPointConvertCamera` 的注释记了同一问题的实机读数：
+        /// 命中判定**恒为 false**（`HudPanel.UiPointConvertCamera` 的注释记了同一问题的实测现象：
         /// 手牌按下时 `HitTestHand` 返回 -1 ⇒ 拖放整条链根本不进入）。
         /// Overlay ⇒ `null`；ScreenSpaceCamera / WorldSpace 才用画布自己的 `worldCamera`。
         /// </para>
@@ -1737,7 +1737,7 @@ namespace CR.UI.Panels
         /// <b>为什么不用 <c>RectangleContainsScreenPoint</c> 逐格判</b>：原版手感是"拖到那一带就吸附"，
         /// 严格按格判会要求像素级对准，松手稍偏就"什么都没发生"。K = 0.35 ⇒ 格与格中间那条缝仍然判给
         /// 更近的一格，而格**外**的一圈也算"落在这格上"。
-        /// ⚠️ 吸附半径是本项目自定值（原版资源里没有手势参数），登记在 `策划/差异登记.tsv` D146。
+        /// ⚠️ 吸附半径是本项目自定值（原版资源里没有手势参数），登记在 `策划/差异登记.tsv`。
         /// </para>
         /// </summary>
         private int HitTestSlot(Vector2 screen)
@@ -2190,7 +2190,7 @@ namespace CR.UI.Panels
                 SetInteractable(cell, !cell.Locked);
             }
 
-            // 判据行（数值类证据 = 运行时日志行）：`D167` 残余「卡组页 RefreshCells 的整池主线程裁剪」
+            // 判据行（数值类证据 = 运行时日志行）：「卡组页 RefreshCells 的整池主线程裁剪」
             //   到底花在哪 —— 本调用自身的耗时 + 卡面加载请求数 + 自上次调用以来**真正做完**的裁剪张数与累计 ms。
             //   ⚠️ 裁剪不在本调用栈里：`ArtCache` 未命中时它发生在 `LoadAsset` 的**异步回调**里（每帧各一张）。
             var ms = Ms(t0);
@@ -2213,7 +2213,7 @@ namespace CR.UI.Panels
                    / System.Diagnostics.Stopwatch.Frequency;
         }
 
-        // ── 判据行计数器（D167 残余的耗时读数；⛔ 不参与任何逻辑判定）──
+        // ── 判据行计数器（耗时读数；⛔ 不参与任何逻辑判定）──
         private int _refreshCellsCalls;                 // `RefreshCells` 调用次数
         private double _refreshCellsMsTotal;            // 其自身耗时累计（ms）
         private int _artRequestsSinceLog;               // 本次调用窗口内发出的卡面加载请求数
@@ -2331,7 +2331,7 @@ namespace CR.UI.Panels
             }
 
             cell.Art.gameObject.SetActive(true);
-            _artRequestsSinceLog++;                     // 判据行计数（D167 残余）
+            _artRequestsSinceLog++;                     // 判据行计数
             var path = ResPaths.SpellArtFrame(artIndex);
             LoadArtSprite(artIndex, path, sprite =>
             {
@@ -2355,14 +2355,11 @@ namespace CR.UI.Panels
         /// <summary>边框图元已 Warn 过（缺素材只报一次）。</summary>
         private static bool _frameWarned;
 
-        // 说明（D167 预热，已回退）：曾按 `IResourceManager.Preload(paths, onDone)` 在这里加过一版卡面预热
-        //（装 59 张卡面 + 在 onDone 里连 `CropCardArt` 一起做、灌进 ArtCache）。实机读数把它否掉：
-        //   `[Deck] PRELOAD 卡面 59 张开始` → `[Deck] PRELOAD-DONE 新增裁剪 0 张，ArtCache=0`，
-        //   且同一轮 `Card0` 的卡面 sprite = `<null>`（回退前的上一轮同一读数 = `frame_022_0`，
-        //   卡组页截图里卡面是画出来的）⇒ 预热把同一批路径置成"加载在途"后，
-        //   面板那 60 次 `LoadAsset` 的回调不再回来（与 `IResourceManager.Release`「加载在途时被忽略」
-        //   同一类在途语义），**卡面永久不画** —— 是回归，不是收益。故整段回退，不留未验证的改动。
-        // ⛔ 要再做必须先弄清引擎 Preload/LoadAsset 的在途回调语义（本次未测出来），不许照搬这一版。
+        // ⛔ 卡面**不用** `IResourceManager.Preload(paths, onDone)` 预热：预热把同一批路径置成
+        //   "加载在途"后，面板那 60 次 `LoadAsset` 的回调不再回来（与 `IResourceManager.Release`
+        //   「加载在途时被忽略」同一类在途语义），**卡面永久不画**（`Card0` 的卡面 sprite 会是 `<null>`）。
+        //   故整段不采用。
+        // ⛔ 要启用必须先弄清引擎 Preload/LoadAsset 的在途回调语义，不许照搬。
 
         /// <summary>
         /// 把边框按当前稀有度贴好（图元 / 类型 / 尺寸 / 颜色四处一起定）—— **唯一一处**决定边框外观。
@@ -2483,7 +2480,7 @@ namespace CR.UI.Panels
 
                 // 裁剪口径 = `CrUiStyle.CropCardArt`（含 `frame_022`/knight 的 x 偏移例外），
                 // 与 `HudPanel` **同一处** —— ⛔ 原先各写一份，改一处必然漂移。
-                var ct0 = System.Diagnostics.Stopwatch.GetTimestamp();   // 判据行（D167 残余）
+                var ct0 = System.Diagnostics.Stopwatch.GetTimestamp();   // 判据行
                 var made = CrUiStyle.CropCardArt(sprite, artIndex);
                 var cropMs = Ms(ct0);
                 _cropCountSinceLog++;

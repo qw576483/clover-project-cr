@@ -758,7 +758,7 @@ namespace CR.View
 
             // 画面被场景切换销毁了 ⇒ 先重建（见 Build 的注释）。放在这里是为了不依赖
             // 事件顺序：即使 `Flow.StationChanged` 没来 / 来晚了，下一帧也会自愈。
-            // ⛔ 已离开对局站点时不再重建（D12 残留修复，见 `_inBattle` 的注释）。
+            // ⛔ 已离开对局站点时不再重建（见 `_inBattle` 的注释）。
             if (_built && _content == null && _inBattle) Build();
 
             // 还没有画面或还没收到过快照：无事可做（`t` 也无从算起）。
@@ -1014,7 +1014,7 @@ namespace CR.View
         {
             if (n == null) return;
             _myTeam = n.my_team;
-            // ── 同一场景里的**新一局**必须整场重建（差异登记 D173）──
+            // ── 同一场景里的**新一局**必须整场重建（见 `策划/差异登记.tsv`）──
             // 「再来一局」时 `AppFlow.RequestEnterBattle` 只切站点、不重载场景（`CurrentScene == Battle01`）
             // ⇒ 本组件不重建，而这两样东西都是**每局唯一**的、必须归零的：
             //   ① `ArenaView.TowerView` 的阵亡终态锁（`ArenaView._destroyed` 置位后不清零）会把新局
@@ -1062,7 +1062,7 @@ namespace CR.View
                 $"我的手牌={HandToString(_myTeam == 0 ? n.hand_a : n.hand_b)} 下一张={(int)(_myTeam == 0 ? n.next_a : n.next_b)}");
         }
 
-        // ── D167 放卡卡顿：战斗期会用到的精灵目录，在进图期先整目录抓一遍 ──
+        // ── 放卡卡顿：战斗期会用到的精灵目录，在进图期先整目录抓一遍 ──
 
         /// <summary>
         /// 预热本局会用到的精灵目录（消费 <see cref="_warmNotify"/>，一局一次）。
@@ -2111,7 +2111,7 @@ namespace CR.View
         /// 速度 cv 0.24~0.28，而速率恒 1 时 cv 0.000）。
         /// </para>
         /// <para>
-        /// <b>为什么必须给外推封顶</b>（实机取证）：快照**停推**（对局结束 / 断线 /
+        /// <b>为什么必须给外推封顶</b>：快照**停推**（对局结束 / 断线 /
         /// 服务端不再发）之后，下面是"`_newestMs` + 无限外推"，于是"服务端现在"**一直往前走**，
         /// 渲染时钟就跟着它跑飞 —— 实测 `newest − renderMs` 中位数 = **−50785 ms**（时钟比最新快照
         /// **超前 50.8 s**；时钟表里 12902 行有 **7891 行 `t` 被夹成 1.0**）。一旦快照恢复，

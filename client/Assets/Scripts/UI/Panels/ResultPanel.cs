@@ -59,7 +59,7 @@ namespace CR.UI.Panels
         /// <summary>
         /// **胜负字牌底板**（原版图元 `ui_battle_end_out/236`）的显示宽。
         /// <para>
-        /// 口径：该帧在原版图集里的**画布是 342×230**（本图集 240 帧全部同画布，AR2-结算帧辨认.md §2），
+        /// 口径：该帧在原版图集里的**画布是 342×230**（本图集 240 帧全部同画布），
         /// 条本身 bbox 65×44；本工程设计画布宽 = `CrUiStyle.DesignW` = 1080 ⇒ 1:1 等比
         /// 65 × 1080/342 ≈ **205**。高度由 <see cref="CrUiStyle.AspectImage"/> 按素材自身宽高比算
         /// （⛔ 代码里不写高度魔法数）。
@@ -228,7 +228,7 @@ namespace CR.UI.Panels
 
             // 胜负字牌底板（原版 `ui_battle_end_out/236`）—— 垫在结局文字下面。
             //   原版那行"胜 / 负"字就画在这块 65×44 的深色渐变圆角横条上：`.sc` 里它是**唯一**
-            //   同时被 `touchdown_txt_blue` / `touchdown_txt_red` 引用的帧（AR2-结算帧辨认.md §3.1）。
+            //   同时被 `touchdown_txt_blue` / `touchdown_txt_red` 引用的帧。
             //   ⚠️ 字本身是**文本字段**（`.sc` 头 TextFieldCount=40，原版字体 `Supercell-Magic`），
             //   ⛔ 不是贴图 ⇒ 这里只落底板，文字仍走 Text（`_outcome`）。
             //   ⚠️ 显示宽是**本项目自定等比口径**（见 OutcomePlateW），不是原版量到的屏幕尺寸。

@@ -297,12 +297,12 @@ namespace CR
         /// <b>唯一差别 = 圆弧半径</b>（逐行最左不透明像素 / 逐列最上不透明像素，两向各量一次）：
         /// 447 = **23 / 21**，166 = **11 / 11**，165 = 左下弧 12（左上角是**方角** ⇒ 不可用于
         /// 「左上圆角」拼法）。参考图里页签圆角实测 **25@1242 = 21.7@1080**（`策划/参考图/几何量取.md`
-        /// E68：x140(y28)→118(y52) 收口）⇒ 166 拼不出该半径，447 拼得出（23@1080 = 26.5@1242）。
+        /// x140(y28)→118(y52) 收口）⇒ 166 拼不出该半径，447 拼得出（23@1080 = 26.5@1242）。
         /// </para>
         /// </summary>
         public static string ButtonBlueCornerBig { get { return UiFrame(UiButtonsDir, UiSrcUi, 447); } }
 
-        // ── 原版 `full_page_button_tab`（`ui.sc` clip 3981）**显式引用**的那几件（D151 第 ① 项）──
+        // ── 原版 `full_page_button_tab`（`ui.sc` clip 3981）**显式引用**的那几件──
         //    引用链：clip 3981 → 子件 `ok_button`(clip) → shapes frame_165/166/264/265/266/267/196/239；
         //            clip 3981 → 子件 `background`(clip) → shapes frame_270/460。
         //    帧 270/460 是 1px 高的线、264 是 1×1 ⇒ 只登记有实体面积的那几件（165/166 已有键）。
@@ -797,7 +797,7 @@ namespace CR
         /// **胜负字牌底板**（`ui_battle_end_out` 236，65×44 深色渐变圆角横条）。
         /// <para>
         /// 出处：`.sc` 里**唯一**同时被 `touchdown_txt_blue` 与 `touchdown_txt_red` 引用的帧
-        /// ⇒ 它就是原版里托住那行"胜 / 负"字的底板（AR2-结算帧辨认.md §3.1）。
+        /// ⇒ 它就是原版里托住那行"胜 / 负"字的底板。
         /// </para>
         /// <para>
         /// ⚠️ **字不是贴图**：原版那两行字是**文本字段**（`.sc` 头 `TextFieldCount = 40`，
@@ -808,7 +808,7 @@ namespace CR
 
         /// <summary>
         /// 奖励格公共底块（`ui_battle_end_out` 212，149×181）—— 原版 7 个 `battleEnd_loot_item_*`
-        /// export **同时**引用这一帧 ⇒ 它就是每个奖励格的格底（AR2-结算帧辨认.md §3.2）。
+        /// export **同时**引用这一帧 ⇒ 它就是每个奖励格的格底。
         /// </summary>
         public static string BattleEndRewardSlotBg { get { return UiFrame(UiSlotsDir, UiSrcBattleEnd, 212); } }
 

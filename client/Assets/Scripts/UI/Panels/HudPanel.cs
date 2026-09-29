@@ -90,7 +90,7 @@ namespace CR.UI.Panels
         //
         // <b>顶部左块的冠数在原版基线图里未到镜</b>（§2 C4）⇒ 该项位置/尺寸 = **本项目自定值**。
 
-        // ── 手牌（出处：§1.3 D9/D11/D12/D13，读数来自 **18 图** `gaps` 扫描） ──
+        // ── 手牌（出处：`策划/参考图/几何量取.md` §1.3，读数来自 **18 图** `gaps` 扫描） ──
         //
         // 几何基线 = `18_对局HUD_1080x1920.jpg`（2.1.5）；`20_对局_1080x1920.jpg` **不是同一版本**，
         // ⛔ 不作几何基线，依据（逐图基线审计）：
@@ -108,9 +108,9 @@ namespace CR.UI.Panels
         /// （卡3 x430..562 = 133，受卡面内容干扰）。量法：逐格像素量取。
         /// </para>
         /// <para>
-        /// <b>为什么不用 D11 的「140 / 3」</b>：`策划/参考图/几何量取.md:60` 的 D11 出处列写的是
-        /// 「**由 D9/D10**」⇒ 它不是量取值，而且与自己的输入不自洽（D9=144 / D10=704 ⇒ 整排 560，
-        /// 而 4×140+3×3 = 569）—— 该不一致就是已登记的 D54「手牌整排右端 +9px」。
+        /// <b>为什么不用「140 / 3」</b>：`策划/参考图/几何量取.md` 的「单卡宽 / 卡间距」行出处列写的是
+        /// 「**由整排左/右端算得**」⇒ 它不是量取值，而且与自己的输入不自洽（144 / 704 ⇒ 整排 560，
+        /// 而 4×140+3×3 = 569）—— 该不一致 = 手牌整排右端 +9px（登记在 `策划/差异登记.tsv`）。
         /// </para>
         /// </summary>
         private const float CardW = 136f;
@@ -134,7 +134,7 @@ namespace CR.UI.Panels
         /// 原版该排**不是居中**的（「下一张」在它左边）⇒ 用左下角锚点定位。</summary>
         private const float HandRowLeft = 144f;
 
-        /// <summary>手牌整排底边距画布底 = DesignH − 卡底 y(1785) = <b>135</b>。出处：D13（18 图）。
+        /// <summary>手牌整排底边距画布底 = DesignH − 卡底 y(1785) = <b>135</b>。出处：`几何量取.md` §1.3（18 图）。
         /// ⚠️ 20 图量到卡底 y≈1862（距底 58），但同图圣水条也整体低 ~59px ⇒ 只动卡会让卡片压到条上；
         /// 该差属基线档位问题，见本段上方说明（⛔ 不用 20 图的值）。</summary>
         private const float HandBottomOffset = 135f;
@@ -143,28 +143,28 @@ namespace CR.UI.Panels
         //
         // 原版「下一张」在**底排左端**（左下角那张更小的卡），⛔ 不在右侧。
 
-        /// <summary>「下一张」卡左边 x = <b>33</b>。出处：D14（18 图 `c18_nextcard_zoom`：x 33..97）。</summary>
+        /// <summary>「下一张」卡左边 x = <b>33</b>。出处：`几何量取.md` §1.3（18 图放大裁切：x 33..97）。</summary>
         private const float NextLeft = 33f;
 
-        /// <summary>「下一张」卡宽 <b>64</b>。出处：D14（x 33..97 ⇒ 64）。</summary>
+        /// <summary>「下一张」卡宽 <b>64</b>。出处：`几何量取.md` §1.3（x 33..97 ⇒ 64）。</summary>
         private const float NextW = 64f;
 
-        /// <summary>「下一张」卡高 <b>83</b>。出处：D14（@1080 列标注 64×83；端点 y 1634..1716 = 82，取表内标注值）。</summary>
+        /// <summary>「下一张」卡高 <b>83</b>。出处：`几何量取.md` §1.3（@1080 列标注 64×83；端点 y 1634..1716 = 82，取表内标注值）。</summary>
         private const float NextH = 83f;
 
-        /// <summary>「下一张」卡底边距画布底 = DesignH − y(1716) = <b>204</b>。出处：D14 的 y 端点。</summary>
+        /// <summary>「下一张」卡底边距画布底 = DesignH − y(1716) = <b>204</b>。出处：`几何量取.md` §1.3 的 y 端点。</summary>
         private const float NextBottomOffset = 204f;
 
-        /// <summary>「下一张」标签左边 x = <b>10</b>。出处：D15（x 10..115 / y 1718..1755）。</summary>
+        /// <summary>「下一张」标签左边 x = <b>10</b>。出处：`几何量取.md` §1.3（x 10..115 / y 1718..1755）。</summary>
         private const float NextLabelLeft = 10f;
 
-        /// <summary>「下一张」标签底边距画布底 = DesignH − y(1755) = <b>165</b>。出处：D15 的 y 端点。</summary>
+        /// <summary>「下一张」标签底边距画布底 = DesignH − y(1755) = <b>165</b>。出处：`几何量取.md` §1.3 的 y 端点。</summary>
         private const float NextLabelBottom = 165f;
 
-        /// <summary>「下一张」标签宽 <b>105</b>。出处：D15（x 10..115）。</summary>
+        /// <summary>「下一张」标签宽 <b>105</b>。出处：`几何量取.md` §1.3（x 10..115）。</summary>
         private const float NextLabelW = 105f;
 
-        /// <summary>「下一张」标签高 <b>37</b>。出处：D15（y 1718..1755）。</summary>
+        /// <summary>「下一张」标签高 <b>37</b>。出处：`几何量取.md` §1.3（y 1718..1755）。</summary>
         private const float NextLabelH = 37f;
 
         // ── 圣水条（出处：§1.3 D1~D7，18 图 col/row dump） ──
@@ -188,7 +188,7 @@ namespace CR.UI.Panels
         /// <see cref="ElixirTickGridLeft"/>（= 103，由 9 条刻度最小二乘反解，残差 ≤ 1.3px）。</summary>
         private const float ElixirBarW = ElixirBarRight - ElixirBarLeft;
 
-        // ── 圣水条的 10 格刻度（消解 D66「刻度已登记键但未绘制」） ──
+        // ── 圣水条的 10 格刻度（每格一条刻度线） ──
         //
         // 原版结构（出处 `策划/战斗HUD素材索引.md` §3.1）：`elixir_bar`(clip 1080) 的子元件里
         // **`d1`…`d9` 共 9 个，同属 clip 909、落地帧 = `ui_out` 160（1×1），原文注明「10 格刻度分隔
@@ -330,8 +330,9 @@ namespace CR.UI.Panels
         /// <summary>
         /// 手牌费用泡宽 = <b>40</b>。
         /// <para>
-        /// <b>（位置 + 尺寸都按 18 量取）</b>：旧值 50 出自 `07_卡组编辑` 的"卡角泡"，
-        /// 位置也放在**卡左上角**。18 图对局手牌第 2 张实测：泡（=`IconElixirDrop` 水滴）宽 ≈ 38~40
+        /// <b>（位置 + 尺寸都按 18 量取）= 40，位置挂在卡底中央。</b>
+        /// `07_卡组编辑` 的"卡角泡"宽是 50、位置在**卡左上角**，与本口径不同，⛔ 不采用。
+        /// 18 图对局手牌第 2 张实测：泡（=`IconElixirDrop` 水滴）宽 ≈ 38~40
         /// （= 卡宽 140 的 0.286），且**挂在卡底中央**（不是卡角）⇒ 泡宽取 40、位置见
         /// <see cref="CostIconBottom"/>。量法：逐像素量取 §3
         /// （原版白色数字 bbox 中心 x=367 ≈ 卡中心 357；泡下沿 y≈1783 ≈ 卡底 1785）。
@@ -355,18 +356,18 @@ namespace CR.UI.Panels
         /// <summary>拖动幽灵卡的高 = **单卡高**（⛔ 不是 `CardH * 0.5`：那会把卡片压成一条"小图标"）。</summary>
         private const float GhostH = CardH;
 
-        // ── 顶部右：倒计时（出处：§1.3 D16，18 图 `z1_18_top_x2` 读数） ──
+        // ── 顶部右：倒计时（出处：`几何量取.md` §1.3，18 图放大读数） ──
 
-        /// <summary>计时板宽 <b>198</b>。出处：D16（x 882..1080）。
+        /// <summary>计时板宽 <b>198</b>。出处：`几何量取.md` §1.3（x 882..1080）。
         /// 板素材 = `HudTopRightPlate`（`ui_out/193`，原版 `HUD_topRight` 的底板，原生 212×124，
         /// 出处 `策划/战斗HUD素材索引.md` §3.4）⇒ 按量取值 198×100 铺（0.93×/0.81× 轻微缩放；
         /// 该帧切边按整幅处理（border = 0 拉伸））。</summary>
         private const float TimerBoxW = 198f;
 
-        /// <summary>计时板高 <b>100</b>。出处：D16（y 0..100）。</summary>
+        /// <summary>计时板高 <b>100</b>。出处：`几何量取.md` §1.3（y 0..100）。</summary>
         private const float TimerBoxH = 100f;
 
-        /// <summary>计时板离画布顶 = <b>0</b>（贴顶）。出处：D16（y 起点 = 0）。</summary>
+        /// <summary>计时板离画布顶 = <b>0</b>（贴顶）。出处：`几何量取.md` §1.3（y 起点 = 0）。</summary>
         private const float TimerBoxTop = 0f;
 
         /// <summary>计时数字字号 = <b>48</b>（09 图「2:32」字形高 40px × 0.8696 ÷ 0.72 ≈ 48）。</summary>
@@ -383,18 +384,18 @@ namespace CR.UI.Panels
         /// <b>⛔ 不能用 `ui_out/177`（1×1 **不透明黑**）+ `NineSlice` 铺</b>：那样板面是"近黑"，
         /// 与原版"透出场景的半透明板"不同。原版同窗口板面在 y=50 的逐点采样是
         /// (63,61,75)/(81,77,91)/(40,38,43)/(49,46,65)/(46,37,54) ⇒ 均值 ≈ <b>(56,52,66)</b>，
-        /// 而我方同一行是 (21,33,16)/(20,32,16) ⇒ 板面明显更黑（`cr-v2-hud-measure.py` §4）。
+        /// 而我方同一行是 (21,33,16)/(20,32,16) ⇒ 板面明显更黑（18 图量取）。
         /// </para>
         /// <para>
         /// <b>取值口径</b>：板面件换成**原版浅色实心件** <see cref="ResPaths.SlotCardPlain"/>（`ui_out/531`）
         /// + tint（`CrUiStyle.Skin` 的 `tint` 参数，既有的 tint 机制）。反解 tint 使实机合成值 ≈ 原版 (56,52,66)：
         /// tint × 531 的中心色 (216,228,255) ≈ (35,34,77)，在 α=0.80 下压在本机背景上
-        /// ⇒ 0.80×(35,34,77) + 0.20×背景 ≈ (56,52,66)。⛔ 不改任何几何（`TimerBoxW/H/Top` 仍是 D16 的冻结值）。
+        /// ⇒ 0.80×(35,34,77) + 0.20×背景 ≈ (56,52,66)。⛔ 不改任何几何（`TimerBoxW/H/Top` 仍按 18 图量取值冻结）。
         /// </para>
         /// <para>
         /// ⚠️ **归因分离**：18 图右上板底是**石塔**、本项目该处是**草地/金路**
         /// （8 图实测：我方 (900,50) = (251,199,64) 金光路面）⇒ 板面合成色**不可能**逐像素相等，
-        /// 本项只负责"板自身的色/透明度"，残余差归**竞技场美术**（CR-T6 域）。
+        /// 本项只负责"板自身的色/透明度"，残余差归**竞技场美术**（竞技场底图域）。
         /// </para>
         /// </summary>
         private static readonly Color TimerPlateTint = new Color(0.16f, 0.15f, 0.30f, 0.80f);
@@ -413,7 +414,7 @@ namespace CR.UI.Panels
         //   `HudStarPlayer`（`ui_out/187`，原版 `starPlayer`/`star1..3`，原生 120×98）
         //   `HudStarEnemy`（`ui_out/188`，原版 `starEnemy`，同尺寸）。
 
-        // 冠数控件：**整块定位 + 定形**（出处 = 18 图量取，`cr-v2-hud-measure.py` §5/§6）。
+        // 冠数控件：**整块定位 + 定形**（出处 = 18 图量取）。
         //   ⛔ 不用"左上角一块 260×59 的名条 + 左右两枚冠徽 + 『0 : 0』"那套本项目自定值：
         //     · 顶部**中央**：purple 命中 bbox = (477,0,571,36) px=838（窗口 455..585 × 0..46）；
         //       窗口内 gold bbox = (455,0,564,26) px=560、white bbox = (455,0,567,33) px=530；
@@ -448,7 +449,7 @@ namespace CR.UI.Panels
         private const float CrownInnerCrownW = CrownMedalD * 0.62f;
 
         /// <summary>我方徽章底色 = 18 图量取的紫。实测紫核像素 (164,34,160)/(171,35,161)/(221,44,222)
-        /// （`cr-v2-hud-measure.py` §5 + `cr-v2-explore2.py` 的 col x=480/500/520 采样）⇒ 取 (0.671,0.137,0.631)。
+        /// （18 图 col x=480/500/520 采样）⇒ 取 (0.671,0.137,0.631)。
         /// 用法 = 原版 `SlotCorner` 的 tint（原素材是白色件 ⇒ tint 即最终色，⛔ 不是"给素材加滤镜"）。</summary>
         private static readonly Color CrownMineTint = new Color(0.671f, 0.137f, 0.631f, 1f);
 
@@ -790,7 +791,7 @@ namespace CR.UI.Panels
                 TextAnchor.MiddleCenter, CrUiStyle.TextColor);
             UIFactory.Stretch(_crownsEnemyText.rectTransform);
 
-            // ── 右上：倒计时（原版位置就是右上角，且**贴顶贴右**：出处 几何量取.md §1.3 D16  x 882..1080 / y 0..100）──
+            // ── 右上：倒计时（原版位置就是右上角，且**贴顶贴右**：出处 `策划/参考图/几何量取.md` §1.3  x 882..1080 / y 0..100）──
             // 板素材 = `HudTopRightPlate`（原版 `HUD_topRight` 的底板 `ui_out/193`，原生 212×124，索引 §3.4）；
             // 193 实测是**空心圆角框**（内部全透明）⇒ 先用实心件铺底，再压 193 外框。
             //   ① 板面件 = **原版浅色实心件 531 + 量取 tint**（反解使实机板面 ≈ 原版 18 图同一处的
@@ -825,7 +826,7 @@ namespace CR.UI.Panels
             //   （18 图板内只有「剩余时间:」+ 大字，）；
             //   ⛔ 原版没有的东西不加 ⇒ 整条节点删除，文字区改为**整板居中**（旧代码为避开图标把文字右移了
             //   `ClockIconW*0.5`，实测把标题中心推到 x≈995，而原版是 957）。
-            //   ⛔ 不动 `TimerBoxW/H/Top`（D16 冻结几何）。
+            //   ⛔ 不动 `TimerBoxW/H/Top`（18 图量取值冻结）。
             var textW = TimerBoxW - 12f;
             const float textX = 0f;
 
@@ -848,7 +849,7 @@ namespace CR.UI.Panels
             //    （出处 18 图 purple bbox；另有实机 dump 与节点树读数交叉验证）。
             //    若取原 `-10` ⇒ px y 10..40 ⇒ **与徽章重叠 26px**（「常规时间」四字压到紫徽 + 金星上）。
             //    徽章坐标是**量取来的**、⛔ 不让位 ⇒ 让这一行让位：px y **44..74**（徽章底边 y=36 之下留 8px 缝）。
-            //    阶段/状态两行是本项目自定件（差异登记 D34 已登记「多出 Phase/Status 两行」），
+            //    阶段/状态两行是本项目自定件（「多出 Phase/Status 两行」登记在 `策划/差异登记.tsv`），
             //    ⛔ 不动任何量取来的几何（TimerBox 冻结几何、徽章位、手牌、圣水条）。
             _phaseText = UIFactory.CreateText("Phase", _root, string.Empty, CrUiStyle.FontSmall,
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);
@@ -868,7 +869,7 @@ namespace CR.UI.Panels
 
         private void BuildElixir()
         {
-            // 圣水条：原版在**手牌下方**（条 y1797..1841、卡 y1614..1785。出处 几何量取.md §1.3 D1/D2/D12）
+            // 圣水条：原版在**手牌下方**（条 y1797..1841、卡 y1614..1785。出处 `策划/参考图/几何量取.md` §1.3）
             // ⇒ 用左下角锚点定位在 (88, 79)、尺寸 956×44（D4/D5/D3）。
             // 三件套 = A 的原版 `elixir_bar` 子元件（出处 `策划/战斗HUD素材索引.md` §1 第 1 行 + §3.1）：
             //   槽底 `bar_bg`(`ui_out/155`, 1×74) + 填充 `bar_body`(`ui_out/157`, 59×1) + 条端 `bar_end`(`ui_out/158`, 10×59)。
@@ -883,7 +884,7 @@ namespace CR.UI.Panels
             //   （`UIWidgetControls.cs:238-246`：`anchorMax.x = p`、`offsetMin/Max` 归零）⇒ 填充若直接挂在
             //   轨道（956 宽）上，2/10 时右沿 = 88 + 191.2 = 279，而 18 图实测 = 289~290（差 ~11px）。
             //   挂进"左沿 102、宽 937.6"的容器后：2/10 右沿 = 102 + 0.2×937.6 = 289.5 ✔
-            //   ⇒ 每 1.0 圣水 = 正好 1 格（用户判词「一个圣水不是一个格子吗」），同时消解已登记的 D58。
+            //   ⇒ 每 1.0 圣水 = 正好 1 格（用户判词「一个圣水不是一个格子吗」）。
             var fillArea = UIFactory.CreateNode("ElixirFillArea", track.rectTransform);
             UIFactory.Place(fillArea, new Vector2(0f, 0f), new Vector2(0f, 0f),
                 new Vector2(ElixirFillInsetLeft, 0f), new Vector2(ElixirTickGridW, ElixirBarH));
@@ -911,7 +912,7 @@ namespace CR.UI.Panels
             CrUiStyle.AspectImage("ElixirFillEnd", fill.rectTransform, ResPaths.ElixirBarFrame, ElixirEndW,
                 new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, CrUiStyle.Accent);
 
-            // **10 格刻度分隔**（消解 D66「刻度素材已登记键但未绘制」）。
+            // **10 格刻度分隔**（每格一条刻度线）。
             //   原版结构 = `elixir_bar`(clip 1080) 的子元件 **`d1`…`d9` 共 9 个**（同属 clip 909、
             //   落地帧 `ResPaths.ElixirBarTick` = `ui_out/160`，1×1），原文注明「**10 格**刻度分隔
             //   （原版同一 clip 复用 9 次）」⇒ 在第 1..9 格的分界各画一条，把条正好分成 10 格。
@@ -961,9 +962,9 @@ namespace CR.UI.Panels
         {
             // 底排 = 手牌 4 张 + 间隙 + 「下一张」，整排居中、贴底。
             var bar = UIFactory.CreateNode("HandBar", _root);
-            // 整排按**左下角**定位：左边 x = 144（§1.3 D9）、底边距画布底 = 135（D13）。
+            // 整排按**左下角**定位：左边 x = 144、底边距画布底 = 135（出处 `策划/参考图/几何量取.md` §1.3）。
             // ⚠️ 原版这一排**不是居中**的（「下一张」在它**左边**，见 `BuildNextPreview`）⇒ 用 `TextAnchor.LowerLeft`。
-            // 上一版用 `LowerCenter` + 居中推算（并因此踩过"又往左推一次、最左一张出屏"的坑）——
+            // ⛔ 不用 `LowerCenter` + 居中推算：那会把最左一张推出屏（整排必须按左下角定位）——
             // 那是把"整排居中"当了前提；这里用 18 图的量取值直接定位，⛔ 不靠居中推算。
             UIFactory.AnchoredBottom(bar, new Vector2(HandRowLeft, HandBottomOffset),
                 new Vector2(HandBarW, CardH), TextAnchor.LowerLeft);
@@ -1562,7 +1563,7 @@ namespace CR.UI.Panels
         /// 屏幕点 ↔ 画布矩形/世界点 换算要用的相机。
         ///
         /// <para>
-        /// <b>为什么这么做（实机读数）</b>：常驻画布是
+        /// <b>为什么这么做</b>：常驻画布是
         /// <c>ScreenSpaceOverlay</c>（引擎 `Runtime/Presentation/UI.cs:49`
         /// `canvas.renderMode = RenderMode.ScreenSpaceOverlay`），其世界坐标<b>就是屏幕像素</b>。
         /// 而 <see cref="RectTransformUtility"/> 收到<b>非空</b>相机时，会把屏幕点当成"相机视锥里的一个方向"

@@ -15,7 +15,7 @@ namespace CR.UI.Panels
     /// </para>
     /// <para>
     /// <b>快照只是初值，打开期间跟随权威值</b>。只读打开那一刻的快照，会让面板在"权威值随后变了"时
-    /// 显示旧值（典型：音频设备切换后引擎把分组音量同步下来）。
+    /// 显示滞后值（典型：音频设备切换后引擎把分组音量同步下来）。
     /// 因此面板在 <see cref="Subscribe"/>
     /// 里订阅 `BgmVolumeChanged` / `SfxVolumeChanged`，
     /// 事件一到就地刷新显示（<see cref="OnClose"/> 里摘掉）。刷新一律走
@@ -88,7 +88,7 @@ namespace CR.UI.Panels
         private Slider _sfxSlider;
         private Text _bgmValue;
         private Text _sfxValue;
-        // ── 权威值变更的订阅（CR-F2）：面板是"活视图"，不是"打开那一刻的快照" ──
+        // ── 权威值变更的订阅：面板是"活视图"，不是"打开那一刻的快照" ──
         //    处理器必须是**实例字段**（理由与 `SettingsManager.Subscribe` 同：事件总线按委托相等性
         //    去重 / 注销，走局部 lambda 会在重开面板时叠加且 Off 不掉，`Event.cs:310-328`）。
         private Action<float> _onBgmChanged;
@@ -203,7 +203,7 @@ namespace CR.UI.Panels
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(38f, 38f));
 
             // ── 音量两档（每档两行：标签一行，滑块 + 数值一行） ──
-            // ⚠️ CR-F2：原来的第 3 行「人声」**已删**，理由是两条硬依据、一条都不能打折：
+            // ⛔ 行只含背景音乐与音效两档，**不设「人声」行**，两条硬依据、一条都不能打折：
             //    ① **原版没有这一项**：基线图 `策划/参考图/24_设置_499x1080.jpg`（原版设置界面整屏）
             //       上只有 Music(ON) / SFx(ON) / Your Offers / Filter Clan Chat / Language / Name /
             //       Facebook / 四个链接按钮 / API Token / Credits —— **没有任何人声（Voice）项、也没有任何音量滑条**；
@@ -212,10 +212,9 @@ namespace CR.UI.Panels
             //       `Core/AudioPaths.cs` 的注释）、`AudioPaths` 无 Voice 键、`Resources` 下无 `Sound/Voice`，
             //       且没有任何表情/语音包系统 ⇒ 那颗滑块拖到底也**听不出任何差别**，是标准的假控件
             //       （⛔ 不许留一个不生效的滑块）。
-            //    ⚠️ 注意：`SettingsManager` 侧的 `audio.voice` 持久化与 `SoundGroup.Voice` 应用**保留**
-            //       （它仍是 `策划/实体清单.tsv` S3 VoiceVolume 登记的实体，删了会让那份台账悬空）——
-            //       本次只删"面板上那颗没有听感的滑块"，`Events.Settings.VoiceVolumeChanged` 的
-            //       "工程内无人订阅"也一并登记在该常量注释里。
+            //    ⚠️ `SettingsManager` 侧的 `audio.voice` 持久化与 `SoundGroup.Voice` 应用**仍在**
+            //       （它仍是 `策划/实体清单.tsv` S3 VoiceVolume 的实体，删了会让那份台账悬空）——
+            //       只是本面板不订阅它（`Events.Settings.VoiceVolumeChanged` 工程内无人订阅）。
             _bgmSlider = AddVolumeRow(c, "Bgm", "背景音乐", RowY(0),
                 v => Game.Event?.Emit(Events.Settings.BgmVolumeRequest, v), out _bgmValue);
 
@@ -255,7 +254,7 @@ namespace CR.UI.Panels
             return slider;
         }
 
-        // ───────────────────────── 权威值变更 → 就地刷新（CR-F2 活视图） ─────────────────────────
+        // ───────────────────────── 权威值变更 → 就地刷新（活视图） ─────────────────────────
 
         /// <summary>
         /// 订阅"权威值已变更"的四条事件。**为什么面板要订**：这四条事件的设计用途就是给

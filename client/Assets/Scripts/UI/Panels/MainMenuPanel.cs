@@ -128,14 +128,14 @@ namespace CR.UI.Panels
 
         // ═══════════════════ 底部导航带（原版整条缺失项） ═══════════════════
         //
-        // 出处：`策划/差异登记.tsv` **D13**（原版带高 120@750 = **172.8**@1080、5 个页签）。
+        // 出处：`策划/差异登记.tsv`（原版带高 120@750 = **172.8**@1080、5 个页签）。
         // 原版 5 格的页签边界见 `12_主菜单_750x1334` 的 4 处整带高分隔槽（中心 125.5 / 251.5 / 497.5 / 623.5）
         // ×1.44 ⇒ 180.7 / 362.2 / 716.4 / 897.8，中间两格被原版的「对战」页签合并成一格宽。
         //
         // 本工程只有**两个入口**（卡组编辑 / 战斗）⇒ 原版的 5 格边界不再适用，
         // 改按原版"整带均分"的同一口径重排成 **2 等分**（180.7/362.2 那套是 5 格形态的值）。
 
-        /// <summary>导航带高 = **172.8**（= D13 的 120@750 ×1.44）。</summary>
+        /// <summary>导航带高 = **172.8**（= 120@750 ×1.44）。</summary>
         private const float NavBandH = 172.8f;
 
         /// <summary>两个入口的左右边界（@1080）：1080 ÷ 2 等分。</summary>
@@ -330,7 +330,7 @@ namespace CR.UI.Panels
         /// `right_top` → `coins` / `gems` 两组的矩形），槽身 = <see cref="ResPaths.MenuTopSlotBar"/> 横拉、
         /// 两端 = <see cref="ResPaths.MenuTopSlotCap"/> 镜像对、图标 = <see cref="ResPaths.MenuTopCoinIcon"/> /
         /// <see cref="ResPaths.MenuTopGemIcon"/>。
-        /// ⚠️ 数值域**留空** —— 本工程没有货币 / 奖杯系统（`策划/差异登记.tsv` **D12**），
+        /// ⚠️ 数值域**留空** —— 本工程没有货币 / 奖杯系统（`策划/差异登记.tsv`），
         /// ⛔ 不编数值（只落版式与图元，缺口在运行时 Warn 一次）。
         /// 左端另有一组**等级盘 + 经验条**（`left_top` → `xp`），见 <see cref="BuildLevelXp"/>。
         /// </para>
@@ -365,7 +365,7 @@ namespace CR.UI.Panels
                 _resGapWarned = true;
                 // 非预期分支（必须留痕）：本工程没有货币 / 奖杯系统 ⇒ 资源条与名字条奖杯**没有出处**。
                 Game.Logger?.Warn("MainMenuPanel",
-                    "资源条 / 名字条奖杯无数值出处：本工程无货币 / 奖杯系统（差异登记 D12）" +
+                    "资源条 / 名字条奖杯无数值出处：本工程无货币 / 奖杯系统（见 `策划/差异登记.tsv`）" +
                     "⇒ 只落版式与图元、数值显示占位符 " + NoValueGlyph);
             }
 
@@ -423,7 +423,7 @@ namespace CR.UI.Panels
         /// （帧 209 镜像端帽对，与两个资源槽**同一件**）；条内填充 = <see cref="ResPaths.MenuXpBarFill"/>（帧 518）。
         /// </para>
         /// <para>
-        /// ⚠️ 数值域**留空**：本工程没有等级 / 经验系统（`策划/差异登记.tsv` **D12** 残余①）⇒ 盘内的等级数字与
+        /// ⚠️ 数值域**留空**：本工程没有等级 / 经验系统（`策划/差异登记.tsv`）⇒ 盘内的等级数字与
         /// 条上的经验文字都写 <see cref="NoValueGlyph"/>，⛔ 不编等级值。填充按基线 `12_主菜单_750x1334` 量到的
         /// 「整条内区都是填充读数」铺满条内区（⛔ 同样不代表任何人的经验进度）。
         /// </para>
@@ -479,7 +479,7 @@ namespace CR.UI.Panels
         /// 建一个资源槽：槽条（<see cref="ResPaths.MenuTopSlotBar"/> 横向拉伸）+ 内填
         /// （<see cref="ResPaths.MenuTopSlotFill"/>）+ 两端端帽（<see cref="ResPaths.MenuTopSlotCap"/> 镜像对）
         /// + 原版资源图标 + 数值域（返回它，交给 <see cref="RefreshValues"/> 写占位符）。
-        /// 数值域**不写数**：本工程没有货币系统（`策划/差异登记.tsv` D12），⛔ 不编数值。
+        /// 数值域**不写数**：本工程没有货币系统（`策划/差异登记.tsv`），⛔ 不编数值。
         /// <para>槽条本身是**纯黑**的原版帧（落盘均值 (0,0,0)），基线读数 (10,12,14) 是截图压缩噪声 ⇒ ⛔ 不提亮。</para>
         /// </summary>
         private Text BuildResourceSlot(Transform root, string name, float x, float y, float w, string iconPath)
@@ -688,13 +688,13 @@ namespace CR.UI.Panels
 
         /// <summary>
         /// 资源槽「+」（原版 `buy_gold` / `buy_gems`，进内购）被点。本工程**没有商店 / 货币系统**
-        /// （`策划/差异登记.tsv` D12）⇒ 按本面板既有口径给**可读提示**（⛔ 不做点了没反应的假按钮，
+        /// （`策划/差异登记.tsv`）⇒ 按本面板既有口径给**可读提示**（⛔ 不做点了没反应的假按钮，
         /// ⛔ 也不假装能进内购）。
         /// </summary>
         private void OnBuyClicked(string slot)
         {
             Game.Logger?.Info("MainMenuPanel",
-                $"资源槽「{slot}」的「+」：原版进内购商店，本工程没有商店 / 货币系统（差异登记 D12）⇒ 只给可读提示");
+                $"资源槽「{slot}」的「+」：原版进内购商店，本工程没有商店 / 货币系统（见 `策划/差异登记.tsv`）⇒ 只给可读提示");
             SetStatus("本工程没有商店 / 货币系统（原版这个「+」是内购入口）", CrUiStyle.Accent);
         }
 

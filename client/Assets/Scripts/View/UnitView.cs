@@ -126,7 +126,7 @@ namespace CR.View
         /// 塔目录 `building_tower_out` **从不**走本类（`BattleViewRoot` 只把快照的 `Entities`（部队 / 已部署建筑）
         /// 交给它，冠状塔由 `ArenaView` 用自己的层配方画）。
         /// </para>
-        /// <para>生成路径：`tools/probes/sc-placement.py`（解析 `.sc`）+ `.ai-tmp/test/cr-scale-table.py`（出表）。</para>
+        /// <para>生成路径：`tools/probes/sc-placement.py`（解析 `.sc` 后出表）。</para>
         /// </summary>
         private static readonly Dictionary<string, float> UnitSpriteScale =
             new Dictionary<string, float>

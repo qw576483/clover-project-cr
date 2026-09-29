@@ -174,12 +174,12 @@ namespace CR.View
     ///   蓝水面(≈0.9 格) / 土黄(≈0.11 格) / 草地（`t6-refscan.py`：x=700 竖扫 py 790..935）；
     ///   而 f006 的水带**紧贴草地、没有土黄压顶与泥土带**。补土黄压顶会引入非本帧像素 ⇒ 登记不改。</description></item>
     /// <item><term>桥面材质（木 vs 石）</term><description>
-    ///   用户判词"桥按原版的**石桥**"，参考图 `20` 的桥实测是**浅色石块板**（`CR-T6-cmp-bridge.png` 左格：
+    ///   用户判词"桥按原版的**石桥**"，参考图 `20` 的桥实测是**浅色石块板**（放大裁切左格：
     ///   多块圆角石板叠成过河通道）。而训练场解包素材里**唯一的桥面像素是 f022 的木质竖木板**
     ///   （`arena_training_out` 23 帧逐帧目视 + 逐帧色类统计：只有 f022 在车道位有木板；见 `t6-f006-band.py`）。
     ///   ⇒ 用**原版木质木板**（⛔ 不自造石板），如实登记"材质与原版参考图不同"。</description></item>
     /// <item><term>参考图竞技场 ≠ 训练场</term><description>
-    ///   参考图的桥是**石块板**（`CR-T6-cmp-bridge.png` 左格），河道两侧有石压顶；训练场 `arena_training_out` 的
+    ///   参考图的桥是**石块板**（放大裁切左格），河道两侧有石压顶；训练场 `arena_training_out` 的
     ///   桥是**车道土黄路面跨水**（f006）。配合上面的水面色差 ⇒ 参考图是**另一座竞技场/另一版本**的美术，
     ///   其**整幅底图**（含石桥与深蓝水面）不在本解包素材的 `arena_training_out` 内。
     ///   其他竞技场的图集里确有蓝色水面（如 `level_champion_arena_tex.png` 有 1022×211 的蓝带、
@@ -383,7 +383,7 @@ namespace CR.View
         //   ① 帧 22 这一张画布**不是**「一条连续带」也不是「两个半场块」—— 它是一张**贴图集**：把
         //      同一条河 + 两岸按**屏幕上下顺序**拼成一条连续带（实测：带内 492..996 **逐行都是
         //      实心**、且远岸车道末端 / 水面 / 泥带 / 木栏 / 车道 / 公主台 / 王台在**同一批列**上
-        //      严丝合缝 ⇒ 是"屏幕空间的连续渲染"，不是任意装箱）。逐行量取（`cr-d130-rows.py`）：
+        //      严丝合缝 ⇒ 是"屏幕空间的连续渲染"，不是任意装箱）。逐行量取得出：
         //        · 行 0..55     后沿带（草边 + 王台后半 + 外沿草须；`f022_topstrip_x4.png` 目视）
         //        · 行 56..491   **透明缝**（画布留白，非场地内容）
         //        · 行 492..535  远岸草 + 车道末端
@@ -426,7 +426,7 @@ namespace CR.View
         //      段间像素连续（上一段的末行 = 下一段的首行）、只换斜率 ⇒ 不产生接缝（实机的
         //      「接缝」= **跨过 1076..1082 那道透明缝**整条裁，见上方）。
         //      ⛔ 打断点必须落在**实心台子边缘**（748 / 1323）：落在 844（台子底沿）时，
-        //      离线复核（`cr-d130-render-recipe.py`）量得 BLUE 公主台被拉成 3.58 格（应 ≈2 格）。
+        //      按同一配方落位时 BLUE 公主台会被拉成 3.58 格（应 ≈2 格）。
         //
         //   ③ 河面仍取 **帧 6** 行 [806, 853] → 格 y [15, 17]（帧 22 场地内的「水面占位」是草，
         //      不能当水用；帧 6 是唯一**在场地宽度内**画出蓝色渐变的层，出处见 `WaterFrameNumber`）。
@@ -461,7 +461,7 @@ namespace CR.View
 
         /// <summary>【BLUE 段①下沿 / 段②上沿】公主台**顶**沿（帧 22 画布行）= 748（= 格 y 7.5）。
         /// <para>打断点必须落在**台子边缘**（实心台面），换斜率才看不出来；落在台子中间会把台子拉长
-        /// —— 落在 844（台子底沿）时，离线复核（`cr-d130-render-recipe.py`）量得 BLUE 公主台
+        /// —— 落在 844（台子底沿）时按同一配方落位，BLUE 公主台
         /// 被拉成 3.58 格（应 ≈2 格）⇒ 必须落在顶沿 748。</para></summary>
         public const float BluePrincessPyTop = 748f;
 
@@ -490,7 +490,7 @@ namespace CR.View
         public const float BackEdgeTileTop = 32f;
 
         /// <summary>【RED 段①】远岸半场内容末行（帧 22 画布行）= 1600（= 格 y 17.0，河的上沿）。
-        /// <para>⛔ 不是 1634：实测（`cr-d130-render-recipe.py` 离线复核抓到黑带后复量）——
+        /// <para>⛔ 不是 1634：实测——
         /// 场地列 px 99..918 内行 1600 还有 803 个不透明像元，行 **1601 起骤降到 ~20 个**
         /// （只剩场地左沿的草须装饰）。取到 1634 会在河上方留一条 0.5 格的**透明黑带**
         /// （离线图 `recipe-live.png` 一眼可见）。</para></summary>
@@ -583,21 +583,15 @@ namespace CR.View
         //      ⛔ 本条**不**用"同段草地补丁列"那种写法：Q2 段实测
         //      **rows 604..668 / 600..670 / 583..615 三档都无"每行都是草"的列区间**，
         //      按"纯草列"取源会铺出一条杂色带。
-        //   ③ **河岸带：不做**（见下方撤销记录）—— 水带下沿以上直接保留敌方半场草地。
+        //   ③ **河岸带：不做**—— 水带下沿以上直接保留敌方半场草地。
 
-        // ★★ 第 ③ 条的撤销记录（实机证据在案）：
-        //   撤销前：`GroundRedBank` = `MakeCrop(源 frame_022 rows 575..612 → 格 13.59..15.25, flipY)`。
-        //   实机 census（新 DLL）：`GroundRedBank | order=3 | yTop 815.4..915.0` —— 确实落在水的上沿以上，
-        //   方向是对的（旧 DLL 对照图上是"上 0.000 / 下 0.234"，新版翻成"上 0.235 / 下 0.000"）。
-        //   但**判据与肉眼同时报异常**：水带上方多出一整片**成束竖木板**
-        //   （在实机图上量得：上格 WOOD=0.675）。
-        //   追到源（源图集 + 逐行剖面）：
-        //     rows 575..612 整段 **WOOD=0.547**，木色列**遍布全宽** `(118,135)(169,220)…(731,865)`；
-        //     而 rows 570..574 才是纯草（GRASS=0.98、木 0）⇒ 这条带是「**泥 + 成片竖木板**」的一整件，
-        //     **不是**"泥岸带"（把它当泥岸带是**看漏了木色列**）。
+        // ★★ 第 ③ 条（河岸带）为什么不做：
+        //   源图集 rows 575..612 整段是「**泥 + 成片竖木板**」的一整件（**WOOD=0.547**，
+        //   木色列**遍布全宽** `(118,135)(169,220)…(731,865)`；rows 570..574 才是纯草，
+        //   GRASS=0.98、木 0）—— 把这段当"泥岸带"会带来一整片成束竖木板。
         //   **原版训练营**水上沿以上（`策划/基线图/03_对局_1320x2868.jpg` 的放大裁切）实测
-        //   = **草 + 约 0.2 格宽棕色泥岸 + 白色浪花线**，
-        //   **没有任何木板**。⇒ 违反铁律（原版没有 ⇒ 不加）⇒ **撤销**此叠层。
+        //   = **草 + 约 0.2 格宽棕色泥岸 + 白色浪花线**，**没有任何木板**
+        //   ⇒ 违反铁律（原版没有 ⇒ 不加）⇒ 不叠这一层。
         //   水边表现：水边直接露出敌方半场草地（`GroundRedNear` 已铺满格 7.5..15.0），两岸"草对草"，
         //   ⛔ 不叠泥岸 / 浪花 / 木板层。
 
@@ -677,14 +671,14 @@ namespace CR.View
         /// </summary>
         public const int RedTowerBodyTopFrame = 212;
 
-        // ★ CR-T1i：**公主塔的塔体不是王塔那套 art** —— 原版公主塔垛口宽 1.85~1.91 格、王塔 2.88~2.93 格
+        // ★ **公主塔的塔体不是王塔那套 art** —— 原版公主塔垛口宽 1.85~1.91 格、王塔 2.88~2.93 格
         //   （`策划/参考图/03_对局_1320x2868.jpg`，91.5 px/格，量法见逐尺度比对），
         //   而王塔 art（rec 213/211）宽 170/171 px ⇒ 拿它画公主塔会**宽出约 65%**。
-        //   正确 art = `building_tower_v215.sc` 的 `StarTower_base_*`（export 表见 `cr-t1i-hunt.py`）：
+        //   正确 art = `building_tower_v215.sc` 的 `StarTower_base_*`（见 `building_tower_v215.sc` 的 export 表）：
         //     · `StarTower_base_blue`(clip 236) = rec **10**（白石垛口 + 蓝壁板 + 金冠徽记 + 木地板 + 梯）
         //     · `StarTower_base_red` (clip 235) = rec **9**（同形、红壁板）
         //   形状判据（逐格目视，对照图为逐格并排目视所得）：与原版公主塔逐项同构，
-        //   塔腔里的深色内景 / 木地板 / 阵营壁板**就在这张 art 里** ⇒ 上一轮为公主塔补的 `BackA/BackB`
+        //   塔腔里的深色内景 / 木地板 / 阵营壁板**就在这张 art 里** ⇒ 公主塔不必再叠 `BackA/BackB`
         //   （那是**王塔**的内景层）⇒ ⛔ 不给公主塔叠 `BackA/BackB`。
         /// <summary>BLUE 公主塔塔体（常态皮肤）：`StarTower_base_blue`(clip 236) = rec **10**。</summary>
         public const int BluePrincessBodyFrame = 10;
@@ -708,7 +702,7 @@ namespace CR.View
         /// <summary>同上（红方）：`StarTower_top_red`(clip 233) = rec 7。</summary>
         public const int RedPrincessTopFrame = 7;
 
-        // ───────────────── 阵亡废墟（D133：用户判词「塔阵亡没废墟」）─────────────────
+        // ───────────────── 阵亡废墟（原版塔被摧毁后有废墟 art）─────────────────
         //
         // ★ 出处（逐像素判据）：把 `building_tower_v215.sc` 的
         //   **36 个 export 全表 + 62 条 clip 全表** 按语义关键词（destroy/ruin/rubble/dead/break…）过一遍，
@@ -725,7 +719,7 @@ namespace CR.View
         // ★★ 关键判定：这两帧是**按队伍**分开的（蓝 = 207 / 红 = 205），**不是**按塔型分开的。
         //   三条互相独立的证据（§F 与其叠加对照图的断言）：
         //     ① **数量**：1v1 只有两帧废墟，却要覆盖 {蓝王, 红王, 蓝公, 红公} 四种组合 —— 两帧只能覆盖
-        //        **一个维度**。阵营色在塔体 art 里是**烘焙**的（本文件顶部 CR-T1b 段：rec211 r−b=+32.7 红、
+        //        **一个维度**。阵营色在塔体 art 里是**烘焙**的（本文件顶部阵营色段：rec211 r−b=+32.7 红、
         //        rec213 r−b=−3.3 中性偏蓝），而两帧废墟的均色几乎相同（205 r−b=**+42.8** / 207 r−b=**+40.7**，
         //        都是中性暖色石木色）⇒ 废墟 art **不带阵营色**，"按队伍分帧 + 两型塔共用"在画面上自洽
         //        （碎石本来也不该分蓝红）。
@@ -777,7 +771,7 @@ namespace CR.View
         /// <summary>
         /// 我方（BLUE）国王塔的炮塔帧 —— 原版 `turret`，clip 247 = rec 30-47 共 **18 个转角帧**。
         /// <para>
-        /// <b>为什么是 rec 30</b>：把 18 帧全部放大逐帧看过（联络图 `CR-T1b-turret18.png`，每格带帧号），
+        /// <b>为什么是 rec 30</b>：把 18 帧全部放大逐帧看过（逐帧 8× 放大比对），
         /// 只有 **rec 30 / 31** 是"**炮口背对镜头**"（近端是封闭的炮尾、炮管向远侧延伸）；
         /// rec 41-47 是"正对镜头看进炮口"；rec 32-40 是横向。参考图 `03_对局` 里**我方（蓝）国王塔**
         /// 看到的就是炮尾（炮管向远去、近端带金环），⇒ 取 rec 30。
@@ -839,25 +833,25 @@ namespace CR.View
         /// <b>两套 + 9 视角</b>（`chr_princess_v215.sc` 的 Export 表）：
         /// `princess_tower_idle1_1..9` = rec **504,503,502,501,500,499,498,497,496**；
         /// `princess_tower_red_idle1_1..9` = rec **8,7,6,5,4,3,2,1,0**（逐帧配色统计证明蓝/红两套，见下）。
-        /// 两套**逐视角 bbox 完全相同**（`cr-t1b-occupant.py` 输出里 B_n 与 R_n 的 bbox 逐项一致）⇒ 红/蓝
+        /// 两套**逐视角 bbox 完全相同**（B 套与 R 套逐项 bbox 一致）⇒ 红/蓝
         /// 只是染色、几何同一套 ⇒ **面向只能靠"选哪个视角"区分**。
         /// </para>
         /// <para>
-        /// <b>★ D140 修正（用户第 1 条「我方公主塔 朝向不对」）</b>：原版里**两侧乘员朝向相反**——
+        /// <b>★ 原版里**两侧乘员朝向相反**——
         /// · 我方（蓝）：**背对镜头（朝敌方）**。出处 = `策划/参考图/03_对局_1320x2868.jpg` 右下（我方）
         ///   公主塔的放大裁切（带网格逐特征核）：只看得见
         ///   **后脑勺**——深色头发一团 + 头侧一块淡蓝披风，**没有脸**；双臂向左伸、**金色编织弩弦**斜过身前。
         /// · 敌方（红）：**面朝镜头（朝我方）**。出处 = `04_对局` 左上（敌方）公主塔裁切
         ///   的放大裁切：**脸可见**（深发 + 面庞），弩横在身前。
         /// ⇒ 规律 = **每个阵营的乘员都朝敌方**（我方→上、敌方→下）。同一规律在**王塔**上也成立且是
-        ///   per-team 美术：`KingTower_blue`(clip 308) rec101 = 王的**背面**（蓝披风 + 金冠箍，实机复核
+        ///   per-team 美术：`KingTower_blue`(clip 308) rec101 = 王的**背面**（蓝披风 + 金冠箍，
         ///   与参考图 `04_对局` 的蓝王一致）、
         ///   `KingTower_red`(clip 307) rec16 = **正面**（脸可见，同图红王）。⇒ 王塔本来就对、
         ///   只有公主塔两侧取了**同一个**视角 7（面朝镜头）才会"我方那座是反的"。
         /// </para>
         /// <para>
         /// <b>为什么是视角 3（rec 502）而不是视角 1（rec 504）</b>：
-        /// ① 机械量（`cr-d140-occview.py` 的"脸部亮肤像素"分类器，口径 <c>r&gt;150 &amp; g&gt;100 &amp; b&gt;=80 &amp;
+        /// ① 机械量（"脸部亮肤像素"分类器，口径 <c>r&gt;150 &amp; g&gt;100 &amp; b&gt;=80 &amp;
         ///    (r−b)∈[20,90] &amp; lum&gt;=170</c>，只统计轮廓上 45% 的头部区）：
         ///    9 个视角里 **视角 3 = 1 px（全最小）**、视角 1 = 8、视角 7（面朝镜头）= 62
         ///    ⇒ 视角 3 是**最彻底背对镜头**的那一张。
@@ -866,12 +860,12 @@ namespace CR.View
         ///    同时成立；视角 1 是"弩箭朝正上方竖着一根"（参考图里没有），视角 4 是"弩臂朝右上"。
         /// </para>
         /// <para>
-        /// ⚠️ `cr-d140-occview.py` 里的"高通相关"数值判据**无效**（把已知"面朝镜头"的**敌方红**参考喂进去，
-        /// 它挑的不是视角 7）⇒ 不采用；采用上面 ①② 两条。（脚本保留 `正向对照` 分支，复跑会打印"✘ 判据无效"。）
+        /// ⚠️ "高通相关"数值判据**无效**（把已知"面朝镜头"的**敌方红**参考喂进去，
+        /// 它挑的不是视角 7）⇒ 不采用；采用上面 ①② 两条。
         /// </para>
         /// <para>
         /// ⛔ 颜色仍必须取对套：rec 502 属蓝套（`princess_tower_idle1_3`），rec 2 属红套
-        /// （`princess_tower_red_idle1_7`）；两套的"偏红/偏蓝"计数见 `cr-t1b-occupant.py` 输出。
+        /// （`princess_tower_red_idle1_7`）。
         /// </para>
         /// </summary>
         public const int BluePrincessOccupantFrame = 502;
@@ -880,22 +874,22 @@ namespace CR.View
         /// 敌方（RED）公主塔乘员：`princess_tower_red_idle1_7`（clip 753）= rec **2**（红衣公主 + 弩，
         /// **视角 7 = 面朝镜头**）。
         /// <para>
-        /// <b>★ D140：红方**刻意**与蓝方取**不同**视角</b>（蓝方 = 视角 3 / rec 502 = 背对镜头）。
+        /// <b>★ 红方**刻意**与蓝方取**不同**视角</b>（蓝方 = 视角 3 / rec 502 = 背对镜头）。
         /// 原版规律 = **每个阵营的乘员都朝敌方** ⇒ 敌方（红）朝我方（镜头）＝ 面朝镜头。
         /// 出处 = `策划/参考图/04_对局_1320x2868.jpg` 左上（敌方）公主塔裁切
         /// （放大裁切）：**脸可见**（深发 + 面庞 + 红披风），弩横在身前；
         /// 同图 `05` 的敌方塔一样。⛔ 所以这两行**必须取不同的帧号**，把它们改成同一个数就是"某一侧朝向反了"。
         /// </para>
         /// <para>
-        /// <b>为什么是视角 7（CR-T1e 收敛，D140 复核后仍成立）</b>：把 18 张（两套各 9）出成带帧号的联络图
-        /// （带帧号的联络图）+ 与原版的大图对照，按原版的三个特征核
+        /// <b>为什么是视角 7</b>：把 18 张（两套各 9）逐帧放大比对
+        /// 与原版的大图对照，按原版的三个特征核
         /// "头在上 / 身在下 / 弩横在身前"：视角 7（rec 498/2，bbox 145,66,235,164）是正朝镜头的那一张。
-        /// D140 另用"脸部亮肤像素"分类器复核：视角 7 = **62 px**（9 视角里第 2 多），确认它带脸 ⇒ 给敌方 ✔。
+        /// "脸部亮肤像素"分类器复核：视角 7 = **62 px**（9 视角里第 2 多），确认它带脸 ⇒ 给敌方 ✔。
         /// </para>
         /// </summary>
         public const int RedPrincessOccupantFrame = 2;
 
-        // ───────────────── 层级配方：来自 `.sc` 的 placement（CR-T1c 解出，⛔ 不许手改顺序）─────────────────
+        // ───────────────── 层级配方：来自 `.sc` 的 placement（⛔ 不许手改顺序）─────────────────
         //
         // **判定链**（逐格 placement 量取）：
         //   `.sc` 里 `0x08` 记录 = **24 字节 = 6 × i32 = (a, b, c, d, tx, ty)** 的仿射矩阵
@@ -1001,9 +995,9 @@ namespace CR.View
             new LayerSpec(RedPrincessTopFrame, 1f, 0f, 0f, "FrontWall"),                 // clip 233 = rec 7
         };
 
-        // （CR-T1g 曾为公主塔接过 `BackA/BackB`（rec 99/100/15）—— 那是**王塔**的内景层。
-        //   CR-T1i 确认公主塔有自己的 art（`StarTower_base_*`），塔腔内容都在 art 里 ⇒ 这三个常量与三行
-        //   配方一并撤掉，本处只留记录，⛔ 不要因为它们"看起来像塔腔内容"再捡回来。）
+        // （⛔ 不给公主塔叠 `BackA/BackB`（rec 99/100/15）—— 那是**王塔**的内景层。
+        //   公主塔有自己的 art（`StarTower_base_*`），塔腔内容都在 art 里；
+        //   它们"看起来像塔腔内容"，但不是。）
 
         /// <summary>
         /// 公主塔乘员相对**塔画布中心**的偏移（单位 = 画布像素；x 右为正、y **下**为正，与 `.sc` 矩阵口径一致）。
@@ -1013,9 +1007,9 @@ namespace CR.View
         /// ⇒ 两个文件之间**不存在 placement 记录**，只能量。
         /// </para>
         /// <para>
-        /// <b>CR-T1j：偏移不是常量 —— 必须按"裁剪框锚点"在运行时反算</b>（见
-        /// <see cref="PrincessOccupantLocalPx"/>）。CR-T1i 那版把偏移写成"画布中心对画布中心"的常量
-        /// （−66.5 / −123），实机就是**公主飘在塔顶外面**：因为工程里的 PNG 是 **Sprite Mode = Multiple
+        /// <b>偏移不是常量 —— 必须按"裁剪框锚点"在运行时反算</b>（见
+        /// <see cref="PrincessOccupantLocalPx"/>）。若把偏移写成"画布中心对画布中心"的常量
+        /// （−66.5 / −123），就会**公主飘在塔顶外面**：因为工程里的 PNG 是 **Sprite Mode = Multiple
         /// + 自动切片** 导入，运行时 `sprite.rect` = 每张图自己的 **alpha 裁剪框**（实测
         /// `frame_009_0 rect=173x198`，而 PNG 本体 407×471），**Unity 画的锚点是裁剪框中心**。
         /// 同画布的层（塔体裁剪框中心 ≈ 前墙）误差只有几 px，但乘员来自另一份 `.sc`（画布 268×180）⇒
@@ -1027,7 +1021,7 @@ namespace CR.View
         /// <summary>
         /// 公主的**落脚线**（塔体画布 y，**自上而下**计，单位 = 画布 px）。
         /// <para>
-        /// <b>出处（CR-T1j 重定，按裁剪框锚点口径）</b>：候选扫描（裁剪框锚点全覆盖 --sweep
+        /// <b>出处（按裁剪框锚点口径）</b>：候选扫描（裁剪框锚点全覆盖 --sweep
         /// --foots 165,185`，每格带落脚值与算出的 localPos）与原版
         /// `03_对局` 裁切**同尺度并排**逐格看 ⇒ **185** 这一档下：公主的头冠顶与白石垛口上沿齐平、
         /// 躯干在塔腔内、弩横在身前，下半身由 `FrontWall`(rec 7/8) 压住 —— 与原版一致；165 那一档她整块
@@ -1041,20 +1035,20 @@ namespace CR.View
         /// <summary>
         /// 公主乘员层的缩放。**1.13**（原为 1.0）。
         /// <para>
-        /// <b>出处（CR-T1f 量取）</b>：同一掩膜口径下「乘员框高 / 垛口结构宽」——原版 `03_对局` G2 = **0.704**、
+        /// <b>出处（图上比例量取）</b>：同一掩膜口径下「乘员框高 / 垛口结构宽」——原版 `03_对局` = **0.704**、
         /// 我方(1.0×) = **0.624**（量法：分母用**结构宽**是因为两个 crop 的高
         /// 不同、宽都完整在画面内）⇒ 缩放 = 0.704/0.624 = **1.128 ⇒ 取 1.13**。
         /// ⚠️ 这条是**图上比例**收敛（乘员与塔之间没有 `.sc` placement，只能量），非原版数据。
         /// </para>
         /// <para>
-        /// <b>CR-T1i 复核（塔体换成 `StarTower_base_*` 之后）</b>：本值的分母是"垛口结构宽"，换 art 后
+        /// <b>复核（塔体换成 `StarTower_base_*` 之后）</b>：本值的分母是"垛口结构宽"，换 art 后
         /// 我方分母 = 115 px（白件宽）× `PrincessTowerScale` 1.5 = **172 px**，与原版量到的 172 px **相等**
         /// ⇒ 分母口径仍与原版对齐，不必跟着缩。乘员侧换成工程实际用的 `princess_tower_idle1_7`
         /// （rec 498 / 2，bbox 高 97 px）后，同塔尺并排逐格看 **0.85 / 1.00 / 1.13** 三档
-        /// （同塔尺并排逐格看）：1.00~1.13 最接近原版、0.85 明显偏小 ⇒ **保持 1.13**
+        /// 1.00~1.13 最接近原版、0.85 明显偏小 ⇒ **保持 1.13**
         /// （⛔ 不为了"看着更准"改成自定值）。
         /// <para>
-        /// ⚠️ <b>D140 复核</b>：蓝方帧号改为视角 3（rec 502，bbox <c>(154,74,248,172)</c> ⇒ 宽 94 px、高 98 px）
+        /// ⚠️ <b>复核</b>：蓝方帧号是视角 3（rec 502，bbox <c>(154,74,248,172)</c> ⇒ 宽 94 px、高 98 px）
         /// 后与定标用的 rec 498（bbox <c>(145,66,235,164)</c> ⇒ 90×98）**尺寸几乎相同**（宽 +4、高 +0）
         /// ⇒ 本缩放值继续成立，不需要跟着改。缩放口径是"乘员框高 / 垛口结构宽"，与具体视角无关。
         /// </para>
@@ -1063,7 +1057,7 @@ namespace CR.View
         public const float PrincessOccupantScale = 1.13f;
 
         /// <summary>
-        /// **国王塔**的缩放。**1.7**（原值 1.6 是 CR-T1h 的口径错误值，见下）。
+        /// **国王塔**的缩放。**1.7**。
         /// <para>
         /// <b>出处（两侧同口径 + 统一换算成"格"）</b>：
         /// 口径 = 「**白件宽**」= 两边同一掩膜 `r&gt;205 &amp; g&gt;195 &amp; b&gt;185`：
@@ -1218,7 +1212,7 @@ namespace CR.View
         ///   <b>场地因此永不被纵向压扁</b>；屏比原版基准更高或更矮时，差额落在**场地之外**（远端以外的区域露得多或少），
         ///   不落进场地的像素比例里。</item>
         /// <item><b>场地底边距屏底 340 px（1080 宽基准）= 卡条上沿之上 34 px</b>：原版场地底沿 row 1580、
-        ///   手牌卡顶 row 1614（§1.3 D12）⇒ 留白 34 px。本工程手牌贴底量 = 卡底距画布底 135（`HudPanel.HandBottomOffset`）
+        ///   手牌卡顶 row 1614（出处 `策划/参考图/几何量取.md` §1.3）⇒ 留白 34 px。本工程手牌贴底量 = 卡底距画布底 135（`HudPanel.HandBottomOffset`）
         ///   + 卡高 171 = **306** ⇒ 卡条上沿在基准屏 row 1614；场地底边取 row <see cref="GroundBottomRowPx"/> = 1580。
         ///   HUD 画布 match=width ⇒ 卡条上沿距屏底的像素数 = 306 × 屏宽 / 1080（**与屏高无关**）
         ///   ⇒ 场地底边必须用同一个比例折算：`底边距屏底 = (FrameBasisHeightPx − GroundBottomRowPx) × 屏宽 / FrameBasisWidthPx`。
@@ -1503,7 +1497,7 @@ namespace CR.View
                 // ★ **边界带垫层**（出处见 EdgeFillSrcPyTop）：把同帧的干净草地（行 696..748）铺满
                 //    格 y [0, 2.33] 与 [29.43, 32] 两条边界带，草须轮廓（③/⑥）再叠在其上。
                 //    原因：③/⑥ 用的 f022 行 0..55 是**草须轮廓**（该窗口不透明率 53%），单靠它铺这两条带，
-                //    近半像元会直接露出底衬纯色（实机读数：两条带内 ±6 近 BaseGrassColor 的像元占 48.9% / 47.6%，
+                //    近半像元会直接露出底衬纯色（两条带内 ±6 近 BaseGrassColor 的像元占 48.9% / 47.6%，
                 //    而场中草地只有 1.0%）⇒ 这两条带必须以美术承担。
                 MakeCrop("GroundBlueEdgeFill", ground, GroundFieldLeftPx, EdgeFillSrcPyTop, GroundFieldRightPx, BluePrincessPyTop,
                     0f, GameConst.ArenaTilesW, 0f, BackEdgeTileLow, orderBlueHalf);
@@ -1520,13 +1514,13 @@ namespace CR.View
                     0f, GameConst.ArenaTilesW, GapTileHigh - gapSpan, GapTileHigh, orderGroundOverlay);
                 MakeCrop("GroundBlueGapLower", ground, GroundFieldLeftPx, GapSrcPyTop, GroundFieldRightPx, GapSrcPyBottom,
                     0f, GameConst.ArenaTilesW, GapTileHigh - 2f * gapSpan, GapTileHigh - gapSpan, orderGroundOverlay);
-                // ② **河岸带：不铺**（`GroundRedBank` 不存在，理由见上方「★ 第 ③ 条的撤销记录」）：
+                // ② **河岸带：不铺**（`GroundRedBank` 不存在，理由见上方「★ 第 ③ 条」）：
                 //    frame_022 rows 575..612 是「泥 + 成片竖木板」的一整件（WOOD=0.547、木色列遍布全宽），
                 //    而原版训练营水上沿以上是**草 + 约 0.2 格泥岸、无木板**。水边直接露出敌方草地。
             }
 
             Game.Logger?.Info(LogTag,
-                $"竞技场底图合成完成（D130 六段铺法）：地面帧号={NearGroundFrameNumber} 源={Name(ground)}" +
+                $"竞技场底图合成完成（六段铺法）：地面帧号={NearGroundFrameNumber} 源={Name(ground)}" +
                 $" BLUE=py {BlueFieldPyTop}..{BluePrincessPyTop}→格 {BluePrincessTileTop}..{BlueFieldTileTop}" +
                 $" + py {BluePrincessPyTop}..{BlueBackPyBottom}→格 {BlueBackTileLow}..{BluePrincessTileTop}" +
                 $" + 垫层 py {EdgeFillSrcPyTop}..{BluePrincessPyTop}→格 0..{BackEdgeTileLow}" +
@@ -1538,10 +1532,10 @@ namespace CR.View
                 $" | 横向=格 0..{GameConst.ArenaTilesW} ⇔ 画布px {GroundFieldLeftPx}..{GroundFieldRightPx:F1}（{GroundPxPerTileX}px/格）" +
                 $" | 叠层：覆盖带 源行 {GapSrcPyTop}..{GapSrcPyBottom}×2 → 格 y {GapTileLow:F2}..{GapTileHigh:F1}" +
                 $"（抹掉贴图集残留的「泥带+竖木板」）" +
-                $" | 河岸带=撤销不铺（原版水上沿以上是草+窄泥岸、无木板；见上方撤销记录）" +
+                $" | 河岸带=不铺（原版水上沿以上是草+窄泥岸、无木板）" +
                 $" | 河面/桥见后续 RiverWater/BridgeLeft/BridgeRight 日志");
 
-            // 场地**两端之外**那两条带的外圈（用户报的「场地外圈没有美术」）。
+            // 场地**两端之外**那两条带的外圈（原版在这两条带上也有美术）。
             BuildOuterRing(frames, ArenaLayers.Instance.Ground);
 
             // 河道 = 帧 6 的蓝色水带；桥 = 帧 22 的桥板。见 BuildRiver。
@@ -1553,7 +1547,7 @@ namespace CR.View
         ///
         /// <para>
         /// <b>为什么需要</b>：场地只占屏幕 rows 140..1580（<see cref="GroundBottomRowPx"/> 那一套取景），
-        /// 两端之外原本**没有任何美术** —— 实机读数 rows 0..140 均色 (12,19,27) / 暗像元 98.1% / 唯一色 3、
+        /// 两端之外原本**没有任何美术** —— 相机底线 rows 0..140 均色 (12,19,27) / 暗像元 98.1% / 唯一色 3、
         /// rows 1580..1614 均色 (11,16,27) / 暗 100% / 唯一色 1（= 纯相机底色）；原版同两条带是满美术
         /// （参考图 18 同带均色 (113,101,100) 暗 3.5% / (93,153,151) 暗 2.2%）。
         /// </para>
@@ -1714,7 +1708,7 @@ namespace CR.View
             // ① 水：横向窗口用**帧 6 自己的原点**（格 0..18 ⇔ px 207.6..1027.4）—— ⛔ 不是帧 22 的
             //    px 99：帧 6 与帧 22 是两张画布，各自的车道中心不同列（帧 6 = 367/868，帧 22 = 259/760，
             //    间距都是 501 px ⇒ 同一 45.545 px/格，只是画布留白不同）。出处：逐图水面色量取
-            //    （帧 6 水带 805..852，左沿水色起于 px ~200）+ `cr-d130-lane-rowscan.py`。
+            //    （帧 6 水带 805..852，左沿水色起于 px ~200）。
             var pxLeft = WaterPxLeft;
             var pxRight = WaterPxLeft + GameConst.ArenaTilesW * GroundPxPerTileX;
             var water = FindFrameByNumber(frames, WaterFrameNumber);
@@ -1864,7 +1858,7 @@ namespace CR.View
         /// <para>
         /// <b>⛔ 双翻转陷阱</b>：<paramref name="flipY"/> 已经是"翻一次"。若同时把格区间写成降序
         /// （tileHigh &lt; tileLow），<c>localScale.y</c> 会变成负数、把 sprite 再翻一次 ⇒ 两次抵消，
-        /// 结果与该镜像的恰好相反（上一版 RED 半场就是这样没镜像的）。故本方法<b>要求升序</b>，
+        /// 结果与该镜像的恰好相反（RED 半场不镜像则结果相反）。故本方法<b>要求升序</b>，
         /// 发现降序就换序并记一条 Warn（不允许静默产生负缩放）。
         /// </para>
         /// </summary>
@@ -2004,7 +1998,7 @@ namespace CR.View
 
             var n = 0;
             Sprite body = null;
-            Transform muzzle = null;   // ★ D145：炮口层（Princess / Turret），见 TowerView._muzzle
+            Transform muzzle = null;   // ★ 炮口层（Princess / Turret），见 TowerView._muzzle
             Transform turret = null;   // 国王塔的炮塔层 —— 初始不显示，激活时才亮（见 TowerView.SetKingActive）
             var sb = new List<string>();
             for (var i = 0; i < recipe.Length; i++)
@@ -2017,7 +2011,7 @@ namespace CR.View
                 var ppu = SpriteBank.FallbackPixelsPerUnit;
                 if (sp != null && sp.pixelsPerUnit > 0.01f) ppu = sp.pixelsPerUnit;
                 // 画布像素偏移（画布 y 向下、Unity y 向上 ⇒ 取负）；**除以 PPU 的事交给 TowerLayer**，
-                // ⛔ 不要在这里先除一次（CR-T1c 第一版就是两处都除 ⇒ 偏移被缩小 100 倍，肉眼看不出来）。
+                // ⛔ 不要在这里先除一次（两处都除会把偏移缩小 100 倍，肉眼看不出来）。
                 var off = new Vector2(spec.Dx, -spec.Dy);
                 // ★ 公主乘员：**偏移不能是常量**（它来自另一份 `.sc`、画布框与塔体不同，而 Unity 的锚点是
                 //   每张图自己的**裁剪框**中心）⇒ 按塔体/乘员的 `sprite.rect` 在运行时反算，见
@@ -2025,7 +2019,7 @@ namespace CR.View
                 if (isOccupant && body != null && sp != null)
                     off = PrincessOccupantLocalPx(body, sp, spec.Scale);
                 var built = TowerLayer(go.transform, spec.Name, sp, ArenaLayers.Instance.Structure + i, off, spec.Scale, ppu);
-                // ★ D145：记下**炮口层**的 Transform（公主塔 = 乘员层 Princess；国王塔 = 炮塔层 Turret）。
+                // ★ 记下**炮口层**的 Transform（公主塔 = 乘员层 Princess；国王塔 = 炮塔层 Turret）。
                 //   取到的就是原版配方里那一层的世界坐标，⛔ 不编"炮口高度"的常数。
                 if (built && (spec.Name == "Princess" || spec.Name == "Turret"))
                     muzzle = go.transform.Find(spec.Name);
@@ -2047,7 +2041,7 @@ namespace CR.View
                     $"bodyRect={(body == null ? "-" : body.rect.width + "×" + body.rect.height)}");
             }
 
-            // ★ 阵亡废墟层（D133）：**建塔时就预建好、初始 disabled**，塔被摧毁那一刻才亮（见 TowerView.Apply）。
+            // ★ 阵亡废墟层：**建塔时就预建好、初始 disabled**，塔被摧毁那一刻才亮（见 TowerView.Apply）。
             //   层序 = `SortingLayers.Structure − 1`（废墟是"贴地残骸"，压在塔体各层之下、仍高于场地 0/10）；
             //   位置 = **按画布坐标**对齐塔体（算式见 CanvasOffsetPx）；缩放 = 1×（`.sc` 三条 destroyed
             //   clip 的 placement 全是"1 帧 1 层 + 无矩阵"⇒ 画布原位、不缩放）。
@@ -2088,7 +2082,7 @@ namespace CR.View
             //     停在 0；而场地底图的两半是 `SortingLayers.Ground + 1 / +2`（= **1 / 2**，见本文件
             //     `BuildArt` 的 `orderBlueHalf` / `orderRedHalf`）⇒ **底图后画、把血条整块盖死**，机械读数上
             //     `hpQuadOn=2`（两个 Quad 都 enabled）而渲染帧上一条都没有。
-            //     实机取证：step 3（6 座塔满血、hpQuadOn=2）时帧里没有任何塔条（放大裁切同一现象）。
+            //     结果：6 座塔满血、hpQuadOn=2 时，帧里没有任何塔条。
             //     ⇒ 此处**显式传 `SortingLayers.Overlay`（= 2000）**，与单位血条同口径（先例
             //     `UnitView.cs:261` 的 `WorldHpBar.Create(..., ArenaLayers.Instance.Overlay)`）；塔体 50 < 2000 <
             //     特效 3000 ⇒ 压在塔之上、特效之下。
@@ -2253,7 +2247,7 @@ namespace CR.View
         /// `173x210`、乘员 `93x100`；而 PNG 本体是 407×471 / 268×180），**Unity 画的锚点 = 裁剪框中心**。
         /// 同画布的层（塔体 / 前墙）裁剪框位置只差几 px；但乘员来自**另一份 `.sc`**（画布 268×180），
         /// 它的裁剪框中心离自己的画布中心很远 ⇒ 若按"画布中心对画布中心"给常量偏移，整块会偏 ≈0.6 格
-        /// （CR-T1i 实机就是"公主飘在塔顶外面"）。
+        /// （否则"公主飘在塔顶外面"）。
         /// </para>
         /// <para>
         /// <b>算式</b>：画布点 P 被画到 <c>localPos + scale × (P − 该层裁剪框中心)</c>（缩放绕锚点做）；
@@ -2472,7 +2466,7 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 按**服务端塔 id**取该塔的**炮口世界坐标**（差异登记 D145）。
+        /// 按**服务端塔 id**取该塔的**炮口世界坐标**（见 `策划/差异登记.tsv`）。
         /// <para>
         /// 用途：服务端开火事件 <c>EvTowerShoot</c> 的载荷里 <c>entity_id</c> 是塔 id、坐标是**塔根**；
         /// 弹道要从塔顶那门弩/炮出发才对得上原版画面，而塔不在快照的 <c>entities</c> 里（见
@@ -2637,7 +2631,7 @@ namespace CR.View
             /// <summary>
             /// **炮口**层（公主塔 = 乘员层 `Princess`；国王塔 = 炮塔层 `Turret`）的 Transform。
             /// <para>
-            /// 用途（差异登记 D145）：服务端开火事件 <c>EvTowerShoot</c> 只在载荷里给**塔根**坐标，
+            /// 用途（见 `策划/差异登记.tsv`）：服务端开火事件 <c>EvTowerShoot</c> 只在载荷里给**塔根**坐标，
             /// 而弹道/枪口闪光应该从**塔顶那门弩/炮**出发 —— 这一层的世界坐标就是**从原版 art 的
             /// 层配方直接得到的**（见 <see cref="ArenaView.BluePrincessRecipe"/> 等），
             /// ⛔ 不需要在这里编一个"炮口高度"的常数。
@@ -2669,7 +2663,7 @@ namespace CR.View
             public bool KingActive { get; private set; }
 
             /// <summary>
-            /// 阵亡废墟层的渲染器（D133）。**初始 disabled**，塔被摧毁时才全部 <c>enabled = true</c>。
+            /// 阵亡废墟层的渲染器。**初始 disabled**，塔被摧毁时才全部 <c>enabled = true</c>。
             /// <para>
             /// 是**数组**而不是单个渲染器：废墟帧可能被自动切片成多张子精灵（`frame_207.png` = 2 张，
             /// 见 <see cref="ArenaView.FramesByNumber"/>）⇒ 只亮一块就是"一颗小石子"。
@@ -2754,18 +2748,14 @@ namespace CR.View
                 // 塔 id 先记（幂等早退也不能漏 —— 开火事件要靠它对号到这座塔）。
                 Id = s.id;
                 // **阵亡是终态**：本视图实例一旦收到 `alive=false`，不再被后续快照改回。
-                //   为什么必须显式写这一条（**实机读数，不是假想**）：实机链把某座塔注入成
-                //   `alive=false` 之后，**下一帧的即时快照又按 alive=true 把同一座塔推了一遍**（服务端
-                //   并不知道我们注入了什么），于是 `_bar.SetVisible(true)` 把血条点了回来，而塔体各层
-                //   仍是隐藏的 ⇒ 画面同时出现"废墟 + 血条"，自相矛盾。原始读数
-                //   （同一链同一座塔的实机读数）：
-                //     step 5（注入后 ≈30 ms）：bodyEnabled=False rubbleEnabled=True hpQuadOn=0 hpQuadOff=2
-                //     step 7（注入后 ≈1.5 s）：bodyEnabled=False rubbleEnabled=True hpQuadOn=2 hpQuadOff=0
+                //   为什么必须显式写这一条：收到 `alive=false` 之后，**下一帧的即时快照仍会按 alive=true
+                //   把同一座塔推一遍**（服务端并不知道客户端注入了什么），于是 `_bar.SetVisible(true)`
+                //   把血条点了回来，而塔体各层仍是隐藏的 ⇒ 画面同时出现"废墟 + 血条"，自相矛盾。
                 //   CR 的塔不会复活；且塔视图**不池化**（不是 `UnitView` 那种复用对象 —— `ArenaView`
                 //   重建时 `ClearGenerated()` 会 `Destroy()` 整座塔再重造）⇒ 终态锁只作用在一个场地实例的
                 //   一生之内，是安全的。
-                //   ⛔ 不采用"按最后一条快照镜像"的写法：那会让注入出来的阵亡态在下一帧被撤掉，
-                //   判据（阵亡 ⇒ 废墟亮 / 塔体灭 / 血条灭）就**不再是一个稳定状态**，也没法用过程断言复核。
+                //   ⛔ 不采用"按最后一条快照镜像"的写法：那会让阵亡态在下一帧被撤掉，
+                //   判据（阵亡 ⇒ 废墟亮 / 塔体灭 / 血条灭）就**不再是一个稳定状态**。
                 if (_destroyed)
                 {
                     Alive = false;
@@ -2785,8 +2775,8 @@ namespace CR.View
                     // 条上的血量数字（原版 04 图塔条上的「1740」）：与条体同一条快照口径，
                     // ⛔ 不在别处另算 —— 数字与条体长度必须永远同一个 hp 值。
                     if (_hpNumber != null) _hpNumber.text = s.hp.ToString();
-                    // ★ D133 改：**满血也显示**（原版塔血条是常显）。
-                    //   反面取证 —— 基线图 `策划/参考图/04_对局_1320x2868.jpg` 底部两座公主塔各 `1740`
+                    // ★ **满血也显示**（原版塔血条是常显）。
+                    //   基线图 `策划/参考图/04_对局_1320x2868.jpg` 底部两座公主塔各 `1740`
                     //   （= 满血同值）**血条仍是完整满格条**（青色掩膜 x 段 114..312 与 1068..1267 整段着色，
                     //   行 1984..2012；放大裁切可直接看）；
                     //   `20_对局_1080x1920.jpg` 里**四座塔条同时可见**（`3996`/`1204`/`2170`/`2381`，
@@ -2799,7 +2789,7 @@ namespace CR.View
                 if (!s.alive)
                 {
                     _destroyed = true; // 终态锁（上面 Apply 开头就靠它挡住"复活"快照）
-                    // ★ D133 改：**不再把整座塔藏掉了事** —— 改成"塔体各层藏掉 + 亮出废墟层"。
+                    // ★ **不把整座塔藏掉了事** —— 改成"塔体各层藏掉 + 亮出废墟层"。
                     //   帧号出处 = `BlueTowerRubbleFrame` / `RedTowerRubbleFrame` 常量上的长注释
                     //   （`building_tower_v215.sc` 的 clip 297/298/301，逐像素判据）。
                     //   ⛔ "素材缺摧毁态下标"是**错的前提**：废墟帧一直在盘上（`frame_204/205/207`），
@@ -2846,11 +2836,11 @@ namespace CR.View
             /// <see cref="ArenaView.TowerLayer"/>）。层集合从塔根节点现取，不缓存数组 ——
             /// 层是 <see cref="ArenaView.AddTower"/> 建完就固定的，重建时整个 <c>Towers</c> 根会重造。
             /// <para>
-            /// <b>D133 的口径变更（回归坑）</b>：原来是 <c>GetComponentsInChildren&lt;SpriteRenderer&gt;(true)</c>
+            /// <b>为什么必须排除废墟层</b>：若用 <c>GetComponentsInChildren&lt;SpriteRenderer&gt;(true)</c>
             /// 的**全量**开关，而废墟层（<see cref="ArenaView.RubbleLayerName"/>）也挂在**同一个塔根**下
             /// ⇒ 摧毁时会被一起关掉（废墟永远不亮）。本方法改成**显式排除全部废墟块**
             /// （<see cref="IsRubble"/> 按引用排除，不靠名字匹配）；除它们以外仍是全量开关，所以
-            /// "只藏 Body 会把国王/炮塔留在场上"的老坑仍然被覆盖。
+            /// "只藏 Body 会把国王/炮塔留在场上"的问题仍然被覆盖。
             /// </para>
             /// </summary>
             private void SetTowerLayersEnabled(bool enabled)

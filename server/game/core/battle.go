@@ -171,6 +171,7 @@ func (b *Battle) Step() {
 	b.stepProjectiles()
 	b.stepAreas()
 	b.stepMovement()
+	b.stepAnimHold()
 	b.resolveCollisions()
 	b.stepDeaths()
 	b.compact()
@@ -506,7 +507,7 @@ func (b *Battle) stepAttacks() {
 		if !inAttackRange(e, target) {
 			continue
 		}
-		if h := advanceAttack(e, target); h != nil {
+		if h := advanceAttack(e, target, b.tick); h != nil {
 			hits = append(hits, h)
 		}
 	}
@@ -623,7 +624,7 @@ func (b *Battle) stepMovement() {
 		}
 		if !have {
 			e.moving = false
-			e.setAnim(AnimIdle)
+			e.setMoveAnim(AnimIdle)
 			continue
 		}
 		if e.routeGoalMoved(goalX, goalY) {
@@ -631,13 +632,40 @@ func (b *Battle) stepMovement() {
 		}
 		if e.nav.idx >= len(e.nav.waypoints) {
 			e.moving = false
-			e.setAnim(AnimIdle)
+			e.setMoveAnim(AnimIdle)
 			continue
 		}
 		e.faceToward(goalX)
 		e.advanceAlongRoute(e.Def.SpeedMilliPerSec)
 		e.moving = true
-		e.setAnim(AnimWalk)
+		e.setMoveAnim(AnimWalk)
+	}
+}
+
+// stepAnimHold closes every attack window whose last tick this is, restoring the
+// movement tier: AnimWalk while the entity is walking, AnimIdle otherwise.
+//
+// It runs after stepMovement so `moving` is this tick's value. Closing the tier here is
+// the counterpart of the hold in holdAttackAnim: the gap it leaves gives the next swing a
+// rising edge to be seen on, which is how a client that restarts its attack clip on that
+// edge (View/UnitView.Apply) plays one attack per swing instead of one per fight.
+func (b *Battle) stepAnimHold() {
+	for _, e := range b.allEntities() {
+		if e.animHoldUntilTick == 0 || b.tick < e.animHoldUntilTick {
+			continue
+		}
+		// Cleared before the write below: `setMoveAnim` refuses to run while a window is
+		// open (the window is what should outrank it).
+		e.animHoldUntilTick = 0
+		if !e.alive {
+			// A death frame is the last frame the entity ever sends.
+			continue
+		}
+		if e.moving {
+			e.setMoveAnim(AnimWalk)
+		} else {
+			e.setMoveAnim(AnimIdle)
+		}
 	}
 }
 

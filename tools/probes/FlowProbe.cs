@@ -736,6 +736,9 @@ public static class FlowProbe
     /// </summary>
     public static Task<string> SampleFlowCr4() { return SampleFlow("cr4-after"); }
 
+    /// <summary>采样变体：tag=conv-clock（渲染时钟切到引擎 `SnapshotInterpolator` 之后的取证）。</summary>
+    public static Task<string> SampleFlowConvClock() { return SampleFlow("conv-clock"); }
+
     /// <summary>
     /// 尽力出一张牌（**不经 HUD/UI**，直接走 C2S，与 `BattleManager.PlayCardAsync` 同一条消息）：
     /// 没有会走的单位时快照里就没有实体 ⇒ 采样为空（那就说不清了）。被服务端拒绝也照样留痕（`err` 原样打出来）。

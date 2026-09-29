@@ -4,7 +4,7 @@ id	key	name_cn	kind	hp	damage	hit_speed_ms	load_time_ms	speed	range_mt	sight_mt	
 26020003	Archer		0	304	107	900	400	60	5000	5500	1000	500	3	1	1	0	0	0	ArcherArrow		0	0	0	0		0	0	0	0		0	0	0	0	chr_archer_out	0	0	0	0
 26020004	goblins	哥布林	0	202	120	1100	700	120	500	5500	1000	500	2	0	1	0	0	0			0	0	0	0		0	0	0	0	Goblin	4	700	200	0	chr_goblin_out	0	0	0	0
 26020005	Goblin		0	202	120	1100	700	120	500	5500	1000	500	2	0	1	0	0	0			0	0	0	0		0	0	0	0		0	0	0	0	chr_goblin_out	0	0	0	0
-26020006	spear-goblins	哥布林投矛手	0	133	81	1700	1200	120	5500	5500	1000	500	1	1	1	0	0	0	SpearGoblinProjectile		0	0	0	0		0	0	0	0	SpearGoblin	3	0	100	0	chr_goblin_out	0	0	0	0
+26020006	spear-goblins	哥布林投矛手	0	133	81	1700	1200	120	5500	5500	1000	500	1	1	1	0	0	0	SpearGoblinProjectile		0	0	0	0		0	0	0	0	SpearGoblin	3	0	100	0	chr_goblin_archer_out	0	0	0	0
 26020007	SpearGoblin		0	133	81	1700	1200	120	5500	5500	1000	500	1	1	1	0	0	0	SpearGoblinProjectile		0	0	0	0		0	0	0	0		0	0	0	0	chr_goblin_archer_out	0	0	0	0
 26020008	giant	巨人	0	4091	254	1500	1000	45	1200	7500	1000	750	18	0	1	1	0	0			0	0	0	0		0	0	0	0	giant	1	0	0	0	chr_giant_out	0	0	0	0
 26020009	pekka	皮卡超人	0	3760	816	1800	1300	45	1200	5000	1000	750	18	0	1	0	0	0			0	0	0	0		0	0	0	0	pekka	1	0	0	0	chr_pekka_out	0	0	0	0

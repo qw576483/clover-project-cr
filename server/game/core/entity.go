@@ -89,7 +89,12 @@ type entity struct {
 	hp, maxHP      int32
 	facing         int32
 	anim           int32
-	alive          bool
+	// animHoldUntilTick is the `Battle.tick` value at which an open attack window ends:
+	// the AnimAttack tier stays set on every tick below it (set by holdAttackAnim, closed
+	// by stepAnimHold). Zero means no window is open, so the tier follows movement
+	// (walk/idle) or death as usual.
+	animHoldUntilTick int32
+	alive             bool
 
 	// deathReported is set by Snapshot once this casualty's death frame has
 	// actually been sent to the client (see compact): a dead entity stays in
@@ -170,8 +175,24 @@ func (e *entity) immovable() bool {
 	return e.Kind == KindBuilding || e.Kind == KindTower
 }
 
-// setAnim records the animation state for the snapshot.
-func (e *entity) setAnim(a int32) { e.anim = a }
+// setAnim records the animation state for the snapshot. A death frame closes any open
+// attack window: AnimDie must survive the window closing (see stepAnimHold).
+func (e *entity) setAnim(a int32) {
+	e.anim = a
+	if a == AnimDie {
+		e.animHoldUntilTick = 0
+	}
+}
+
+// setMoveAnim records the idle/walk tier unless an attack swing is still holding the
+// attack tier (see holdAttackAnim): finishing the swing outranks the movement pose, and
+// dropping it early would cut the swing off after a single frame.
+func (e *entity) setMoveAnim(a int32) {
+	if e.animHoldUntilTick > 0 {
+		return
+	}
+	e.anim = a
+}
 
 // faceToward points the entity at a point.
 //

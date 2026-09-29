@@ -146,6 +146,21 @@ namespace CR.View
         /// <summary>sprite 目录 → 帧段。</summary>
         public static readonly Dictionary<string, Entry> Table = new Dictionary<string, Entry>
         {
+            // building_basic_cannon_out（表目录名 building_basic_cannon）
+            // ⚠️ 本条**不是**为了画帧（四档全 `Known=false`），而是为了**放开工炮排期**：原版
+            //   `building_basic_cannon_v215.sc` 的 4 条动画记录（clip 40/41/42/43）**全是 19 帧 / 30fps /
+            //   唯一 shape 名都是 `turret`**，没有任何 idle / attack 语义可分 ⇒ 帧段**不臆造**
+            //   （加农炮本体由 `BuildingLayerTable` 的层配方画静态帧，登记见 `策划/对照表.md`）。
+            //   但没有这条表项时，`BattleViewRoot` 的开火排期会在 `Table.TryGetValue(dir)` 处 `continue`
+            //   ⇒ 加农炮**开炮时连炮弹弹道都不播**（玩家只看到目标掉血 + 受击闪光）。
+            //   `HitSpeedMs` 取 `server/game/table/tsv/unit.tsv:26020048` 的 `hit_speed_ms=900`。
+            ["building_basic_cannon_out"] = new Entry { Dir = "building_basic_cannon_out", ScFps = 30, HitSpeedMs = 900, Tiers = new[]
+            {
+                new Clip { Known = false, Source = "" },   // idle 不可用（素材层无分段语义，见上）
+                new Clip { Known = false, Source = "" },   // walk 不可用（建筑不走）
+                new Clip { Known = false, Source = "" },   // attack 不可用（素材层无分段语义，见上）
+                new Clip { Known = false, Source = "" },   // die 不可用（素材层无分段语义，见上）
+            } },
             // building_inferno_tower_out（表目录名 building_inferno_tower）
             ["building_inferno_tower_out"] = new Entry { Dir = "building_inferno_tower_out", ScFps = 30, HitSpeedMs = 400, Tiers = new[]
             {

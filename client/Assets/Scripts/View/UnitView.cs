@@ -24,7 +24,8 @@ namespace CR.View
     /// 可**显式**推出。数据（每目录 4 档的帧号段表 + 来源 + 可用性）**全部落在 <see cref="UnitAnimTable"/>**
     /// （独立数据文件；出处 = `策划/单位帧段表.md` §3「可直接填 `UnitView.AnimRanges` 的四元组」）。本类只做三件事：
     /// ① 把该档的**帧号段表**（`UnitAnimTable.Clip.Runs`）经 <see cref="SpriteBank.FrameNumberMap"/>
-    /// 换算成**帧数组下标序列**（见 <see cref="ClipIndices"/>）；② 按档位帧率推进；
+    /// 换算成**帧数组下标序列**（见 <see cref="ClipIndices"/>）；② 把该档的帧序列 + 帧率 + 是否循环交给
+    /// 引擎逐帧动画器 <see cref="SpriteFrameAnimator"/>（帧计时 / 帧下标推进 / 播完停末帧 / 写 `sprite` 都在那里）；
     /// ③ 该档 `Known == false`（素材无此动画 / `.sc` 引用越界 shapeID）⇒ **回落整目录循环**。
     /// </para>
     /// <para>
@@ -312,17 +313,38 @@ namespace CR.View
             }
         }
 
-        /// <summary>当前档位的**帧下标序列**（null = 该档无可用帧段 ⇒ 整目录；见 <see cref="ClipIndices"/>）。</summary>
-        private int[] _clip;
-        /// <summary>在**当前档位内**的位置（0 起；`_clip == null` 时即整目录的下标）。</summary>
-        private int _pos;
+        /// <summary>
+        /// 引擎逐帧动画器（出处 = `clover-client-unity-engine/Runtime/Presentation/SpriteFrameAnimator.cs`）：
+        /// 帧表 + 档位帧下标切片 + 帧率 ⇒ 逐帧推进并写 `SpriteRenderer.sprite`。
+        /// <para>
+        /// 本类只给它**业务口径**（哪一档 / 哪个视角的帧序列、多少 fps、是否循环、何时换档），
+        /// 帧计时、帧下标推进、播完停末帧都是引擎件的机械动作。
+        /// </para>
+        /// <para>`Play` / `SwitchTo` / `SetFrame` 内部都已把该帧写进渲染器，**当帧生效**（不用等一个帧周期）。</para>
+        /// </summary>
+        private SpriteFrameAnimator _animator;
 
-        /// <summary>上一次**真正写进** `SpriteRenderer.sprite` 的帧下标（`-1` = 还没贴过）。见 <see cref="Update"/>。</summary>
-        private int _spriteIndex = -1;
+        /// <summary>`_spriteIndex` 的哨兵值：还没有任何一帧被本类补过附随状态（换宿主后必须重贴）。</summary>
+        private const int NotShown = int.MinValue;
 
-        private float _frameTimer;
+        /// <summary>
+        /// 上一次由本类补过附随状态（混合材质 / 占位图）的帧数组下标；`-1` = 无帧。
+        /// 用途同引擎动画器的"只在帧真的变了时写 `sprite`"：⛔ 不每帧写。
+        /// </summary>
+        private int _spriteIndex = NotShown;
+
         private int _anim = AnimIdle;
-        private bool _animDone;
+
+        /// <summary>
+        /// 本次攻击档播放期间，服务端是否已经请求过非攻击档（= 攻击窗口的**释放**）。
+        /// <para>
+        /// 服务端把一次挥砍编码成一段 `AnimAttack` 窗口，窗口之间必然夹着 walk/idle
+        /// （见 `server/game/core/combat.go` 的 `attackAnimHoldTicks`）⇒「出现过释放之后又来
+        /// AnimAttack」= **新的一刀**，必须从首帧重播。只靠 `anim != _anim` 判不出来：
+        /// 同一档的两次挥砍之间 `_anim` 一直是 `AnimAttack`。
+        /// </para>
+        /// </summary>
+        private bool _attackReleased;
         private int _lastHp = -1;
         private int _lastMaxHp = -1;
         private bool _barVisible = true;
@@ -332,7 +354,7 @@ namespace CR.View
         private int _viewStep = 4;
         /// <summary>是否已由**实际移动方向**定过朝向（false ⇒ 首帧用契约 `facing` 的左右兜底）。</summary>
         private bool _viewStepSet;
-        /// <summary>当前视角号（1..9）= `UnitAnimTable.StepToView[_viewStep]`；变号时必须重算 `_clip`。</summary>
+        /// <summary>当前视角号（1..9）= `UnitAnimTable.StepToView[_viewStep]`；变号时必须重算该视角的帧序列（见 <see cref="PlayTier"/> 与 <see cref="Apply"/>）。</summary>
         private int _viewNo = 5;
         /// <summary>最近一次**有效**移动方向（未归一化；站桩时保持上一次朝向）。</summary>
         private Vector2 _moveDir = new Vector2(1f, 0f);
@@ -459,6 +481,7 @@ namespace CR.View
                 _renderer.sortingOrder = ArenaLayers.Instance.Actor;
                 // 默认材质必须在**第一次写** `sharedMaterial` 之前记下来（见 `_rendererDefault`）。
                 _rendererDefault = SpriteBlendMaterial.RememberDefault(_renderer);
+                _animator = new SpriteFrameAnimator(_renderer);
             }
             // 血条：幂等创建（`WorldHpBar.Create` 内部已有则复用并更新参数）。
             if (_hpBar == null)
@@ -516,21 +539,22 @@ namespace CR.View
             WarnIfUnmapped(isBuilding, _spriteDir);
             AssertHpBarOrder();
 
-            // 归一档位/位置：档位帧序列由 ClipIndices 现算（帧号语义），位置一律从 0 起（= 该档首帧）。
+            // 归一档位：档位帧序列由 ClipIndices 现算（帧号语义），播放一律从该档首帧起（动画器 Play 内归零）。
             _anim = AnimIdle;
-            _animDone = false;
-            _frameTimer = 0f;
+            _attackReleased = false;
             // 换宿主必须把"已定朝向"复位 —— 新单位的第一帧还没有移动方向，
             // 否则会**继承上一个宿主的朝向**（池复用的静默串味）。
             _viewStep = 4;                     // 4 = 侧身朝右（φ=0°），此时不翻
             _viewStepSet = false;
             _hasMoveDir = false;
             _viewNo = UnitAnimTable.StepToView[_viewStep];
-            _clip = ClipIndices(_spriteDir, _anim, _viewNo);
-            _pos = 0;
+            // 上一宿主的档位推进不许再写这个渲染器（帧表可能已经被换掉）。
+            _animator?.Stop();
             // 复用时必须重新贴帧：`Release()` 会松开 sprite 引用（避免池长期持有），
             // 若这里不补回，第二次取用同一个 spriteDir 就会得到"看不见的单位"（无报错的静默失败）。
-            RefreshSprite();
+            _spriteIndex = NotShown;
+            PlayTier();
+            SyncSprite();
         }
 
         // ───────────────────────────── 每帧驱动 ─────────────────────────────
@@ -578,11 +602,23 @@ namespace CR.View
             // 契约 `facing` ∈ {-1, 1} 只作为"一次都还没动过"时的左右兜底（不翻）。
             if (UpdateFacing(moveDir, e.facing))
             {
-                // 转身只是**换角度**、不是换动作 ⇒ 保持 `_pos`（只夹到新序列长度内），
-                // ⛔ 不许把走路/攻击从头播（那会让转身看起来像"卡了一下"）。
-                _clip = ClipIndices(_spriteDir, _anim, _viewNo);
-                if (_clip != null && _clip.Length > 0) _pos = Mathf.Clamp(_pos, 0, _clip.Length - 1);
-                RefreshSprite();
+                // 无帧时动画器里可能还留着上一个宿主的帧表（池复用）⇒ 整段跳过，只让 SyncSprite 贴占位块。
+                if (HasFrames)
+                {
+                    // 转身只是**换角度**、不是换动作 ⇒ 换到新视角的帧序列后**保持档位内位置**
+                    //（只夹到新序列长度内），⛔ 不许把走路/攻击从头播（那会让转身看起来像"卡了一下"）。
+                    // "已播完"的状态也要一起带过去，否则攻击档会因这次换序列重新变成"在播"而再次扣住让位。
+                    var wasDone = AnimDone;
+                    var keep = _animator.FrameIndex;
+                    PlayTier();
+                    var length = _animator.ClipLength;
+                    if (length > 0)
+                    {
+                        _animator.SetFrame(Mathf.Clamp(keep, 0, length - 1));
+                        if (wasDone) _animator.Stop();   // 保留当前帧画面，只是不再推进
+                    }
+                }
+                SyncSprite();
             }
             if (_renderer != null) _renderer.flipX = UnitAnimTable.StepFlip(_viewStep);
 
@@ -596,17 +632,36 @@ namespace CR.View
             //   ② 当前档是 **attack 且还没播完** ⇒ 扣住不放（除 `AnimDie` —— 死亡无条件立即生效）；
             //   ③ 其余情况正常换档（换档当帧立刻贴新档首帧）。
             var anim = Mathf.Clamp(e.anim, AnimIdle, AnimDie);
-            var holdAttack = _anim == AnimAttack && !_animDone && anim != AnimDie;
-            if (anim != _anim && !holdAttack)
+            var holdAttack = _anim == AnimAttack && !AnimDone && anim != AnimDie;
+            if (anim == _anim)
+            {
+                // 同档请求：攻击档只有在**这一档期间出现过释放**（`_attackReleased`）时才重播。
+                // 服务端把一次挥砍编码成一段 AnimAttack 窗口、窗口之间必然夹着 walk/idle
+                // （见 `server/game/core/combat.go` 的 `attackAnimHoldTicks`）⇒ 释放之后又来
+                // AnimAttack = **新的一刀**。⛔ 不能只看 `anim != _anim`：同一档的两次挥砍之间
+                // `_anim` 一直是 `AnimAttack`，攻击段一旦比攻击间隔长（如弓箭手 1000ms 段 /
+                // 900ms 间隔），只看值变化会把每一刀都吞掉，单位看起来"不打"。
+                if (anim == AnimAttack && _attackReleased)
+                {
+                    _attackReleased = false;
+                    PlayTier();     // 从该档首帧重播
+                    SyncSprite();
+                }
+            }
+            else if (!holdAttack)
             {
                 _anim = anim;
-                // 换档必须**重算档位帧序列**并把位置归 0：否则会从上一档的残留位置继续播
+                _attackReleased = false;
+                // 换档**重算档位帧序列**并从首帧起播：否则会从上一档的残留帧继续播
                 //（现象 = "走路第 30 帧直接接攻击"），或按上一档的帧号序列取帧（档位帧号区间互不相同）。
-                _clip = ClipIndices(_spriteDir, _anim, _viewNo);
-                _pos = 0;
-                _frameTimer = 0f;
-                _animDone = false;
-                RefreshSprite();   // 换档当帧立刻贴新档首帧，不等计时器攒满一帧
+                PlayTier();
+                SyncSprite();
+            }
+            else
+            {
+                // 攻击档还没播完，服务端已经在请求 walk/idle ⇒ 扣住这一刀不打断（见上面的滞回规则），
+                // 但记下这次释放：之后到来的 AnimAttack 请求要判成新的一刀。
+                _attackReleased = true;
             }
 
             // 半透明（部署期）：原版落点后到 `deploy_time` 结束前是"未激活"表现。
@@ -666,35 +721,11 @@ namespace CR.View
         {
             // 按层配方渲染的建筑不逐帧换图（见 `BuildLayers`）：换图会把部件帧也播出来。
             if (_layers != null) return;
-            if (_frames == null || _frames.Length <= 1) return;
-            if (_animDone) return;
-
-            var count = ClipCount();
-            if (count <= 1) return;
-
-            var fps = FpsFor(_spriteDir, _anim, _viewNo);
-            if (fps <= 0f) return;   // 0 = 该档"静止帧（不播）"（收录目录的 idle，见 FpsFor 出处）
-            _frameTimer += Time.deltaTime * fps;
-            while (_frameTimer >= 1f)
-            {
-                _frameTimer -= 1f;
-                _pos++;
-                if (_pos >= count) AdvanceEnd();
-            }
-
-            // ⛔ **只在帧真的变了时**写 `_renderer.sprite`（不是每帧无条件写）。
-            //   两个理由：① 每帧赋同一个 Sprite 也会让 SpriteRenderer 每帧重建渲染数据，
-            //   486 帧的目录上纯属浪费；② 无条件写会**掩盖"帧其实没动"**，自检时看不出来。
-            //   判据用"贴上去的实际下标"（`_spriteIndex`）而不是"本帧是否推进过" ——
-            //   换档时 `Apply()` 会把 `_pos` 归 0，那一下也必须立刻贴回首帧，
-            //   否则会继续显示上一档的残留帧直到计时器攒满一帧（现象 = "走路第 30 帧直接接攻击"）。
-            var idx = SpriteIndexAt(_pos);
-            if (_renderer != null && _spriteIndex != idx && idx >= 0 && idx < _frames.Length)
-            {
-                _spriteIndex = idx;
-                _renderer.sprite = _frames[idx];
-                ApplyBlendMaterial(idx);
-            }
+            if (_animator == null || !HasFrames) return;   // 无帧：渲染器停在占位白块（见 `SyncSprite`）
+            // 帧计时 / 帧下标推进 / 播完停末帧全在引擎动画器里；`sprite` 也由它写
+            //（⛔ 只在帧真的变了时写，不是每帧无条件写）。
+            _animator.Advance(Time.deltaTime);
+            SyncSprite();
         }
 
         /// <summary>
@@ -707,6 +738,85 @@ namespace CR.View
             var mat = SpriteBlendMaterial.For(_spritePath,
                 SpriteBank.ParseFrameIndex(_frames[frameIndex].name), _rendererDefault);
             SpriteBlendMaterial.Set(_renderer, mat);
+        }
+
+        /// <summary>本视图是否有帧可放（`false` = 素材索引缺失，渲染器显示共享占位白块）。</summary>
+        private bool HasFrames { get { return _frames != null && _frames.Length > 0; } }
+
+        /// <summary>
+        /// 当前档位是否**已播完**（只对 `attack` / `die` 这类"播一次"的档位有意义）。
+        /// <para>
+        /// 判据 = 引擎动画器播一次到末帧后 <see cref="SpriteFrameAnimator.IsPlaying"/> 变 false
+        ///（见其 `Step()`）；循环档（`idle` / `walk`）恒为 `false`。
+        /// </para>
+        /// </summary>
+        private bool AnimDone
+        {
+            get { return _animator != null && !IsLoopTier(_anim) && !_animator.IsPlaying; }
+        }
+
+        /// <summary>`idle` / `walk` 循环播；`attack` / `die` 播一次停在末帧（让位规则见 <see cref="Apply"/>）。</summary>
+        private static bool IsLoopTier(int anim)
+        {
+            return anim == AnimIdle || anim == AnimWalk;
+        }
+
+        /// <summary>
+        /// 把**当前档位**（`_anim` + `_viewNo`）交给引擎逐帧动画器：帧表 = 整目录，帧下标切片 =
+        /// <see cref="ClipIndices"/>（帧号 → 下标换算见 <see cref="ResolveFrame"/>），帧率 = <see cref="FpsFor"/>。
+        /// <para>⛔ 每次调用都从该档首帧起播（引擎 `Play` 的语义）⇒ 只在换档 / 换视角 / "新的一刀"时调。</para>
+        /// <para>
+        /// ⛔ 不用引擎 `SpriteFrameAnimator.SwitchTo` 的两个理由（判据留在业务侧，动画器只负责播）：
+        /// ① 它的"同档不重播"会挡下**同一档位的第二次挥砍** —— 那是本项目必须从首帧重播的一刀，
+        /// 由 `_attackReleased` 判定（见 <see cref="Apply"/>）；② 它的"播一次未播完时扣住"这条本类
+        /// 还要额外放行 `AnimDie`（死亡无条件立即生效），口径比切片的"帧表 + 切片 + 帧率 + 循环"四元组更宽。
+        /// </para>
+        /// </summary>
+        private void PlayTier()
+        {
+            if (_animator == null || !HasFrames) return;
+            _animator.Play(_frames, ClipIndices(_spriteDir, _anim, _viewNo),
+                FpsFor(_spriteDir, _anim, _viewNo), IsLoopTier(_anim));
+        }
+
+        /// <summary>
+        /// 补上"引擎动画器不管、但渲染需要"的附随状态：该帧的原版混合材质（<see cref="SpriteBlendTable"/>）／
+        /// 无帧时的共享占位白块。<see cref="SpriteFrameAnimator"/> 只在帧真的变了时写
+        /// `SpriteRenderer.sprite`，本方法同理**只在显示的帧变了时**动手（⛔ 不每帧写）。
+        /// </summary>
+        private void SyncSprite()
+        {
+            if (_renderer == null) return;
+            var idx = DisplayedFrameIndex();
+            if (idx == _spriteIndex) return;
+            _spriteIndex = idx;
+            if (idx < 0)
+            {
+                // 无帧：引擎动画器对空帧表不写渲染器（见其 `Begin` 的空表分支）⇒ 这里贴占位白块，
+                // 免得留着上一个宿主的残留帧。
+                _renderer.sprite = FallbackSprite();
+                SpriteBlendMaterial.Set(_renderer, _rendererDefault);
+                return;
+            }
+            ApplyBlendMaterial(idx);
+        }
+
+        /// <summary>
+        /// 引擎动画器当前**显示的帧数组下标**（`-1` = 无帧可放）。
+        /// <para>
+        /// 用了帧切片时 <see cref="SpriteFrameAnimator.FrameIndex"/> 是**档位内位置**，要过切片
+        /// （<see cref="SpriteFrameAnimator.ClipIndices"/>）才是帧数组下标；没用切片时位置即下标。
+        /// </para>
+        /// </summary>
+        private int DisplayedFrameIndex()
+        {
+            if (_animator == null || !HasFrames) return -1;
+            var length = _animator.ClipLength;
+            if (length == 0) return -1;
+            var pos = Mathf.Clamp(_animator.FrameIndex, 0, length - 1);
+            var clip = _animator.ClipIndices;
+            var idx = clip != null ? clip[pos] : pos;
+            return idx >= 0 && idx < _frames.Length ? idx : -1;
         }
 
         /// <summary>朝向档切换的**滞回半宽**（单位 = 档；0.25 档 = 5.625°）—— 避免在档边界上左右跳。</summary>
@@ -729,7 +839,7 @@ namespace CR.View
         private const float FacingMinMoveTiles = 0.01f;
 
         /// <summary>
-        /// 由**窗口位移**更新朝向档；返回 `_viewNo` 是否变化（变化时调用方必须重算 `_clip`）。
+        /// 由**窗口位移**更新朝向档；返回 `_viewNo` 是否变化（变化时调用方必须把新视角的帧序列重新交给动画器）。
         /// <para>
         /// 算式（同引擎 `clover-client-unity-engine/Runtime/Presentation/UnitFacingMap.cs` 的 `StepForHeading`）：
         /// `φ = atan2(dy, dx)`（度，+x 起算、+y = 远离镜头）
@@ -853,22 +963,6 @@ namespace CR.View
             return frameNo;   // 没有映射表（理论上不会发生：调用前必已取过）⇒ 退化为恒等
         }
 
-        /// <summary>当前档位的帧数（`_clip == null` ⇒ 整目录帧数）。</summary>
-        private int ClipCount()
-        {
-            if (_clip != null && _clip.Length > 0) return _clip.Length;
-            return _frames == null ? 0 : _frames.Length;
-        }
-
-        /// <summary>档位内位置 → **帧数组下标**（`_clip == null` ⇒ 位置即下标）。</summary>
-        private int SpriteIndexAt(int pos)
-        {
-            if (_frames == null || _frames.Length == 0) return -1;
-            if (_clip != null && _clip.Length > 0)
-                return _clip[Mathf.Clamp(pos, 0, _clip.Length - 1)];
-            return Mathf.Clamp(pos, 0, _frames.Length - 1);
-        }
-
         /// <summary>档位名（日志/断言用）。</summary>
         private static string TierName(int anim)
         {
@@ -879,22 +973,6 @@ namespace CR.View
                 case AnimAttack: return "attack";
                 case AnimDie: return "die";
                 default: return "anim" + anim;
-            }
-        }
-
-        private void AdvanceEnd()
-        {
-            if (_anim == AnimDie || _anim == AnimAttack)
-            {
-                // 死亡：停在末帧（⛔ 不循环 —— 循环会让尸体反复站起来）。
-                // 攻击：**播完一遍就停在末帧**（配合 `Apply` 的滞回：攻击段没播完时不让位给 walk/idle，
-                //   否则"挥砍只播 1 帧就被走路打断"= 抽搐）。下一档请求到来时 `Apply` 会重置 `_animDone`。
-                _animDone = true;
-                _pos = Mathf.Max(0, ClipCount() - 1);
-            }
-            else
-            {
-                _pos = 0;
             }
         }
 
@@ -910,7 +988,7 @@ namespace CR.View
         /// 按 60 fps 播那 8 张只有 0.133 s，**快 4.75 倍** —— 现象就是"走起来在发抖"）。
         /// <para>兜底（分组表里查不到该 export / 目录未收录 / 帧数为 0）：idle = 不播（`0f`）、
         /// attack = 帧数 ÷ `hit_speed_ms`、walk/die = `.sc` 自带 FPS；再兜底 = <see cref="AnimFps"/>。
-        /// 单帧档无论时长多大都不会动（`Update` 里 `count &lt;= 1` 直接 return）。</para>
+        /// 单帧档无论时长多大都不会动（帧序列只有一帧，换帧无处可去）。</para>
         /// </summary>
         private static float FpsFor(string dir, int anim, int view)
         {
@@ -937,26 +1015,6 @@ namespace CR.View
         internal static void ClearClipCache()
         {
             ClipIndexCache.Clear();
-        }
-
-        /// <summary>把当前 <see cref="_pos"/> 对应的帧立刻写进 `SpriteRenderer`（换档 / 绑定归位时必须调）。</summary>
-        private void RefreshSprite()
-        {
-            if (_renderer == null) return;
-            var idx = SpriteIndexAt(_pos);
-            if (_frames != null && _frames.Length > 0 && idx >= 0)
-            {
-                _spriteIndex = idx;
-                _renderer.sprite = _frames[idx];
-                ApplyBlendMaterial(idx);
-            }
-            else
-            {
-                _spriteIndex = -1;
-                _renderer.sprite = FallbackSprite();
-                // 没有帧时不该留着上一档的混合材质；写回渲染器自带的默认材质（⛔ 不许写 null = 洋红）。
-                SpriteBlendMaterial.Set(_renderer, _rendererDefault);
-            }
         }
 
         // ───────────────────────────── 断言 / 留痕（各只报一次）─────────────────────────────

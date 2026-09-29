@@ -1138,17 +1138,20 @@ namespace CR
 
         /// <summary>
         /// 用途目录：落点范围指示（`effects_out` 里那两张范围图元）。目录里只有 2 帧：
-        /// f221（我方，白环）与 f294（敌方，红边盘）。
+        /// f221（我方，黑环）与 f294（敌方，暗红盘）。
         /// </summary>
         public const string EffectRangeRing = "RangeRing";
 
         /// <summary>
-        /// **我方**落点范围环：分组表 `:4777` `spell_radius` 帧列 `221`（外径 ≈124 px 的细白圆环）。
+        /// **我方**落点范围环：分组表 `:4777` `spell_radius` 帧列 `221`。
+        /// 图元本身是**黑环**（实测非透明像素 RGB 全为 0、alpha 均值 145/255）⇒ 想让它呈亮色必须走
+        /// 颜色变换的加项，顶点色 tint 乘不出亮色（见 `PlacementIndicator.SplashRingMaterial`）。
         /// </summary>
         public const int EffectRangeRingFriendly = 221;
 
         /// <summary>
-        /// **敌方**落点范围盘：分组表 `:4815` `Poison` 帧列 `294`（深色圆盘 + 红边 + 外圈刻度）。
+        /// **敌方**落点范围盘：分组表 `:4815` `Poison` 帧列 `294`（暗红圆盘 + 外圈刻度；
+        /// 实测非透明像素均值 RGBA≈(29,2,0,50)，最亮 (184,16,0)）。
         /// </summary>
         public const int EffectRangeRingHostile = 294;
 

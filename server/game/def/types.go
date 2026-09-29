@@ -144,4 +144,12 @@ type CardInfo struct {
 	// 一刀切 ⇒ 万箭齐发的圈画大了 2 倍多、雷电/毒药又画小了，玩家照着圈放会打空。
 	// 数值权威在服务端配表 ⇒ 由服务端算好下发，⛔ 客户端不许自造半径。
 	AoeRadiusMilli int32 `json:"aoe_radius_milli,omitempty"`
+
+	// DeployMs 是这张卡的**落位期**，单位 ms：单位从出现到可行动之间的时长。
+	// 取值 = `CardDef.DeployDelayMs`（`logic.unitDefOf` 搬自战斗单位表的 `deploy_ms` 列），
+	// 与服务端 `core.Battle.PlayCard` 生成单位时用的 deployMs 同源（`core/battle.go:235-239`）。
+	//
+	// 为什么要下发它：客户端在落点摆原版 `troopDeployTimer`，一圈必须等于该卡真实落位期；
+	// 写死一个秒数会在任一卡改 `deploy_ms` 后立刻对不上。法术卡无落位期 ⇒ 0。
+	DeployMs int32 `json:"deploy_ms,omitempty"`
 }

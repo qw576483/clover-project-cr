@@ -2,7 +2,7 @@ id	key	name_cn	name_en	type	rarity	elixir	arena	icon	sprite_dir	deploy_fx
 26010001	knight	骑士	Knight	0	0	3	0	card_knight	chr_knight_out	
 26010002	archers	弓箭手	Archers	0	0	3	0	card_archers	chr_archer_out	
 26010003	goblins	哥布林	Goblins	0	0	2	1	card_goblins	chr_goblin_out	
-26010004	spear-goblins	哥布林投矛手	Spear Goblins	0	0	2	1	card_spear-goblins	chr_goblin_out	
+26010004	spear-goblins	哥布林投矛手	Spear Goblins	0	0	2	1	card_spear-goblins	chr_goblin_archer_out	
 26010005	giant	巨人	Giant	0	1	5	0	card_giant	chr_giant_out	
 26010007	minions	亡灵	Minions	0	0	3	0	card_minions	chr_minion_out	
 26010010	witch	女巫	Witch	0	2	5	6	card_witch	chr_witch_out	

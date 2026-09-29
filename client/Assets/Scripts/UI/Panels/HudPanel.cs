@@ -695,6 +695,17 @@ namespace CR.UI.Panels
         // ── 拖放 ──
         private bool _dragging;
         private int _dragCardId;
+
+        /// <summary>
+        /// 跟着指针走的幽灵卡（面板根下的一张 <see cref="Image"/>，轴心居中于指针）。
+        /// <para>
+        /// <b>为什么不接引擎的跟随件</b>：`DragDropLayer` 的拖影与"UI 网格命中 / 落点判定"绑在同一个构造
+        /// （必填网格几何，缺省即降频告警），而本项目的落点是**世界平面**（相机投影 + 业务几何），
+        /// 不是 UI 格盘；`PointerFloatLayer` 的定位契约是"从指针右下展开 + 贴边镜像翻转"的 tooltip 口径，
+        /// 拖影必须**居中于指针**。两者都不覆盖，故这一块（节点 + 居中贴指针）自建，
+        /// 换算仍走引擎 `ScreenPointUtil`（见 <see cref="MoveGhost"/> 与 `引擎问题.md`）。
+        /// </para>
+        /// </summary>
         private Image _ghost;
 
         /// <summary>
@@ -1092,7 +1103,8 @@ namespace CR.UI.Panels
 
         private void BuildGhost()
         {
-            // 拖放幽灵卡：跟着指针走的小色块 + 卡名。**中性色**（不做合法/非法判定，见类注释）。
+            // 拖放幽灵卡：跟着指针走的一张卡面（`BeginDrag` 里把拖的那张卡的 `Sprite` 写进来）。
+            // 中性色（不做合法/非法判定，见类注释与 `_ghost` 的说明）。
             _ghost = UIFactory.CreatePanel("DragGhost", _root, GhostColor, false);
             // 锚点/轴心都放中心，位置在 `MoveGhost` 里直接写 `position`（世界坐标），不依赖 anchoredPosition 口径。
             UIFactory.Place(_ghost.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -1294,17 +1306,20 @@ namespace CR.UI.Panels
                 $"按下手牌被站点守卫拦住：当前站点 {station ?? "未初始化"}（仅 Battle 站点可拖放出牌）");
         }
 
-        /// <summary>指针落在哪个手牌槽位上；-1 = 不在任何手牌上。</summary>
+        /// <summary>
+        /// 指针落在哪个手牌槽位上；-1 = 不在任何手牌上。
+        /// <para>相机按**画布模式**取（<see cref="ScreenPointUtil.CameraForUi"/>：Overlay ⇒ null）——
+        /// 喂进场地相机会让命中恒为 false，现象是"按下手牌根本不进入拖放"（口径出处见 `Runtime/Core/ScreenPointUtil.cs`）。</para>
+        /// </summary>
         private int HitTestHand(Vector3 screen)
         {
-            var cam = UiPointConvertCamera();
             var point = new Vector2(screen.x, screen.y);
 
             for (var i = 0; i < HandSlots; i++)
             {
                 var card = _handCards[i];
                 if (card == null) continue;
-                if (RectTransformUtility.RectangleContainsScreenPoint(card.rectTransform, point, cam)) return i;
+                if (ScreenPointUtil.ContainsScreenPoint(card.rectTransform, point, this)) return i;
             }
             return -1;
         }
@@ -1369,12 +1384,11 @@ namespace CR.UI.Panels
         {
             if (_ghost == null || _root == null) return;
 
-            // 屏幕坐标 → **世界**坐标后直接写 `position`：这是 `RectTransformUtility` 专门为此提供的入口，
-            // 对 Overlay / Screen Space - Camera 两种画布都成立；⛔ 不自己拿 `anchoredPosition` 去凑
-            //（锚点/轴心口径不同会整体偏一次，且画布模式不同偏的量不一样）。
-            var cam = UiPointConvertCamera();
-            if (RectTransformUtility.ScreenPointToWorldPointInRectangle(
-                    _root, new Vector2(screen.x, screen.y), cam, out var world))
+            // 屏幕坐标 → **世界**坐标后直接写 `position`：对 Overlay / Screen Space - Camera 两种画布都成立；
+            // ⛔ 不自己拿 `anchoredPosition` 去凑（锚点/轴心口径不同会整体偏一次，且画布模式不同偏的量不一样）。
+            // 换算式（含"按画布模式取相机"这条口径）的唯一实现在
+            // `ScreenPointUtil.TryScreenToWorldInRect`（`Runtime/Core/ScreenPointUtil.cs`）。
+            if (ScreenPointUtil.TryScreenToWorldInRect(_root, new Vector2(screen.x, screen.y), this, out var world))
             {
                 _ghost.rectTransform.position = world;
             }
@@ -1434,42 +1448,28 @@ namespace CR.UI.Panels
         }
 
         /// <summary>
-        /// 屏幕坐标 → 世界坐标（格）。算法与引擎自带的 `IsoLayout.ScreenToWorldOnGround`
-        /// （`Runtime/Core/IsoLayout.cs:105-125`）**逐行同源**：正交相机下"到地面的深度"就是
-        /// `-camera.position.z`，少了它点击位置会整体偏移（引擎那里也为此打告警）。
-        /// 相机取 `UIFactory.UICamera()`（引擎给 UI 侧取相机的唯一入口）。
+        /// 屏幕坐标 → 世界坐标（格）。
+        /// <para>
+        /// 口径 = 正交相机下"到地面的深度"就是 <c>-camera.position.z</c>，退化为 0 时按 10 处理
+        /// （少了它点击位置会整体偏移、且不随鼠标移动）；**唯一实现**在
+        /// `ScreenPointUtil.TryScreenToGround`（`Runtime/Core/ScreenPointUtil.cs`，相机为 null / 非正交
+        /// 都按它自己的降频口径留痕）。相机取 `UIFactory.UICamera()`（引擎给 UI 侧取世界相机的入口）。
+        /// </para>
+        /// <para>⛔ 与 <see cref="HitTestHand"/> 那条换算**不是**一回事：那条要的是"屏幕 → 画布矩形"，
+        /// 相机按**画布模式**取（Overlay ⇒ null）；本条要的正是相机的投影。</para>
         /// </summary>
         private Vector2 TryScreenToWorld(Vector3 screen, out bool ok)
         {
+            if (ScreenPointUtil.TryScreenToGround(UIFactory.UICamera(),
+                    new Vector2(screen.x, screen.y), out var world))
+            {
+                ok = true;
+                return new Vector2(world.x, world.y); // z 丢掉：竞技场在地面平面 z=0 上
+            }
+
+            // 非预期分支（相机为 null，引擎件已降频留痕）：⛔ 不拿 (0,0,0) 当落点，宁可不发请求。
             ok = false;
-            var cam = UIFactory.UICamera();
-            if (cam == null)
-            {
-                // 只报一次（进程级）：引擎 `LogThrottle.WarnOnce`。
-                LogThrottle.WarnOnce(Tag, "hud.ui.camera.missing",
-                    "UIFactory.UICamera() 返回 null（主相机缺失且场景里没有启用的相机）：" +
-                    "拖放出牌的落点无法换算，⛔ 不发请求（宁可让玩家看到提示，也不发一个坐标错误的请求）");
-                return Vector2.zero;
-            }
-
-            if (!cam.orthographic)
-            {
-                // 非预期分支：竞技场相机应当是正交（`IsoLayout.ScreenToWorldOnGround` 的前提）。
-                // 留痕（现象是"落点随视角/距离漂移"，很难猜）。
-                LogThrottle.WarnOnce(Tag, "hud.ui.camera.nonortho",
-                    $"主相机 {cam.name} 不是正交相机，落点换算可能整体偏移（IsoLayout 的前提是正交）");
-            }
-
-            var depth = -cam.transform.position.z;
-            if (Mathf.Approximately(depth, 0f))
-            {
-                Game.Logger?.Warn(Tag, $"相机 z={cam.transform.position.z} 导致到地面距离为 0，按 10 处理（引擎同口径）");
-                depth = 10f;
-            }
-
-            var p = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, depth));
-            ok = true;
-            return new Vector2(p.x, p.y); // z 丢掉：竞技场在地面平面 z=0 上
+            return Vector2.zero;
         }
 
         // ───────────────────── 落点指示（与 View 层的唯一接缝） ─────────────────────
@@ -1557,36 +1557,6 @@ namespace CR.UI.Panels
             // `_dragArt` = 正在拖的那张卡的卡面 ⇒ 落点处画的是**这张卡本身**（半透明虚影），
             //   不是一个小图标。取不到卡面时传 null（宁可不画，⛔ 不用别的图形顶替）。
             view.ShowPlacement(tile, isSpell ? spellRadius : PlacementRadiusTilesDrop, isSpell, _dragArt);
-        }
-
-        /// <summary>
-        /// 屏幕点 ↔ 画布矩形/世界点 换算要用的相机。
-        ///
-        /// <para>
-        /// <b>为什么这么做</b>：常驻画布是
-        /// <c>ScreenSpaceOverlay</c>（引擎 `Runtime/Presentation/UI.cs:49`
-        /// `canvas.renderMode = RenderMode.ScreenSpaceOverlay`），其世界坐标<b>就是屏幕像素</b>。
-        /// 而 <see cref="RectTransformUtility"/> 收到<b>非空</b>相机时，会把屏幕点当成"相机视锥里的一个方向"
-        /// 再投到画布平面上 ⇒ 两者相差一次相机投影，判定<b>恒为 false</b>。
-        /// 实测（1080×1920 画布 + 正交半高 16 的竞技场相机，相机在 (0,0,-10)）：
-        /// 手牌槽 0 的卡面中心真屏幕点 =(214,221)，
-        /// <c>RectangleContainsScreenPoint(rect, (214,221), mainCam)=False</c>、
-        /// 传 <c>null</c> 时为 <c>True</c>；<c>HitTestHand((214,221))</c> 返回 <b>-1</b>
-        /// ⇒ 按下手牌<b>根本不进入拖放</b>（`_dragging` 恒 false），症状 = "卡牌拖不动 / 放不上战场"。
-        /// </para>
-        /// <para>
-        /// <b>⛔ 所以这里按画布模式取相机，不是"取一台相机就完事"</b>：
-        /// Overlay ⇒ <c>null</c>；ScreenSpaceCamera / WorldSpace 才用画布自己的 <c>worldCamera</c>。
-        /// 竞技场那边的"屏幕 → 格"换算（<see cref="TryScreenToWorld"/> /
-        /// `BattleViewRoot.ScreenToTile`）是<b>另一回事</b>：它要的正是相机的投影，仍用
-        /// <see cref="UIFactory.UICamera"/>（引擎 `UIWidgets.cs:189-195` 的官方入口）。
-        /// </para>
-        /// </summary>
-        private Camera UiPointConvertCamera()
-        {
-            var canvas = _root != null ? _root.GetComponentInParent<Canvas>() : null;
-            if (canvas == null || canvas.renderMode == RenderMode.ScreenSpaceOverlay) return null;
-            return canvas.worldCamera;
         }
 
         // ───────────────────────── 事件（OnOpen 挂 / OnClose 摘，成对） ─────────────────────────

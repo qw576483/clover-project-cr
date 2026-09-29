@@ -44,6 +44,28 @@ const (
 // Attack cycle
 // ---------------------------------------------------------------------------
 
+// attackAnimHoldTicks is how long the AnimAttack tier stays set after the tick whose
+// swing lands, counted in ticks.
+//
+// A swing is decided on exactly one tick, but the client only ever observes the
+// simulation through the snapshot stream, which runs at 10 Hz -- a project convention
+// (game/logic `snapshotEveryTicks = 2` at TicksPerSecond = 20, i.e. one snapshot every
+// 100 ms, pinned by GameConst.SnapshotIntervalMs on the client). A one-tick tier is
+// therefore invisible whenever the swing tick is not a snapshot tick, and the client
+// renders a unit that attacks forever without ever playing an attack animation.
+//
+// Two bounds fix the value:
+//
+//   - At least two snapshot periods (>= 4 ticks = 200 ms). Four consecutive ticks hold
+//     two even and two odd ticks, so on a 2-tick snapshot grid at least one snapshot of
+//     every swing falls inside the window regardless of phase.
+//   - Strictly below the unit's own hit_speed_ms. A window as long as the attack interval
+//     would merge consecutive swings into one unbroken AnimAttack run; the client restarts
+//     its attack clip on the rising edge of the tier (View/UnitView.Apply), so merged
+//     swings would each be played as a single attack. holdAttackAnim lowers the window
+//     for any unit whose hit speed is shorter than this constant.
+const attackAnimHoldTicks int32 = 4
+
 // pendingHit is a hit that has been *decided* this tick but not yet applied.
 type pendingHit struct {
 	attacker *entity
@@ -52,8 +74,9 @@ type pendingHit struct {
 }
 
 // advanceAttack advances one entity's attack cycle by one tick and returns the
-// hit it decided, if any.
-func advanceAttack(e *entity, target *entity) *pendingHit {
+// hit it decided, if any. `tick` is the battle tick this call belongs to (it fixes the
+// attack animation window, see holdAttackAnim).
+func advanceAttack(e *entity, target *entity, tick int32) *pendingHit {
 	loadTimeMs := e.Def.LoadTimeMs
 	hitSpeedMs := e.Def.HitSpeedMs
 	if hitSpeedMs < MSecPerTick {
@@ -77,8 +100,26 @@ func advanceAttack(e *entity, target *entity) *pendingHit {
 	e.st.loaded = true
 	e.st.cooldownMs = hitSpeedMs
 	e.swings++
-	e.setAnim(AnimAttack)
+	e.holdAttackAnim(tick)
 	return &pendingHit{attacker: e, target: target, damage: e.Def.Damage}
+}
+
+// holdAttackAnim raises the attack tier and opens its hold window (see
+// attackAnimHoldTicks): the tier stays set on ticks `[tick, tick+hold)`.
+//
+// The window is always strictly shorter than the entity's own hit speed, so two
+// consecutive swings are separated by at least one tick of walk/idle -- that gap is what
+// lets the client see each swing as its own attack.
+func (e *entity) holdAttackAnim(tick int32) {
+	hold := attackAnimHoldTicks
+	if ticks := TicksForMs(e.Def.HitSpeedMs); ticks > 0 && hold >= ticks {
+		hold = ticks - 1
+	}
+	if hold < 1 {
+		hold = 1
+	}
+	e.anim = AnimAttack
+	e.animHoldUntilTick = tick + hold
 }
 
 // applyHit lands a decided hit. Its target may already have died this tick.

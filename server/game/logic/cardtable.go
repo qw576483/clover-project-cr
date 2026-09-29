@@ -268,18 +268,14 @@ func (t *cardTable) UnitCount() int { return len(t.units) }
 //
 // 每张卡额外带 `projectile_key` + `proj_speed`（远程判定 + 弹道速度）：这两条是
 // 玩法规则（参考规格 §4 投射物），所以走 core.ProjectileOf，⛔ 不在本层写判定分支。
-// 法术卡再带 `aoe_radius_milli`（作用半径）：客户端拖出法术时要在落点画半径圈，
-// 半径必须等于真实作用范围（`spell.tsv` 的 `radius_mt`）—— 数值权威在配表，故由本层下发。
+// 再带 `aoe_radius_milli`（作用半径，见 cardAoeRadius）与 `deploy_ms`（落位期，见 cardDeployMs）：
+// 客户端拖放时要画半径圈、落位时要让计时件转一圈，两个尺寸都必须等于真实值
+// —— 数值权威在配表，故由本层算好下发。
 func (t *cardTable) cardPool() []def.CardInfo {
 	out := make([]def.CardInfo, 0, len(t.cardRows))
 	for _, row := range t.cardRows {
 		card := t.cards[int32(row.Id)]
 		projKey, projSpeed := core.ProjectileOf(t, card)
-		// 法术半径：只对法术卡有意义（`card.Spell` 为 nil 时留 0）。
-		var aoeRadius int32
-		if card != nil && card.Spell != nil {
-			aoeRadius = card.Spell.RadiusMilli
-		}
 		out = append(out, def.CardInfo{
 			ID:             int32(row.Id),
 			Key:            row.Key,
@@ -292,8 +288,46 @@ func (t *cardTable) cardPool() []def.CardInfo {
 			Icon:           row.Icon,
 			ProjectileKey:  projKey,
 			ProjSpeed:      projSpeed,
-			AoeRadiusMilli: aoeRadius,
+			AoeRadiusMilli: cardAoeRadius(t, card, projKey),
+			DeployMs:       cardDeployMs(card),
 		})
 	}
 	return out
+}
+
+// cardAoeRadius 取一张卡对外的**作用半径**（milli-tile），0 = 无范围作用。
+//
+// 法术卡 = 法术表的作用半径（`spell.tsv` 的 `radius_mt`，10 张各不相同）。
+// 部队 / 建筑卡 = 普攻溅射半径，两级取值：
+//  1. 卡自身行的 `aoe_radius_mt`（角色表的 `area_damage_radius`）—— 近战溅射走这条：
+//     瓦基丽武神 2000 / 黑暗王子 1100 / 超级骑士 1300；
+//  2. 为 0 时取其 `projectile_key` 指向的投射物行的 `aoe_radius_mt`（官方投射物表的
+//     `radius`）—— 法师 / 飞龙宝宝 / 女巫 / 炸弹兵 / 公主 / 火精灵 的溅射半径**只写在
+//     投射物行上**，卡行是 0，只读卡行会让这几张卡的溅射表现一个都出不来。
+func cardAoeRadius(t *cardTable, card *core.CardDef, projKey string) int32 {
+	if card == nil {
+		return 0
+	}
+	if card.Spell != nil {
+		return card.Spell.RadiusMilli
+	}
+	if u, ok := t.units[card.UnitKey]; ok && u != nil && u.AoeRadiusMilli > 0 {
+		return u.AoeRadiusMilli
+	}
+	if projKey == "" {
+		return 0
+	}
+	if p, ok := t.units[projKey]; ok && p != nil {
+		return p.AoeRadiusMilli
+	}
+	return 0
+}
+
+// cardDeployMs 取这张卡的落位期（ms）= `CardDef.DeployDelayMs`。
+// 客户端按它驱动落点处落位计时件的转一圈时长（一圈 = 一个真实落位周期）。
+func cardDeployMs(card *core.CardDef) int32 {
+	if card == nil {
+		return 0
+	}
+	return card.DeployDelayMs
 }

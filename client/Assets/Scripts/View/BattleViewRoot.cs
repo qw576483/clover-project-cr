@@ -29,52 +29,33 @@ namespace CR.View
     /// <b>所以与对局模块的接缝是：它只要把 `PushBattleSnapshot` 原样 `Emit(Events.Battle.Snapshot, snapshot)` 即可，
     /// ⛔ 不需要（也不该）为表现层做插值。</b>
     ///
-    /// <h4>三、插值：**渲染时钟按真实时间推进 + 窗口按时钟从快照历史里选**</h4>
-    /// 服务端 10 Hz、渲染 ~30~60 FPS，做法（四步，全部在 <see cref="TickRender"/> /
-    /// <see cref="RenderClockMs"/> / <see cref="SelectWindow"/>）：
-    /// <list type="number">
-    /// <item>渲染时钟 = <c>对齐点 + (Time.realtimeSinceStartup - 对齐时刻) × 1000</c> ——
-    ///   **它只按真实时间前进，收到快照时绝不重置**。它渲染的是"服务端时间轴上的哪一毫秒"。
-    ///   ⛔ 不写"每帧累加 `Time.deltaTime`"：那个值被 Unity 夹在 `Time.maximumDeltaTime`（默认 1/3 秒），
-    ///   一次卡顿就让时钟**永久落后**（实测 1915~2108ms），于是 <c>t</c> 恒为 0、单位冻住不动。</item>
-    /// <item>**速率走有界比例修正**：<c>rate = clamp(1 + (落后量 − 目标)/目标 × <see cref="LagSteerGain"/>,
-    ///   1 ± <see cref="LagSteerMaxRate"/>)</c>（稳态 ±5%），偏差超过 <see cref="CatchUpThresholdMs"/> 时
-    ///   放开到 <see cref="CatchUpMaxRate"/> 做有界追帧。<b>为什么必须常开</b>：位置的导数就是速度，
-    ///   所以校正绝不能"瞬跳时钟"（那会让单位前跳一大截）；但也**不能完全不校正** —— 一旦落后量涨到
-    ///   超过快照历史的覆盖范围，`SelectWindow` 就只能夹到最旧一对、<c>t</c> 恒为 0，
-    ///   **插值静默失效**（实测：7953 帧里 <c>t</c> 只有 3 帧取到中间值，其余非 0 即 1，
-    ///   单位实际是每 100 ms 跳一格）。5% 的速率调制只在那几秒存在（偏差衰减到 0 后速率自动回 1），
-    ///   换来的是插值永不失活。<b>为什么不用旧的 15% 档</b>：离线仿真里 15% 调制对应速度 cv 0.24~0.28。</item>
-    /// <item>**按渲染时钟**从 <c>HistSlots</c>（本项目 6 = 5 个间隔）格快照历史里选"夹住时钟的那一对"
-    ///   （<see cref="SelectWindow"/>），渲染落后**最新快照 2 个间隔**（<see cref="RenderLagIntervals"/>）：
-    ///   <list type="bullet">
-    ///   <item>手里始终多握一格快照 ⇒ 到达时刻抖 ±半个间隔也**推不动**正在渲染的窗口；</item>
-    ///   <item>换窗口的时刻由时钟跨过时间戳决定（不是包到达）⇒ 边界只在 <c>t=1</c> 那一刻跨过，
-    ///     而上一段的 <c>t=1</c> 与下一段的 <c>t=0</c> 是**同一个坐标** ⇒ 位置连续、速度恒定。</item>
-    ///   </list></item>
-    /// <item>比例 <c>t = Clamp01((_renderMs - prev.server_ms) / max(1, cur.server_ms - prev.server_ms))</c>，
-    ///   位置 <c>= Lerp(prevPos, curPos, t)</c>。分母是**两个快照自己的时间戳之差**（真实间隔），
-    ///   不是编译期常量。时钟跑到最新快照之后 ⇒ <c>t</c> 夹到 1（冻在最后一个已知位置，⛔ 不外推）。</item>
-    /// </list>
-    /// <b>分母与换窗口时刻的口径（两条都不是可有可无的）</b>：分母取**两个快照自己的时间戳之差**（真实间隔，
-    /// ⛔ 不写死 100 ms）；换窗口的时刻由**时钟**决定，⛔ 不绑在"包到达"上。
+    /// <h4>三、插值：整条时间轴链委托引擎件 <c>SnapshotInterpolator</c></h4>
+    /// 服务端 10 Hz、渲染 ~30~60 FPS 的「低频权威快照 → 高帧率插值表现」由引擎件
+    /// `CloverEngine.SnapshotInterpolator`（`clover-client-unity-engine/Runtime/Presentation/SnapshotInterpolator.cs`）
+    /// 承担：**渲染时钟推进 + 快照历史 + 插值窗口选择 + 有界比例速率修正**四件事全在它内部。
+    /// 本类只做三处接缝（见 <see cref="OnSnapshot"/> / <see cref="TickRender"/> / <see cref="ApplyEntities"/>）：
     /// <list type="bullet">
-    /// <item>若分母写死 100 ms 且**每收到一帧就把"当前帧到达时刻"重置** ⇒ `t` 每收一帧从 0 重来一次，
-    ///   上一次已插值到 t=0.6 的位置被整段丢弃 ⇒ **每收一帧前跳一次**。</item>
-    /// <item>若换窗口仍绑在"包到达"上（每收一帧就把 (<c>_prevIndex</c>, <c>_curIndex</c>) 换成最新一对）：
-    ///   换的瞬间时钟离窗口末端还差 0~1 帧，窗口末端那一小段位移被**塞进换窗口的那一帧**交付。
-    ///   <b>实测（同一台机器）</b>：<c>t</c> 最高只到 0.707
-    ///   （= 窗口从来没走完）、<c>RenderLagMs</c> 最大 119.5ms（**超过一个快照间隔**）、单帧速度在
-    ///   0.782~1.049 之间跳（cv 0.24，峰值比 1.23）—— 人眼看到的就是 10 Hz 的"哆嗦"。
-    ///   离线仿真：速率微调关掉（速率恒 1）但保留"到达驱动换窗口"⇒ 速度 cv 0.37~0.47；
-    ///   **按时钟选窗口 ⇒ 速度 cv 0.000、峰值比 1.000、零位移帧 0**。</item>
+    /// <item>收到快照 ⇒ `Interp.Push(s.server_ms, 载荷格)`：载荷是"一格 <c>id → EntitySnapshot</c> 字典"，
+    ///   由 <see cref="_freeSlots"/> 复用被挤出历史的那一格，⛔ 不每帧新建；</item>
+    /// <item>每帧 ⇒ <c>t = Interp.Tick()</c>；</item>
+    /// <item>摆单位 ⇒ 用 <c>t</c> 在 `Interp.WindowStartPayload` / `WindowEndPayload` 之间 Lerp，
+    ///   朝向基线读更早的格 `Interp.PayloadAt(0 .. HistoryLength-2)`。</item>
     /// </list>
-    /// <b>为什么不直接把快照坐标贴到 Transform</b>（⛔ 明令禁止）：那等于每 100 ms 瞬移一次，
-    /// 单位看起来是"一格一格跳"；而"显示服务端时间轴上稍早一点的位置"在联机对战里没有可感知代价
-    ///（对手看到的是同样的落后量），却把 10 Hz 变成视觉上的连续运动。
-    /// <b>代价（明知）</b>：画面比服务端晚 <see cref="RenderLagIntervals"/> 个间隔（本项目 200ms）。
-    /// 这是"绝不前跳"换来的代价，刻意如此：前跳会瞬间把单位推过头（甚至穿过墙）。
-    /// 允许多付的只是**秒级的 ±5% 速率微调**（把落后量自己走回 200ms），不是位置瞬跳。
+    /// <para>
+    /// <b>参数</b>（<see cref="InterpOptions"/>）：快照间隔取 <c>GameConst.SnapshotIntervalMs</c>（100 ms = 10 Hz）口径；
+    /// 历史 6 格、渲染落后最新快照 2 个间隔（= 抖动缓冲 200 ms）、稳态速率微调 ±5%、
+    /// 灾难级偏差时放开到 2× 真实时间做有界追帧。
+    /// </para>
+    /// <para>
+    /// ⛔ <b>不直接把快照坐标贴到 Transform</b>：那等于每 100 ms 瞬移一次，单位看起来是"一格一格跳"；
+    /// 而"显示服务端时间轴上稍早一点的位置"在联机对战里没有可感知代价（对手看到的是同样的落后量），
+    /// 却把 10 Hz 变成视觉上的连续运动。
+    /// </para>
+    /// <para>
+    /// <b>代价（明知）</b>：画面比服务端晚 2 个快照间隔（本项目 200ms）。这是"绝不前跳"换来的代价，
+    /// 刻意如此：前跳会瞬间把单位推过头（甚至穿过墙）。允许多付的只是**秒级的 ±5% 速率微调**
+    /// （把落后量自己走回 200ms），不是位置瞬跳。
+    /// </para>
     ///
     /// <h4>四、塔的状态与部署合法性</h4>
     /// 塔不在快照的 `entities` 里（`Def/ProtoDef.cs:143` 注释），由 `towers_a` / `towers_b` 报告；
@@ -147,10 +128,11 @@ namespace CR.View
         private const int DeployFxFirst = 119;
 
         /// <summary>
-        /// 落地表现时长（秒）。出处 = `策划/策划案/皇室战争参考规格.md:156`「落点后 `deploy_time`
-        /// （官方普遍 1000ms）才出现并可行动」⇒ 落地表现与部署延迟同长。
-        /// （该效果的自身时间轴长度 = 16 条 timeline ÷ 60 fps ≈ 0.267 s，见 `策划/单位动画分组表.md:5021`；
-        ///  因为 f119 是静止箭头，按自身 0.267 s 播会一闪而过，故取与 deploy 同长的 1 s。）
+        /// 落地表现时长的**兜底**秒数（正常路径取该卡下发的 `CardInfo.deploy_ms`，见 <see cref="DeploySecondsOf"/>）。
+        /// <para>出处 = `策划/策划案/皇室战争参考规格.md:156`「落点后 `deploy_time`（官方普遍 1000ms）
+        /// 才出现并可行动」，当前 20 张卡的 `deploy_ms` 全是 1000 ⇒ 兜底值与真实值同长。</para>
+        /// <para>该效果自身的时间轴长度 = 16 条 timeline ÷ 60 fps ≈ 0.267 s（见 `策划/单位动画分组表.md:5021`）；
+        /// 因为 f119 是静止箭头，按自身 0.267 s 播会一闪而过，故取与 deploy 同长的 1 s。</para>
         /// </summary>
         private const float DeployFxSeconds = 1.0f;
 
@@ -163,6 +145,15 @@ namespace CR.View
         /// </para>
         /// </summary>
         private const float DeployDedupeSeconds = 0.5f;
+
+        /// <summary>
+        /// 溅射范围环的**显示时长**（秒）。<b>本项目自定</b>：原版没有"溅射攻击画范围圈"这回事
+        /// （`策划/单位动画分组表.md` 的 effects 小节里没有该族的 export —— hit 档只有一条通用
+        /// `effect_Hit1`，那是一次命中闪光、不是范围展示）⇒ 没有帧列可换算时长。
+        /// 取 0.9 s：长到一眼能读出圈多大，短到不会与下一次挥砍叠在一起
+        /// （溅射卡里最快的一档 hit_speed 是炸弹兵 1800 ms）。差异登记见 `策划/对照表.md`。
+        /// </summary>
+        private const float SplashRingSeconds = 0.9f;
 
         /// <summary>部署期（`deploy_ms &gt; 0`）的透明度 —— 原版未激活单位是半透明的。</summary>
         public const float DeployAlpha = 0.55f;
@@ -198,15 +189,29 @@ namespace CR.View
 
         /// <summary>离开对局站点后仍收到对局推送：只 Warn 一次（⛔ 不刷屏）。</summary>
         private bool _staleAfterLeaveWarned;
-        private bool _hasPrev;
         private int _myTeam;
-        private int _snapshotCount;
 
         private GameObject _content;
         private Transform _unitRoot;
         private ArenaView _arena;
         private PlacementIndicator _indicator;
-        private PlacementIndicator _deployRing;  // 就位读条专用实例（与拖动环分开，见 ShowDeployRing）
+        /// <summary>
+        /// 就位读条（落位计时件）的**实例池**：一次出牌占一块、空闲回收（见 <see cref="AcquireDeployRing"/>）。
+        /// <para>
+        /// ⛔ 以前只有**一块**：后到的任何 spawn（含**敌方**出牌、召唤物）都会把那一块挪到自己的落点
+        /// 并把倒计时重起 ⇒ 玩家在自己落点看到"表转了好几圈才落地、和落地时间不符"。
+        /// 原版是**每个正在落位的单位各有一块**，故这里按出牌批次各占一块。
+        /// </para>
+        /// </summary>
+        private readonly PlacementIndicator[] _deployRings = new PlacementIndicator[DeployRingPoolSize];
+
+        /// <summary>
+        /// 落位表盘池容量。依据：落位期 = 该卡 `deploy_ms`（20 张卡**全是 1000 ms**）⇒ 一块表只占 1.0 s；
+        /// 一次出牌只起一块，故同屏同时存在的块数 ≈ 1 s 内落地的批次数（我方 + 敌方 + 召唤），
+        /// 实战最多两三块。取 **4** 留一倍余量；真超了由 <see cref="AcquireDeployRing"/> 复用最先到期的那块。
+        /// </summary>
+        private const int DeployRingPoolSize = 4;
+        private PlacementIndicator _splashRing;  // 溅射范围环专用实例（见 ShowSplashRing）
         private DeployAreaView _deployArea;   // 拖放时的不可放置区域显示（见 DeployAreaView）
         private EffectsView _effects;
         private BattleAudioView _audio;   // 对局音效（唯一挂点：见 Build；订阅 Core/Events.cs 的战斗事件）
@@ -224,6 +229,37 @@ namespace CR.View
 
         /// <summary>远程卡缺 `proj_speed`（&lt;=0）：只 Warn 一次。</summary>
         private bool _projSpeedMissingWarned;
+
+        /// <summary>卡池里查不到 `deploy_ms`（落位期）⇒ 落位计时件退回兜底秒数：只 Warn 一次。</summary>
+        private bool _deployMsMissingWarned;
+
+        /// <summary>溅射范围环实例缺失（进对局第一帧就命中 / 画面未建）：只 Warn 一次。</summary>
+        private bool _splashRingMissingWarned;
+
+        /// <summary>本局真的播出的溅射范围环次数（远程命中 + 近战溅射）。</summary>
+        private int _splashRingsShown;
+
+        /// <summary>本局其中属于**近战溅射**（瓦基丽武神 / 黑暗王子 / 超级骑士，无弹道）的次数。</summary>
+        private int _meleeSplashRings;
+
+        /// <summary>
+        /// 等待落点的溅射范围环（远程卡要等弹道飞完才到达 ⇒ 必须延迟）。
+        /// <para>
+        /// 为什么不在 <c>EffectsView</c> 上挂回调：那个类的对外契约是"播一段帧序列"，
+        /// 没有"播完通知"（改它的签名 = 改引擎侧公共件，不归本片）。这里按帧推进即可。
+        /// </para>
+        /// </summary>
+        private readonly List<PendingSplashRing> _pendingSplashRings = new List<PendingSplashRing>();
+
+        /// <summary>一条待落点的溅射范围环（见 <see cref="_pendingSplashRings"/>）。</summary>
+        private struct PendingSplashRing
+        {
+            public Vector2 Tile;
+            public float RadiusTiles;
+            public string CardKey;
+            public int SourceId;
+            public float LeftMs;   // 还要等多少毫秒才到落点
+        }
 
         /// <summary>本局已播的弹道条数（自检 / 验收用的日志计数）。</summary>
         private int _projectileShots;
@@ -365,6 +401,18 @@ namespace CR.View
         /// </summary>
         public int HitFxPlayed { get { return _hitFxPlayed; } }
 
+        /// <summary>
+        /// 本局真的播出的**溅射范围环**次数（远程弹道到达 + 近战溅射，两条触发路径合计）。
+        /// <para>取值条件 = 该卡的 `CardInfo.aoe_radius_milli &gt; 0`（无溅射的卡一次都不该有）。</para>
+        /// </summary>
+        public int SplashRingsShown { get { return _splashRingsShown; } }
+
+        /// <summary>本局其中属于**近战溅射**（无弹道，在攻击者位置画）的次数。</summary>
+        public int MeleeSplashRings { get { return _meleeSplashRings; } }
+
+        /// <summary>当前还在等落点（弹道未飞完）的溅射范围环条数。</summary>
+        public int SplashRingsPending { get { return _pendingSplashRings.Count; } }
+
         private int _deployFxPlayed;
 
         /// <summary>
@@ -386,8 +434,18 @@ namespace CR.View
         /// </summary>
         private BattleStartNotify _warmNotify;
 
-        /// <summary>最近一条落位标记所用的卡 id（同卡去重的键，见 <see cref="PlayDeploy"/>）。</summary>
+        /// <summary>最近一条落位标记所用的卡 id（"一次出牌"去重的键，见 <see cref="PlayDeploy"/>）。</summary>
         private int _lastDeployCardId;
+
+        /// <summary>
+        /// 最近一条落位标记所属的**阵营**（与 <see cref="_lastDeployCardId"/> 配对成同一把去重钥匙）。
+        /// <para>
+        /// 为什么要带阵营：去重窗口 0.5 s 内敌我可能先后落下**同一张卡**（同一个 `card_id`）
+        /// ⇒ 只看卡 id 会把敌方的那个误判成"我的后续单位"而吞掉它自己的落位环（应当画红色那半边）。
+        /// 初值 <see cref="int.MinValue"/> = 与任何真实阵营（0/1）都不相等 ⇒ 新的一局第一条 spawn 必不被去重。
+        /// </para>
+        /// </summary>
+        private int _lastDeployTeam = int.MinValue;
 
         /// <summary>最近一条落位标记的时刻（`Time.unscaledTime`，与 <see cref="DeployDedupeSeconds"/> 配对）。</summary>
         private float _lastDeployTime = -999f;
@@ -449,189 +507,80 @@ namespace CR.View
         /// <summary>`_lastShotMs` 的清理暂存（⛔ 不在遍历中改字典）。</summary>
         private readonly List<int> _shotPrune = new List<int>();
 
-        /// <summary>
-        /// **插值窗口（= 被渲染的那一对快照）**的起始索引。由 <see cref="SelectWindow"/> **按渲染时钟**
-        /// 从 <see cref="_idxHist"/> 里选出，⛔ 不是"每收到一帧就换一对"（见类注释三）。
-        /// </summary>
-        private Dictionary<int, EntitySnapshot> _prevIndex = new Dictionary<int, EntitySnapshot>();
-
-        /// <summary>插值窗口的结束索引（与 <see cref="_prevIndex"/> 同属 <see cref="_idxHist"/> 的两格）。</summary>
-        private Dictionary<int, EntitySnapshot> _curIndex = new Dictionary<int, EntitySnapshot>();
+        // ── 时间轴（渲染时钟 / 快照历史 / 插值窗口 / 速率修正）全部由引擎件持有，见类注释三 ──
 
         /// <summary>
-        /// 快照历史槽数（最旧 … 最新）。取 <b>6</b>：历史覆盖 <c>HistSlots-1 = 5</c> 个间隔（= 500 ms），
-        /// 而设计落后量只有 <see cref="RenderLagIntervals"/> = 2 个间隔（200 ms）⇒ 留 **3 个间隔**的余量。
+        /// 引擎快照插值器：渲染时钟、快照历史、插值窗口与速率修正都在它内部
+        /// （`clover-client-unity-engine/Runtime/Presentation/SnapshotInterpolator.cs`）。
         /// <para>
-        /// ⛔ 这个余量**不是**可有可无的冗余，而是"插值能不能活着"的硬边界：`SelectWindow` 要求时钟落在
-        /// 历史区间内；时钟一旦跑到最旧那一格之前，就只能夹到最旧的一对 ⇒ <c>t</c> 恒为 0
-        /// （= 位置按快照周期阶梯跳、**插值静默失效**）。实测（逐帧采样，7953 帧）：
-        /// <c>newest - renderMs</c> 稳定在 **417 ms**（= 4 个间隔），而 <c>HistSlots = 4</c> 只能覆盖
-        /// 3 个间隔 ⇒ 时钟整段跑在窗口之外，<c>t</c> 取值统计 = <b>0(5150 帧) / 1(2355 帧) / 中间值(仅 3 帧)</b>
-        /// ⇒ 单位实际是"每 100 ms 跳一格"= 人眼看到的"又飘又抖"。取 6 之后余量 500 ms > 实测漂移量。
-        /// </para>
-        /// <para>
-        /// 余量的**源头**（为什么时钟会漂到 4 个间隔）：`ServerNowMs` 靠"最新快照时间戳 + 到达后的真实时间"
-        /// 外推，进入对战那一刻服务端会把积压快照**成批**下发（实测 0.12 s 内 newest 从 300 跳到 2750），
-        /// 于是时钟相对服务端时间轴一下落后 2 个多间隔；若稳态速率微调被关掉（见类注释三·第 2 条），
-        /// 300 ms 以内不校正 ⇒ 这个落后量**永久留下**。因此余量（本行）与 <see cref="SteerRate"/>
-        /// 的稳态微调（让它自己走回 200 ms）两者都必须有。
+        /// ⛔ **只能惰性构造，不能在字段初始化 / 构造函数里 `new`**：引擎 ctor 会当场用默认时钟读一次
+        /// `Time.realtimeSinceStartup`（`SnapshotInterpolator.cs:807` 的 `Reset` ← `:495` 的 `DefaultClock`），
+        /// 而 Unity 禁止在 MonoBehaviour 构造 / 实例字段初始化期调用它 —— 抛 `UnityException` 会让
+        /// `AddComponent<BattleViewRoot>()` 整个失败（组件建不出来 ⇒ 对局视图永远不建）。
         /// </para>
         /// </summary>
-        private const int HistSlots = 6;
+        private SnapshotInterpolator _interp;
 
-        /// <summary>各历史槽的服务端时间戳（毫秒），下标 0 最旧、<c>HistSlots-1</c> 最新。</summary>
-        private readonly float[] _msHist = new float[HistSlots];
-
-        /// <summary>各历史槽的实体索引（<c>id → EntitySnapshot</c>），与 <see cref="_msHist"/> 一一对应。</summary>
-        private readonly Dictionary<int, EntitySnapshot>[] _idxHist =
+        /// <summary>取插值器（首次访问时才构造；构造前后所有读取都走这里，避免 NRE）。</summary>
+        private SnapshotInterpolator Interp
         {
-            new Dictionary<int, EntitySnapshot>(),
-            new Dictionary<int, EntitySnapshot>(),
-            new Dictionary<int, EntitySnapshot>(),
-            new Dictionary<int, EntitySnapshot>(),
-            new Dictionary<int, EntitySnapshot>(),
-            new Dictionary<int, EntitySnapshot>()
+            get
+            {
+                if (_interp == null) _interp = new SnapshotInterpolator(InterpOptions);
+                return _interp;
+            }
+        }
+
+        /// <summary>
+        /// 插值器参数：快照间隔取 <c>GameConst.SnapshotIntervalMs</c>（本项目 100ms = 10 Hz）口径；
+        /// 历史 6 格（覆盖 5 个间隔 = 500ms，比 200ms 目标落后量多 3 个间隔余量）、
+        /// 渲染落后最新快照 2 个间隔、稳态速率微调 ±5%、灾难级偏差放开到 2× 真实时间。
+        /// </summary>
+        private static readonly SnapshotInterpolatorOptions InterpOptions = new SnapshotInterpolatorOptions
+        {
+            SnapshotIntervalMs = GameConst.SnapshotIntervalMs,
+            ExpectedRenderFps = 60f,
+            HistSlots = 6,
+            RenderLagIntervals = 2f,
+            LagSteerGain = 0.05f,
+            LagSteerMaxRate = 0.05f,
+            CatchUpMaxRate = 1f,
+            CatchUpThresholdIntervals = 3f,
+            ServerNowExtrapCapIntervals = 2f,
+            ClockMaxLeadIntervals = 1f,
         };
 
-        /// <summary>已填充的历史槽数（≤ <see cref="HistSlots"/>；首帧为 1）。</summary>
-        private int _histLen;
-
-        // ── 插值的时间轴：全部以**服务端时间戳**（`BattleSnapshot.server_ms`）为单位 ──
-
         /// <summary>
-        /// **被渲染的那一对快照**的起始时间戳（毫秒）。由 <see cref="SelectWindow"/> 按渲染时钟选出，
-        /// ⛔ 不等于"最新收到的快照"（见类注释三：换窗口由时钟决定，不由包到达决定）。
+        /// 历史载荷（`id → EntitySnapshot`）的空闲槽：被插值器挤出历史的那一格回收进来复用，
+        /// ⛔ 不每次推快照都新建字典。
         /// </summary>
-        private float _prevMs;
+        private readonly Queue<Dictionary<int, EntitySnapshot>> _freeSlots = new Queue<Dictionary<int, EntitySnapshot>>();
 
-        /// <summary>**被渲染的那一对快照**的结束时间戳（毫秒）。</summary>
-        private float _currMs;
+        /// <summary>当前仍在插值器历史里的载荷槽（队首 = 最早的那一格，也就是下一次推入时被挤出的那一格）。</summary>
+        private readonly Queue<Dictionary<int, EntitySnapshot>> _liveSlots = new Queue<Dictionary<int, EntitySnapshot>>();
 
         /// <summary>
-        /// **最新收到的快照**的服务端时间戳（毫秒）。与 <see cref="_prevMs"/><see cref="_currMs"/>"被渲染的一对"
-        /// 区分开：渲染落后它是 1~2 个间隔（= 抖动缓冲）。`ServerNowMs` 由它外推。
+        /// 空窗口时的占位载荷：插值器还没选出一对窗口时 `WindowEndPayload` 为 null，
+        /// 直接 `foreach` 会 NRE —— 这里给一个恒空的只读替身（遍历它自然什么都不做）。
         /// </summary>
-        private float _newestMs;
+        private static readonly Dictionary<int, EntitySnapshot> EmptySnapshotIndex = new Dictionary<int, EntitySnapshot>();
 
         /// <summary>
-        /// 渲染时钟（毫秒）：**它渲染的是"服务端时间轴上的哪一毫秒"**。
-        /// 由"对齐点 + 真实时间 × 速率"算出（见 <see cref="RenderClockMs"/>），
-        /// **快照到达时绝不重置**（按到达时刻重置会让每收一帧前跳一次）。
-        /// `NaN` = 还没对齐过（首个快照到达时对齐一次）。
+        /// 渲染时钟相对"服务端现在"的目标落后量（= <see cref="InterpOptions"/> 的 2 个快照间隔 = 200ms）。
+        /// 离线探针（`tools/probes/FlowProbe.SimulateController`）按名读它。
         /// </summary>
-        private float _renderMs = float.NaN;
-
-        /// <summary>时钟对齐点：该真实时刻（<see cref="_clockBaseReal"/>）对应的服务端时间轴毫秒值。</summary>
-        private float _clockBaseMs;
-
-        /// <summary>时钟对齐点：`Time.realtimeSinceStartup`（秒）。</summary>
-        private float _clockBaseReal;
+        public static float TargetLagMs { get { return InterpOptions.TargetLagMs; } }
 
         /// <summary>
-        /// **当前快照的到达时刻**（`Time.realtimeSinceStartup`，秒）。
-        /// 用途：把阶梯状的 `_currMs` 外推成**连续的**"服务端现在"（见 <see cref="ServerNowMs"/>）。
-        /// </summary>
-        private float _arrivalReal;
-
-        /// <summary>
-        /// 时钟相对真实时间的**速率**（常态 = 1）。
-        /// 只在"落后太多"时被临时抬高（≤ <see cref="CatchUpMaxRate"/>）做**平滑追帧**。
-        /// </summary>
-        private float _clockRate = 1f;
-
-        /// <summary>
-        /// 速率控制律（**纯函数**，便于离线断言 —— 见 `tools/probes/FlowProbe.SimulateController`）：
-        /// 输入"时钟相对目标的偏差"（<c>目标值 - 时钟现值</c>，正 = 时钟落后了要加速），输出时钟该跑多快。
-        /// <list type="bullet">
-        /// <item>偏差 ≤ <see cref="CatchUpThresholdMs"/>：±<see cref="LagSteerMaxRate"/>（5%）之内**按比例**
-        ///   微调（人眼无感），偏差越小修正越小、归零则速率回 1；</item>
-        /// <item>偏差超过阈值：放开到 <see cref="CatchUpMaxRate"/>（落后太多时追赶、超前时放慢）。</item>
-        /// </list>
-        /// ⛔ 调用方必须**每帧都调**（<see cref="TickRender"/> 第 ② 步）—— 见类注释三·第 2 条。
+        /// 速率控制律（转发引擎件 <c>SnapshotInterpolator.SteerRate</c>）：输入"时钟相对目标的偏差"
+        /// （<c>目标值 - 时钟现值</c>，正 = 时钟落后了要加速），输出时钟该跑多快。
+        /// 偏差 ≤ 追帧阈值时在 ±5% 内按比例微调，超过阈值则放开到 <see cref="InterpOptions"/> 的追帧档。
+        /// 离线探针（`tools/probes/FlowProbe.SimulateController`）按名读它。
         /// </summary>
         public static float SteerRate(float lagErrorMs)
         {
-            if (Mathf.Abs(lagErrorMs) > CatchUpThresholdMs)
-                return lagErrorMs > 0f ? 1f + CatchUpMaxRate : 1f - CatchUpMaxRate * 0.5f;
-            return Mathf.Clamp(1f + lagErrorMs / Mathf.Max(1f, TargetLagMs) * LagSteerGain,
-                1f - LagSteerMaxRate, 1f + LagSteerMaxRate);
+            return SnapshotInterpolator.SteerRate(lagErrorMs, InterpOptions);
         }
-
-        /// <summary>是否正在做灾难级追赶（只用来"进入/退出各报一次"，⛔ 不刷屏）。</summary>
-        private bool _catchingUp;
-
-        /// <summary>「渲染时钟掉出快照历史」告警的去重标志（进入掉窗报一次、回到窗内复位）。</summary>
-        private bool _outOfWindowWarned;
-
-        /// <summary>
-        /// 追帧阈值：落后服务端超过这么多毫秒就把速率放开到 <see cref="CatchUpMaxRate"/>。
-        /// 取 3 个快照间隔（300ms）—— ⛔ 它**只是"放开档位"的界线，不是"要不要校正"的开关**：
-        /// 300ms 以内同样在按比例校正（±5%），否则时钟会被成批到达的快照**永久**推到历史之外
-        /// （见 <see cref="HistSlots"/> 与 <see cref="TickRender"/> 的实测说明）。
-        /// </summary>
-        public const float CatchUpThresholdMs = 3f * GameConst.SnapshotIntervalMs;
-
-        /// <summary>
-        /// **渲染落后"最新快照"几个快照间隔**（= 抖动缓冲深度）。
-        /// <para>
-        /// 取 2（不是 1）：渲染的那一对快照是 <c>[s(k-2), s(k-1)]</c>、而手里已经握着 <c>s(k)</c>，
-        /// 于是"渲染窗口的末端"离最新快照还有**整整一个间隔**的余量 —— 到达时刻抖 ±半个间隔
-        /// 也推不动正在渲染的窗口。取 1 时窗口末端就是最新快照 ⇒ 每收一帧就换一对，
-        /// 换的那一刻时钟离窗口末端还有 0~1 帧 ⇒ 那一帧要交付"剩下的任意份额"（0~100% 的间隔位移）
-        /// ⇒ 实测速度 cv 0.24~0.28、峰值达均值 2.4 倍（= 用户看到的"抖动"）。
-        /// </para>
-        /// <para>
-        /// 代价（明知）：画面比服务端**晚两个间隔**（本项目 200ms）。联机对战里对手看到的是同样的
-        /// 落后量，而换来的是一条**严格匀速**的位置曲线（离线仿真：速度 cv 0.000、峰值比 1.000）。
-        /// </para>
-        /// </summary>
-        public const float RenderLagIntervals = 2f;
-
-        /// <summary>
-        /// 渲染时钟相对 <see cref="ServerNowMs"/> 的目标落后量 = <see cref="RenderLagIntervals"/> 个快照间隔。
-        /// 用途只剩"灾难级偏差的恢复判据"；稳态下**不参与速率控制**（见 <see cref="TickRender"/>）。
-        /// </summary>
-        public const float TargetLagMs = RenderLagIntervals * GameConst.SnapshotIntervalMs;
-
-        /// <summary>
-        /// 稳态速率控制的增益：<c>rate = 1 + (落后量 - 目标) / 目标 × Gain</c>。
-        /// <para>
-        /// 取 <c>0.05</c> = <see cref="LagSteerMaxRate"/> ⇒ 偏差恰好一个目标量（200 ms）时刚好到满偏 5%，
-        /// 偏差更小就**按比例**变小（20 ms ⇒ 0.5%）。⛔ 不取旧的 0.5 —— 那个值让任何 ≥60 ms 的偏差都
-        /// **直接顶到满偏**，等于"要么不动、要么一直 5%"，闭环变成开关式而非比例式。
-        /// </para>
-        /// </summary>
-        public const float LagSteerGain = LagSteerMaxRate;
-
-        /// <summary>
-        /// 稳态速率允许的偏离（±5%）。人眼对"整体快/慢 5%"没有感觉，但足以把时钟**平滑**拉回目标
-        /// （一阶收敛，时间常数 ≈ <c>目标量 / 满偏 = 200ms / 0.05 = 4 s</c>），⇒ 用**渐变**代替"瞬跳"
-        /// （瞬跳就是"抖"）。
-        /// <para>
-        /// ⛔ 不取 0.15 这一档：它在离线仿真里的速度 cv 是 0.24~0.28（"速率被调制 = 速度脉动"）；
-        /// 5% 档对应的速度调制是 2.2 格/s × 5% = 0.11 格/s，且**只在必要的那几秒存在**（收敛到目标后
-        /// 偏差→0 ⇒ 速率自动回到 1）。这一档换来的是"插值永不失效"。
-        /// </para>
-        /// </summary>
-        public const float LagSteerMaxRate = 0.05f;
-
-        /// <summary>
-        /// 追帧时时钟最多跑多快（1 = 最高 2× 真实时间）。
-        /// <para>
-        /// <b>为什么必须有追帧（这一条是"实测逼出来"的，不是设计洁癖）</b>：渲染时钟**只能停在**
-        /// 当前快照的时间戳上（<see cref="TickRender"/> 的夹取），而真实帧时间会被 Unity 夹在
-        /// `Time.maximumDeltaTime`（默认 1/3 秒）—— 实测数据里能看到 `dtMs=333.33` 这种被夹过的帧。
-        /// 一次 2 秒的卡顿只会让"累加式"时钟前进 333ms，于是它**永久落后**服务端 2000ms；
-        /// 此时 `t = (_renderMs - _prevMs) / span` 恒为 0 ⇒ **单位冻在原地不再前进**
-        ///（实测：改动后的第一次采集 `lagMs` 1915~2108ms、`t` 恒为 0.000 整整 16 秒）。
-        /// 结论：只夹取、不追帧 = 卡顿一次就永久冻住；所以必须有一条**有界、渐变**的追赶路径
-        ///（渐变而不是瞬跳 —— 瞬跳就是"抖"）。
-        /// </para>
-        /// </summary>
-        public const float CatchUpMaxRate = 1f;
-
-        /// <summary>时间戳非预期（缺失 / 不递增）只报一次，⛔ 不刷屏。</summary>
-        private bool _timeWarned;
 
         // 部署合法性用：敌我公主塔存活（顺序 = 左、右）
         private bool _enemyLeftAlive = true;
@@ -655,56 +604,48 @@ namespace CR.View
         /// <summary>落点指示器（HUD 拖放时用）。</summary>
         public PlacementIndicator Indicator { get { return _indicator; } }
 
-        /// <summary>已收到的快照数（自检用）。</summary>
-        public int SnapshotCount { get { return _snapshotCount; } }
+        /// <summary>此时是否已经有一对可插值的窗口（自检用）。</summary>
+        public bool HasWindow { get { return Interp.HasWindow; } }
+
+        /// <summary>已收到的有效快照数（丢帧不计；自检用）。</summary>
+        public int SnapshotCount { get { return Interp.SnapshotCount; } }
 
         /// <summary>当前活着的单位视图数（自检用）。</summary>
         public int LiveUnitCount { get { return _units.Count; } }
 
         /// <summary>
-        /// 渲染落后**正在渲染的那一对快照的末端**多少毫秒（`_currMs - _renderMs`，自检用）。
+        /// 渲染落后**正在渲染的那一对快照的末端**多少毫秒（= `Interp.RenderLagMs`，自检用）。
         /// <para>
         /// 判据：正常运行时应在 **[0, 一个快照间隔]** 之内波动（本项目 100 ms），
-        /// 且**永远 &gt;= 0**（负值 = 渲染跑到了服务端前面 = 外推，本类刻意不允许）。
-        /// 修好"到达驱动换窗口"之前，这个量实测 29.3..119.5（**超过一个间隔**）且 <c>t</c> 最高只到
-        /// 0.707（= 窗口没走完就换掉了）—— 那正是速度脉动。按时钟选窗口后 <c>t</c> 走满 0..1、
-        /// 本量恒在 [0, 一个间隔]。
+        /// 且**永远 &gt;= 0**（负值 = 渲染跑到了服务端前面 = 外推，引擎件刻意不允许）。
         /// </para>
         /// </summary>
-        public float RenderLagMs { get { return _currMs - _renderMs; } }
+        public float RenderLagMs { get { return Interp.RenderLagMs; } }
 
         /// <summary>
-        /// 渲染落后的**总**落后量 = 最新快照的时间戳 - 渲染时钟（自检用）。
-        /// 稳态应落在 <c>[一个间隔, RenderLagIntervals 个间隔]</c>（本项目 100~200 ms）——
-        /// 这多出来的那一个间隔就是**抖动缓冲**：它换掉了"到达时刻一抖就把窗口推走"。
+        /// 渲染落后的**总**落后量 = 最新快照的时间戳 - 渲染时钟（= `Interp.BufferLagMs`，自检用）。
+        /// 稳态应落在 <c>[一个间隔, 2 个间隔]</c>（本项目 100~200 ms）—— 多出来的那一个间隔就是
+        /// **抖动缓冲**：它换掉了"到达时刻一抖就把窗口推走"。
         /// </summary>
-        public float BufferLagMs { get { return _newestMs - _renderMs; } }
+        public float BufferLagMs { get { return Interp.BufferLagMs; } }
 
         /// <summary>**正在渲染的那一对**快照的起始时间戳（毫秒，自检用；0 = 还没有一对）。</summary>
-        public float WindowStartMs { get { return _prevMs; } }
+        public float WindowStartMs { get { return Interp.WindowStartMs; } }
 
         /// <summary>**正在渲染的那一对**快照的结束时间戳（毫秒，自检用；两者之差应 ≡ 服务端间隔）。</summary>
-        public float WindowEndMs { get { return _currMs; } }
+        public float WindowEndMs { get { return Interp.WindowEndMs; } }
 
         /// <summary>最新收到的快照的时间戳（毫秒，自检用）。</summary>
-        public float NewestSnapshotMs { get { return _newestMs; } }
+        public float NewestSnapshotMs { get { return Interp.NewestSnapshotMs; } }
 
-        /// <summary>渲染时钟当前速率（自检用）：常态 <c>1.0</c>，追帧中 &gt; 1.0（≤ <c>1 + CatchUpMaxRate</c>）。</summary>
-        public float ClockRate { get { return _clockRate; } }
+        /// <summary>渲染时钟当前速率（自检用）：常态 <c>1.0</c>，追帧中 &gt; 1.0（≤ 2×）。</summary>
+        public float ClockRate { get { return Interp.ClockRate; } }
 
         /// <summary>是否正在追帧（自检用）。</summary>
-        public bool CatchingUp { get { return _catchingUp; } }
+        public bool CatchingUp { get { return Interp.CatchingUp; } }
 
         /// <summary>当前插值比例 t（自检用；`NaN` = 还没到首帧）。</summary>
-        public float InterpRatio
-        {
-            get
-            {
-                if (_snapshotCount == 0 || float.IsNaN(_renderMs)) return float.NaN;
-                var span = Mathf.Max(1f, _currMs - _prevMs);
-                return _hasPrev ? Mathf.Clamp01((_renderMs - _prevMs) / span) : 1f;
-            }
-        }
+        public float InterpRatio { get { return Interp.InterpRatio; } }
 
         // ───────────────────────────── 建 / 拆 ─────────────────────────────
 
@@ -762,8 +703,11 @@ namespace CR.View
             if (_built && _content == null && _inBattle) Build();
 
             // 还没有画面或还没收到过快照：无事可做（`t` 也无从算起）。
-            if (!_built || _snapshotCount == 0) return;
+            if (!_built || Interp.SnapshotCount == 0) return;
             TickRender();
+
+            // 远程卡的溅射范围环要等弹道飞完才到落点 ⇒ 每帧推一下待落点队列（见 ShowSplashRing）。
+            ProcessPendingSplashRings();
         }
 
         private void Subscribe()
@@ -819,7 +763,8 @@ namespace CR.View
                     "这条 Warn 出现即说明 Build() 抢在场景加载之前跑过");
                 _arena = null;
                 _indicator = null;
-                _deployRing = null;
+                for (var i = 0; i < _deployRings.Length; i++) _deployRings[i] = null;
+                _splashRing = null;
                 _deployArea = null;
                 _unitRoot = null;
                 _cam = null;
@@ -838,9 +783,14 @@ namespace CR.View
             _unitRoot = units.transform;
 
             _indicator = PlacementIndicator.Create(_content.transform);
-            // 就位读条单独一个实例：两条链的生命周期不同（拖动 = 抬手才收；就位读条 = 倒计时到点自己收），
-            // 共用一个实例时后者的到点收会把前者收掉（区域显示同理由 `ShowPlacement` 与它并列存在）。
-            _deployRing = PlacementIndicator.Create(_content.transform);
+            // 就位读条按**池**建：两条链的生命周期不同（拖动 = 抬手才收；就位读条 = 倒计时到点自己收），
+            // 共用一个实例时后者的到点收会把前者收掉（区域显示同理由 `ShowPlacement` 与它并列存在）；
+            // 而**池化**还多解一层：多个出牌批次同时落位时各占一块、互不抢（见 AcquireDeployRing 的注释）。
+            for (var i = 0; i < _deployRings.Length; i++)
+                _deployRings[i] = PlacementIndicator.Create(_content.transform);
+            // 溅射范围环也单独一个实例：它是"事后回放一次命中范围"，与拖动环、落位计时件
+            // 三条链的触发源与生命周期都不同（见 ShowSplashRing）。
+            _splashRing = PlacementIndicator.Create(_content.transform);
             _deployArea = DeployAreaView.Create(_content.transform);
             _effects = EffectsView.Create(_content.transform); // 特效层（原版帧序列，见 ResPaths 特效区段）
             // 音效层（⛔ **唯一挂点**）：挂在 BattleContent 下 ⇒ 生命周期跟着对局画面走
@@ -861,8 +811,6 @@ namespace CR.View
             }
             ArenaView.SetupCamera(_cam);
 
-            _hasPrev = false;
-            _snapshotCount = 0;
             _overCapWarned = false;
             _projectileShots = 0;
             _casterOrigins = 0;
@@ -875,6 +823,7 @@ namespace CR.View
             _casterFallbackWarned = false;
             _deployFxPlayed = 0;
             _lastDeployCardId = 0;
+            _lastDeployTeam = int.MinValue;
             _lastDeployTime = -999f;
             _deployDupeSkipped = 0;
             _battleShots = 0;
@@ -897,23 +846,11 @@ namespace CR.View
             _shotPrune.Clear();
             _prevHp.Clear();
             _curHp.Clear();
-            // 时间轴归零：`_renderMs = NaN` ⇒ 新的一局会在首个快照上重新对齐一次服务端时间戳。
-            _prevMs = 0f;
-            _currMs = 0f;
-            _newestMs = 0f;
-            _histLen = 0;
-            for (var i = 0; i < HistSlots; i++)
-            {
-                _msHist[i] = 0f;
-                _idxHist[i].Clear();
-            }
-            _renderMs = float.NaN;
-            _clockBaseMs = 0f;
-            _clockBaseReal = Time.realtimeSinceStartup;
-            _clockRate = 1f;
-            _arrivalReal = Time.realtimeSinceStartup;
-            _catchingUp = false;
-            _timeWarned = false;
+            // 时间轴归零：插值器复位 ⇒ 新的一局在首个快照上重新对齐一次服务端时间戳；
+            // 载荷槽一并回收（`resetWarnOnce` ⇒ 每局都能重新留一次非预期分支的痕）。
+            Interp.Reset(resetWarnOnce: true);
+            _freeSlots.Clear();
+            _liveSlots.Clear();
             // 「本场画面还没开过局」：⛔ 不清 ⇒ 同一场景连开下一局时被判成"同一局"，塔的阵亡态与快照时钟
             // 都不会重置（见 `OnBattleStarted`）。上面那组时间轴字段同时归零 ⇒ 新局 `server_ms` 从 0 重走。
             _matchRoomId = null;
@@ -943,15 +880,17 @@ namespace CR.View
 
             _arena = null;
             _indicator = null;
-            _deployRing = null;
+            for (var i = 0; i < _deployRings.Length; i++) _deployRings[i] = null;
+            _splashRing = null;
             _deployArea = null;
             _effects = null;
             _audio = null;
             _unitRoot = null;
             _cam = null;
-            for (var i = 0; i < HistSlots; i++) _idxHist[i].Clear();
-            _histLen = 0;
-            _hasPrev = false;
+            _pendingSplashRings.Clear();
+            Interp.Reset();
+            _freeSlots.Clear();
+            _liveSlots.Clear();
             _warmNotify = null;         // 画面已拆 ⇒ 那份待预热（见 WarmBattleSprites）没有落点了
             _built = false;
             if (_subscribed) Game.Logger?.Info(LogTag, "对局表现层已拆（出图）");
@@ -1019,8 +958,8 @@ namespace CR.View
             // ⇒ 本组件不重建，而这两样东西都是**每局唯一**的、必须归零的：
             //   ① `ArenaView.TowerView` 的阵亡终态锁（`ArenaView._destroyed` 置位后不清零）会把新局
             //      "塔满血存活"的快照挡掉 ⇒ 塔体各层仍隐藏、废墟层仍亮（= 塔还是死亡状态）；
-            //   ② 快照时钟（`_snapshotCount/_newestMs/_msHist/_histLen/_clockBaseMs`）还停在上局末尾，
-            //      而新局 `server_ms` 从 0 起 ⇒ `OnSnapshot` 的"时间戳没有前进 ⇒ 整帧丢弃"会把新局快照
+            //   ② 快照时钟（引擎插值器里的历史 / 最新时间戳 / 对齐点）还停在上局末尾，
+            //      而新局 `server_ms` 从 0 起 ⇒ `Interp.Push` 的"时间戳没有前进 ⇒ 整帧丢弃"会把新局快照
             //      一直丢到时间追上上一局（画面停在上局末帧）。
             // 判"新的一局"= `room_id` + `seed` 变化（服务端每局新建房间）；`_matchRoomId == null` = 本场画面
             // 还没开过局（`Build()` 里清），此时画面本来就是新建的，⛔ 不重建（否则每次进图白重建一次）。
@@ -1156,49 +1095,12 @@ namespace CR.View
             if (s == null) return;
             if (!_built) RebuildIfWanted("Events.Battle.Snapshot");
 
-            var first = _snapshotCount == 0;
-            var serverMs = s.server_ms;
-            if (serverMs <= 0)
-            {
-                // 非预期分支（协议字段缺失/为 0）：退化时间轴 = 按标称周期推定，并**留痕一次**。
-                // 退化的代价是节奏退化为固定 100ms，但画面依然不跳（时钟照旧只按真实时间走）。
-                if (!_timeWarned)
-                {
-                    _timeWarned = true;
-                    Game.Logger?.Warn(LogTag,
-                        $"快照 server_ms={serverMs}（<=0，字段缺失或未填）⇒ 插值时间轴退化为按标称周期 " +
-                        $"{GameConst.SnapshotIntervalMs}ms 推定；请检查服务端是否在快照里填了 server_ms（只报一次）");
-                }
-                serverMs = Mathf.RoundToInt(_newestMs) + GameConst.SnapshotIntervalMs;
-            }
-            else if (!first && serverMs <= _newestMs)
-            {
-                // 非预期分支（乱序 / 服务端时间没走）：**整帧丢弃**（⛔ 不入历史），只留痕一次。
-                // 为什么不入历史：历史必须**按时间戳单调**，否则 SelectWindow 的"找夹住时钟的一对"会选错。
-                if (!_timeWarned)
-                {
-                    _timeWarned = true;
-                    Game.Logger?.Warn(LogTag,
-                        $"快照时间戳没有前进（最新={_newestMs:F0} 本帧={serverMs}）⇒ 丢弃本帧（⛔ 不入插值历史）；" +
-                        "若持续出现说明服务端 server_ms 不是单调递增，或快照乱序（只报一次）");
-                }
-                return;
-            }
+            var first = Interp.SnapshotCount == 0;
 
-            // ── 入历史（窗口由一个 4 格环组成；**到达只入队，绝不改正在渲染的那一对**） ──
-            for (var i = 0; i < HistSlots - 1; i++)
-            {
-                var tmp = _idxHist[i];
-                _idxHist[i] = _idxHist[i + 1];
-                _idxHist[i + 1] = tmp;
-                _msHist[i] = _msHist[i + 1];
-            }
-            var slot = _idxHist[HistSlots - 1];
+            // 载荷格：优先复用已被挤出历史的那一格（⛔ 不每帧新建字典）。
+            var slot = _freeSlots.Count > 0 ? _freeSlots.Dequeue() : new Dictionary<int, EntitySnapshot>();
             slot.Clear();
             var list = s.entities;
-            // 留一份"最近实体名单"给塔开火事件用（事件通道不带目标，见 `_lastEntities` 的注释）。
-            // ⛔ 只存引用不拷贝：本类对它是只读的，拷贝反而每帧多一次分配。
-            _lastEntities = list;
             if (list != null)
             {
                 if (list.Length > MaxEntities && !_overCapWarned)
@@ -1214,29 +1116,30 @@ namespace CR.View
                     slot[e.id] = e;
                 }
             }
-            _msHist[HistSlots - 1] = serverMs;
-            if (_histLen < HistSlots) _histLen++;
-            _snapshotCount++;
 
-            // ── 服务端时间戳 → 时间轴（★ 快照到达只做这一件事，⛔ 绝不碰 `_renderMs`） ──
-            _newestMs = serverMs;
-            // 记下这一帧快照的**到达时刻**：`ServerNowMs` 靠它把阶梯状的时间戳外推成连续时间轴。
-            _arrivalReal = Time.realtimeSinceStartup;
+            // 时间轴 / 单调性 / `server_ms<=0` 的退化推定与留痕全由插值器负责（见 SnapshotInterpolator.Push）：
+            // 到达只入历史，⛔ 不重置渲染时钟、⛔ 不换正在渲染的窗口。
+            if (!Interp.Push(s.server_ms, slot))
+            {
+                _freeSlots.Enqueue(slot);   // 未入历史 ⇒ 这一格仍空闲
+                return;
+            }
+            _liveSlots.Enqueue(slot);
+            // 历史已装满 ⇒ 队首那一格刚被挤出，回收复用。
+            if (_liveSlots.Count > Interp.Options.HistSlots) _freeSlots.Enqueue(_liveSlots.Dequeue());
+
+            // 留一份"最近实体名单"给塔开火事件用（事件通道不带目标，见 `_lastEntities` 的注释）。
+            // ⛔ 只存引用不拷贝：本类对它是只读的，拷贝反而每帧多一次分配。
+            _lastEntities = list;
 
             // 施法者进快照了 ⇒ 把挂起的出牌弹道补播（起点 = 施法者实体坐标，见 ResolvePendingCasterShots）。
             ResolvePendingCasterShots();
             if (first)
             {
-                // 渲染时钟**只在首帧对齐一次**：对齐到"服务端现在 - 目标落后量"，
-                // 于是从第一帧起就落在 **2 个间隔前**那一对快照之间，不会先贴到最新再被推回去。
-                _clockBaseMs = _newestMs - TargetLagMs;
-                _clockBaseReal = Time.realtimeSinceStartup;
-                _clockRate = 1f;
-                _catchingUp = false;
-                _renderMs = _clockBaseMs;
                 Game.Logger?.Info(LogTag,
-                    $"渲染时钟已对齐：server_ms={_newestMs:F0} - 目标落后 {TargetLagMs:F0}ms（{RenderLagIntervals:F0}×{GameConst.SnapshotIntervalMs}ms，" +
-                    $"= 抖动缓冲）= 时钟起于 {_clockBaseMs:F0} seq={s.seq}（只在首帧对齐一次；此后快照到达只入历史，⛔ 不重置时钟、⛔ 不换正在渲染的窗口）");
+                    $"渲染时钟已对齐：server_ms={Interp.NewestSnapshotMs:F0} - 目标落后 {Interp.Options.TargetLagMs:F0}ms" +
+                    $"（{Interp.Options.RenderLagIntervals:F0}×{GameConst.SnapshotIntervalMs}ms = 抖动缓冲）= 时钟起于 {Interp.RenderClockMs:F0} seq={s.seq}" +
+                    "（只在首帧对齐一次；此后快照到达只入历史，⛔ 不重置时钟、⛔ 不换正在渲染的窗口）");
             }
 
             ApplyTowers(s);
@@ -1361,14 +1264,18 @@ namespace CR.View
             if (_effects == null) return;
             var world = GameConst.MilliToWorld(e.x_milli, e.y_milli);
 
-            // ① 落位计时件：落点处摆原版 `troopDeployTimer`，时长 = 落位期。多单位卡片的若干条 `EvSpawn`
-            //    落在同一窗口内 ⇒ 看起来是一个连续的计时（每条事件都把倒计时重起，见 ShowDeployRing）。
-            ShowDeployRing(WorldToTile(world), 1f, DeployFxSeconds, e.team != _myTeam);
-
-            // ② 绿色落地标记：**按一次出牌去重**。`EvSpawn` 是逐单位发的（一张 3 单位的卡 = 3 条事件），
-            //    而玩家看到的是"这张卡在就位"这一枚标记 —— 逐单位各画一枚就成了"每个单位头上一个绿点"。
-            //    ⛔ 只影响标记的重复绘制，不影响任何实体生成（单位一律以快照为准）。
+            // ① 落位计时件 + ② 绿色落地标记：**共用同一把"一次出牌"去重钥匙**。
+            //    `EvSpawn` 是逐单位发的（一张 3 单位的卡 = 3 条事件；召唤物也是同父卡 id 的一条条 spawn），
+            //    而原版玩家看到的是"这张卡在就位"的**一枚**标记 + **一个**只转一圈的计时件。
+            //
+            //    ⛔ 曾经把计时件摆在这道去重**之前** ⇒ 每一条 `EvSpawn`（**不分敌我、不分卡**）都把那个
+            //    全局唯一的 `_deployRing` 的倒计时**重起**、并把它挪到该条 spawn 的落点 ⇒ 玩家看到
+            //    「转好几圈才落地、和实际落地时间不符合」。2026-09-29 复证：同一窗口内 15:44:49 我方
+            //    加农炮与 15:44:53 敌方火枪手各把表盘重起一次，**两次都是单单位卡** ⇒ 与"多单位卡同窗口"
+            //    无关，是任意 spawn 都生效。
+            //    钥匙里含**阵营**：敌我同卡在 0.5 s 内先后落下时，敌方的那个仍要画自己的环（红了半边）。
             var sameCard = e.card_id == _lastDeployCardId
+                           && e.team == _lastDeployTeam
                            && Time.unscaledTime - _lastDeployTime < DeployDedupeSeconds;
             if (sameCard)
             {
@@ -1379,7 +1286,14 @@ namespace CR.View
                 return;
             }
             _lastDeployCardId = e.card_id;
+            _lastDeployTeam = e.team;
             _lastDeployTime = Time.unscaledTime;
+
+            // ① 落位计时件：落点处摆原版 `troopDeployTimer`，扫过片走完一圈 = 该卡**真实**的落位期
+            //    （`EvSpawn` 就是单位出现的时刻，服务端此刻把 `deploy_ms` 记在实体上）。
+            ShowDeployRing(WorldToTile(world), 1f, DeploySecondsOf(e.card_id), e.team != _myTeam);
+
+            // ② 绿色落地标记：一枚（理由见上）。⛔ 只影响标记的重复绘制，不影响任何实体生成（单位一律以快照为准）。
 
             var before = _effects.SpawnedTotal;
             _effects.PlayHold(world, DeployFxDir, DeployFxFirst, EffectsView.WorldSize, DeployFxSeconds);
@@ -1388,6 +1302,119 @@ namespace CR.View
                 $"出牌落地特效：ent={e.entity_id} team={e.team} card={e.card_id} " +
                 $"落点=({world.x:F2},{world.y:F2}) 帧=f{DeployFxFirst}（{DeployFxDir}）定格={DeployFxSeconds:F2}s " +
                 $"本局累计：落位={_deployFxPlayed} 去重={_deployDupeSkipped}");
+        }
+
+        /// <summary>
+        /// 这张卡的**落位期**（秒）= 服务端随卡池下发的 `CardInfo.deploy_ms / 1000`。
+        /// <para>
+        /// 这就是单位从出现（`EvSpawn` 那一刻）到可行动之间的时长 —— 服务端 `core.Battle.PlayCard`
+        /// 生成该单位时把它记在实体的 `deployMsLeft` 上（`core/battle.go:235-239`），
+        /// 所以落位计时件走完一圈的时刻 = 单位可行动的时刻。
+        /// 卡池还没到 / 该行没下发 ⇒ 退回 <see cref="DeployFxSeconds"/> 并留痕一次。
+        /// </para>
+        /// </summary>
+        private float DeploySecondsOf(int cardId)
+        {
+            CardInfo card;
+            if (_cards.TryGetValue(cardId, out card) && card != null && card.deploy_ms > 0)
+                return card.deploy_ms / 1000f;
+            if (!_deployMsMissingWarned)
+            {
+                _deployMsMissingWarned = true;
+                Game.Logger?.Warn(LogTag,
+                    $"卡 {cardId} 的 CardInfo.deploy_ms 取不到（卡池还没到 / 该行没下发）⇒ 落位计时件退回兜底 " +
+                    $"{DeployFxSeconds:F2}s（**不是该卡真实落位期**，只报一次）");
+            }
+            return DeployFxSeconds;
+        }
+
+        /// <summary>
+        /// 溅射范围展示 —— 在落点画一个半径圈，半径 = 该卡下发的作用半径
+        /// （`CardInfo.aoe_radius_milli / 1000` 格）。只对 `aoe_radius_milli &gt; 0` 的卡生效。
+        /// <para>
+        /// <b>为什么要有它</b>：服务端对溅射卡在**命中点**按 `Def.AoeRadiusMilli` 结算溅射
+        /// （近战 `server/game/core/combat.go:96-98`、投射物落点 `core/battle.go:568-574`），
+        /// 而客户端此前只有"被打者身上一下命中闪光"（<see cref="PlayHitFx"/>）⇒ 玩家看不出这一击的范围。
+        /// </para>
+        /// <para>
+        /// <b>两条触发路径</b>（与服务端那两条一一对应）：
+        /// ① 远程弹道**到达**落点 —— 弹道要先飞完，所以按飞行时长延迟（见 <see cref="ScheduleSplashRing"/>）；
+        /// ② 近战溅射 —— 没有弹道可挂，就在攻击者自己的位置画（见 <see cref="PlayBattleShot"/>）。
+        /// </para>
+        /// <para>
+        /// <b>半径的权威在服务端</b>：法师 / 飞龙宝宝 / 女巫 / 炸弹兵 的溅射半径只写在**投射物行**上
+        /// （`unit.tsv` 的 `aoe_radius_mt`），卡行是 0 ⇒ 服务端 `logic.cardAoeRadius` 按
+        /// "卡行 &gt; 0 取卡行，否则取投射物行"算好下发，⛔ 客户端不自造也不拿常量兜底。
+        /// </para>
+        /// <para>
+        /// <b>已知近似</b>：实体的 `card_id` 是**卡**的 id，被召唤出来的子单位（女巫的骷髅、小屋的哥布林）
+        /// 沿用父卡的 id（服务端 `spawnGroup(… e.CardID …)`），而协议没有"这是哪个召唤物"的字段
+        /// ⇒ 这些子单位会按父卡的半径画圈。差异登记见 `策划/对照表.md`。
+        /// </para>
+        /// </summary>
+        private void ShowSplashRingAt(Vector2 tile, float radiusTiles, string cardKey, int sourceId, bool melee)
+        {
+            if (_splashRing == null)
+            {
+                if (!_splashRingMissingWarned)
+                {
+                    _splashRingMissingWarned = true;
+                    Game.Logger?.Warn(LogTag,
+                        "溅射范围环的渲染实例不存在（对局画面未建 / 进对局第一帧就命中）⇒ 本次不画（只报一次）");
+                }
+                return;
+            }
+            _splashRing.ShowTimed(tile, radiusTiles, SplashRingSeconds);
+            _splashRingsShown++;
+            if (melee) _meleeSplashRings++;
+            // 数值类证据 = 运行时日志行（圆心格坐标 / 半径格数 / 时长 / 层级 / 哪条触发路径）。
+            Game.Logger?.Info(LogTag,
+                $"溅射范围环：card={cardKey} 来源 ent={sourceId} 触发={(melee ? "近战溅射" : "远程弹道到达")} " +
+                $"落点=({tile.x:F2},{tile.y:F2})格 半径={radiusTiles:F2}格 显示={SplashRingSeconds:F2}s " +
+                $"层级={PlacementIndicator.SplashRingOrder}(单位层上界={ArenaLayers.Instance.ActorOrderMax} 血条层={ArenaLayers.Instance.Overlay}) " +
+                $"本局累计：溅射环={_splashRingsShown}（近战={_meleeSplashRings}）");
+        }
+
+        /// <summary>
+        /// 近战溅射：在**攻击者自己的位置**画半径圈（服务端没有弹道，命中点就是攻击者面前，
+        /// 客户端拿不到精确命中点 ⇒ 取攻击者位置，差异同 <see cref="ShowSplashRingAt"/> 的"已知近似"）。
+        /// </summary>
+        private void ShowMeleeSplashRing(Vector2 attackerWorld, CardInfo card, int sourceId)
+        {
+            if (card == null || card.aoe_radius_milli <= 0) return;   // 无溅射的卡：一次都不画
+            ShowSplashRingAt(WorldToTile(attackerWorld), card.aoe_radius_milli / 1000f, card.key, sourceId, true);
+        }
+
+        /// <summary>
+        /// 排一次**延迟**的溅射范围环：远程卡的弹道要走完飞行段才到落点，所以到点才画。
+        /// 半径 &lt;= 0 的卡（无溅射）直接不排。
+        /// </summary>
+        private void ScheduleSplashRing(Vector2 landingWorld, CardInfo card, int sourceId, float flightSeconds)
+        {
+            if (card == null || card.aoe_radius_milli <= 0) return;
+            _pendingSplashRings.Add(new PendingSplashRing
+            {
+                Tile = WorldToTile(landingWorld),
+                RadiusTiles = card.aoe_radius_milli / 1000f,
+                CardKey = card.key,
+                SourceId = sourceId,
+                LeftMs = Mathf.Max(0f, flightSeconds) * 1000f,
+            });
+        }
+
+        /// <summary>推待落点的溅射范围环队列（每帧一次，见 <see cref="ScheduleSplashRing"/>）。</summary>
+        private void ProcessPendingSplashRings()
+        {
+            if (_pendingSplashRings.Count == 0) return;
+            var dtMs = Time.unscaledDeltaTime * 1000f;
+            for (var i = _pendingSplashRings.Count - 1; i >= 0; i--)
+            {
+                var p = _pendingSplashRings[i];
+                p.LeftMs -= dtMs;
+                if (p.LeftMs > 0f) { _pendingSplashRings[i] = p; continue; }
+                _pendingSplashRings.RemoveAt(i);
+                ShowSplashRingAt(p.Tile, p.RadiusTiles, p.CardKey, p.SourceId, false);
+            }
         }
 
         /// <summary>
@@ -1507,7 +1534,8 @@ namespace CR.View
         /// `target_entity_id` 的事件（⛔ 客户端不改服务端协议）。
         /// </para>
         /// </summary>
-        /// <returns>真的播出去了才返回 true（用于记录该实体的下一次开火时刻）。</returns>
+        /// <returns>真的播出去了才返回 true（用于记录该实体的下一次开火时刻）——
+        /// 远程卡=播出了弹道，近战溅射卡=画出了范围环；普通近战恒为 false。</returns>
         private bool PlayBattleShot(EntitySnapshot attacker, EntitySnapshot[] all, Vector2 from)
         {
             if (_effects == null) return false;
@@ -1523,7 +1551,17 @@ namespace CR.View
                 }
                 return false;
             }
-            if (string.IsNullOrEmpty(card.projectile_key)) return false; // 近战：服务端直接 applyHit，没有弹道
+            // 近战溅射（瓦基丽武神 / 黑暗王子 / 超级骑士）：服务端在挥砍命中后按 `Def.AoeRadiusMilli`
+            // 溅射（`server/game/core/combat.go:96-98`），这一步**没有弹道**可挂 ⇒ 直接在攻击者位置画圈。
+            // ⚠️ 触发用调用方算好的 `due` 而不是 `anim == 2` 的上升沿：`anim` 是**状态**不是边沿
+            // （服务端每次挥砍都置 2、站桩时不动它，见 TrackCombatSignals 的注释）⇒ 只看上升沿
+            // 会漏掉后续每一次挥砍。返回 true 是为了让调用方记下这次开火时刻，否则下一帧还会重进这里。
+            if (string.IsNullOrEmpty(card.projectile_key))
+            {
+                if (card.aoe_radius_milli <= 0) return false;   // 普通近战：无溅射，行为与改动前一致
+                ShowMeleeSplashRing(from, card, attacker.id);
+                return true;
+            }
             if (card.proj_speed <= 0) return false;                     // 无速度 ⇒ 算不出飞行时长
 
             var target = NearestEnemy(all, attacker);
@@ -1555,6 +1593,10 @@ namespace CR.View
                 $"从攻击者位置=({from.x:F2},{from.y:F2}) 飞向最近敌方 ent={target.id} =({to.x:F2},{to.y:F2}) " +
                 $"距离={dist:F2}格 飞行={seconds:F3}s 图元={fx.Use} f{fx.First}..f{fx.First + fx.Count - 1}（{fx.Count} 帧）" +
                 $" 本局累计={_battleShots}");
+
+            // 溅射范围展示：这条弹道**到达**落点（= 目标位置）时，在落点画该卡的作用半径圈
+            //（延迟 = 这段飞行时长；无溅射的卡在 ScheduleSplashRing 里被拦掉）。
+            ScheduleSplashRing(to, card, attacker.id, seconds);
             return true;
         }
 
@@ -1588,7 +1630,7 @@ namespace CR.View
                 }
                 return;
             }
-            var shown = _arena.TryActivateKingTower(e.x_milli, e.y_milli, e.team, (int)_currMs, out tx, out ty);
+            var shown = _arena.TryActivateKingTower(e.x_milli, e.y_milli, e.team, (int)Interp.WindowEndMs, out tx, out ty);
             if (!shown)
             {
                 // 幂等分支：同一座塔的重复激活事件（服务端 `arm` 只认第一次，但事件可能重发）
@@ -1667,7 +1709,7 @@ namespace CR.View
             //   ⇒ 补亮炮塔层。判据是"它开火了"：服务端只让已激活的国王塔参战
             //   （`server/game/core/tower.go` 的 `canFight` / `battle.go` 的 `stepAttacks`）⇒ 这个推断必然成立。
             float atx, aty;
-            if (_arena != null && _arena.TryActivateKingTower(e.x_milli, e.y_milli, e.team, (int)_currMs, out atx, out aty))
+            if (_arena != null && _arena.TryActivateKingTower(e.x_milli, e.y_milli, e.team, (int)Interp.WindowEndMs, out atx, out aty))
             {
                 _towerActivatedShown++;
                 Game.Logger?.Info(LogTag,
@@ -1919,7 +1961,7 @@ namespace CR.View
                     ProjectileKey = card.projectile_key,
                     ProjSpeed = card.proj_speed,
                     Landing = landing,
-                    GiveUpMs = _newestMs + CasterWaitMs,
+                    GiveUpMs = Interp.NewestSnapshotMs + CasterWaitMs,
                 });
                 Game.Logger?.Info(LogTag,
                     $"出牌弹道：card={e.card_id} key={card.projectile_key} 施法者 ent={e.entity_id} 还没进快照 ⇒ " +
@@ -2004,7 +2046,7 @@ namespace CR.View
                     PlayCasterFlight(p.CardId, p.ProjectileKey, p.ProjSpeed, caster, p.Landing, true, p.EntityId);
                     continue;
                 }
-                if (_newestMs < p.GiveUpMs) continue;
+                if (Interp.NewestSnapshotMs < p.GiveUpMs) continue;
 
                 _pendingCasterShots.RemoveAt(i);
                 _casterTimedOut++;
@@ -2051,7 +2093,8 @@ namespace CR.View
         {
             EntitySnapshot best = null;
             var bestSq = 0f;
-            foreach (var kv in _curIndex)
+            var cur = Interp.WindowEndPayload as Dictionary<int, EntitySnapshot> ?? EmptySnapshotIndex;
+            foreach (var kv in cur)
             {
                 var c = kv.Value;
                 if (c == null || c.team != team || c.hp <= 0) continue;
@@ -2087,229 +2130,29 @@ namespace CR.View
 
         // ───────────────────────────── 每帧渲染 ─────────────────────────────
 
-        /// <summary>
-        /// 渲染时钟的当前值（毫秒，服务端时间轴口径）：
-        /// <c>对齐点 + (真实时间 - 对齐时刻) × 1000 × 速率</c>。
-        /// <para>
-        /// ⛔ **不用"每帧累加 `Time.deltaTime`"的写法**：`Time.deltaTime` 被 Unity 夹在
-        /// `Time.maximumDeltaTime`（默认 1/3 秒），一次 2 秒卡顿只推进 333 ms ⇒ 时钟**永久落后**
-        ///（实测 `lagMs` 1915~2108 且 `t` 恒为 0 = 单位冻住）。用绝对真实时间算就与卡顿无关。
-        /// </para>
-        /// </summary>
-        private float RenderClockMs
-        {
-            get { return _clockBaseMs + (Time.realtimeSinceStartup - _clockBaseReal) * 1000f * _clockRate; }
-        }
+        // 渲染时钟推进 / 快照历史 / 插值窗口选择 / 有界比例速率修正 / 时钟超前上限，全在引擎件
+        // 插值器 `Interp`（`SnapshotInterpolator`）内部，并各自带「只报一次」的留痕（见类注释三）。
+        // 本类只保留一处接缝：每帧 Tick 一次拿 `t`，再用它摆单位（见 TickRender / ApplyEntities）。
 
         /// <summary>
-        /// **连续**的"服务端现在"（毫秒）：把**最新**快照的时间戳按"它到达后过了多少真实时间"外推，
-        /// 但外推量**有上限** <see cref="ServerNowExtrapCapMs"/>。
-        /// <para>
-        /// 用途只剩"灾难级偏差的恢复判据"（见 <see cref="TickRender"/> 第 ② 步）：
-        /// 时钟的**稳态推进不引用它**，于是到达时刻的抖动（网络抖动、编辑器卡顿）不会通过它
-        /// 调制渲染速度 —— 那正是"速度脉动"的传播路径，已实测（离线仿真：速率被 ±15% 调制时
-        /// 速度 cv 0.24~0.28，而速率恒 1 时 cv 0.000）。
-        /// </para>
-        /// <para>
-        /// <b>为什么必须给外推封顶</b>：快照**停推**（对局结束 / 断线 /
-        /// 服务端不再发）之后，下面是"`_newestMs` + 无限外推"，于是"服务端现在"**一直往前走**，
-        /// 渲染时钟就跟着它跑飞 —— 实测 `newest − renderMs` 中位数 = **−50785 ms**（时钟比最新快照
-        /// **超前 50.8 s**；时钟表里 12902 行有 **7891 行 `t` 被夹成 1.0**）。一旦快照恢复，
-        /// 时钟要按 ±5% 的速率把 50 s 的偏差拉回来要上千秒 ⇒ 那段时间单位全部冻在最后一帧。
-        /// 封顶后"没有新数据就不许发明时间"：停推时停在"最新 + 1 个间隔"，恢复到目标落后量的
-        /// 偏差只有几百毫秒，比例修正 1~2 秒内就收敛。
-        /// </para>
-        /// </summary>
-        private float ServerNowMs
-        {
-            get
-            {
-                var extrap = (Time.realtimeSinceStartup - _arrivalReal) * 1000f;
-                return _newestMs + Mathf.Min(extrap, ServerNowExtrapCapMs);
-            }
-        }
-
-        /// <summary>
-        /// "服务端现在"允许比最新快照**最多**超前多少毫秒（= 2 个快照间隔）。
-        /// 取 2 个间隔：正常的到达抖动（丢 1 个包 = 1 个间隔）必须能被外推吸收掉，
-        /// 而 ≥2 个间隔的沉默已经不是抖动、是"停推"，此时继续外推只会让时钟跑飞。
-        /// </summary>
-        private const float ServerNowExtrapCapMs = 2f * GameConst.SnapshotIntervalMs;
-
-        /// <summary>
-        /// 渲染时钟允许比**最新快照**最多超前多少毫秒（= 1 个快照间隔）。
-        /// 判据出处见 <see cref="TickRender"/> 第 ②′ 步：停推时时钟会一路跑飞（实测超前 50.8 s），
-        /// 而用 ±5% 速率把它拉回来要上千秒 ⇒ 单位长期冻住。取 1 个间隔 = 刚好够吸收"丢 1 个包"
-        /// 且不允许凭空多出更多"未来时间"。
-        /// </summary>
-        private const float ClockMaxLeadMs = 1f * GameConst.SnapshotIntervalMs;
-
-        /// <summary>时钟超前上限告警是否已报过（只报一次，⛔ 不刷屏）。</summary>
-        private bool _clockLeadCapped;
-
-        /// <summary>
-        /// **按渲染时钟选插值窗口**：在历史里找一对"夹住时钟"的快照 ⇒ 写 <see cref="_prevMs"/> /
-        /// <see cref="_currMs"/> / <see cref="_prevIndex"/> / <see cref="_curIndex"/>，并返回插值比例 <c>t</c>。
-        /// <para>
-        /// 为什么必须"按时钟选"而不是"每收到一帧就换一对"：后者把换窗口的时刻绑在**包到达时刻**上，
-        /// 而时钟是按真实时间走的 ⇒ 换窗口那一刻时钟离窗口末端还差 0~1 帧（实测 <c>t</c> 最大只到
-        /// 0.707，而窗口末端才是 t=1）⇒ 那一帧要交付"剩下的任意份额"（0~100% 的一个间隔位移）
-        /// ⇒ 实测速度 cv 0.24~0.28、峰值达匀速的 2.4 倍。按时钟换窗口时，窗口边界**只在 t=1 那一刻**
-        /// 跨过，而 t=1 与下一段的 t=0 是同一个坐标 ⇒ 位置连续、速度严格恒定。
-        /// </para>
-        /// 越界（时钟早于最旧 / 晚于最新）时夹到最边上一对，⛔ 绝不外推。
-        /// </summary>
-        private float SelectWindow(float clock)
-        {
-            var lo = HistSlots - _histLen;
-            var pi = HistSlots - 1;
-            var ci = HistSlots - 1;
-            if (_histLen >= 2)
-            {
-                pi = lo;
-                ci = lo + 1;
-                for (var i = lo; i < HistSlots - 1; i++)
-                {
-                    if (clock <= _msHist[i + 1]) { pi = i; ci = i + 1; break; }
-                    pi = i;
-                    ci = i + 1;
-                }
-            }
-
-            _prevMs = _msHist[pi];
-            _currMs = _msHist[ci];
-            _prevIndex = _idxHist[pi];
-            _curIndex = _idxHist[ci];
-            var span = Mathf.Max(1f, _currMs - _prevMs);
-            return _histLen >= 2 ? Mathf.Clamp01((clock - _prevMs) / span) : 1f;
-        }
-
-        /// <summary>改时钟速率并**重新锚定**对齐点（保证改速率那一刻时钟值连续 —— 不产生跳变）。</summary>
-        private void SetClockRate(float rate, float realNow)
-        {
-            var current = RenderClockMs;
-            _clockBaseMs = current;
-            _clockBaseReal = realNow;
-            _clockRate = rate;
-        }
-
-        /// <summary>
-        /// 每帧渲染：把"服务端时间轴上的现在"插值出来。四步（见类注释三）：
-        /// ① 从真实时间算出渲染时钟（⛔ 不因快照到达而重置）；② **稳态速率恒为 1**，
-        /// 只有灾难级偏差才启用**有界追帧**；③ **按时钟**从历史里选插值窗口（<see cref="SelectWindow"/>）；
-        /// ④ 用**两个快照自己的时间戳之差**做分母算 t。
-        /// <para>
-        /// ⛔ 第 ③ 步是插值稳定的核心：**换窗口的时刻由时钟决定，⛔ 不由包到达决定**。
-        /// ⛔ 不"把时钟夹到 `_currMs`"：那是"每帧都贴着窗口末端"的写法，会把时钟**永久钉死**
-        /// （然后必须靠速率追赶才能松开，而速率追赶本身就是速度脉动）。现在夹取语义改由
-        /// <see cref="SelectWindow"/> 承担：时钟跑到最新快照之后 ⇒ t 夹到 1（冻在最后一个已知位置，
-        /// ⛔ 不外推），而时钟**本身继续按真实时间前进**，新快照一到就自然回到窗口内。
-        /// </para>
+        /// 每帧渲染：<c>Interp.Tick()</c> 推进渲染时钟（只按真实时间走，⛔ 不因快照到达而重置）、
+        /// 做有界比例速率修正、按渲染时钟选出"夹住时钟的那一对快照"，返回插值比例 <c>t</c>；
+        /// 再用 <c>t</c> 把本帧实体摆到窗口起始 / 窗口结束之间（见 <see cref="ApplyEntities"/>）。
+        /// 引擎件在非预期分支（乱序丢弃 / 掉窗 / 时钟超前上限 / 灾难级追帧）各自留一次痕。
         /// </summary>
         private void TickRender()
         {
-            var real = Time.realtimeSinceStartup;
-
-            // ① 时钟：绝对真实时间 × 速率。本项目对战不真暂停（`AppFlow.EnterPause` 不动 timeScale），
-            //    所以用 realtimeSinceStartup 而不是 time 是安全的；将来若有真暂停，那时冻住时钟才对。
-            var clock = RenderClockMs;
-
-            // ② 速率：**有界比例修正**（稳态 ±5%，灾难级偏差时放开到 <see cref="CatchUpMaxRate"/>）。
-            //    ⛔ 不能写成 `|err| > CatchUpThresholdMs ? SteerRate(err) : 1f` —— 那个门控 = "300 ms 以内
-            //    一律不校正"，而时钟的落后量一旦被成批到达的快照推过 300 ms（实测稳定在 417 ms）就**再也
-            //    回不来**：它会一直跑在快照历史之外 ⇒ SelectWindow 夹到最旧一对 ⇒ t 恒为 0 ⇒ **插值静默失效**
-            //    （实测：7953 帧里 t 只有 3 帧取到中间值，单位每 100 ms 跳一格）。比例项必须常开，
-            //    偏差自己衰减到 0（一阶，τ≈4 s），插值窗口始终处于"被时钟跨过"的正常状态。
-            //    为什么走速率而不是"直接把时钟瞬跳到目标"：位置的导数就是速度，瞬跳 = 单位前跳一大截。
-            var err = (ServerNowMs - TargetLagMs) - clock;
-            var rate = SteerRate(err);
-            if (!Mathf.Approximately(rate, _clockRate)) SetClockRate(rate, real);
-            clock = RenderClockMs;
-
-            if (Mathf.Abs(err) > CatchUpThresholdMs && !_catchingUp)
-            {
-                _catchingUp = true;
-                Game.Logger?.Warn(LogTag,
-                    $"渲染时钟偏离目标 {err:F0}ms（目标落后 {TargetLagMs:F0}ms）⇒ 启动有界追帧（速率 {rate:F2}×）；" +
-                    "常见成因：长卡顿 / 断网重连 / 服务端停推（本机卡顿会把 `Time.deltaTime` 夹在 `Time.maximumDeltaTime`）");
-            }
-            else if (Mathf.Abs(err) <= CatchUpThresholdMs && _catchingUp)
-            {
-                _catchingUp = false;
-                Game.Logger?.Info(LogTag, $"渲染时钟已回到目标附近（偏离 {err:F0}ms）⇒ 速率回到 {rate:F2}×");
-            }
-
-            // ②′ 时钟**超前上限**（"没有新数据就不许发明时间"）。
-            //    为什么必须有：快照**停推**（对局结束 / 断线 / 服务端不再推）之后时钟会跟着
-            //    `ServerNowMs` 一路往前走，而把 50 s 的偏差用 ±5% 的速率拉回来要上千秒
-            //    ⇒ 这段时间单位全部冻在最后一帧。实测（第二轮逐帧表）：`newest − renderMs`
-            //    中位数 = **−50785 ms**（超前 50.8 s），12902 行里 7891 行 `t` 被夹成 1.0。
-            //    ⛔ 这个夹取**不产生画面跳变**：夹取前后 `clock` 都在最新快照之后 ⇒
-            //    `SelectWindow` 两边都把 `t` 夹成 1 ⇒ 位置完全相同（本来就冻着）。
-            //    ✅ 而且恢复是**立刻**的：上限挂在 `_newestMs` 上，快照一恢复 `_newestMs` 就前进，
-            //    上限跟着松开（不需要靠速率追）。
-            if (_histLen >= 1)
-            {
-                var leadCap = _newestMs + ClockMaxLeadMs;
-                if (clock > leadCap)
-                {
-                    if (!_clockLeadCapped)
-                    {
-                        _clockLeadCapped = true;
-                        Game.Logger?.Warn(LogTag,
-                            $"渲染时钟超前最新快照 {clock - _newestMs:F0}ms（上限 {ClockMaxLeadMs:F0}ms = " +
-                            $"{ClockMaxLeadMs / GameConst.SnapshotIntervalMs:F0} 个间隔）⇒ 就地锚回并保持；" +
-                            "成因：快照停推（对局结束 / 断线 / 服务端不再推）。⛔ 不是把时钟永久钉死：" +
-                            "上限跟着 `_newestMs` 走，快照一恢复立即松开（只报一次）");
-                    }
-                    // 就地锚回（锚在**绝对**值 leadCap 上，⛔ 不是 `SetClockRate` —— 那个会锚在
-                    // 未夹取的 `RenderClockMs` 上，等于没夹）。速率不动（仍是比例修正给的那个）。
-                    _clockBaseMs = leadCap;
-                    _clockBaseReal = real;
-                    clock = leadCap;
-                }
-                else if (clock < _newestMs - ClockMaxLeadMs)
-                {
-                    _clockLeadCapped = false;   // 回到正常范围 ⇒ 复位告警（下次停推还能再报一次）
-                }
-            }
-            _renderMs = clock;
-
-            // ③④ 按时钟选窗口 + 算 t：窗口边界只在 t=1 那一刻跨过 ⇒ 位置连续、速度恒定。
-            var t = SelectWindow(_renderMs);
-            _hasPrev = _histLen >= 2;
-
-            // ③′ 脱窗不变量（**必须留痕**）：`SelectWindow` 在时钟早于最旧快照时会夹到最旧一对、
-            //     使 `t` 恒为 0 —— 这一刻**插值已经死了**，但画面上只是"动得一顿一顿"，不会报任何错。
-            //     这是"最隐蔽的静默失效"，所以显式记一次（只报一次，⛔ 不刷屏）。
-            if (_histLen >= 2)
-            {
-                var oldest = _msHist[HistSlots - _histLen];
-                var newest = _msHist[HistSlots - 1];
-                if (_renderMs < oldest || _renderMs > newest)
-                {
-                    if (!_outOfWindowWarned)
-                    {
-                        _outOfWindowWarned = true;
-                        Game.Logger?.Warn(LogTag,
-                            $"渲染时钟 {_renderMs:F0}ms 掉出快照历史 [{oldest:F0}, {newest:F0}]ms " +
-                            $"（落后最新 {newest - _renderMs:F0}ms，历史覆盖 {HistSlots - 1} 个间隔 = " +
-                            $"{(HistSlots - 1) * GameConst.SnapshotIntervalMs}ms）⇒ 插值被夹成阶梯（t≡0/1）；" +
-                            $"速率 {_clockRate:F3}× 会把它拉回目标 {TargetLagMs:F0}ms（只报一次）");
-                    }
-                }
-                else
-                {
-                    _outOfWindowWarned = false;
-                }
-            }
-
-            ApplyEntities(t);
+            ApplyEntities(Interp.Tick());
         }
 
         private void ApplyEntities(float t)
         {
-            foreach (var kv in _curIndex)
+            // 引擎件按渲染时钟选出的"被渲染的那一对"快照；未就绪（首帧快照前）时为 null。
+            var cur = Interp.WindowEndPayload as Dictionary<int, EntitySnapshot>;
+            if (cur == null) return;
+            var prev = Interp.HasWindow ? Interp.WindowStartPayload as Dictionary<int, EntitySnapshot> : null;
+
+            foreach (var kv in cur)
             {
                 var e = kv.Value;
                 if (e == null) continue;
@@ -2335,7 +2178,7 @@ namespace CR.View
                 }
 
                 var world = GameConst.MilliToWorld(e.x_milli, e.y_milli);
-                // 朝向用的**基线位移**：从"历史里最旧的那个含该 id 的快照"量到位移（HistSlots=6 ⇒ 默认 5 个间隔
+                // 朝向用的**基线位移**：从"历史里最旧的那个含该 id 的快照"量到位移（历史 6 格 ⇒ 默认 5 个间隔
                 // = 500 ms），⛔ 不是只量**一个**间隔。
                 // 为什么必须拉长基线（实测 id=9 帧 1903..1912 的逐帧表）：
                 //   一队亡灵沿纵向推进时，真实前进是 y 方向 0.05~0.07 格/帧；但"互相推开"的解算器
@@ -2347,17 +2190,19 @@ namespace CR.View
                 //    站立单位的逐帧位移在 ±0.002 格之间抖，方向会被量化噪声翻 180°
                 //   （实测见 UnitView.FacingMinMoveTiles 的注释与 id=320 的逐帧表）。
                 var moveDir = Vector2.zero;
-                if (_hasPrev)
+                if (prev != null)
                 {
                     EntitySnapshot p;
-                    if (_prevIndex.TryGetValue(e.id, out p) && p != null)
+                    if (prev.TryGetValue(e.id, out p) && p != null)
                     {
                         var prevWorld = GameConst.MilliToWorld(p.x_milli, p.y_milli);
                         var baselineWorld = prevWorld;
-                        for (var i = HistSlots - _histLen; i < HistSlots - 1; i++)
+                        // 更早的快照按槽序读（0 = 最旧，HistoryLength-1 = 最新；最新那一格本帧已单独取过）。
+                        for (var k = 0; k < Interp.HistoryLength - 1; k++)
                         {
+                            var d = Interp.PayloadAt(k) as Dictionary<int, EntitySnapshot>;
                             EntitySnapshot q;
-                            if (_idxHist[i].TryGetValue(e.id, out q) && q != null)
+                            if (d != null && d.TryGetValue(e.id, out q) && q != null)
                             {
                                 baselineWorld = GameConst.MilliToWorld(q.x_milli, q.y_milli);
                                 break;
@@ -2374,7 +2219,7 @@ namespace CR.View
             // 回收：本帧快照里没有的实体（快照是全量 ⇒ 缺席 = 已消失）。
             _recycle.Clear();
             foreach (var kv in _units)
-                if (!_curIndex.ContainsKey(kv.Key)) _recycle.Add(kv.Key);
+                if (!cur.ContainsKey(kv.Key)) _recycle.Add(kv.Key);
             for (var i = 0; i < _recycle.Count; i++)
             {
                 UnitView v;
@@ -2472,8 +2317,30 @@ namespace CR.View
         /// <param name="hostile">落位的是不是敌方单位（决定扫过片用我方蓝还是敌方红，见 PlacementIndicator）。</param>
         public void ShowDeployRing(Vector2 tileXY, float radiusTiles, float seconds, bool hostile = false)
         {
-            if (_deployRing == null) return;
-            _deployRing.ShowDeployRing(tileXY, radiusTiles, seconds, hostile);
+            var ring = AcquireDeployRing();
+            if (ring == null) return;
+            ring.ShowDeployRing(tileXY, radiusTiles, seconds, hostile);
+        }
+
+        /// <summary>
+        /// 从池里取一块落位表盘给**这一次出牌**用：优先空闲的（<see cref="PlacementIndicator.DeployTimerActive"/>
+        /// 为 false）；全忙时复用**剩余时间最少**的那块（先到期的先让位，尽量保住"转得最久的那块"的完整一圈）。
+        /// <para>
+        /// ⛔ 池没建起来（对局画面未建 / 已销毁）⇒ 返回 <c>null</c>，调用方静默跳过（与旧的 `_deployRing == null` 同口径）。
+        /// </para>
+        /// </summary>
+        private PlacementIndicator AcquireDeployRing()
+        {
+            if (_deployRings == null || _deployRings.Length == 0) return null;
+            PlacementIndicator best = null;
+            for (var i = 0; i < _deployRings.Length; i++)
+            {
+                var r = _deployRings[i];
+                if (r == null) continue;
+                if (!r.DeployTimerActive) return r;                                  // 空闲优先
+                if (best == null || r.DeployLeft < best.DeployLeft) best = r;      // 否则留最后再复用
+            }
+            return best;
         }
 
         /// <summary>隐藏落点指示与不可放置区域（抬手 / 取消拖放）。</summary>
@@ -2550,7 +2417,17 @@ namespace CR.View
         /// </para>
         /// <para>
         /// 表里多个 key 指向同一目录是**正常的**（骷髅兵/骷髅军团共用 `chr_skeleton_out`、
-        /// 黑暗王子与王子共用 `chr_prince_out`、投矛手与哥布林共用 `chr_goblin_out`）。
+        /// 黑暗王子与王子共用 `chr_prince_out`）。
+        /// </para>
+        /// <para>
+        /// ⚠️ 修正（投矛手画错单位）：`26010004 spear-goblins` 的目录曾错写 `chr_goblin_out`
+        /// ⇒ 玩家看到的"哥布林投矛手"是**近战哥布林的外观**（动画在放，放的是别的单位）。
+        /// 依据：原版内部名就是 `goblin_archer`（`CrUiStyle.cs:698` 已写明），专用素材
+        /// `chr_goblin_archer_out`（342 帧、idle/walk/attack 三档齐全、`UnitAnimTable` 有表项、
+        /// `HitSpeedMs=1700` 与 unit 行 `hit_speed_ms` 一致）却**0 张卡引用** ⇒ 现指向它，
+        /// 并与 `card.tsv:26010004` / `unit.tsv:26020006` 的 `sprite_dir` 列保持一致。
+        /// </para>
+        /// <para>
         /// ⚠️ 已知不精确处：熔岩猎犬分裂出的"小猎犬"（`chr_lava_pups_out`）与法术召唤物若沿用原卡的 id，
         /// 会画成原卡精灵 —— 素材里有 `chr_lava_pups_out` 但**协议没有"这是哪个召唤物"的字段**，
         /// 属于同一类缺口，已登记。
@@ -2561,7 +2438,7 @@ namespace CR.View
             { 26010001, new CardVisual("chr_knight_out", false) },  // knight
             { 26010002, new CardVisual("chr_archer_out", false) },  // archers
             { 26010003, new CardVisual("chr_goblin_out", false) },  // goblins
-            { 26010004, new CardVisual("chr_goblin_out", false) },  // spear-goblins
+            { 26010004, new CardVisual("chr_goblin_archer_out", false) },  // spear-goblins（原为 chr_goblin_out = 画错单位，见上方修正块）
             { 26010005, new CardVisual("chr_giant_out", false) },  // giant
             { 26010006, new CardVisual("chr_pekka_out", false) },  // pekka
             { 26010007, new CardVisual("chr_minion_out", false) },  // minions

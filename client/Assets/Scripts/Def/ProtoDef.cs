@@ -319,5 +319,13 @@ namespace CR.Def
         /// </para>
         /// </summary>
         public int aoe_radius_milli;
+
+        /// <summary>
+        /// 这张卡的**落位期**，单位 ms（服务端 `CardInfo.DeployMs`，json tag **`deploy_ms`**）。
+        /// 用法：落点处落位计时件转一圈的时长 = <c>deploy_ms / 1000f</c> 秒
+        /// （= 该单位从出现到可行动之间的真实时长，`server/game/core/battle.go:235-239`）。
+        /// 0 = 服务端未下发（法术卡没有落位期）。
+        /// </summary>
+        public int deploy_ms;
     }
 }

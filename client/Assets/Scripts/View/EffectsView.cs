@@ -7,7 +7,8 @@ namespace CR.View
     /// <summary>
     /// 对局特效播放器（轻量）。
     ///
-    /// <b>职责</b>：给 `(世界坐标, 原版帧序列, 帧率)` ⇒ 播完自动销毁 / 归池复用。
+    /// <b>职责</b>：给 `(世界坐标, 原版帧序列, 帧率)` ⇒ 播完把节点**归还引擎对象池**复用
+    ///（池键见 <see cref="PoolKey"/>；⛔ 不每次 `Instantiate` / 不每段销毁 GameObject）。
     /// 素材全部是原版解包 `effects_out`，登记在 <see cref="ResPaths"/> 特效区段。
     ///
     /// <para>
@@ -45,6 +46,22 @@ namespace CR.View
 
         /// <summary>特效画布高度（格）。原版画布 474x537，meta 的 PPU=100 ⇒ 537/100 = 5.37 格。</summary>
         public const float WorldSize = 5.37f;
+
+        /// <summary>
+        /// 特效节点的对象池键（引擎 <c>IObjectPool.Register</c> 的**代码工厂**缝：注册过工厂的 key，
+        /// `Spawn` 就走工厂造对象 —— 代码建的 GameObject 与预制体实例同权，出处 =
+        /// `clover-client-unity-engine/Runtime/Core/EntityPool.cs:100-176` + `Runtime/Presentation/ObjectPool.cs`）。
+        /// <para>与预制体路径同一命名空间 ⇒ 带前缀避免与 `Resources` 下的路径撞名。</para>
+        /// <para>
+        /// 闲置节点挂在池根（`DontDestroyOnLoad`）下 ⇒ 跨场景存活、下一场直接复用（池键与分组名都不参与
+        /// 引擎的场景组清理：`Scene` 按场景名 `ClearGroup`）。
+        /// </para>
+        /// <para>
+        /// ⚠️ 与 <see cref="MaxLive"/> 的关系：引擎池默认容量 = 64（`ObjectPool.DefaultCapacity`）≥
+        /// 本类的同屏上限 ⇒ 闲置节点数永远顶不到容量、池不会裁剪（本类语义：复用到 0 个 `<c>Destroy</c>`）。
+        /// </para>
+        /// </summary>
+        public const string PoolKey = "cr.effects.fx";
 
         /// <summary>
         /// 逐段缩放系数：`用途目录` →（`起始原版帧号` → 系数）。
@@ -282,7 +299,21 @@ namespace CR.View
 
         private Transform _root;
         private readonly List<Node> _live = new List<Node>();
-        private readonly Stack<Node> _idle = new Stack<Node>();
+
+        /// <summary>
+        /// 已注册过工厂的那个池**实例**（⛔ 不许只记 `bool`）。
+        /// <para>
+        /// 代码工厂表是**挂在池实例上**的（`ObjectPool._factories`），而本工程
+        /// `ProjectSettings/EditorSettings.asset` 关掉了域重载（`m_EnterPlayModeOptionsEnabled: 1` +
+        /// `m_EnterPlayModeOptions: 1` = DisableDomainReload）⇒ **静态字段跨 Play 会话存活**；同时
+        /// `App/Bootstrap.cs` 的 `OnApplicationQuit` 会调 `Game.Shutdown()`，
+        /// 它把 `Game.Pool` 置空，下次 `Launch` 由 `CloverPresentation.Init` 挂**新的** `ObjectPool`。
+        /// 两件事叠加 ⇒ 一次性 `bool` 会在新池上**永远跳过注册**，之后每次 `Spawn` 都走 `Resources` 回落并报
+        /// `Prefab not found`（实测一局 179 次），特效节点实际**从来没进过池**。
+        /// </para>
+        /// <para>按实例比对：每个新池注册一次，同一个池不重复刷 `Info`。</para>
+        /// </summary>
+        private static IObjectPool RegisteredPool;
 
         /// <summary>
         /// 已**成功**建出的特效节点总数（自检用：调用方读它前后的差，就能知道"这一次 Play 到底有没有真的播出去"）。
@@ -310,7 +341,9 @@ namespace CR.View
         public string LiveDump()
         {
             var sb = new System.Text.StringBuilder();
-            sb.Append("live=").Append(_live.Count).Append(" idle=").Append(_idle.Count);
+            var pool = Game.Pool;
+            sb.Append("live=").Append(_live.Count)
+              .Append(" idle=").Append(pool != null ? pool.GetInactiveCount(PoolKey) : 0);
             for (var i = 0; i < _live.Count; i++)
             {
                 var n = _live[i];
@@ -326,11 +359,17 @@ namespace CR.View
             return sb.ToString();
         }
 
-        /// <summary>一个在播的特效（池化对象，⛔ 不每次 `new GameObject`）。</summary>
+        /// <summary>
+        /// 一个在播的特效：**播放状态**（本类每次 <see cref="Spawn"/> 新建一条，不跨段复用），
+        /// 它指向的 GameObject 由引擎对象池复用（见 <see cref="PoolKey"/>）。
+        /// </summary>
         private sealed class Node
         {
             /// <summary>节点。</summary>
             public GameObject Go;
+
+            /// <summary>该节点是否来自引擎对象池（回收走 `Despawn`）；`false` = 池不可用时的直建兜底。</summary>
+            public bool Pooled;
 
             /// <summary>渲染器（`sortingOrder = ArenaLayers.Instance.Effect`）。</summary>
             public SpriteRenderer Renderer;
@@ -487,7 +526,23 @@ namespace CR.View
             var count = frameCount > 0 ? Mathf.Min(frameCount, frames.Length - start) : frames.Length - start;
             if (count <= 0) { SkippedTotal++; return; }
 
-            var node = Rent();
+            var go = TakeNode(out var pooled);
+            var sr = go.GetComponent<SpriteRenderer>();
+            if (sr == null) sr = go.AddComponent<SpriteRenderer>();
+            // 特效层：全场最高层（须在单位层 `ArenaLayers.Instance.Actor` = 1000 + 世界深度之上）。
+            // 池复用的节点带着上一段的 sortingOrder ⇒ 每次显式写一遍（取值恒定，写它零风险）。
+            sr.sortingOrder = ArenaLayers.Instance.Effect;
+
+            // 播放状态记录每次新建（很小的一条；GameObject 的复用由引擎池负责）。
+            var node = new Node
+            {
+                Go = go,
+                Renderer = sr,
+                // 默认材质必须在**第一次写** `sharedMaterial` 之前记下（见 `Node.Default`）：
+                // 上次回收已还原成默认材质 / 新造的节点本来就是默认材质。
+                Default = SpriteBlendMaterial.RememberDefault(sr),
+                Pooled = pooled,
+            };
             node.Use = use;
             node.Frames = frames;
             node.Start = start;
@@ -521,25 +576,67 @@ namespace CR.View
             SpawnedTotal++;
         }
 
-        /// <summary>取一个空闲特效节点（池空则新建）。</summary>
-        private Node Rent()
+        /// <summary>
+        /// 取一个特效节点：优先**引擎对象池的代码工厂缝**（战斗内 GameObject 一律走池），
+        /// 池不可用才直接建（并留一次痕）。
+        /// </summary>
+        /// <param name="pooled">`true` = 该节点由对象池管（回收走 `Despawn`）。</param>
+        private GameObject TakeNode(out bool pooled)
         {
-            while (_idle.Count > 0)
+            var pool = Game.Pool;
+            if (pool != null)
             {
-                var reused = _idle.Pop();
-                // Unity 的"假 null"：节点随场景卸载被 Destroy 时这里会拿到 null，跳过继续找。
-                if (reused != null && reused.Go != null) return reused;
+                // 池实例变过（换过池）就补注册 —— 见 `RegisteredPool` 的注释。
+                if (!ReferenceEquals(pool, RegisteredPool))
+                {
+                    pool.Register(PoolKey, CreateNode);
+                    RegisteredPool = pool;
+                }
+
+                var spawned = pool.Spawn(PoolKey, _root);
+                if (spawned == null)
+                {
+                    // 兜底自愈：万一工厂被外部注销（或走了别的换池路径没被上面接住），补注册再试一次。
+                    // ⛔ 只重试一次，仍拿不到才留痕回落 —— 不让"池不可用"变成静默降级。
+                    pool.Register(PoolKey, CreateNode);
+                    RegisteredPool = pool;
+                    spawned = pool.Spawn(PoolKey, _root);
+                }
+                if (spawned != null)
+                {
+                    // 池里的对象按 key 命名（`ObjectPool.CreateInstance`），复用时名字可能是旧的
+                    // ⇒ 统一成节点名（同引擎 `SpriteEntityView.TakeNode` 的口径），排障时一眼认出这是特效层。
+                    spawned.name = "Fx";
+                    pooled = true;
+                    return spawned;
+                }
+
+                // 非预期分支：补注册后仍造不出对象（工厂返回 null / 池被外部清掉）
+                // ⇒ 留痕并回落直接建，本次特效照播。
+                LogThrottle.WarnOnce(LogTag, "pool.spawn.failed",
+                    $"对象池取特效节点失败（key={PoolKey}）⇒ 本次回落直接 new；检查工厂是否返回 null");
             }
+
+            pooled = false;
             var go = new GameObject("Fx");
             if (_root != null) go.transform.SetParent(_root, false);
-            var sr = go.AddComponent<SpriteRenderer>();
-            // 特效层：全场最高层（须在单位层 `ArenaLayers.Instance.Actor` = 1000 + 世界深度之上）。
-            sr.sortingOrder = ArenaLayers.Instance.Effect;
-            // 默认材质必须在**第一次写** `sharedMaterial` 之前记下（见 `Node.Default`）。
-            return new Node { Go = go, Renderer = sr, Default = SpriteBlendMaterial.RememberDefault(sr) };
+            return go;
         }
 
-        /// <summary>归还到池（不 Destroy —— 下一个特效还会用）。</summary>
+        /// <summary>池工厂：造一个只带 <see cref="SpriteRenderer"/> 的特效节点（⛔ 不含素材 / 混合材质）。</summary>
+        private static GameObject CreateNode()
+        {
+            var go = new GameObject("Fx");
+            go.AddComponent<SpriteRenderer>();
+            return go;
+        }
+
+        /// <summary>
+        /// 归还**引擎对象池**（`Despawn` = 置非活跃 + 归位变换 + 挂回池根；⛔ 不 `Destroy`，下一个特效直接复用）。
+        /// <para>
+        /// 池不可用时直建的那个兜底节点没人会复用 ⇒ 按引擎 `SpriteEntityViewSource.Release` 的同口径直接销毁。
+        /// </para>
+        /// </summary>
         private void Recycle(Node node)
         {
             if (node.Go != null)
@@ -548,12 +645,13 @@ namespace CR.View
                 // 材质也还原：池复用可能换成另一个用途目录，留着上一段的混合材质会串味。
                 // 写回该节点自带的默认材质（⛔ 不许写 null = 整块洋红）。
                 SpriteBlendMaterial.Set(node.Renderer, node.Default);
-                node.Go.SetActive(false);
+                var pool = Game.Pool;
+                if (node.Pooled && pool != null) pool.Despawn(node.Go);
+                else Destroy(node.Go);
             }
             node.Frames = null;
             node.Use = null;
             node.Hold = 0f;
-            _idle.Push(node);
         }
 
         /// <summary>

@@ -19,8 +19,8 @@ namespace CR.View
     /// `策划/策划案/皇室战争参考规格.md` §2.1。**最终裁决永远在服务端**，这里只是"别让玩家看着能放、结果被拒"。
     /// </para>
     /// <para>
-    /// <b>落点图形取自原版素材</b>（差异登记见 `策划/差异登记.tsv`）：`effects_out` 的 f221（我方：细白环，分组表 `:4777`
-    /// `spell_radius`）/ f294（敌方：深色圆盘 + 红边 + 外圈刻度，分组表 `:4815` `Poison`）。
+    /// <b>落点图形取自原版素材</b>（差异登记见 `策划/差异登记.tsv`）：`effects_out` 的 f221（我方：黑环，分组表 `:4777`
+    /// `spell_radius`）/ f294（敌方：暗红圆盘 + 外圈刻度，分组表 `:4815` `Poison`）。
     /// 同族的 `spell_*_radius` 帧列**全都是 f221** ⇒ 原版所有法术共用同一张环、靠**缩放**适配半径，
     /// 这也是本类 <see cref="Show"/> 的缩放口径。
     /// </para>
@@ -44,15 +44,6 @@ namespace CR.View
         /// <summary>指示圆盘贴图边长（像素）。64 足够 —— 它永远是半透明的，放大后靠线性过滤就够平滑。</summary>
         private const int DiscTexSize = 64;
 
-        /// <summary>
-        /// 落点指示的**转速**（度/秒）。⚠️ **本项目自定**：原版这张环是单帧静态图（f221/f294
-        /// 各自只有 1 帧），"它是否旋转、转多快"在解包素材里**没有出处**。
-        /// 用户原话是「原版是转圈的」⇒ 这里把原版环**旋转**起来作为进度感的来源，转速取 90°/s
-        /// （4 秒一圈，不晃眼）。**该常量是推断，已登记在 `策划/差异登记.tsv`**。
-        /// 环上有可见的不对称特征（f221 四个基本方向的小标记 / f294 外圈的刻度），所以旋转看得见。
-        /// </summary>
-        private const float SpinDegreesPerSecond = 90f;
-
         private SpriteRenderer _renderer;
 
         /// <summary>
@@ -68,6 +59,46 @@ namespace CR.View
         private Vector2 _lastTile;
         private float _lastRadius;
         private bool _lastLegal;
+
+        /// <summary>
+        /// 本实例当前画的是**溅射范围环**（<see cref="ShowTimed"/>）而不是拖放落点环。
+        /// <para>
+        /// 两者的图元与缩放完全相同，只有着色不同：拖放环带"能不能放"的合法性色偏
+        /// （<see cref="LegalTint"/> / <see cref="IllegalTint"/>），而溅射环只是一次命中范围的
+        /// 事后回放，⛔ 不该带任何合法性暗示 ⇒ 用原图元本色（<see cref="SplashRingColor"/>）。
+        /// </para>
+        /// </summary>
+        private bool _splashRingMode;
+
+        /// <summary>
+        /// 溅射范围环的**描边副本**：同一张原版图元（我方 f221）、同一圆心，向外多扩
+        /// <see cref="SplashEchoOutsetPx"/> 个屏幕像素、按 <see cref="SplashEchoAlpha"/> 半透明，画在主环之后一档。
+        /// <para>
+        /// 原版该图元自身 alpha 均值约 145/255（半透明）⇒ 单圈在满是地面贴图的场地上偏细偏淡。
+        /// 再叠一圈**同图元**：重叠处 alpha 叠高、外沿多出几像素 ⇒ 环更实、更粗。⛔ 不是自画圆盘、
+        /// 也没有换素材；半径读数仍以主环为准（副本只在外侧扩 <see cref="SplashEchoOutsetPx"/> px）。
+        /// </para>
+        /// <para>
+        /// ⛔ 与 <see cref="_dropCard"/> 同理由地做成**兄弟节点**：本 GameObject 带按半径缩放的
+        /// <c>localScale</c>，挂成子节点会把那个缩放再乘一次。
+        /// </para>
+        /// </summary>
+        private SpriteRenderer _splashEcho;
+
+        /// <summary><see cref="_splashEcho"/> **自带**的默认材质（与主环同理，第一次写 <c>sharedMaterial</c> 前记下）。</summary>
+        private Material _splashEchoDefault;
+
+        /// <summary>描边副本相对主环**向外扩**的屏幕像素数（放大倍率由它换算，见 <see cref="ApplySplashEcho"/>）。</summary>
+        private const float SplashEchoOutsetPx = 2f;
+
+        /// <summary>描边副本的不透明度（半透明 ⇒ 是主环的外侧加粗，不会把主环的细线糊掉）。</summary>
+        private const float SplashEchoAlpha = 0.6f;
+
+        /// <summary>溅射范围环颜色变换的 `mul`（0 ⇒ 丢掉图元本色，只留图元的 alpha 当遮罩）。</summary>
+        private const int SplashRingMul = 0;
+
+        /// <summary>溅射范围环颜色变换的 `add`（255 = 1.0 ⇒ 环体呈纯白）。</summary>
+        private const int SplashRingAdd = 255;
 
         /// <summary>
         /// 落点处的**卡面虚影**（拖动时显示的那张卡本身）。原版拖动时落点上就是这张卡，不是一个小图标。
@@ -154,6 +185,12 @@ namespace CR.View
         public bool Visible => _visible;
 
         /// <summary>
+        /// 当前是否正在显示**范围环**（拖放落点环 / 溅射范围环），⛔ 不含落位计时件形态。
+        /// 供实机 driver 判定"这一帧画面上有没有范围环"（自检读数，与 `BattleViewRoot` 的计数器同一用途）。
+        /// </summary>
+        public bool ShowingRangeRing => _visible && !_deployTimerMode;
+
+        /// <summary>
         /// 在 <paramref name="parent"/> 下建一个落点指示器（世界空间）。返回的实例由调用方持有；
         /// ⛔ 不要每帧 Create —— 它内部只有 1 个 `SpriteRenderer`，用 <see cref="Show"/>/<see cref="Hide"/> 复用。
         /// </summary>
@@ -186,6 +223,15 @@ namespace CR.View
             _dropCard.sortingOrder = ArenaLayers.Instance.Indicator - 1;
             _dropCard.color = DropCardColor;
             dropGo.SetActive(false);
+
+            // 溅射范围环的描边副本（理由见 `_splashEcho`）：同样是兄弟节点，位置 / 缩放每次重画时写。
+            var echoGo = new GameObject("SplashRingEcho");
+            echoGo.transform.SetParent(transform.parent, false);
+            _splashEcho = echoGo.AddComponent<SpriteRenderer>();
+            _splashEchoDefault = SpriteBlendMaterial.RememberDefault(_splashEcho);
+            _splashEcho.color = new Color(SplashRingColor.r, SplashRingColor.g, SplashRingColor.b, SplashEchoAlpha);
+            _splashEcho.sortingOrder = SplashRingOrder - 1;
+            echoGo.SetActive(false);
 
             // 落位计时件的子节点是**兄弟节点**（同 `_dropCard`）：计时件形态由本 GameObject 的渲染器当表盘，
             // 而 `Reapply` 会给本 GameObject 写 `localScale`（表盘像素 → 格）—— 挂成子节点会把这个缩放
@@ -382,6 +428,7 @@ namespace CR.View
             // 并把形态复位成落点范围环（同一个实例不许两种形态叠着画）。
             _deployLeft = 0f;
             _deployTimerMode = false;
+            _splashRingMode = false;
             _lastTile = tileXY;
             _lastRadius = radiusTiles;
             _lastLegal = legal;
@@ -406,10 +453,12 @@ namespace CR.View
             if (_deployTimerMode)
             {
                 ApplyTimer();
+                SetSplashEcho(false);
                 return;
             }
             SetTimerPiecesActive(false);
-            _renderer.sortingOrder = ArenaLayers.Instance.Indicator;
+            // 溅射范围环要压在所有单位之上（见 SplashRingOrder）；拖放落点环是一块地板高亮，仍在所有单位之下。
+            _renderer.sortingOrder = _splashRingMode ? SplashRingOrder : ArenaLayers.Instance.Indicator;
 
             var sprite = _lastLegal ? _ringFriendly : _ringHostile;
             if (sprite == null) sprite = _discSprite;      // 兜底：原版图元还没到货 / 取不到
@@ -423,21 +472,76 @@ namespace CR.View
             var scale = diameter / native;
             transform.localScale = new Vector3(scale, scale, 1f);
 
-            // 两种贴图用两套着色（理由见 ApplyTint 的注释）。
-            if (usingFallback) _renderer.color = _lastLegal ? LegalColor : IllegalColor;
+            // 两种贴图用两套着色（理由见 ApplyTint 的注释）；溅射范围环不带合法性色偏。
+            if (_splashRingMode) _renderer.color = SplashRingColor;
+            else if (usingFallback) _renderer.color = _lastLegal ? LegalColor : IllegalColor;
             else _renderer.color = _lastLegal ? LegalTint : IllegalTint;
 
-            // 原版该帧的 `blend_mode` 若为非 Normal（表 `SpriteBlendTable`：`Sprites/Effects/RangeRing`
-            // 的敌方帧 = Add），走 `SpriteBlendMaterial` 的共享材质；兜底圆盘与表外帧写回渲染器自带的默认材质
-            //（⛔ 不许写 null = 整块洋红，见 `SpriteBlendMaterial.For`）。
-            SpriteBlendMaterial.Set(_renderer, usingFallback
-                ? _rendererDefault
-                : SpriteBlendMaterial.For(
-                    ResPaths.EffectRangeRing,
-                    _lastLegal ? ResPaths.EffectRangeRingFriendly : ResPaths.EffectRangeRingHostile,
-                    _rendererDefault));
+            // 材质三条路：① 溅射范围环（用上原版图元）= 颜色变换材质（见 SplashRingMaterial）；
+            // ② 兜底圆盘 = 渲染器自带默认材质；③ 其余（拖放落点环）按 `SpriteBlendTable` 给该帧配的
+            // blend_mode 走共享材质（`Sprites/Effects/RangeRing` 的敌方帧 = Add）。
+            // ⛔ 一律不许写 null = 整块洋红（见 `SpriteBlendMaterial.For`）。
+            if (_splashRingMode && !usingFallback)
+                SpriteBlendMaterial.Set(_renderer, SplashRingMaterial() ?? _rendererDefault);
+            else
+                SpriteBlendMaterial.Set(_renderer, usingFallback
+                    ? _rendererDefault
+                    : SpriteBlendMaterial.For(
+                        ResPaths.EffectRangeRing,
+                        _lastLegal ? ResPaths.EffectRangeRingFriendly : ResPaths.EffectRangeRingHostile,
+                        _rendererDefault));
 
+            ApplySplashEcho(sprite, usingFallback, native);
             ReapplyDropCard();
+        }
+
+        /// <summary>
+        /// 溅射范围环的共享材质：把原版图元做一次**颜色变换** `out = src × mul + add`
+        /// （原版 `.sc` 的 `0x09` 机制，数值口径见 <see cref="SpriteColorTransformMaterial"/>），
+        /// <c>mul = 0 / add = 1</c> ⇒ 图元形状与 alpha 全保留、颜色变纯白。
+        /// <para>
+        /// <b>为什么必须走颜色变换而不是顶点色 tint</b>：`Sprites/Effects/RangeRing` 的我方帧 f221
+        /// （`Assets/Resources/Sprites/Effects/RangeRing/frame_221.png`，画布 474×537）实测
+        /// **非透明像素的 RGB 全为 0、alpha 均值 145/255** —— 那是一张**黑环**。渲染器顶点色只能乘不能加
+        /// （黑 × 任何色 = 黑），所以本色下它压在绿草地上是"深色细环、几乎看不出"，只有加项能把它提成亮色。
+        /// </para>
+        /// </summary>
+        private static Material SplashRingMaterial()
+        {
+            return SpriteColorTransformMaterial.ForSprite(SplashRingMul, SplashRingMul, SplashRingMul, 255,
+                SplashRingAdd, SplashRingAdd, SplashRingAdd);
+        }
+
+        /// <summary>
+        /// 摆（或收起）溅射范围环的描边副本：与主环同一张原版图元、同一圆心，向外多扩
+        /// <see cref="SplashEchoOutsetPx"/> 个屏幕像素、按 <see cref="SplashEchoAlpha"/> 半透明，画在主环之后一档。
+        /// 只在溅射形态、且主环用的是**原版图元**（不是自制兜底）时露面。
+        /// <para>
+        /// 外扩量以**屏幕像素**给、再折成世界格：相机横向恒
+        /// <see cref="GameConst.ArenaTilesW"/> 格铺满屏宽（见 `ArenaView.SetupCamera`）⇒ 1 px = 屏宽倒数 × 该格数。
+        /// </para>
+        /// </summary>
+        /// <param name="nativeWidth">该图元自身的世界宽度（= 环外径，原版环是紧裁剪）。</param>
+        private void ApplySplashEcho(Sprite sprite, bool usingFallback, float nativeWidth)
+        {
+            var on = _splashRingMode && !usingFallback && sprite != null && nativeWidth > 0f;
+            if (!SetSplashEcho(on)) return;
+            _splashEcho.sprite = sprite;
+            _splashEcho.transform.position = transform.position;
+            var worldPerPx = GameConst.ArenaTilesW / Mathf.Max(1f, Screen.width);
+            var echoDiameter = Mathf.Max(0.5f, _lastRadius * 2f) + 2f * (SplashEchoOutsetPx * worldPerPx);
+            var s = echoDiameter / nativeWidth;
+            _splashEcho.transform.localScale = new Vector3(s, s, 1f);
+            SpriteBlendMaterial.Set(_splashEcho, SplashRingMaterial() ?? _splashEchoDefault);
+        }
+
+        /// <summary>开 / 关描边副本；返回是否处于**开**状态（调用方据此决定要不要接着写它的属性）。</summary>
+        private bool SetSplashEcho(bool active)
+        {
+            if (_splashEcho == null) return false;
+            if (_splashEcho.gameObject.activeSelf != active) _splashEcho.gameObject.SetActive(active);
+            _splashEcho.enabled = active;
+            return active;
         }
 
         /// <summary>
@@ -461,7 +565,7 @@ namespace CR.View
             _renderer.transform.localScale = new Vector3(
                 _timerBodySprite.rect.width / TimerArtPxPerTile / bodyNative.x,
                 _timerBodySprite.rect.height / TimerArtPxPerTile / bodyNative.y, 1f);
-            transform.localRotation = Quaternion.identity;  // 计时件不转（落点范围环才转）
+            transform.localRotation = Quaternion.identity;  // 表盘不转，转的是下面的扫过片
             SpriteBlendMaterial.Set(_renderer, _rendererDefault);
 
             // 盘心 = 表盘中心（原版盘面圆心与表盘包围盒中心差 1.5 px < 1/10 格，取同一个点）。
@@ -531,13 +635,53 @@ namespace CR.View
         /// <summary>非法落点着色（压红 + 降一点不透明度，让"不能放"一眼可辨）。</summary>
         private static readonly Color IllegalTint = new Color(1f, 0.55f, 0.50f, 0.9f);
 
+        /// <summary>溅射范围环的着色（原图元本色，见 <see cref="_splashRingMode"/>）。</summary>
+        private static readonly Color SplashRingColor = Color.white;
+
+        /// <summary>
+        /// 溅射范围环（含其描边副本）的 `sortingOrder` = <c>ArenaLayers.Instance.Overlay - 1</c>（1999）。
+        /// <para>
+        /// 取在「单位层之上、血条层之下」那一档：单位层的上界是
+        /// <c>ArenaLayers.Instance.ActorOrderMax</c>（1512），血条层是 <c>Overlay</c>（2000）。
+        /// 用 <c>Indicator</c>（200）会把环画在所有单位**之下**，场上兵一多就整条被盖住（环必须恒在单位之上）；
+        /// 取 <c>Overlay</c> 本身则与血条同序，谁盖谁落到 Unity 不可控的同序枚举顺序上 ⇒ 取它下面一档。
+        /// </para>
+        /// <para>HUD 不受影响：它是另一套 Screen Space Canvas，与世界的 `sortingOrder` 不在同一套排序里。</para>
+        /// </summary>
+        public static int SplashRingOrder { get { return ArenaLayers.Instance.Overlay - 1; } }
+
         /// <summary>隐藏指示盘（拖放结束 / 抬手）—— 连同落点卡面虚影与就位计时件一起收掉。</summary>
         public void Hide()
         {
             _deployLeft = 0f;
             _deployTimerMode = false;
+            _splashRingMode = false;
             SetDropCard(null);
             SetVisible(false);
+        }
+
+        /// <summary>
+        /// 在落点**限时**显示一个范围环：一次攻击的作用范围回放（见 `BattleViewRoot` 的溅射范围展示）。
+        /// <para>
+        /// 图元与缩放和拖放落点环**完全同一条**（<see cref="Reapply"/> 的
+        /// `缩放 = 目标直径 / 该贴图自身的世界直径`），只是不带合法性色偏（见 <see cref="_splashRingMode"/>）。
+        /// </para>
+        /// <para>
+        /// 与 <see cref="Show"/> 的区别是生命周期：它没有"拖动接手"，所以必须自带倒计时
+        /// （复用落位计时那条 <c>_deployLeft</c>，但不进计时件形态 ⇒ 画的仍是范围环）。
+        /// </para>
+        /// </summary>
+        /// <param name="tileXY">圆心（**格**坐标，与 <see cref="Show"/> 同口径）。</param>
+        /// <param name="radiusTiles">半径（格）；由调用方从服务端下发的半径算好。</param>
+        /// <param name="seconds">显示时长（秒）；<c>&lt;= 0</c> 时按 1 秒。</param>
+        public void ShowTimed(Vector2 tileXY, float radiusTiles, float seconds)
+        {
+            SetDropCard(null);
+            Show(tileXY, radiusTiles, true);   // `Show` 会把着色复位成拖放环，故本色在它之后置
+            _splashRingMode = true;
+            _deployTotal = seconds > 0f ? seconds : 1f;
+            _deployLeft = _deployTotal;
+            Reapply();
         }
 
         private void SetVisible(bool visible)
@@ -545,12 +689,17 @@ namespace CR.View
             _visible = visible;
             if (_renderer != null) _renderer.enabled = visible;
             SetTimerPiecesActive(visible && _deployTimerMode);
+            if (!visible) SetSplashEcho(false);
             gameObject.SetActive(visible);
         }
 
         /// <summary>
-        /// 推进当前形态的动画：**落点范围环**转圈 / **落位计时件**的扫过片走一圈
-        /// （两种形态由 <see cref="_deployTimerMode"/> 区分，见 <see cref="ShowDeployRing"/>）。
+        /// 推进当前形态的动画：**落位计时件**的扫过片走一圈（形态由 <see cref="_deployTimerMode"/>
+        /// 区分，见 <see cref="ShowDeployRing"/>）。
+        /// <para>
+        /// 落点范围环与溅射范围环都是**静止**的（原版 f221/f294 各自只有 1 帧，没有自转这回事）；
+        /// 会转的只有落位计时件的扫过片，而且一圈 = 该卡真实的落位期。
+        /// </para>
         /// <para>
         /// 只在可见时推进（`SetVisible(false)` 会 `SetActive(false)`，本方法自然不会被调到）；
         /// 用 `unscaledDeltaTime`：对局暂停 / 时间倍率为 0 时，拖放手势仍然要有反馈。
@@ -558,7 +707,7 @@ namespace CR.View
         /// </summary>
         private void Update()
         {
-            // 落位计时：到点自己收掉（落位期 = 服务端 `deploy_time`，见 ShowDeployRing）。
+            // 倒计时到点自己收掉：落位计时件用 `ShowDeployRing` 给的总时长，溅射环用 `ShowTimed` 的。
             if (_deployLeft > 0f)
             {
                 _deployLeft -= Time.unscaledDeltaTime;
@@ -569,12 +718,7 @@ namespace CR.View
                     return;
                 }
             }
-            if (_deployTimerMode)
-            {
-                ApplyTimerSweep();
-                return;
-            }
-            transform.Rotate(0f, 0f, SpinDegreesPerSecond * Time.unscaledDeltaTime);
+            if (_deployTimerMode) ApplyTimerSweep();
         }
 
         private void OnDestroy()

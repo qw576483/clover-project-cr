@@ -10,7 +10,7 @@ namespace CR.App
     /// 唯一的组装点：挂 `Main` 场景里的根节点上，负责按契约次序拉起引擎并把流程交给 <see cref="AppFlow"/>。
     ///
     /// <para>
-    /// <b>初始化次序是硬契约</b>（`docs/client-api-reference.md` §1）：`Game.Launch` 不联网、
+    /// <b>初始化次序是硬契约</b>（`策划/client-api-reference.md` §1）：`Game.Launch` 不联网、
     /// 也不挂资源与表现域，漏一步的后果都是**静默**的 ——
     /// 漏 `CloverInput.Init()` ⇒ 面板能开但按钮全点不动（没有 EventSystem）；
     /// 漏 `CloverRes.Init` ⇒ `Game.Res` 恒 null，图永远加载不出来。
@@ -82,7 +82,7 @@ namespace CR.App
             Game.Logger?.Info(Tag, $"启动完成：addr={Cfg.Server.addr} tls={Cfg.Server.tls} auth={Cfg.Server.auth_addr}");
         }
 
-        /// <summary>按 `docs/client-api-reference.md` §1 的次序初始化引擎与各子系统。</summary>
+        /// <summary>按 `策划/client-api-reference.md` §1 的次序初始化引擎与各子系统。</summary>
         private static void LaunchEngine()
         {
             // ★★ 朝向治理：**必须是本方法的第一件事** —— `UIManager` 在 `Game.Launch` 的挂载钩子里
@@ -136,7 +136,7 @@ namespace CR.App
 
             // ④ 资源。★ 参数是 **Resources 下的子目录前缀**（`CloverRes.cs:32` 与
             //    `ResourceBackend.cs:227` 的拼法是 `root + "/" + path`），空串 = 直接以 `Assets/Resources` 为根。
-            //    ⛔ 不要照抄 `docs/client-api-reference.md` §1 的 `CloverRes.Init("Assets/Resources")`：
+            //    ⛔ 不要照抄 `策划/client-api-reference.md` §1 的 `CloverRes.Init("Assets/Resources")`：
             //    那会让所有加载去找 `Resources/Assets/Resources/...`，一个资源都命中不了。
             CloverRes.Init(string.Empty);
 

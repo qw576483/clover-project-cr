@@ -191,7 +191,7 @@ function GetCitedFile([string]$t) {
   if ($script:ByName.ContainsKey($bn)) { return $script:ByName[$bn] }
   return $null
 }
-$citePrefixes = @('.ai-tmp/', '.ai-tmp\', 'client/', 'client\', 'server/', 'server\', 'tools/', 'tools\', 'docs/', 'docs\', ($planName + '/'), ($planName + '\'))
+$citePrefixes = @('.ai-tmp/', '.ai-tmp\', 'client/', 'client\', 'server/', 'server\', 'tools/', 'tools\', ($planName + '/'), ($planName + '\'))
 $citedShots = @()
 foreach ($m in [regex]::Matches($specTxt, '[A-Za-z0-9_\-\./\\]+\.png')) {
   $t = $m.Value

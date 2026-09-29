@@ -9,7 +9,7 @@ namespace CR
     /// 传的就是这里的常量；`AppFlow` 用同一批常量注册 FSM 状态。
     /// </para>
     /// <para>
-    /// 出处：`docs/client-architecture.md` §4「站点（App Flow）与面板清单」的 `Fsm 状态` 列，逐字一致。
+    /// 出处：`策划/client-architecture.md` §4「站点（App Flow）与面板清单」的 `Fsm 状态` 列，逐字一致。
     /// ⚠️ `Battle` 与引擎自注册的占位状态同名（`Game.cs:855` 的 `Fsm.RegisterState("Battle")`，无回调）——
     /// 本类按契约仍用 `Battle`，注册时引擎会打一条 Warn（占位态的 null 回调被本项目的替换，无行为损失）。
     /// </para>

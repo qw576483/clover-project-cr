@@ -1,6 +1,6 @@
 # 客户端架构契约（clover-project-cr）
 
-> **所有客户端 agent 必须先读本文 + `docs/client-api-reference.md`。**
+> **所有客户端 agent 必须先读本文 + `策划/client-api-reference.md`。**
 > 本文是主 agent 定下的架构与接口契约；⛔ 不许私自改。发现问题 → 回报主 agent。
 
 ## 0. 唯一原则：**面板驱动，不切场景**
@@ -48,7 +48,7 @@ Assets/Configs/config.json
 
 | # | 决策 | 理由 / 做法 |
 |---|---|---|
-| **D1** | **UI 用代码构建**（`UIFactory`），不手写 `.prefab` | 引擎自带 `UIFactory.CreatePanel/CreateText/CreateButton/CreateSlider/CreateInputField/...`（见 `docs/client-api-reference.md` §4）。手写 prefab 的 YAML 易错且不可评审。**做法**：面板自身在 `OnOpen` 里用 `UIFactory` 把视觉树建在自己的 `gameObject` 下 |
+| **D1** | **UI 用代码构建**（`UIFactory`），不手写 `.prefab` | 引擎自带 `UIFactory.CreatePanel/CreateText/CreateButton/CreateSlider/CreateInputField/...`（见 `策划/client-api-reference.md` §4）。手写 prefab 的 YAML 易错且不可评审。**做法**：面板自身在 `OnOpen` 里用 `UIFactory` 把视觉树建在自己的 `gameObject` 下 |
 | **D2** | 面板必须能被 `Game.UI.Open<T>` 打开 | `Game.UI.Open<T>` 默认 `Resources.Load<GameObject>("UI/"+typeof(T).Name)`。**做法**：替换 `CloverPresentation.PanelProvider`（`Runtime/Presentation/CloverPresentation.cs:69`）为「运行时 new GameObject + AddComponent<T>」的工厂（本项目落在 `UI/PanelFactory.cs`），零资产；面板内容仍用 `UIFactory` 自建 |
 | **D3** | **所有站点面板都挂在常驻 UI 树上**，站内切换只 `CloseAll`+`Open` | `UILayer`：背景 = `Background`，主界面 = `Normal`，弹窗（暂停/结算/确认）= `Popup`，加载遮罩 = `System` |
 | **D4** | 服务端 10 Hz 快照 → 客户端**插值到 60 FPS** 渲染 | `Module/Battle` 保存「上一帧快照 + 当前快照 + 时间戳」，`UnitView` 每帧按 `(now-lastTs)/100ms` 线性插值位置。⛔ 不许直接用离散坐标驱动 Transform（会抖） |
@@ -154,7 +154,7 @@ RED 半场 = 同一帧 `flipY` 镜像。**未纳入合成的 22 帧**（不共�
 | 顺序约定（结构级） | ① **圣水条在手牌下方**（原版条 y1797..1841、卡 y1614..1785）；② **「下一张」在左下**（x 33..97 / y 1634..1716）；③ 手牌整排用 `TextAnchor.LowerLeft` 直接落在量到的 x=144 | 同上；出处 = `几何量取.md` §1.3 D1/D2/D12/D14/D15/D9 |
 | 三向一致的把关 | `ResPaths` 键 ↔ `Sprites/Ui/**` 磁盘文件 ↔ `copy-ui-assets.py` 清单条目，由 `tools/probes/check-ui-keys.ps1` 机械对账 | `tools/probes/check-ui-keys.ps1`、`tools/probes/copy-ui-assets.py` |
 
-> ⚠️ **已知缺口（结构级）**：
+> ⚠️ **结构说明（`ResPaths` 键与 HUD 使用情况）**：
 > ① `check-ui-keys.ps1` 只扫 `ResPaths` 的**常量键**，扫不到 `CrUiStyle` 里经 `ResPaths.UiFrame(...)` 拼出的
 > **动态路径**（`CrUiStyle.LogoOfficial` / `LoadingBarFill`）⇒ 这两个引用对"未引用"探针**不可见**。
 > ② `HudPauseIconPlay`(170) 已登记键但 HUD 不使用（该按钮恒定进暂停菜单，没有播放态）；
@@ -182,7 +182,7 @@ RED 半场 = 同一帧 `flipY` 镜像。**未纳入合成的 22 帧**（不共�
 - 竖版画布宽只有 **1080** ⇒ 任何 `BoxW ≥ 1200` 的横排布局、或"标签–输入框–按钮"一行并排，**必然错**；
 - 一律**上下排布 + 角锚点**（`UIFactory.AnchoredTopLeft` / `AnchoredBottom` / `Stretch`）；
   ⛔ 不许在面板里写 1920 / 1080 字面量 —— 引用 `CrUiStyle.DesignW` / `DesignH`，或按锚点自适应；
-- 背景图 `CrUiStyle.SpriteBackground` 现在是**铺满**（已去掉 `preserveAspect`）——
+- 背景图 `CrUiStyle.SpriteBackground` 为**铺满**（不使用 `preserveAspect`）——
   竖构图原图配竖画布；⛔ 不许再靠"按原比例居中 + 两侧留底色"去兜朝向错误。
 
 **引擎侧**：`CloverPresentation.ReferenceResolution` / `.MatchWidthOrHeight` 是引擎的两个公开静态属性

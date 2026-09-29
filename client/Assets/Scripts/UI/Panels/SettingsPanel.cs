@@ -212,8 +212,7 @@ namespace CR.UI.Panels
             //       `Core/AudioPaths.cs` 的注释）、`AudioPaths` 无 Voice 键、`Resources` 下无 `Sound/Voice`，
             //       且没有任何表情/语音包系统 ⇒ 那颗滑块拖到底也**听不出任何差别**，是标准的假控件
             //       （⛔ 不许留一个不生效的滑块）。
-            //    ⚠️ `SettingsManager` 侧的 `audio.voice` 持久化与 `SoundGroup.Voice` 应用**仍在**
-            //       （它仍是 `策划/实体清单.tsv` S3 VoiceVolume 的实体，删了会让那份台账悬空）——
+            //    ⚠️ `SettingsManager` 侧的 `audio.voice` 持久化与 `SoundGroup.Voice` 应用**仍在**，
             //       只是本面板不订阅它（`Events.Settings.VoiceVolumeChanged` 工程内无人订阅）。
             _bgmSlider = AddVolumeRow(c, "Bgm", "背景音乐", RowY(0),
                 v => Game.Event?.Emit(Events.Settings.BgmVolumeRequest, v), out _bgmValue);

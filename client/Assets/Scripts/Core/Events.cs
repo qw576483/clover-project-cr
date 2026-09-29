@@ -121,8 +121,8 @@ namespace CR
             /// <para>
             /// ⚠️ **本事件目前在工程内没有发布方**（`SettingsPanel` 的「人声」行已删，见该面板
             /// `Build` 的注释：原版设置界面没有此项 + 本工程无任何 voice 素材 / 播放点）。
-            /// 保留它与其处理者是为了不动 `Module/Settings` 已登记的设置实体（`策划/实体清单.tsv` 的
-            /// S3 VoiceVolume：`audio.voice` 仍持久化、`Init` 仍把它应用到引擎 `SoundGroup.Voice`）。
+            /// 保留它与其处理者是为了不动 `Module/Settings` 已登记的设置链（`audio.voice` 仍持久化、
+            /// `Init` 仍把它应用到引擎 `SoundGroup.Voice`）。
             /// 要重新用它（例如将来接入语音包）⇒ 由新的显示方/触发方直接 `Emit` 本事件即可。
             /// </para>
             /// </summary>
@@ -149,7 +149,7 @@ namespace CR
             /// 按"原版没有就不加"移除）；② 工程内**没有**任何 voice 素材或播放点
             /// （全工程 0 处 `PlayVoice` 调用、`AudioPaths` 无 Voice 键、`Resources` 下无 `Sound/Voice`）；
             /// ③ 它与上面两条音量事件出自 `SettingsManager` 同一段对称代码，删除会让"音量 ×3"的
-            /// 契约与已登记实体（`策划/实体清单.tsv` S3 VoiceVolume）同时失效 ⇒ 保留为**待接入口**。
+            /// 契约同时失效 ⇒ 保留为**待接入口**。
             /// </para>
             /// </summary>
             public const string VoiceVolumeChanged = "Settings.VoiceVolumeChanged";

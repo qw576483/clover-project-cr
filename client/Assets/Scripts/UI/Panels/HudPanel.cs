@@ -884,7 +884,7 @@ namespace CR.UI.Panels
             //   （`UIWidgetControls.cs:238-246`：`anchorMax.x = p`、`offsetMin/Max` 归零）⇒ 填充若直接挂在
             //   轨道（956 宽）上，2/10 时右沿 = 88 + 191.2 = 279，而 18 图实测 = 289~290（差 ~11px）。
             //   挂进"左沿 102、宽 937.6"的容器后：2/10 右沿 = 102 + 0.2×937.6 = 289.5 ✔
-            //   ⇒ 每 1.0 圣水 = 正好 1 格（用户判词「一个圣水不是一个格子吗」）。
+            //   ⇒ 每 1.0 圣水 = 正好 1 格。
             var fillArea = UIFactory.CreateNode("ElixirFillArea", track.rectTransform);
             UIFactory.Place(fillArea, new Vector2(0f, 0f), new Vector2(0f, 0f),
                 new Vector2(ElixirFillInsetLeft, 0f), new Vector2(ElixirTickGridW, ElixirBarH));
@@ -919,7 +919,7 @@ namespace CR.UI.Panels
             //   出处：`策划/战斗HUD素材索引.md` §2 的 `⇒ elixir_bar → clip 1080 → 子元件表` 与 §3.1 表
             //   `d1…d9` 行 + §4 落地表（`Bars/ui_out frame_160`）。
             //   挂 **track**（⛔ 不挂 fill）⇒ 位置/宽度不随圣水值变化；在 fill 之后创建 ⇒ 压在填充之上
-            //   （原版满条时也数得出 10 段 —— 用户判词就是"满格时能数出 10 段"）。
+            //   （原版满条时也数得出 10 段）。
             //   位置 = 栅格左沿 + k×格宽（量法与残差见 `ElixirTickGridLeft`）；宽/高/不透明度见同名常量。
             for (var k = 1; k < 10; k++)
             {

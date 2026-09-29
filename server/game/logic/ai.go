@@ -7,7 +7,7 @@ import (
 	"github.com/qw576483/clover-server-engine/pkg/transport/event"
 )
 
-// 人机对战两条入口（用户点名功能）：
+// 人机对战两条入口：
 //  1. 训练场：MsgAiBattleStart —— 直接建一个「房主 + AI」的房间并开打；
 //  2. 房间 AI 补位：MsgRoomSetAi(ai_fill=true) + MsgRoomStart —— 单人房也能开打，1 号座位由 AI 顶。
 //

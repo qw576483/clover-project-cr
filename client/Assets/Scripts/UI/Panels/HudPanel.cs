@@ -42,7 +42,7 @@ namespace CR.UI.Panels
     /// **合法性两色落点指示不在本面板**：⛔ 不许在面板里另写一套判定（§5.4）。
     /// 共享几何的合法落点常量只有 `Core/GameConst.cs` 一处、面板又⛔不许引 `CR.Module`
     /// ⇒ 判定由 `View/HandView` 用同一套 `GameConst` 常量做。
-    /// 本面板的拖放提示是**中性**的（"松手即请求出牌，合法性由服务端裁决"）+ 把服务端的拒因原文显示出来。
+    /// 本面板对拖放的裁决是**中性**的：松手即发请求，合法性一律由服务端裁决，本地不判定合法/非法。
     /// </para>
     /// </summary>
     public sealed class HudPanel : UIPanel
@@ -560,9 +560,6 @@ namespace CR.UI.Panels
         /// <summary>裁掉投影带的卡体 Sprite（`Sprite.Create` 造的不归 Resources 管 ⇒ 全局面板实例复用）。</summary>
         private static Sprite _cardBodySprite;
 
-        /// <summary>状态行文字保留时长（秒）。本项目自定：只为不让上一条提示永远留在屏幕上。</summary>
-        private const float StatusHoldSeconds = 4f;
-
         // ───────────────────────── 真卡面（G4 改：⛔ 不再是"类型色底"） ─────────────────────────
         //
         // <b>为什么不用类型色当最终外观</b>：那是占位物（全局 skill §0.1 ②：纯色块不可交付）。
@@ -666,8 +663,6 @@ namespace CR.UI.Panels
         private Text _crownsEnemyText;
         private Text _timerText;
         private Text _phaseText;
-        private Text _statusText;
-        private float _statusUntil;
 
         // ── 圣水 ──
         private RectTransform _elixirFill;
@@ -771,7 +766,6 @@ namespace CR.UI.Panels
 
             Subscribe();
             RefreshAll();
-            SetStatus("拖动手牌到场上松手即请求出牌；最终合法性由服务端裁决。", CrUiStyle.TextDim);
         }
 
         public override void OnClose()
@@ -891,22 +885,11 @@ namespace CR.UI.Panels
             //    （出处 18 图 purple bbox；另有实机 dump 与节点树读数交叉验证）。
             //    若取原 `-10` ⇒ px y 10..40 ⇒ **与徽章重叠 26px**（「常规时间」四字压到紫徽 + 金星上）。
             //    徽章坐标是**量取来的**、⛔ 不让位 ⇒ 让这一行让位：px y **44..74**（徽章底边 y=36 之下留 8px 缝）。
-            //    阶段/状态两行是本项目自定件（「多出 Phase/Status 两行」登记在 `策划/差异登记.tsv`），
-            //    ⛔ 不动任何量取来的几何（TimerBox 冻结几何、徽章位、手牌、圣水条）。
+            //    阶段行是本项目自定件，⛔ 不动任何量取来的几何（TimerBox 冻结几何、徽章位、手牌、圣水条）。
             _phaseText = UIFactory.CreateText("Phase", _root, string.Empty, CrUiStyle.FontSmall,
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);
             UIFactory.Place(_phaseText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -44f), new Vector2(420f, 30f));
-
-            // 状态行（提示 / 服务端拒因）：阶段下一行。本项目自定（原版无此文字条）。
-            // ⛔ 同上让位：原 `-44` 正是阶段行现在的位置 ⇒ 下移到 `-78`（px y 78..108）。
-            // 宽度 900 → 680 是为了**不压右上计时板**：计时板 TimerBox 实占 px x 882..1080 / y 0..100
-            //   900 居中 ⇒ x 90..990，与板在 x 882..990 上相交；
-            //   680 居中 ⇒ x 200..880 ⇒ 与计时板零相交（状态行会显示服务端拒因，不许被板压住）。
-            _statusText = UIFactory.CreateText("Status", _root, string.Empty, CrUiStyle.FontSmall,
-                TextAnchor.MiddleCenter, CrUiStyle.TextDim);
-            UIFactory.Place(_statusText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -78f), new Vector2(680f, 30f));
         }
 
         private void BuildElixir()
@@ -1178,7 +1161,7 @@ namespace CR.UI.Panels
         // `Events.Flow.StationEnterRequest` 是"请求切到某站点"的唯一入口（`Events.cs:47-52` 的注释
         // 写明它的用途就是让这类面板请求进 `Pause` / 回 `Battle`）。`AppFlow` 收到后切站点，
         // `CR.UI.BattleUiHost` 收到请求 / 站点变化后开 `PausePanel`（面板的开关只有那一处）。
-        // 位置选**右上角**：左上角是冠数、顶部居中往下是计时/阶段/状态行、底部是圣水条与手牌
+        // 位置选**右上角**：左上角是冠数、顶部居中往下是计时/阶段、底部是圣水条与手牌
         //（`AnchoredBottom`），右上角是唯一不与它们重叠的空区。锚点/轴心用 (1,1)（右上），
         // ⛔ 不用"左上角 + 大负 y"—— 见类注释里 CanvasScaler 的实测记录。
 
@@ -1251,7 +1234,7 @@ namespace CR.UI.Panels
             Game.Event?.Emit(Events.Flow.StationEnterRequest, Stations.Pause);
         }
 
-        // ───────────────────────── 逐帧：拖放轮询 + 状态行计时 ─────────────────────────
+        // ───────────────────────── 逐帧：拖放轮询 ─────────────────────────
 
         /// <summary>
         /// 每帧被 `UIManager.Tick` 调用（`Runtime/Presentation/UI.cs:363-379` 对每个已打开面板调 `OnUpdate`）。
@@ -1266,12 +1249,6 @@ namespace CR.UI.Panels
             // ⛔ 不用 `dt` 推进 —— 它是 `Time.deltaTime`（随 `Time.timeScale` 缩放），
             //   而条要跟的是服务端时间轴（渲染时钟），不是本地帧步长。
             RefreshElixir();
-
-            if (_statusText != null && _statusUntil > 0f && Time.unscaledTime >= _statusUntil)
-            {
-                _statusUntil = 0f;
-                SetStatus(string.Empty, CrUiStyle.TextDim);
-            }
         }
 
         private void PollDrag()
@@ -1327,7 +1304,8 @@ namespace CR.UI.Panels
                 var cardId = _handIds[slot];
                 if (cardId == 0)
                 {
-                    SetStatus("这个手牌位是空的（等下一帧快照刷新）", CrUiStyle.TextDim);
+                    // 非预期分支：卡槽在、但该位还没被快照填上（`_handIds[slot] == 0`）。
+                    Game.Logger?.Info(Tag, $"按下手牌槽 {slot} 时该位还是空的（等下一帧快照刷新），本次不进入拖放");
                     return;
                 }
                 BeginDrag(cardId, slot, screen);
@@ -1431,21 +1409,17 @@ namespace CR.UI.Panels
             // 源 = `Game/grabcard_01.ogg`（原版「抓牌」）⇒ 见 Core/AudioPaths.cs 的 GrabCard。
             PlaySfx(AudioPaths.GrabCard);
 
-            // 圣水不足**在本地就提示**（但**仍然发送**：服务端才是裁决者）：费用来自卡池数据，
+            // 圣水不足时**本地就播无效投放音**（但**仍然发送**：服务端才是裁决者）：费用来自卡池数据，
             // 这不是几何判定、也不是第二套玩法规则。
             var elixir = CurrentElixirMilli();
             var costMilli = card != null ? card.elixir * ElixirMilliPerUnit : 0;
             if (card != null && elixir >= 0 && costMilli > elixir)
             {
-                // 圣水不足被拒音（D8 补）：原版无效投放音 `bad_drop_03`（整包唯一的"拒绝/无效投放"音）。
+                // 原版无效投放音 `bad_drop_03`（整包唯一的"拒绝/无效投放"音）。
                 PlaySfx(AudioPaths.BadDrop);
-                SetStatus(
-                    $"圣水不足：「{card.name_cn}」需要 {card.elixir}，当前 {elixir / (float)ElixirMilliPerUnit:0.0}",
-                    CrUiStyle.ErrorText);
-            }
-            else
-            {
-                SetStatus($"拖动「{CardNameOrId(cardId)}」中…松手即请求出牌（合法性由服务端裁决）", CrUiStyle.Accent);
+                Game.Logger?.Info(Tag,
+                    $"圣水不足：「{card.name_cn}」需要 {card.elixir}，" +
+                    $"当前 {elixir / (float)ElixirMilliPerUnit:0.0}（请求照发，由服务端裁决）");
             }
 
             Game.Logger?.Info(Tag, $"开始拖放：槽位 {slot} card={cardId} 屏幕=({screen.x:0},{screen.y:0})");
@@ -1476,7 +1450,8 @@ namespace CR.UI.Panels
             var world = TryScreenToWorld(screen, out var ok);
             if (!ok)
             {
-                SetStatus("拿不到主相机，落点无法换算成场内坐标，本次出牌未发出", CrUiStyle.ErrorText);
+                // 非预期分支：主相机拿不到 ⇒ 落点换算不出场内坐标，本次出牌不发出。
+                Game.Logger?.Warn(Tag, "拿不到主相机，落点无法换算成场内坐标，本次出牌未发出");
                 return;
             }
 
@@ -1498,7 +1473,6 @@ namespace CR.UI.Panels
 
             Game.Logger?.Info(Tag,
                 $"拖放抬起 → 请求出牌 card={cardId} 屏幕=({screen.x:0},{screen.y:0}) 世界=({world.x:0.00},{world.y:0.00})");
-            SetStatus($"已请求出牌「{CardNameOrId(cardId)}」，等快照/服务端确认…", CrUiStyle.Accent);
             Game.Event?.Emit(Events.Battle.PlayCardRequest, cardId, world);
         }
 
@@ -1742,7 +1716,6 @@ namespace CR.UI.Panels
             }
 
             CancelDrag("对局已结束");
-            SetStatus(string.Empty, CrUiStyle.TextDim);
 
             // 结算面板（`ResultPanel`）负责展示详情；HUD 只把冠数定格在服务端给的结算值上
             //（快照停了，不再依赖它）并把阶段写成"已结束"。
@@ -1764,7 +1737,7 @@ namespace CR.UI.Panels
         private void OnFailed(string reason)
         {
             var text = string.IsNullOrEmpty(reason) ? "对局操作失败（服务端未给出原因）" : reason;
-            SetStatus(text, CrUiStyle.ErrorText);
+            Game.Logger?.Warn(Tag, text);
         }
 
         private void OnPoolLoaded(CardInfo[] cards)
@@ -2210,7 +2183,7 @@ namespace CR.UI.Panels
                 card.color = Color.white;
 
                 // 圣水不足 ⇒ **整张卡**（卡体 + 卡面 + 费用水滴）去色（口径与出处见 `GreySprite`）。
-                // 口径与 `BeginDrag` 的本地提示同一处（`IsUnaffordable`），⛔ 不写第二套规则。
+                // 口径与 `BeginDrag` 的本地判定同一处（`IsUnaffordable`），⛔ 不写第二套规则。
                 var grey = IsUnaffordable(info, elixirMilli);
                 Greyify(card, _handRawSlot, i, grey, Color.white);
                 Greyify(art, _handRawArt, i, grey, Color.white);
@@ -2279,17 +2252,6 @@ namespace CR.UI.Panels
             return string.IsNullOrEmpty(card.name_cn) ? $"卡 id={id}" : card.name_cn;
         }
 
-        private static string CardName(CardInfo card)
-        {
-            return !string.IsNullOrEmpty(card.name_cn) ? card.name_cn : "未知卡";
-        }
-
-        private string CardNameOrId(int id)
-        {
-            var card = FindCard(id);
-            return card != null ? CardName(card) : $"卡 id={id}";
-        }
-
         /// <summary>类型名（`CardInfo.type`：0=部队 1=法术 2=建筑，见 `Def/ProtoDef.cs:212`）。</summary>
         private string TypeName(int type)
         {
@@ -2322,7 +2284,7 @@ namespace CR.UI.Panels
         /// </summary>
         /// <param name="slotTag">日志定位用（"手牌#1"…"下一张"）—— 日志里据此分辨是哪一格。</param>
         /// <summary>
-        /// 这张卡当前**出不了**（圣水不足）—— 与 `BeginDrag` 的本地提示同一口径（⛔ 不写第二套规则）：
+        /// 这张卡当前**出不了**（圣水不足）—— 与 `BeginDrag` 的本地判定同一口径（⛔ 不写第二套规则）：
         /// 费用（`CardInfo.elixir` × `ElixirMilliPerUnit`）**严格大于**当前圣水才算出不了（相等算能出）；
         /// 圣水未知（<see cref="CurrentElixirMilli"/> 返回 -1）⇒ 一律按"能出"（不灰化，⛔ 不猜）。
         /// </summary>
@@ -2554,12 +2516,5 @@ namespace CR.UI.Panels
             return _cards.TryGetValue(id, out var card) ? card : null;
         }
 
-        private void SetStatus(string text, Color color)
-        {
-            if (_statusText == null) return;
-            _statusText.text = TextFit.Clamp(_statusText, text);
-            _statusText.color = color;
-            _statusUntil = string.IsNullOrEmpty(text) ? 0f : Time.unscaledTime + StatusHoldSeconds;
-        }
     }
 }

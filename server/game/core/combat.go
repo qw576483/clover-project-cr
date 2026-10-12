@@ -75,7 +75,7 @@ type pendingHit struct {
 
 // advanceAttack advances one entity's attack cycle by one tick and returns the
 // hit it decided, if any. `tick` is the battle tick this call belongs to (it fixes the
-// attack animation window, see holdAttackAnim).
+// attack animation window, see holdWindupAnim / holdAttackAnim).
 func advanceAttack(e *entity, target *entity, tick int32) *pendingHit {
 	loadTimeMs := e.Def.LoadTimeMs
 	hitSpeedMs := e.Def.HitSpeedMs
@@ -90,6 +90,15 @@ func advanceAttack(e *entity, target *entity, tick int32) *pendingHit {
 	e.st.engage(target.ID, loadTimeMs)
 
 	if e.st.cooldownMs > 0 {
+		// The windup is the last LoadTimeMs before the swing, and the tier is
+		// raised for all of it: that window is the only signal the snapshot
+		// stream carries for "this unit is winding up", and the client starts
+		// the attack clip (and its shot) off its rising edge. The damage is not
+		// moved forward with it -- the hit is still decided below, on the tick
+		// the cooldown reaches zero (cr-sim engine/combat.py:6-18).
+		if e.st.cooldownMs <= loadTimeMs {
+			e.holdWindupAnim(tick, ticksUntilSwing(e.st.cooldownMs))
+		}
 		e.st.cooldownMs -= MSecPerTick
 		if e.st.cooldownMs > 0 {
 			return nil
@@ -104,6 +113,35 @@ func advanceAttack(e *entity, target *entity, tick int32) *pendingHit {
 	return &pendingHit{attacker: e, target: target, damage: e.Def.Damage}
 }
 
+// ticksUntilSwing is how many ticks a cooldown of cooldownMs still needs before
+// its swing: the swing lands on tick `tick + ticksUntilSwing`, i.e. on the tick
+// whose decrement takes the countdown to zero or below.
+func ticksUntilSwing(cooldownMs int32) int32 {
+	if cooldownMs <= 0 {
+		return 0
+	}
+	return (cooldownMs - 1) / MSecPerTick
+}
+
+// holdWindupAnim raises the attack tier for a windup whose swing lands
+// `ticksToSwing` ticks from now: the tier stays set through the swing and its hold
+// window, so the window is `[windup start, swing + hold)`.
+//
+// A window that is still open is left alone: the client tells a fresh swing apart
+// from an ongoing one by "the tier was released, then AnimAttack again"
+// (View/UnitView.Apply holds a finished attack clip and replays it on that edge),
+// so a windup at least as long as the attack interval -- Inferno Tower's beam, a
+// hit speed shorter than its load -- must wait for the previous window to close
+// instead of extending it. On such a unit the tier therefore stays up until the
+// window ends and the next windup re-raises it one tick later.
+func (e *entity) holdWindupAnim(tick, ticksToSwing int32) {
+	if e.animHoldUntilTick >= tick {
+		return
+	}
+	e.anim = AnimAttack
+	e.animHoldUntilTick = tick + ticksToSwing + e.attackAnimHold()
+}
+
 // holdAttackAnim raises the attack tier and opens its hold window (see
 // attackAnimHoldTicks): the tier stays set on ticks `[tick, tick+hold)`.
 //
@@ -111,6 +149,15 @@ func advanceAttack(e *entity, target *entity, tick int32) *pendingHit {
 // consecutive swings are separated by at least one tick of walk/idle -- that gap is what
 // lets the client see each swing as its own attack.
 func (e *entity) holdAttackAnim(tick int32) {
+	e.anim = AnimAttack
+	e.animHoldUntilTick = tick + e.attackAnimHold()
+}
+
+// attackAnimHold is the hold window length in ticks for this entity's own hit
+// speed: attackAnimHoldTicks, lowered to `hit speed - 1` for a unit whose hit
+// speed is shorter than that constant (see attackAnimHoldTicks), and never below
+// one tick.
+func (e *entity) attackAnimHold() int32 {
 	hold := attackAnimHoldTicks
 	if ticks := TicksForMs(e.Def.HitSpeedMs); ticks > 0 && hold >= ticks {
 		hold = ticks - 1
@@ -118,8 +165,7 @@ func (e *entity) holdAttackAnim(tick int32) {
 	if hold < 1 {
 		hold = 1
 	}
-	e.anim = AnimAttack
-	e.animHoldUntilTick = tick + hold
+	return hold
 }
 
 // applyHit lands a decided hit. Its target may already have died this tick.
@@ -172,9 +218,10 @@ func (b *Battle) damageEntity(target *entity, amount int32, src *entity) {
 // projectile is a shot in flight.
 //
 // A non-homing shot stores the point it was aimed at and commits to it; a
-// homing one re-reads its target's position every tick. Speed is the
-// projectile's own tiles-per-minute converted the same way a unit's is
-// (参考规格 §5 投射物).
+// homing one re-reads its target's position every tick. Which of the two a shot
+// is comes from its own row's `homing` (UnitDef.Homing, 官方
+// cards_stats_projectile.json). Speed is the projectile's own tiles-per-minute
+// converted the same way a unit's is (参考规格 §5 投射物).
 type projectile struct {
 	id       int32
 	ownerID  int32
@@ -234,7 +281,7 @@ func (b *Battle) fireProjectile(src *entity, target *entity, damage int32) {
 		destX:            target.xMilli,
 		destY:            target.yMilli,
 		targetID:         target.ID,
-		homing:           true,
+		homing:           pdef.Homing,
 		speedMilliPerSec: pdef.SpeedMilliPerSec,
 		aoeRadius:        pdef.AoeRadiusMilli,
 	}

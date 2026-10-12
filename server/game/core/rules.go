@@ -6,7 +6,8 @@ package core
 //     attacker.
 //  2. At 180 s (the end of regulation) the crowns are compared. If they differ
 //     the match ends right there; if they are level it goes to overtime.
-//  3. At 300 s (the end of overtime) the crowns are compared again; level
+//  3. In overtime, the first tower destroyed wins outright (sudden death).
+//  4. At 300 s (the end of overtime) the crowns are compared again; level
 //     crowns fall to each side's remaining tower HP as a fraction of its own
 //     maximum; still level is a genuine draw.
 
@@ -17,6 +18,9 @@ const (
 	ReasonTimeUpHp      = "time_up_hp"
 	ReasonSurrender     = "surrender"
 	ReasonDraw          = "draw"
+	// ReasonSuddenDeath is overtime's first tower kill: it ends the match with
+	// the killer as the winner, before the clock runs out.
+	ReasonSuddenDeath = "sudden_death"
 )
 
 // Result is the match outcome.
@@ -76,6 +80,13 @@ func (b *Battle) crownLeader() Team {
 	return TeamBlue
 }
 
+// scoredThisTick reports which side's crown count grew during the tick being
+// resolved (see Battle.preTickCrowns).
+func (b *Battle) scoredThisTick() (blueScored, redScored bool) {
+	return b.crowns[TeamBlue] > b.preTickCrowns[TeamBlue],
+		b.crowns[TeamRed] > b.preTickCrowns[TeamRed]
+}
+
 // checkVictory evaluates every end condition, in the order the rules rank.
 func (b *Battle) checkVictory() {
 	if b.ended {
@@ -89,15 +100,32 @@ func (b *Battle) checkVictory() {
 			return
 		}
 	}
-	// (2) The end of regulation (180 s).
-	if b.serverMs >= RegulationMs && b.serverMs < RegulationMs+OvertimeMs && b.phase == PhaseNormal {
-		if b.crowns[TeamBlue] != b.crowns[TeamRed] {
-			b.finish(b.crownLeader(), ReasonTimeUpCrowns)
+	// (2) The end of regulation (180 s), then sudden death during overtime.
+	if b.serverMs >= RegulationMs && b.serverMs < RegulationMs+OvertimeMs {
+		if b.phase == PhaseNormal {
+			if b.crowns[TeamBlue] != b.crowns[TeamRed] {
+				b.finish(b.crownLeader(), ReasonTimeUpCrowns)
+				return
+			}
+			// Level crowns: play on into overtime. Elixir keeps advancing on the
+			// same timeline, so the 3x segment starts at 240 s.
+			b.phase = PhaseOvertime
 			return
 		}
-		// Level crowns: play on into overtime. Elixir keeps advancing on the
-		// same timeline, so the 3x segment starts at 240 s.
-		b.phase = PhaseOvertime
+		// Sudden death: the tick that destroys the first tower in overtime wins
+		// outright, princess tower or king alike (a king death is already an
+		// instant win above). It compares against the crowns as of the start of
+		// the tick, so a tower that was already down when overtime began decides
+		// nothing, and both sides scoring on the same tick is no sudden death.
+		// 出处: cr-sim cr_sim/engine/battle.py:2722-2733 `_decide("sudden death")`.
+		blueScored, redScored := b.scoredThisTick()
+		if blueScored != redScored {
+			if blueScored {
+				b.finish(TeamBlue, ReasonSuddenDeath)
+			} else {
+				b.finish(TeamRed, ReasonSuddenDeath)
+			}
+		}
 		return
 	}
 	// (3) The end of overtime (300 s).

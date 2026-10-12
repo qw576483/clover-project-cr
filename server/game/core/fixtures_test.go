@@ -109,20 +109,35 @@ func newTestTable() *fakeTable {
 		DeployMs: 0, RadiusMilli: 1400, Mass: 0, AtkAir: true, AtkGround: true,
 		ProjectileKey: "KingProjectile",
 	}
-	// Projectile rows: core reads only the flight speed from them (the damage
-	// stays on the attacking unit). Every shot is homing,
-	// which is the documented simplification.
+	// Projectile rows: core reads the flight speed and the `homing` flag from
+	// them (the damage stays on the attacking unit). The three below read
+	// homing=true in cards_stats_projectile.json.
 	t.units["TowerPrincessProjectile"] = &UnitDef{
 		ID: 301, Key: "TowerPrincessProjectile", Kind: KindProjectile,
-		SpeedMilliPerSec: SpeedMilliPerSec(600),
+		SpeedMilliPerSec: SpeedMilliPerSec(600), Homing: true,
 	}
 	t.units["KingProjectile"] = &UnitDef{
 		ID: 302, Key: "KingProjectile", Kind: KindProjectile,
-		SpeedMilliPerSec: SpeedMilliPerSec(1000),
+		SpeedMilliPerSec: SpeedMilliPerSec(1000), Homing: true,
 	}
 	t.units["ArcherArrow"] = &UnitDef{
 		ID: 303, Key: "ArcherArrow", Kind: KindProjectile,
-		SpeedMilliPerSec: SpeedMilliPerSec(900),
+		SpeedMilliPerSec: SpeedMilliPerSec(900), Homing: true,
+	}
+	// Mortar: a splash shot that does not home. Official MortarProjectile reads
+	// speed 300 / radius 2000 / homing=false, so its shell commits to the point
+	// it was fired at and detonates there.
+	t.units["Mortar"] = &UnitDef{
+		ID: 106, Key: "Mortar", NameCN: "迫击炮", Kind: KindBuilding,
+		HP: 1369, Damage: 266, HitSpeedMs: 5000, LoadTimeMs: 4000,
+		SpeedMilliPerSec: 0, RangeMilli: 11500, SightMilli: 11500,
+		DeployMs: 3500, RadiusMilli: 600, Mass: 0, AtkGround: true,
+		ProjectileKey: "MortarProjectile",
+	}
+	t.units["MortarProjectile"] = &UnitDef{
+		ID: 304, Key: "MortarProjectile", Kind: KindProjectile,
+		SpeedMilliPerSec: SpeedMilliPerSec(300), SpeedTilesPerMinute: 300,
+		AoeRadiusMilli: 2000, Homing: false,
 	}
 
 	troop := func(id int32, key string, elixir int32) *CardDef {
@@ -182,6 +197,34 @@ func setElixir(b *Battle, team Team, milli int32) {
 // runSteps advances n ticks.
 func runSteps(b *Battle, n int) {
 	for i := 0; i < n; i++ {
+		b.Step()
+	}
+}
+
+// drawCooldownTicks is the first elixir segment's next-card cooldown in ticks
+// (1000 ms at 50 ms per tick), i.e. how long a played slot stays hidden.
+const drawCooldownTicks = 1000 / MSecPerTick
+
+// settleDraws advances until every slot waiting for its next card has been
+// filled, so a test that plays cards back to back reads the same rotation it
+// would have read before the reveal delay existed.
+func settleDraws(b *Battle) {
+	for i := 0; i < 200; i++ {
+		waiting := false
+		for _, team := range []Team{TeamBlue, TeamRed} {
+			h := b.hands[team]
+			if h == nil {
+				continue
+			}
+			for _, until := range h.pendingUntilMs {
+				if until != 0 {
+					waiting = true
+				}
+			}
+		}
+		if !waiting || b.ended {
+			return
+		}
 		b.Step()
 	}
 }

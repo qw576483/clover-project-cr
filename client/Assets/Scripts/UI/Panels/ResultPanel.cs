@@ -561,7 +561,8 @@ namespace CR.UI.Panels
 
         /// <summary>
         /// 结算原因 → 中文一句话。⛔ 未知取值**显示原始串**并留一条 Warn（⛔ 不许静默显示空白）。
-        /// 取值表出处：`Def/ProtoDef.cs:104`（king_destroyed / time_up_crowns / time_up_hp / surrender / draw）。
+        /// 取值表出处：`Def/ProtoDef.cs:104`（king_destroyed / time_up_crowns / time_up_hp / sudden_death /
+        /// surrender / draw）+ `server/game/core/rules.go:16-23`。
         /// </summary>
         private void RefreshReason(BattleEndNotify r, int myTeam)
         {
@@ -578,6 +579,10 @@ namespace CR.UI.Panels
                     break;
                 case "time_up_hp":
                     _reason.text = "结算原因：加时结束，比总血量";
+                    break;
+                case "sudden_death":
+                    // 加时赛里先破塔的一方直接获胜（服务端 `server/game/core/rules.go:21-23`）。
+                    _reason.text = "结算原因：加时赛先破塔获胜";
                     break;
                 case "surrender":
                     // 谁投降了：`win` / `draw` 是逐接收者的（`draw` 为真时不猜）。
@@ -604,7 +609,7 @@ namespace CR.UI.Panels
                         _unknownReasonWarned = true;
                         Game.Logger?.Warn(Tag,
                             $"未知的结算原因 reason='{reason}'（协议只定义 king_destroyed / time_up_crowns / " +
-                            "time_up_hp / surrender / draw），界面按原始串显示");
+                            "time_up_hp / sudden_death / surrender / draw），界面按原始串显示");
                     }
                     _reason.text = TextFit.Clamp(_reason, $"结算原因：{reason}（未识别的取值，已按原文显示）");
                     break;

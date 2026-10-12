@@ -216,6 +216,10 @@ func unitDefOf(row *table.UnitRow) *core.UnitDef {
 		JumpHeightMilli:      int32(row.JumpHeightMt),
 		JumpSpeedTilesPerMin: int32(row.JumpSpeed),
 
+		// 制导：投射物行的 `homing`（官方 cards_stats_projectile.json 同名字段，
+		// 刻在配表里 ⇒ core 不硬编码任何投射物表）。非投射物行恒为 0。
+		Homing: row.Homing != 0,
+
 		SpriteDir: row.SpriteDir,
 
 		// 飞行：unit 表的 flying 列（出处官方 cards_stats_characters.json 的 flying_height > 0）。

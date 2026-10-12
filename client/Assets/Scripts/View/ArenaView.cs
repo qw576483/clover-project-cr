@@ -1114,10 +1114,34 @@ namespace CR.View
         /// <summary>塔帧断言日志只打一次（6 座塔会走 6 遍建塔路径）。</summary>
         private static bool _towerFrameAssertLogged;
 
+        /// <summary>国王塔逐帧动画的断言日志只打一次（每种塔型各一条）。</summary>
+        private static bool _kingAnimAssertLogged;
+
+        /// <summary>公主塔逐帧动画的断言日志只打一次（每种塔型各一条）。</summary>
+        private static bool _princessAnimAssertLogged;
+
         /// <summary>河道（底图帧自带水带）断言日志只打一次（重建竞技场会重走）。</summary>
         private static bool _riverAssertLogged;
 
         private readonly List<TowerView> _towers = new List<TowerView>();
+
+        /// <summary>本场"塔瞄准"次数（每次塔开火调一次，见 <see cref="TryAimTowerTurret"/> 的日志）。</summary>
+        private int _aimTotal;
+
+        /// <summary>本场炮塔真的选到方向帧的次数。</summary>
+        private int _aimed;
+
+        /// <summary>本场保持当前方向不动的次数（公主塔没有炮塔层 / 方向帧素材缺失 / 找不到塔）。</summary>
+        private int _aimKept;
+
+        /// <summary>本场塔瞄准次数（自检用）。</summary>
+        public int AimTotal { get { return _aimTotal; } }
+
+        /// <summary>本场炮塔真的选到方向帧的次数（自检用）。</summary>
+        public int AimedCount { get { return _aimed; } }
+
+        /// <summary>本场保持当前方向不动的次数（自检用）。</summary>
+        public int AimKept { get { return _aimKept; } }
         private readonly List<Sprite> _generated = new List<Sprite>();
         private Transform _artRoot;
         private Transform _towerRoot;
@@ -1275,6 +1299,15 @@ namespace CR.View
         /// </summary>
         private void LateUpdate()
         {
+            // 塔的逐帧动画（国王坐像 / 乘员 idle）在这里推进 —— 塔视图不是 MonoBehaviour，
+            // 由本组件的帧后回调驱动（见 TowerView.TickAnimations）。
+            // 步长取**不受 timeScale 影响**的 `Time.unscaledDeltaTime`，与特效层 / `BattleViewRoot` 的挂起队列
+            // 同一口径（`BattleViewRoot.ProcessPendingSplashRings`）：整条表现链共用一个推进时钟，
+            // 慢镜 / 暂停时不会出现"单位走、塔与特效冻"；`Time.deltaTime` 还会在掉帧时被
+            // `Time.maximumDeltaTime`（默认 1/3 s）截断 ⇒ 动画跳帧。
+            var dt = Time.unscaledDeltaTime;
+            for (var i = 0; i < _towers.Count; i++) _towers[i].TickAnimations(dt);
+
             if (_framedCam == null)
             {
                 _framedCam = Camera.main;
@@ -1969,17 +2002,19 @@ namespace CR.View
             for (var team = 0; team < 2; team++)
             {
                 var mirrored = GameConst.IsMirroredForTeam(team);
-                AddTower(team, true, GameConst.KingTowerTileX, GameConst.KingTowerTileY, mirrored, frames, occupantFrames);
-                AddTower(team, false, GameConst.BridgeCxATile, GameConst.PrincessTowerTileY, mirrored, frames, occupantFrames);
-                AddTower(team, false, GameConst.BridgeCxBTile, GameConst.PrincessTowerTileY, mirrored, frames, occupantFrames);
+                AddTower(team, true, GameConst.KingTowerTileX, GameConst.KingTowerTileY, 0, mirrored, frames, occupantFrames);
+                AddTower(team, false, GameConst.BridgeCxATile, GameConst.PrincessTowerTileY, 1, mirrored, frames, occupantFrames);
+                AddTower(team, false, GameConst.BridgeCxBTile, GameConst.PrincessTowerTileY, 2, mirrored, frames, occupantFrames);
             }
 
             if (_towers.Count != 6)
                 Game.Logger?.Warn(LogTag, $"塔数不是 6（实得 {_towers.Count}）—— 检查 GameConst 塔位常量");
         }
 
-        private void AddTower(int team, bool isKing, float xTile, float yTileBlue, bool mirrored, Sprite[] frames,
-            Sprite[] princessOccupantFrames)
+        /// <param name="roster">该队在服务端 roster 里的下标（**[王, 左, 右]**，`server/game/core/tower.go:22-35`）——
+        /// 与 <see cref="TryTowerHitPoint"/> 同一口径，日志/对号都用它。</param>
+        private void AddTower(int team, bool isKing, float xTile, float yTileBlue, int roster, bool mirrored,
+            Sprite[] frames, Sprite[] princessOccupantFrames)
         {
             var yTile = mirrored ? GameConst.ArenaTilesH - yTileBlue : yTileBlue;
             var go = new GameObject(isKing ? "KingTower" : "PrincessTower");
@@ -2000,6 +2035,10 @@ namespace CR.View
             Sprite body = null;
             Transform muzzle = null;   // ★ 炮口层（Princess / Turret），见 TowerView._muzzle
             Transform turret = null;   // 国王塔的炮塔层 —— 初始不显示，激活时才亮（见 TowerView.SetKingActive）
+            // ★ 逐帧动画层（出处 = TowerAnimTable 的类注释）：国王坐像 / 公主塔乘员。
+            //   两层的帧序列与逐帧矩阵都来自 `.sc` 的 `0x0C` 放置表（⛔ 不在本文件里编帧号/时长）。
+            Transform kingLayer = null;
+            Transform occupantLayer = null;
             var sb = new List<string>();
             for (var i = 0; i < recipe.Length; i++)
             {
@@ -2024,6 +2063,8 @@ namespace CR.View
                 if (built && (spec.Name == "Princess" || spec.Name == "Turret"))
                     muzzle = go.transform.Find(spec.Name);
                 if (built && spec.Name == "Turret") turret = go.transform.Find(spec.Name);
+                if (built && spec.Name == "King") kingLayer = go.transform.Find(spec.Name);
+                if (built && spec.Name == "Princess") occupantLayer = go.transform.Find(spec.Name);
                 n += built ? 1 : 0;
                 sb.Add(spec.Name + "=" + Name(sp));
             }
@@ -2092,8 +2133,16 @@ namespace CR.View
             var bar = WorldHpBar.Create(go.transform, isKing ? 1.8f : 1.4f, 0.20f,
                 isKing ? 2.6f : 2.0f, LogTag + (isKing ? ".KingHp" : ".PrinHp"), ArenaLayers.Instance.Overlay);
             var hpNumber = AttachTowerBarDeco(bar, LogTag);
-            _towers.Add(new TowerView(team, isKing, xTile, yTile, FindLayerRenderer(go.transform), bar,
-                rubble, hpNumber, muzzle, turret));
+            var view = new TowerView(team, isKing, xTile, yTile, roster, FindLayerRenderer(go.transform), bar,
+                rubble, hpNumber, muzzle, turret, kingLayer, occupantLayer, frames, princessOccupantFrames);
+            _towers.Add(view);
+            // 两条逐帧动画（国王坐像 / 乘员）各留一条断言日志：帧序列没接上时这里就是零帧动画。
+            if (team == 0 && !(isKing ? _kingAnimAssertLogged : _princessAnimAssertLogged))
+            {
+                if (isKing) _kingAnimAssertLogged = true; else _princessAnimAssertLogged = true;
+                Game.Logger?.Info(LogTag,
+                    $"塔层动画（断言）：{(isKing ? "国王塔" : "公主塔")} {view.AnimSummary()}");
+            }
         }
 
         // ═══════════════ 塔血条上的数字与等级牌（版面单位；版面高恒 = 100，见 WorldHpBar.GetAttachment） ═══════════════
@@ -2532,6 +2581,86 @@ namespace CR.View
         }
 
         /// <summary>
+        /// 取一座塔的**世界落点**（受击特效/读数用）。
+        /// <para>
+        /// 为什么按 `(team, ordinal)` 而不是 `(xMilli, yMilli)`：塔的**快照条目**（<c>TowerState</c>）
+        /// 只有 `id / kind / hp / max_hp / alive`，**没有坐标**（见 `Def/ProtoDef.cs`）⇒ 调用方（快照里那条
+        /// 命中比对）手里没有塔位。`ordinal` = 该队在服务端 roster 里的下标（**[王, 左, 右]**，
+        /// `server/game/core/tower.go:22-35`），与 <see cref="ApplyTowerTeam"/> 的映射同一口径。
+        /// </para>
+        /// <para>塔视图尚未建 / 下标越界 ⇒ false（调用方留痕并计跳过，⛔ 不静默）。</para>
+        /// </summary>
+        /// <param name="team">队伍：0=BLUE 1=RED。</param>
+        /// <param name="ordinal">roster 下标：0=国王塔、1=左公主塔、2=右公主塔。</param>
+        /// <param name="world">该塔根的世界坐标（塔位是固定几何，见 `GameConst`）。</param>
+        public bool TryTowerHitPoint(int team, int ordinal, out Vector2 world)
+        {
+            world = default(Vector2);
+            if (ordinal < 0 || ordinal > 2) return false;
+            TowerView t = ordinal == 0 ? FindTower(team, true, 0) : FindTower(team, false, ordinal - 1);
+            if (t == null) return false;
+            world = GameConst.TileToWorld(t.TileX, t.TileY);
+            return true;
+        }
+
+        /// <summary>
+        /// **让某座塔的炮塔朝目标转**（服务端 `EvTowerShoot` 的表现用）。
+        /// <para>
+        /// 对号方式 = 同 <see cref="TryTowerMuzzle(int,int,int,out Vector2)"/> 那一支：取**该队伍里离事件坐标最近**
+        /// 的那座塔（事件载荷带的就是该塔自己的塔根坐标，而塔位是固定几何 ⇒ 几何上唯一）。
+        /// </para>
+        /// <para>
+        /// 方向源 = 调用方在 <c>PlayTowerShot</c> 里已有的 `NearestEnemy` 近似（与那一条弹道**同一个**目标，
+        /// ⛔ 不另起一套索敌）。
+        /// </para>
+        /// <returns>true = 塔存在且真的选到了方向帧（<paramref name="frame"/>）；false = 这座塔没有炮塔层
+        /// （公主塔）/ 素材缺失 / 塔视图未建 ⇒ 调用方**保持当前方向不动**（⛔ 不猜方向、不空转）。</returns>
+        /// </summary>
+        /// <param name="xMilli">事件里的塔根坐标（1/1000 格）。</param>
+        /// <param name="yMilli">同上。</param>
+        /// <param name="team">队伍：0=BLUE 1=RED。</param>
+        /// <param name="targetWorld">目标世界坐标（由调用方的 `NearestEnemy` 结果换算）。</param>
+        /// <param name="frame">选中的方向帧号（`frame_NNN` 的 NNN）。</param>
+        public bool TryAimTowerTurret(int xMilli, int yMilli, int team, Vector2 targetWorld,
+            out int frame, out float angleDeg, out bool flip)
+        {
+            frame = -1;
+            angleDeg = 0f;
+            flip = false;
+            _aimTotal++;
+
+            var p = GameConst.MilliToWorld(xMilli, yMilli);
+            TowerView best = null;
+            var bestSq = float.MaxValue;
+            for (var i = 0; i < _towers.Count; i++)
+            {
+                var t = _towers[i];
+                if (t.Team != team) continue;
+                var d = GameConst.TileToWorld(t.TileX, t.TileY);
+                var dx = d.x - p.x;
+                var dy = d.y - p.y;
+                var d2 = dx * dx + dy * dy;
+                if (best == null || d2 < bestSq) { best = t; bestSq = d2; }
+            }
+            if (best == null)
+            {
+                _aimKept++;
+                Game.Logger?.Warn(LogTag,
+                    $"塔瞄准：team={team} 事件坐标=({xMilli},{yMilli}) 找不到该队的塔 ⇒ 保持当前方向不动 " +
+                    $"本局累计：总={_aimTotal} 已瞄={_aimed} 保持不动={_aimKept}");
+                return false;
+            }
+
+            var aimed = best.AimTurret(targetWorld, out frame, out angleDeg, out flip);
+            if (aimed) _aimed++; else _aimKept++;
+            Game.Logger?.Info(LogTag,
+                $"塔瞄准：team={team} roster={best.Roster} 目标角={angleDeg:F1}° " +
+                $"选中帧={(frame < 0 ? "-" : frame.ToString("000"))} flipX={flip} " +
+                $"本局累计：总={_aimTotal} 已瞄={_aimed} 保持不动={_aimKept}");
+            return aimed;
+        }
+
+        /// <summary>
         /// 按**事件坐标 + 队伍**把国王塔标为已激活（服务端 `EvTowerActivated` / `kind == 5`）。
         /// <para>
         /// <b>为什么要这一条</b>：国王塔在未激活时**炮塔整层不可见**（原版 alpha = 0，出处见
@@ -2589,6 +2718,9 @@ namespace CR.View
         {
             for (var i = 0; i < _towers.Count; i++) _towers[i].Destroy();
             _towers.Clear();
+            _aimTotal = 0;
+            _aimed = 0;
+            _aimKept = 0;
             for (var i = 0; i < _generated.Count; i++)
                 if (_generated[i] != null) Destroy(_generated[i]);
             _generated.Clear();
@@ -2618,6 +2750,9 @@ namespace CR.View
             /// <summary>塔位（格，**已按队伍镜像后的绝对坐标**）—— 调试与自检用。</summary>
             public readonly float TileX;
             public readonly float TileY;
+
+            /// <summary>该队在服务端 roster 里的下标（**[王, 左, 右]**，`server/game/core/tower.go:22-35`）。</summary>
+            public readonly int Roster;
 
             private readonly SpriteRenderer _renderer;
             private readonly WorldHpBar _bar;
@@ -2679,23 +2814,299 @@ namespace CR.View
             /// <summary>该塔当前是否存活（`BattleViewRoot` 拿它做部署合法性预校验）。</summary>
             public bool Alive { get; private set; } = true;
 
-            public TowerView(int team, bool isKing, float tileX, float tileY, SpriteRenderer renderer,
+            /// <summary>
+            /// 逐帧动画层（国王坐像 / 公主塔乘员）。由 <see cref="TickAnimations"/> 驱动，
+            /// 帧序列与逐帧矩阵来自 <see cref="TowerAnimTable"/>（出处见该类的类注释）。
+            /// </summary>
+            private readonly AnimLayer[] _anims;
+
+            /// <summary>
+            /// 炮塔的**瞄准层**（只有国王塔有；公主塔 = <c>null</c> ⇒ <see cref="AimTurret"/> 恒为 false，
+            /// 调用方保持当前方向不动）。方向帧与角度来自 <see cref="TowerAnimTable.TurretDirs"/>。
+            /// </summary>
+            private readonly AimLayer _turretAim;
+
+            public TowerView(int team, bool isKing, float tileX, float tileY, int roster, SpriteRenderer renderer,
                 WorldHpBar bar, SpriteRenderer[] rubbleRenderers, Text hpNumber = null,
-                Transform muzzle = null, Transform turret = null)
+                Transform muzzle = null, Transform turret = null,
+                Transform kingLayer = null, Transform occupantLayer = null,
+                Sprite[] towerFrames = null, Sprite[] occupantFrames = null)
             {
                 Team = team;
                 IsKing = isKing;
                 TileX = tileX;
                 TileY = tileY;
+                Roster = roster;
                 _renderer = renderer;
                 _bar = bar;
                 _hpNumber = hpNumber;
                 _rubbleRenderers = rubbleRenderers ?? new SpriteRenderer[0];
                 _muzzle = muzzle != null ? muzzle : (renderer != null ? renderer.transform : null);
                 _turret = turret;
+                _anims = BuildAnims(kingLayer, occupantLayer, towerFrames, occupantFrames);
+                _turretAim = MakeTurretAim(turret, towerFrames);
                 // 国王塔起手**未激活** ⇒ 炮塔层不显示（原版同一状态，见 KingTurretAlphaZeroCt）。
                 KingActive = !isKing;
                 if (isKing) SetTurretEnabled(false);
+            }
+
+            /// <summary>
+            /// 建出本塔的逐帧动画层：国王坐像 = <see cref="TowerAnimTable.KingIdle"/>、
+            /// 乘员 = <see cref="TowerAnimTable.OccupantIdle"/>。层不存在 / 素材缺失 ⇒ 该条不入列（不静默）。
+            /// </summary>
+            private AnimLayer[] BuildAnims(Transform kingLayer, Transform occupantLayer,
+                Sprite[] towerFrames, Sprite[] occupantFrames)
+            {
+                var list = new List<AnimLayer>(2);
+                var who = (Team == 0 ? "BLUE" : "RED") + "/" + (IsKing ? "KingTower" : "PrincessTower") + "/";
+                if (kingLayer != null)
+                {
+                    var r = kingLayer.GetComponent<SpriteRenderer>();
+                    if (r != null && r.sprite != null)
+                        list.Add(new AnimLayer(r, towerFrames, TowerAnimTable.KingIdle(Team), who + r.name));
+                }
+                if (occupantLayer != null)
+                {
+                    var r = occupantLayer.GetComponent<SpriteRenderer>();
+                    if (r != null && r.sprite != null)
+                        list.Add(new AnimLayer(r, occupantFrames, TowerAnimTable.OccupantIdle(Team), who + r.name));
+                }
+                return list.ToArray();
+            }
+
+            /// <summary>建炮塔瞄准层（<paramref name="turret"/> 为 null = 公主塔 ⇒ 不建）。</summary>
+            private static AimLayer MakeTurretAim(Transform turret, Sprite[] towerFrames)
+            {
+                if (turret == null) return null;
+                var r = turret.GetComponent<SpriteRenderer>();
+                return r == null ? null : new AimLayer(r, towerFrames);
+            }
+
+            /// <summary>
+            /// 让本塔的**炮塔**朝 <paramref name="targetWorld"/> 转（见 <see cref="AimLayer.Aim"/>）。
+            /// <returns>true = 真的选到了方向帧（<paramref name="frame"/> 给出帧号）；false = 本塔没有炮塔层 /
+            /// 素材缺失 ⇒ 调用方**保持当前方向不动**（⛔ 不猜方向、不空转）。</returns>
+            /// </summary>
+            public bool AimTurret(Vector2 targetWorld, out int frame, out float angleDeg, out bool flip)
+            {
+                frame = -1;
+                angleDeg = 0f;
+                flip = false;
+                if (_turretAim == null || _destroyed) return false;
+                frame = _turretAim.Aim(targetWorld, out angleDeg);
+                flip = _turretAim.CurrentFlip;
+                return frame >= 0;
+            }
+
+            /// <summary>
+            /// 炮塔的瞄准层：从 <see cref="TowerAnimTable.TurretDirs"/> 的 18 个方向帧里，
+            /// 取**炮口朝向**最接近目标方向的帧；目标落在 180° 弧外则用 `flipX` 镜像同一族帧。
+            /// <para>与逐帧动画层同一套**画布对位**补偿（换帧要按裁剪框中心差平移，否则每次换向整块跳一下）。</para>
+            /// </summary>
+            private sealed class AimLayer
+            {
+                private readonly SpriteRenderer _renderer;
+                private readonly Sprite[] _pool;
+                private readonly Vector3 _basePos;
+                private readonly Vector3 _baseScale;
+                private readonly Vector2 _refCenter;
+                private int _frame = -1;
+                private bool _flip;
+                private bool _missingWarned;
+
+                /// <summary>当前方向帧号（`frame_NNN` 的 NNN；-1 = 还没转过）。</summary>
+                public int CurrentFrame { get { return _frame; } }
+
+                /// <summary>当前是否用了水平镜像（目标落在 180° 弧外时为 true）。</summary>
+                public bool CurrentFlip { get { return _flip; } }
+
+                public AimLayer(SpriteRenderer renderer, Sprite[] pool)
+                {
+                    _renderer = renderer;
+                    _pool = pool;
+                    // 配方刚建出来的状态（蓝 rec30 / 红 rec47）就是参考帧：localPos / localScale / 裁剪框中心。
+                    _basePos = renderer.transform.localPosition;
+                    _baseScale = renderer.transform.localScale;
+                    var rs = renderer.sprite;
+                    _refCenter = rs == null ? Vector2.zero : new Vector2(rs.rect.center.x, rs.rect.center.y);
+                }
+
+                /// <summary>转向目标（世界坐标）；返回选中的帧号，素材缺失返回 -1。</summary>
+                public int Aim(Vector2 targetWorld, out float aimDeg)
+                {
+                    aimDeg = 0f;
+                    var dirs = TowerAnimTable.TurretDirs;
+                    if (dirs.Length == 0 || _renderer == null) return -1;
+
+                    var v = targetWorld - (Vector2)_renderer.transform.position;
+                    if (v.sqrMagnitude < 1e-6f) return -1;    // 目标与炮塔重合 ⇒ 没有方向可言（不动）
+                    var a = Mathf.Atan2(v.y, v.x) * Mathf.Rad2Deg;
+                    aimDeg = a;
+
+                    // 表只覆盖以 0°（右）为中心的 180° 弧 ⇒ 弧外（右半以外的目标）用 flipX 镜像：
+                    // 镜像后朝向角 = 180° - a（左半被翻到右半）。
+                    var flip = a > 90f || a < -90f;
+                    var want = flip ? 180f - a : a;
+                    if (want > 180f) want -= 360f;
+                    else if (want < -180f) want += 360f;
+
+                    var best = 0;
+                    var bestD = float.MaxValue;
+                    for (var i = 0; i < dirs.Length; i++)
+                    {
+                        var d = Mathf.Abs(Mathf.DeltaAngle(want, dirs[i].AngleDeg));
+                        if (d < bestD) { bestD = d; best = i; }
+                    }
+
+                    var f = dirs[best].Frame;
+                    if (f == _frame && flip == _flip) return f;   // 同向帧不重复写（⛔ 不是每帧无条件写）
+                    var sp = FindFrameByNumber(_pool, f);
+                    if (sp == null)
+                    {
+                        if (!_missingWarned)
+                        {
+                            _missingWarned = true;
+                            Game.Logger?.Warn(LogTag,
+                                $"炮塔转向：方向帧 frame_{f:000} 取不到 ⇒ 保持当前方向（本塔其余帧照常）");
+                        }
+                        return -1;
+                    }
+
+                    _frame = f;
+                    _flip = flip;
+                    _renderer.sprite = sp;
+                    _renderer.flipX = flip;
+                    var ppu = sp.pixelsPerUnit > 0.01f ? sp.pixelsPerUnit : SpriteBank.FallbackPixelsPerUnit;
+                    var dr = sp.rect.center - _refCenter;
+                    _renderer.transform.localPosition = new Vector3(
+                        _basePos.x + dr.x / ppu, _basePos.y + dr.y / ppu, 0f);
+                    _renderer.transform.localScale = _baseScale;
+                    return f;
+                }
+            }
+
+            /// <summary>推进本塔全部逐帧动画（由 <see cref="ArenaView.LateUpdate"/> 每帧调用）。</summary>
+            /// <param name="dt">帧间隔（秒）。</param>
+            public void TickAnimations(float dt)
+            {
+                // 阵亡后塔体各层已关掉（废墟亮）⇒ 不再推进（废墟是静态帧，无动画）。
+                if (_destroyed) return;
+                for (var i = 0; i < _anims.Length; i++) _anims[i].Advance(dt);
+            }
+
+            /// <summary>本塔动画的断言摘要（建塔时打一条，见 <see cref="ArenaView.AddTower"/>）。</summary>
+            public string AnimSummary()
+            {
+                if (_anims.Length == 0) return "无逐帧层（素材缺失 / 配方里没有该层）";
+                var sb = new System.Text.StringBuilder();
+                for (var i = 0; i < _anims.Length; i++)
+                {
+                    if (i > 0) sb.Append(" | ");
+                    sb.Append(_anims[i].Describe());
+                }
+                return sb.ToString();
+            }
+
+            /// <summary>
+            /// 一条逐帧动画层。**画布对位**：原版把每帧都放在同一画布位置上（矩阵只给 sy/dy），
+            /// 而工程里的 PNG 是自动切片导入 ⇒ Unity 的锚点是每帧自己的**裁剪框中心**。
+            /// 所以换帧时必须按 `本帧裁剪框中心 − 参考帧裁剪框中心` 补偿，否则国王的 13 个姿态会各自居中
+            /// （= 每换一帧整体平移一下，看着在抖）。
+            /// </summary>
+            private sealed class AnimLayer
+            {
+                private readonly SpriteRenderer _renderer;
+                private readonly Sprite[] _pool;
+                private readonly TowerAnimTable.Anim _anim;
+                private readonly Vector3 _basePos;
+                private readonly Vector3 _baseScale;
+                private readonly Vector2 _refCenter;
+                private float _time;
+                private int _timelineFrame = -1;
+
+                /// <summary>本局播过的**不同时间轴帧**数（自检用：= 1 就是"只播了一帧"，动画没接上）。</summary>
+                public int FramesSeen { get; private set; }
+
+                /// <summary>推进断言日志只打一次（建塔时那条只说"表接上了"，这条证明**时间轴真的在走**）。</summary>
+                private bool _advanceLogged;
+
+                /// <summary>日志用标签（"BLUE/KingTower/King" 这种；建塔时传入）。</summary>
+                private readonly string _label;
+
+                public AnimLayer(SpriteRenderer renderer, Sprite[] pool, TowerAnimTable.Anim anim, string label)
+                {
+                    _label = label;
+                    _renderer = renderer;
+                    _pool = pool;
+                    _anim = anim;
+                    // 配方刚建出来的状态就是**参考帧**（国王 = 首帧 101/16、乘员 = 502/2）：
+                    // 它的 localPosition/localScale 与裁剪框中心就是后续每帧的对位基准。
+                    _basePos = renderer.transform.localPosition;
+                    _baseScale = renderer.transform.localScale;
+                    var rs = renderer.sprite;
+                    _refCenter = rs == null ? Vector2.zero : new Vector2(rs.rect.center.x, rs.rect.center.y);
+                }
+
+                public string Describe()
+                {
+                    return $"{_renderer.name} fps={_anim.Fps} 时间轴帧={_anim.FrameCount} 段={_anim.Keys.Length} " +
+                           $"首帧={(_anim.Keys.Length == 0 ? -1 : _anim.Keys[0].Frame)}";
+                }
+
+                /// <summary>按 `.sc` 时间轴推帧（循环播放），帧变了才写 sprite / 位置 / 缩放。</summary>
+                public void Advance(float dt)
+                {
+                    var total = _anim.FrameCount;
+                    if (total <= 0 || _anim.Keys.Length == 0) return;
+                    var fps = _anim.Fps > 0 ? _anim.Fps : 30;
+                    _time += dt;
+                    var f = (int)(_time * fps) % total;
+                    if (f == _timelineFrame) return;
+                    _timelineFrame = f;
+                    FramesSeen++;
+
+                    var keys = _anim.Keys;
+                    var acc = 0;
+                    var key = keys[keys.Length - 1];
+                    for (var i = 0; i < keys.Length; i++)
+                    {
+                        acc += keys[i].Repeat;
+                        if (f < acc) { key = keys[i]; break; }
+                    }
+
+                    var sp = FindFrameByNumber(_pool, key.Frame);
+                    if (sp == null)
+                    {
+                        // 非预期分支：该帧的 PNG 不在目录里 ⇒ 这一帧保持上一帧画面（必须留痕，否则是静默静止）。
+                        if (!_missingWarned)
+                        {
+                            _missingWarned = true;
+                            Game.Logger?.Warn(LogTag,
+                                $"塔层动画：{_renderer.name} 的帧 frame_{key.Frame:000} 取不到 ⇒ 该帧保持上一帧");
+                        }
+                        return;
+                    }
+
+                    _renderer.sprite = sp;
+                    var ppu = sp.pixelsPerUnit > 0.01f ? sp.pixelsPerUnit : SpriteBank.FallbackPixelsPerUnit;
+                    var dr = sp.rect.center - _refCenter;
+                    _renderer.transform.localPosition = new Vector3(
+                        _basePos.x + dr.x / ppu,
+                        _basePos.y + dr.y / ppu - key.DyPx / ppu,
+                        0f);
+                    _renderer.transform.localScale = new Vector3(_baseScale.x, _baseScale.y * key.Sy, 1f);
+
+                    // 推进断言（每层一次）：进度到 15 帧就打一条 —— 只有表接上、时钟没走时这条不会出现。
+                    if (!_advanceLogged && FramesSeen >= 15)
+                    {
+                        _advanceLogged = true;
+                        Game.Logger?.Info(LogTag,
+                            $"塔层动画推进：{_label} 时间轴帧={f}/{total} 当前=frame_{key.Frame:000} " +
+                            $"sy={key.Sy:F4} dy={key.DyPx:F2}px 累计换帧={FramesSeen}");
+                    }
+                }
+
+                private bool _missingWarned;
             }
 
             /// <summary>

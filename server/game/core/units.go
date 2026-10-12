@@ -135,6 +135,20 @@ func ElixirMsPerUnitAt(elapsedMs int32) int32 {
 	return ElixirMsPerUnit[ElixirPhaseAt(elapsedMs)]
 }
 
+// NextSpellCooldownMs is how long the next card stays hidden after a card is
+// played, per elixir segment.
+//
+// Source: 官方 battle_timelines.json Default.next_spell_cooldown_ms =
+// [1000, 500, 350] (参考规格 §3 隐藏手牌（下一张）冷却). Its segments
+// (next_spell_cooldown_length = [120,120,60] s) are the elixir segments, so
+// ElixirPhaseAt indexes both.
+var NextSpellCooldownMs = [3]int32{1000, 500, 350}
+
+// NextSpellCooldownMsAt returns the next-card cooldown in force at elapsed ms.
+func NextSpellCooldownMsAt(elapsedMs int32) int32 {
+	return NextSpellCooldownMs[ElixirPhaseAt(elapsedMs)]
+}
+
 // ---------------------------------------------------------------------------
 // Fixed-point geometry helpers
 // ---------------------------------------------------------------------------

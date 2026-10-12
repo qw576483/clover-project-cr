@@ -26,7 +26,8 @@ namespace CR.View
     /// ① 把该档的**帧号段表**（`UnitAnimTable.Clip.Runs`）经 <see cref="SpriteBank.FrameNumberMap"/>
     /// 换算成**帧数组下标序列**（见 <see cref="ClipIndices"/>）；② 把该档的帧序列 + 帧率 + 是否循环交给
     /// 引擎逐帧动画器 <see cref="SpriteFrameAnimator"/>（帧计时 / 帧下标推进 / 播完停末帧 / 写 `sprite` 都在那里）；
-    /// ③ 该档 `Known == false`（素材无此动画 / `.sc` 引用越界 shapeID）⇒ **回落整目录循环**。
+    /// ③ 该档 `Known == false`（素材无此动画 / `.sc` 引用越界 shapeID）⇒ **回落整目录循环**
+    /// （`die` 例外：原版单位没有死亡动画 ⇒ 保持当前画面不动，见 <see cref="PlayTier"/>）。
     /// </para>
     /// <para>
     /// <b>已收录 vs 未收录</b>：<see cref="UnitAnimTable"/> 覆盖 **45 个目录**（89 个里 44 个因
@@ -39,7 +40,7 @@ namespace CR.View
     /// 每档帧号集合取「9 个视角的并集」（原版按单位朝向只播其中 1 个视角，本工程没有视角选择）
     /// ⇒ 长段会慢慢"转视角"；攻击档帧率按「攻击段帧数 ÷ `hit_speed_ms`」标定（见 <see cref="AssertAttackTiming"/>）
     /// ⇒ 攻击段播完一遍的时长 == `hit_speed_ms`。**die 所有目录都未找到**（素材无死亡动画，该表逐目录核过）
-    /// ⇒ `Known=false` ⇒ 整目录播完停末帧（与原行为一致）。
+    /// ⇒ `Known=false` ⇒ **保持当前画面不动**（⛔ 不回落整目录，见 <see cref="PlayTier"/>）。
     /// </para>
     /// </summary>
     public sealed class UnitView : MonoBehaviour
@@ -72,10 +73,6 @@ namespace CR.View
         /// 值语义：`null` = 该档没有可用帧段（回落整目录）；非 null 且长度 &gt; 0 = 按它逐帧播。
         /// </summary>
         private static readonly Dictionary<string, int[]> ClipIndexCache = new Dictionary<string, int[]>();
-
-        /// <summary>攻击档的**兜底**帧率算式（只在 <see cref="UnitAnimDurations"/> 查不到该档时长时用）：
-        /// `attackFps = 攻击段帧数 ÷ (hit_speed_ms ÷ 1000)`。演算原文打印在 <see cref="AssertAttackTiming"/>。</summary>
-        private const string AttackFpsFormula = "attackFps = attackCount / (hitSpeedMs / 1000)";
 
         /// <summary>
         /// 帧段数据表在 **<see cref="UnitAnimTable"/>**（独立文件，⛔ 本类不再内联几千行表）：
@@ -244,6 +241,7 @@ namespace CR.View
         /// <summary>销毁已有的层节点（池复用 / 换目录 / 换队时调）。</summary>
         private void ClearLayers()
         {
+            _layerBaseMaterials = null;
             if (_layers == null) return;
             for (var i = 0; i < _layers.Length; i++)
                 if (_layers[i] != null) Destroy(_layers[i].gameObject);
@@ -267,6 +265,7 @@ namespace CR.View
             // `SpriteBank.FrameNumberMap`（一张 PNG 被切成多个子 Sprite 时下标 ≠ 帧号），见 `ResolveFrame`。
             var map = SpriteBank.FrameNumberMap(_spritePath, _pivotMode);
             _layers = new SpriteRenderer[recipe.Length];
+            _layerBaseMaterials = new Material[recipe.Length];
             for (var i = 0; i < recipe.Length; i++)
             {
                 var spec = recipe[i];
@@ -289,11 +288,15 @@ namespace CR.View
                 sr.sprite = sprite;
                 // 层配方里的帧可能有原版 Add / Multiply / Screen 混合（见 `SpriteBlendTable`）⇒ 逐层选材质；
                 // 没有混合的帧写回该渲染器自带的默认材质（⛔ 不许写 null = 整块洋红，见 `SpriteBlendMaterial.For`）。
-                SpriteBlendMaterial.Set(sr, SpriteBlendMaterial.For(
-                    _spritePath, spec.Frame, SpriteBlendMaterial.RememberDefault(sr)));
+                // 这一份**逐层记下来** —— 受击闪白期间层材质被换成提亮材质，闪白结束要按它逐层还原。
+                _layerBaseMaterials[i] = SpriteBlendMaterial.For(
+                    _spritePath, spec.Frame, SpriteBlendMaterial.RememberDefault(sr));
+                SpriteBlendMaterial.Set(sr, _layerBaseMaterials[i]);
                 _layers[i] = sr;
             }
             _layersTeam = team;
+            // 建层期间可能正处在闪白窗口里（换队重建）⇒ 新层也要立刻换上提亮材质，否则会出现"白了一半"。
+            if (_hitFlashOn) ApplyHitFlashMaterial(LogMissingFlashMaterial());
             return true;
         }
 
@@ -348,6 +351,57 @@ namespace CR.View
         private int _lastHp = -1;
         private int _lastMaxHp = -1;
         private bool _barVisible = true;
+
+        // ───────────────────────────── 受击闪白 ─────────────────────────────
+        //
+        // 判据 = 快照 `hp` 比上一帧小（协议没有"命中"事件，与 `BattleViewRoot` 从快照反推命中同一口径）。
+        //
+        // 为什么落在渲染层：原版**没有**"单位受击动画帧段" —— `策划/单位帧段表.md` 逐目录核过，
+        // 89 个目录的 `hit` 档全部"未找到" ⇒ 单位身上唯一能做的受击反馈就是**提亮精灵**。
+        //
+        // ⛔ 也**没有**可直接搬的受击色值：`原版资源/sc/chr_*_v215.sc` 的 `09` 颜色变换逐目录扫过
+        // （`tools/probes/sc-color-transform.py --sc <目录> --bank-stats`），单位侧的非恒等件各自是
+        // 该单位的固有表现（`chr_ice_wizard` 的冰霜偏色 / `chr_electro_wizard` 的自我染白 /
+        // `chr_golem` 的岩体配色 / `chr_witch` 的召唤烟），没有通用"受击白闪"件。
+        //
+        // 取值：
+        //   · 提亮 `_ColorAdd.rgb` = **255 三通道** —— **本项目自定**（原版无此值可查，见上）。
+        //     着色器 `Assets/Shaders/SpriteBlend.shader:78` 是 `saturate(src * _ColorMul.rgb + _ColorAdd.rgb)`，
+        //     `add = 1.0` 即饱和成纯白；`_ColorMul.a` 保持 1 ⇒ α 由精灵自身决定
+        //     ⇒ 单位变成**保留自身剪影的白影**（不是白方块）。
+        //   · 持续时长 = 5 帧 ÷ 60 fps = 0.0833 s —— 出处 `策划/单位动画分组表.md:5179`（原版受击件
+        //     `effect_Hit1` 自己的 timeline：5 条 ÷ 60 fps），与 `ResPaths.EffectHitSeconds` 同值：
+        //     同一次"被打中"的两个表现（落点闪光 + 单位白闪）共用该原版时长。
+
+        /// <summary>受击闪白的提亮值（`_ColorAdd.rgb` 原始字节，255 = 1.0）。</summary>
+        private const int HitFlashAdd = 255;
+
+        /// <summary>受击闪白的持续时长（秒）= 原版受击件 `effect_Hit1` 的 timeline（见上）。</summary>
+        private const float HitFlashSeconds = 5f / 60f;
+
+        /// <summary>`_hitPrevHp` 的初值：本视图还没收到过第一帧快照（那时不判受击）。</summary>
+        private const int NoHitHp = int.MinValue;
+
+        /// <summary>
+        /// 上一次快照里本实体的 `hp` —— 只用来判"这一刻掉血了"，⛔ 与血条的 <see cref="_lastHp"/>
+        /// 无关（那是血条语义：它还会因治疗 / 上限变化而更新，且更新时机必须留在 <see cref="UpdateHpBar"/> 里）。
+        /// </summary>
+        private int _hitPrevHp = NoHitHp;
+
+        /// <summary>是否有正在进行的受击闪白。</summary>
+        private bool _hitFlashOn;
+
+        /// <summary>本次受击闪白的结束时刻（`Time.time`）；<see cref="_hitFlashOn"/> 为 false 时无意义。</summary>
+        private float _hitFlashUntil;
+
+        /// <summary>本视图累计触发过几次受击闪白（读数用）。</summary>
+        private int _hitFlashCount;
+
+        /// <summary>
+        /// 建筑各层**各自的**基础材质（<see cref="BuildLayers"/> 建层时记下：本帧有原版混合就是那份
+        /// 混合材质，否则是该渲染器自带的默认材质）—— 闪白结束按它逐层还原（⛔ 不写 null = 洋红）。
+        /// </summary>
+        private Material[] _layerBaseMaterials;
 
         // ───────────────── 朝向 → 视角（9 视角 / 16 档朝向）─────────────────
         /// <summary>朝向档（0..15，见 <see cref="UnitAnimTable.StepToView"/>）。初值 4 = 侧身朝右（φ=0°）。</summary>
@@ -474,6 +528,9 @@ namespace CR.View
             if (parent != null && transform.parent != parent) transform.SetParent(parent, false);
             _isBuilding = isBuilding;
             ClearLayers();          // 池复用：上一个宿主可能不是同一个建筑（甚至不是建筑）
+            // 池复用：上一个宿主的受击闪白状态与计时必须复位，否则新单位会一落地就白着；
+            // 渲染器材质由本方法末尾的 `SyncSprite` 重新贴回。
+            ResetHitFlash();
 
             if (_renderer == null)
             {
@@ -624,7 +681,7 @@ namespace CR.View
 
             // 档位切换：换档要**重置帧**，否则会从上一档的残留帧继续播（现象是"走路的第 30 帧直接接攻击"）。
             // 但**不能每次都照单接受**：服务端的 `anim` 是"瞬时"的 —— 一次挥砍只在挥砍那一 tick 置
-            // `AnimAttack`（`server/game/core/combat.go:68-73`），下一 tick 就回 `AnimWalk`
+            // `AnimAttack`（`server/game/core/combat.go:100` / `:112`），下一 tick 就回 `AnimWalk`
             //（`battle.go:525/533/536-539`）。若每 tick 都切，就会出现"攻击 1 帧 → 走路从第 0 帧重来"，
             // 单位看起来在原地**抽搐**（苍蝇海攻击间隔 1s、攻击段 7 帧时最明显）。
             // 滞回规则（同档不重播 + 攻击播完才让位）：
@@ -692,7 +749,145 @@ namespace CR.View
                 ApplyLayers(worldPos, alpha);
             }
 
+            UpdateHitFlash(e);
+
             UpdateHpBar(e.hp, e.max_hp);
+        }
+
+        // ───────────────────────────── 受击闪白的驱动 ─────────────────────────────
+
+        /// <summary>
+        /// 按快照掉血触发受击闪白（判据与取值出处见文件内「受击闪白」一节）。
+        /// <para>⛔ 不复用血条的 <see cref="_lastHp"/>，也不改 <see cref="UpdateHpBar"/> 的调用顺序：
+        /// 那边是血条语义（治疗 / 上限变化也更新），这里只判"这一刻是否掉血"。</para>
+        /// </summary>
+        private void UpdateHitFlash(EntitySnapshot e)
+        {
+            if (_hitPrevHp == NoHitHp)
+            {
+                // 第一帧快照只记基线，⛔ 不判受击：出场那帧没有前一帧可比（同 `BattleViewRoot` 的防误报口径）。
+                _hitPrevHp = e.hp;
+                return;
+            }
+            var prev = _hitPrevHp;
+            _hitPrevHp = e.hp;      // 治疗（hp 变大）也要跟上，否则之后那次掉血判不出来
+            if (e.hp < prev) StartHitFlash(e, prev);
+        }
+
+        /// <summary>
+        /// 触发一次受击闪白：该实体**当前所有在绘的渲染器**换成提亮材质，
+        /// <see cref="HitFlashSeconds"/> 后各自还原。连续受击 = **刷新计时**，⛔ 不叠加。
+        /// </summary>
+        private void StartHitFlash(EntitySnapshot e, int prevHp)
+        {
+            _hitFlashOn = true;
+            _hitFlashUntil = Time.time + HitFlashSeconds;
+            _hitFlashCount++;
+            ApplyHitFlashMaterial(LogMissingFlashMaterial());
+            // 数值类证据 = 运行时日志行（闪白只有几十~一百毫秒，截图抓不到 ⇒ 读数靠这条）。
+            // `材质=` 是从**渲染器上回读**的名字（不是刚要写的那个局部变量）⇒ 这条行同时证明"真的换上了"。
+            Game.Logger?.Info(LogTag,
+                $"受击闪白：ent={e.id} team={e.team} hp {prevHp}→{e.hp} add={HitFlashAdd} " +
+                $"持续={HitFlashSeconds:F3}s 本局累计={_hitFlashCount} 材质={CurrentRendererMaterialName()}");
+        }
+
+        /// <summary>当前写在"在绘渲染器"上的材质名（闪白读数用；取不到材质时回 `—`）。</summary>
+        private string CurrentRendererMaterialName()
+        {
+            Material m = null;
+            if (_layers != null)
+            {
+                for (var i = 0; i < _layers.Length; i++)
+                    if (_layers[i] != null) { m = _layers[i].sharedMaterial; break; }
+            }
+            else if (_renderer != null) m = _renderer.sharedMaterial;
+            return m == null ? "—" : m.name;
+        }
+
+        /// <summary>本视图累计触发过几次受击闪白（实机读数用）。</summary>
+        public int HitFlashCount { get { return _hitFlashCount; } }
+
+        /// <summary>此刻是否正在闪白（实机读数用）。</summary>
+        public bool HitFlashOn { get { return _hitFlashOn; } }
+
+        /// <summary>
+        /// 提亮材质的共享实例；取不到（着色器缺失）时留一条 Warn 并返回 <c>null</c> —— 调用方拿到 null
+        /// 就什么都不写（渲染器保持当前材质），⛔ 不静默、⛔ 绝不写 <c>null</c> 到渲染器上（洋红）。
+        /// </summary>
+        private Material LogMissingFlashMaterial()
+        {
+            var mat = SpriteColorTransformMaterial.ForSprite(255, 255, 255, 255,
+                HitFlashAdd, HitFlashAdd, HitFlashAdd);
+            if (mat != null) return mat;
+            LogThrottle.WarnOnce(LogTag, "hitflash:material",
+                $"受击闪白材质取不到（着色器 {SpriteColorTransformMaterial.SpriteShaderName} 缺失）⇒ 单位不闪白（表现缺失）");
+            return null;
+        }
+
+        /// <summary>把提亮材质写到该实体**当前所有在绘的渲染器**（普通单位 = 单帧渲染器；建筑 = 每一层）。</summary>
+        private void ApplyHitFlashMaterial(Material mat)
+        {
+            if (mat == null) return;
+            if (_layers != null)
+            {
+                // 建筑有层配方时单帧渲染器已被关掉（见 `Apply` / `Bind`），真正的画面是这些层。
+                for (var i = 0; i < _layers.Length; i++)
+                    if (_layers[i] != null) SpriteBlendMaterial.Set(_layers[i], mat);
+                return;
+            }
+            if (_renderer != null) SpriteBlendMaterial.Set(_renderer, mat);
+        }
+
+        /// <summary>
+        /// 闪白计时收尾：到点就把各渲染器还原成"没有闪白时该有的材质" —— 本帧有原版混合就是那份
+        /// 混合材质，否则是该渲染器自带的默认材质（建筑层按 <see cref="_layerBaseMaterials"/> 逐层还原）。
+        /// </summary>
+        private void TickHitFlash()
+        {
+            if (!_hitFlashOn || Time.time < _hitFlashUntil) return;
+            _hitFlashOn = false;
+            _hitFlashUntil = 0f;
+            RestoreHitFlashMaterials();
+        }
+
+        private void RestoreHitFlashMaterials()
+        {
+            if (_layers != null)
+            {
+                for (var i = 0; i < _layers.Length; i++)
+                {
+                    var sr = _layers[i];
+                    if (sr == null) continue;
+                    var baseMat = _layerBaseMaterials != null && i < _layerBaseMaterials.Length
+                        ? _layerBaseMaterials[i] : null;
+                    if (baseMat == null)
+                    {
+                        // 非预期分支必须留痕：还原材质取不到 ⇒ 该层会一直停在提亮材质上（表现错误）。
+                        LogThrottle.WarnOnce(LogTag, "hitflash:restore:" + _spriteDir,
+                            $"建筑层 {i} 的基础材质取不到 ⇒ 闪白结束后该层无法还原：dir={_spriteDir}");
+                        continue;
+                    }
+                    SpriteBlendMaterial.Set(sr, baseMat);
+                }
+                return;
+            }
+            if (_renderer == null) return;
+            var idx = DisplayedFrameIndex();
+            if (idx >= 0) { ApplyBlendMaterial(idx); return; }   // 表内帧会写回该帧的混合材质，表外写回默认
+            SpriteBlendMaterial.Set(_renderer, _rendererDefault);
+        }
+
+        /// <summary>
+        /// 复位受击闪白状态（<see cref="Bind"/> 里池复用必须调）：⛔ 不复位则新单位会继承上一个宿主的
+        /// "正在闪白"状态与计时（一落地就白着），且 <see cref="_hitPrevHp"/> 可能让第一帧被误判成受击。
+        /// 材质由 <see cref="Bind"/> 末尾的 <see cref="SyncSprite"/> 重新贴回。
+        /// </summary>
+        private void ResetHitFlash()
+        {
+            _hitFlashOn = false;
+            _hitFlashUntil = 0f;
+            _hitFlashCount = 0;
+            _hitPrevHp = NoHitHp;
         }
 
         /// <summary>只更新血条（塔这类没有 `EntitySnapshot` 的实体由 `ArenaView` 直接调它）。</summary>
@@ -719,6 +914,8 @@ namespace CR.View
 
         private void Update()
         {
+            // 受击闪白的计时（每帧一次）。⛔ 必须放在下面两处早退**之前**：按层渲染的建筑会走第一条早退。
+            TickHitFlash();
             // 按层配方渲染的建筑不逐帧换图（见 `BuildLayers`）：换图会把部件帧也播出来。
             if (_layers != null) return;
             if (_animator == null || !HasFrames) return;   // 无帧：渲染器停在占位白块（见 `SyncSprite`）
@@ -731,10 +928,17 @@ namespace CR.View
         /// <summary>
         /// 按该帧的原版 <c>blend_mode</c> 选材质（出处 = <see cref="SpriteBlendTable"/>，生成物、⛔ 不许手改）。
         /// 表里没有的帧 ⇒ 写回渲染器自带的默认材质（即未登记就是 Normal）；⛔ 绝不写 <c>null</c>（洋红）。
+        /// <para>受击闪白期间一直保持提亮材质：帧照播（本方法每次换帧都被 <see cref="SyncSprite"/> 调到），
+        /// 若在这里按帧写材料，闪白会被**下一次换帧洗掉**。</para>
         /// </summary>
         private void ApplyBlendMaterial(int frameIndex)
         {
             if (_renderer == null || _frames == null || frameIndex < 0 || frameIndex >= _frames.Length) return;
+            if (_hitFlashOn)
+            {
+                ApplyHitFlashMaterial(LogMissingFlashMaterial());
+                return;
+            }
             var mat = SpriteBlendMaterial.For(_spritePath,
                 SpriteBank.ParseFrameIndex(_frames[frameIndex].name), _rendererDefault);
             SpriteBlendMaterial.Set(_renderer, mat);
@@ -775,8 +979,20 @@ namespace CR.View
         private void PlayTier()
         {
             if (_animator == null || !HasFrames) return;
-            _animator.Play(_frames, ClipIndices(_spriteDir, _anim, _viewNo),
-                FpsFor(_spriteDir, _anim, _viewNo), IsLoopTier(_anim));
+            var clip = ClipIndices(_spriteDir, _anim, _viewNo);
+            // die 档没有帧段 ⇒ **保持当前画面不动**，⛔ 不回落整目录。整目录不是死亡动画：`_frames` 是那个
+            // 目录的**全部**帧（如 `chr_knight_out` 486 张，含 9 个视角与 idle/walk/attack 各档），
+            // 从它的第 0 帧起播会把单位当场换成一张无关姿势。原版单位没有死亡动画
+            // （`策划/单位帧段表.md` 逐目录核过，89 个目录的 die 档全部"未找到"），死亡表现由通用死亡特效
+            // 承担（`ResPaths` 的 `Death_blue` / `Death_purple` 族，见其注释）；服务端只在实体消失前的
+            // 那一帧下发 `anim=die`（`server/game/core/battle.go` 的 `compact` 口径）⇒ 这一帧只需维持原样。
+            // `ClipLength > 0` 一档都没播过时无画面可保（此时仍走下面的整目录兜底，免得贴出占位白块）。
+            if (clip == null && _anim == AnimDie && _animator.ClipLength > 0)
+            {
+                _animator.Stop();
+                return;
+            }
+            _animator.Play(_frames, clip, FpsFor(_spriteDir, _anim, _viewNo), IsLoopTier(_anim));
         }
 
         /// <summary>
@@ -944,7 +1160,10 @@ namespace CR.View
                 // 有建筑层配方的目录**不发这句**：它的单帧渲染器在 `Apply` 里已关（`enabled = !HasBuildingRecipe()`），
                 // 真正的层序由 `BuildingLayerTable` 叠出（逐层读数见 `BuildLayers`）⇒ 「整目录循环播」与事实相反。
                 LogThrottle.WarnOnce(LogTag, "tier:" + dir,
-                    $"该档位不可用（素材无此动画 / `.sc` 越界 shapeID）⇒ 整目录循环播（已登记差异）：dir={dir} anim={TierName(anim)}");
+                    $"该档位不可用（素材无此动画 / `.sc` 越界 shapeID）：dir={dir} anim={TierName(anim)}"
+                    + (anim == AnimDie
+                        ? " ⇒ die 保持当前画面不动（原版单位没有死亡动画，见 `PlayTier`）"
+                        : " ⇒ 整目录循环播（已登记差异）"));
 
             ClipIndexCache[key] = result ?? System.Array.Empty<int>();
             return result;
@@ -986,6 +1205,11 @@ namespace CR.View
         /// ⛔ **不许直接拿 `.sc` 的 FPS 播像素帧**：`Runs` 里存的是**唯一像素帧**，timeline 里的重复帧
         /// 已被折叠（`axe_man_run1_5` = timeline 38 步 / 8 张像素帧 / 60 fps ⇒ 原版周期 0.633 s；
         /// 按 60 fps 播那 8 张只有 0.133 s，**快 4.75 倍** —— 现象就是"走起来在发抖"）。
+        /// <para><b>attack 的时长上限</b>：一次挥砍的动画必须**在下一刀到来前播完**，否则每刀都会被
+        /// 下一次挥砍切掉尾巴再从头播（现象 = 攻击段永远播不到收招帧）⇒ 时长 = `min(原版攻击段时长,
+        /// hit_speed_ms)`。两者出处：原版时长 = `策划/单位动画分组表.md` 的 `timeline ÷ FPS`，
+        /// `hit_speed_ms` = `server/game/table/tsv/unit.tsv`（同一个值就是服务端两次挥砍的间隔）。
+        /// 例：archer 原版段 1.000 s &gt; hit 0.900 s ⇒ 按 0.900 s 播。</para>
         /// <para>兜底（分组表里查不到该 export / 目录未收录 / 帧数为 0）：idle = 不播（`0f`）、
         /// attack = 帧数 ÷ `hit_speed_ms`、walk/die = `.sc` 自带 FPS；再兜底 = <see cref="AnimFps"/>。
         /// 单帧档无论时长多大都不会动（帧序列只有一帧，换帧无处可去）。</para>
@@ -1000,12 +1224,17 @@ namespace CR.View
                 var runs = UnitAnimTable.RunsForView(clip, view) ?? clip.Runs;
                 var frames = UnitAnimTable.CountOfRuns(runs);
                 int[] durations;
-                if (frames > 0 && UnitAnimDurations.TryGet(dir ?? string.Empty, out durations)
-                    && anim < durations.Length && durations[anim] > 0)
-                    return frames * 1000f / durations[anim];
+                var hasDur = UnitAnimDurations.TryGet(dir ?? string.Empty, out durations)
+                             && anim < durations.Length && durations[anim] > 0;
+                var segMs = hasDur ? (float)durations[anim] : 0f;
+
+                if (anim == AnimAttack && frames > 0 && entry.HitSpeedMs > 0)
+                {
+                    var capMs = segMs > 0f && segMs < entry.HitSpeedMs ? segMs : entry.HitSpeedMs;
+                    return frames * 1000f / capMs;
+                }
+                if (frames > 0 && segMs > 0f) return frames * 1000f / segMs;
                 if (anim == AnimIdle) return 0f;                                  // 静止帧：不播
-                if (anim == AnimAttack && entry.HitSpeedMs > 0)
-                    return frames / (entry.HitSpeedMs / 1000f);                    // = 攻击段帧数 ÷ 秒
                 if (entry.ScFps > 0) return entry.ScFps;                          // walk / die：.sc 自带帧率
             }
             return AnimFps[Mathf.Clamp(anim, 0, AnimFps.Length - 1)];
@@ -1097,10 +1326,10 @@ namespace CR.View
         private static readonly HashSet<string> AttackTimingLogged = new HashSet<string>();
 
         /// <summary>
-        /// 打印**攻击段时长与 `hit_speed_ms` 的对照**（每个已收录目录一次）—— 读数原文：
-        /// `攻击段时长 = attackCount / attackFps`（= <see cref="UnitAnimDurations"/> 的原版时长）
-        /// vs `hit_speed_ms`（= 两次挥砍的间隔）。两者**不必相等**：原版里一次挥砍的动画时长
-        /// 可以短于攻击间隔（播完停在末帧等下一次）。
+        /// 打印**攻击段的播放口径**（每个已收录目录一次），一行能读出每张卡的三个量：
+        /// 帧数 / **原版段时长**（<see cref="UnitAnimDurations"/> = 分组表 `timeline ÷ FPS`）/
+        /// **`hit_speed_ms`**（两次挥砍的间隔），以及本档**是否切尾**
+        /// （原版段比间隔长 ⇒ 必须按间隔播，尾部帧播不到）。
         /// 出处：`策划/单位动画分组表.md`（时长）+ `server/game/table/tsv/unit.tsv`（`hit_speed_ms`）。
         /// </summary>
         private static void AssertAttackTiming(string dir)
@@ -1122,12 +1351,15 @@ namespace CR.View
             var hasDur = UnitAnimDurations.TryGet(dir, out durations) && durations[AnimAttack] > 0;
             var segSec = hasDur ? durations[AnimAttack] / 1000f : 0f;
             var hitSec = hitMs / 1000f;
-            var fps = segSec > 0f ? count / segSec : count / hitSec;
+            // 切尾 = 原版攻击段比挥砍间隔长 ⇒ 只能按 hit_speed 播，尾部帧播不到（FpsFor 的口径）。
+            var cut = hasDur && segSec > hitSec;
+            var basis = !hasDur ? "hit_speed（无原版时长）"
+                : cut ? $"hit_speed（原版段长 {(segSec - hitSec) / hitSec * 100f:+0.0;-0.0}%）"
+                : "原版段";
+            var playSec = hasDur ? (cut ? hitSec : segSec) : hitSec;
             Game.Logger?.Info(LogTag,
-                $"攻击段时长对照：dir={dir} 帧数={count} 原版时长={segSec:F3}s（= 分组表的 timeline÷FPS）" +
-                $" ⇒ fps={fps:F2}" + (hasDur ? "" : $"（无时长数据 ⇒ 兜底 {AttackFpsFormula}）") +
-                $" | hit_speed_ms={hitSec:F3}s" +
-                (hasDur ? $"（差 {(segSec - hitSec) / hitSec * 100f:+0.0;-0.0}%）" : ""));
+                $"攻击段口径：dir={dir} 帧数={count} 原版段={(hasDur ? segSec.ToString("F3") + "s" : "无")} " +
+                $"hit_speed={hitSec:F3}s 切尾={(cut ? "是" : "否")} ⇒ 按 {basis} 播（{count / playSec:F2} fps）");
         }
 
         private static Sprite FallbackSprite()

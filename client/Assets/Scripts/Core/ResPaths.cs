@@ -929,6 +929,18 @@ namespace CR
         /// <summary>死亡扬尘帧数（f067 / f068 / f069）。</summary>
         public const int EffectDeathGroundCount = 3;
 
+        /// <summary>用途目录：死亡粒子（原版 `death_particle`，分组表 `:4698`，帧列 `50 66`｜30 fps）。</summary>
+        public const string EffectDeathParticle = "Death/Particle";
+
+        /// <summary>死亡粒子起始帧（原版 f050）。</summary>
+        public const int EffectDeathParticleFirst = 50;
+
+        /// <summary>死亡粒子帧数（f050 / f066，目录内按帧号升序即该 export 的帧序）。</summary>
+        public const int EffectDeathParticleCount = 2;
+
+        /// <summary>死亡粒子整段时长（秒）= 2 帧 ÷ 30 fps（分组表 `:4698` 的 fps 列）。</summary>
+        public const float EffectDeathParticleSeconds = 2f / 30f;
+
         // ───────────────────────── 法术命中特效（差异登记见 `策划/差异登记.tsv`）─────────────────────────
         //
         // 法术卡必须有独立命中特效的原因：法术卡走 `EvPlayCard` 事件，而客户端那条分支
@@ -954,11 +966,11 @@ namespace CR
         /// </summary>
         public const string EffectSpellBarrel = "SpellBarrel";
 
-        /// <summary>火球命中（分组表 `:4710` `fireball` 帧列 `22 396-436` 里的连续段）。</summary>
-        public const int EffectFireballFirst = 396;
-
-        /// <summary>火球命中帧数（f396..f436）。</summary>
-        public const int EffectFireballCount = 41;
+        /// <summary>
+        /// 火球的帧段（分组表 `:4710` `fireball` 帧列 `22 396-436`）被拆成两段：
+        /// 飞行 = <see cref="EffectFireballFlightFirst"/>（目录 <see cref="EffectSpellFlight"/>），
+        /// 落地 = <see cref="EffectFireballBlastFirst"/>（目录 <see cref="EffectSpell"/>）。
+        /// </summary>
 
         /// <summary>万箭齐发落地（分组表 `:4864` `Arrow_enemy_ground_anim` 帧列 `498-504`）。</summary>
         public const int EffectArrowsFirst = 498;
@@ -1013,7 +1025,7 @@ namespace CR
         public const int EffectTheLogCount = 8;
 
         /// <summary>
-        /// 哥布林飞桶（分组表 `:6205` `spell_goblin_barrel` 帧列 `0 2-12`）。
+        /// 哥布林飞桶（分组表 `:6203` `spell_goblin_barrel` 帧列 `0 2-12`）。
         /// 帧**不连续**（f000 之后跳到 f002）：落地目录里只放了该组用到的 12 帧
         /// （f000 + f002..f012）⇒ 顺序播 12 帧即等于该组，见 `copy_spell_fx.py`。
         /// </summary>
@@ -1021,6 +1033,82 @@ namespace CR
 
         /// <summary>哥布林飞桶帧数（该组 12 帧）。</summary>
         public const int EffectGoblinBarrelCount = 12;
+
+        // ───────────────────────── 法术弹体（火球飞行段）─────────────────────────
+        //
+        // 出处：`策划/单位动画分组表.md:4710` 的 `fireball` 组（clip 229–1353｜fps 30,60｜帧列 `22 396-436`）
+        // 与 `:5276` 的 `fireball_projectile1`（clip 1353｜60 fps｜15 条｜**91 步**｜帧列
+        // `396-398 398 … 411 411 411 411 411-425`）。
+        // 逐帧像素（联络图 `.ai-tmp/test/fx-semantics/fireball-a-396-416.png` / `-b-417-436.png`）：
+        //   f396 出膛闪光、f397 弹体球、f398..f411 带火焰拖尾的火球本体（= 飞行段）、
+        //   f412..f425 实心火球闪（= 落地爆）、f426..f436 余烬火星（= 落地爆的尾）。
+        // ⇒ 飞行段 = f396..f411（另存用途目录 `SpellFlight`），落地段 = f412..f436（沿用 `Spell` 目录）。
+
+        /// <summary>用途目录：火球弹体飞行段（原版 `fireball_projectile1` 的帧，与 `Spell` 各存一份）。</summary>
+        public const string EffectSpellFlight = "SpellFlight";
+
+        /// <summary>火球弹体起始帧（原版 f396）。</summary>
+        public const int EffectFireballFlightFirst = 396;
+
+        /// <summary>火球弹体帧数（f396..f411 = 16 帧）。</summary>
+        public const int EffectFireballFlightCount = 16;
+
+        /// <summary>
+        /// 火球弹体飞行时长（秒）= 原版该 export 的时间轴长度（分组表 `:5276` 的 91 步 ÷ 60 fps）。
+        /// </summary>
+        public const float EffectFireballFlightSeconds = 91f / 60f;
+
+        /// <summary>火球落地爆炸起始帧（原版 f412）。</summary>
+        public const int EffectFireballBlastFirst = 412;
+
+        /// <summary>火球落地爆炸帧数（f412..f436 = 25 帧）。</summary>
+        public const int EffectFireballBlastCount = 25;
+
+        /// <summary>火球落地爆炸时长（秒）= 25 帧 ÷ 60 fps（分组表 `:4710` 该结果的 fps 列）。</summary>
+        public const float EffectFireballBlastSeconds = 25f / 60f;
+
+        // ───────────────────────── 投射物命中段（档位列 = hit）─────────────────────────
+        //
+        // 出处：`策划/单位动画分组表.md` 的 `effects` 小节里**档位列写成 `hit`** 的那几行
+        // （⛔ 不是按"看起来像"挑的）：`bowler_hit_cloud`(`:4690`｜帧列 `22`) /
+        // `catapult_hit_cloud`(`:4692`｜帧列 `22`) / `ice_wiz_hit`(`:4728`｜帧列 `123-124`)。
+        // 箭矢 / 长矛 / 飞斧 / 炸弹 / 冰晶 / 火精灵 / 龙息 / 塔的弹体在这份表里**没有**专属命中段
+        // ⇒ 它们保持既有表现（`EffectHit` 闪光），⛔ 不另编一段给它们。
+
+        /// <summary>用途目录：撞击扬尘（原版 `bowler_hit_cloud` / `catapult_hit_cloud`，两者都是 f22）。</summary>
+        public const string EffectHitCloud = "HitCloud";
+
+        /// <summary>撞击扬尘起始帧（原版 f022）。</summary>
+        public const int EffectHitCloudFirst = 22;
+
+        /// <summary>撞击扬尘帧数（原版该 export 唯一像素帧 f022）。</summary>
+        public const int EffectHitCloudCount = 1;
+
+        /// <summary>
+        /// 撞击扬尘的**演出时长**（秒）= 命中档的瞬时长度，取 <see cref="EffectHitSeconds"/> 同一个值
+        /// （原版 `effect_Hit1` 自己的时间轴：5 帧 ÷ 60 fps）。
+        /// <para>
+        /// 为什么不按该 export 自己的时间轴播：`bowler_hit_cloud`(`.sc` clip 40) 的 frame_count = 341、
+        /// `catapult_hit_cloud`(clip 47) = 173，而两者**各自只有 1 个像素帧**（f22）⇒
+        /// 照它播就是"同一张云定格 5.68 s / 5.77 s"，画面上是一团赖着不走的云。
+        /// 命中云在原版里是撞击瞬间的一次性表现 ⇒ 按命中档的瞬时长度播。
+        /// （`.sc` 的 frame_count 读数：`tools/probes/blend-index.py` 的 `0x0c` 解析，
+        /// 复现脚本 `.ai-tmp/test/fx-semantics/clipframes.py`。）
+        /// </para>
+        /// </summary>
+        public const float EffectHitCloudSeconds = EffectHitSeconds;
+
+        /// <summary>用途目录：寒冰法师冰锥的命中（原版 `ice_wiz_hit`）。</summary>
+        public const string EffectIceWizHit = "IceWizHit";
+
+        /// <summary>冰锥命中起始帧（原版 f123）。</summary>
+        public const int EffectIceWizHitFirst = 123;
+
+        /// <summary>冰锥命中帧数（f123..f124）。</summary>
+        public const int EffectIceWizHitCount = 2;
+
+        /// <summary>冰锥命中的整段时长（秒）= 分组表 `:4728`（30 fps｜35 条）÷ 30。</summary>
+        public const float EffectIceWizHitSeconds = 35f / 30f;
 
         // ───────────────────────── 弹体特效（每个投射物自己的原版图元）─────────────────────────
         //

@@ -19,10 +19,10 @@ namespace CR.View
     /// `策划/策划案/皇室战争参考规格.md` §2.1。**最终裁决永远在服务端**，这里只是"别让玩家看着能放、结果被拒"。
     /// </para>
     /// <para>
-    /// <b>落点图形取自原版素材</b>（差异登记见 `策划/差异登记.tsv`）：`effects_out` 的 f221（我方：黑环，分组表 `:4777`
-    /// `spell_radius`）/ f294（敌方：暗红圆盘 + 外圈刻度，分组表 `:4815` `Poison`）。
-    /// 同族的 `spell_*_radius` 帧列**全都是 f221** ⇒ 原版所有法术共用同一张环、靠**缩放**适配半径，
-    /// 这也是本类 <see cref="Show"/> 的缩放口径。
+    /// <b>落点图形取自原版素材</b>（差异登记见 `策划/差异登记.tsv`）：`effects_out` 的 f221（黑环，分组表 `:4777`
+    /// `spell_radius`）—— 原版 `spell_*_radius` 一族的帧列**全都是 f221**，可放 / 不可放两个环
+    /// 也是**同一张 f221**、只差颜色变换（见 <see cref="DropRingMaterial"/>）⇒ 本类合法 / 非法共用这张环、
+    /// 靠**缩放**适配半径（也就是 <see cref="Show"/> 的缩放口径）。
     /// </para>
     /// <para>
     /// ⛔ 旧注释里那句「解包素材里没有'落点指示'图」**是错的**（已订正），当时才用 `Texture2D`
@@ -64,8 +64,8 @@ namespace CR.View
         /// 本实例当前画的是**溅射范围环**（<see cref="ShowTimed"/>）而不是拖放落点环。
         /// <para>
         /// 两者的图元与缩放完全相同，只有着色不同：拖放环带"能不能放"的合法性色偏
-        /// （<see cref="LegalTint"/> / <see cref="IllegalTint"/>），而溅射环只是一次命中范围的
-        /// 事后回放，⛔ 不该带任何合法性暗示 ⇒ 用原图元本色（<see cref="SplashRingColor"/>）。
+        /// （<see cref="DropRingMaterial"/> 的青蓝 / 橙红），而溅射环只是一次命中范围的
+        /// 事后回放，⛔ 不该带任何合法性暗示 ⇒ 用原图元本色（<see cref="SplashRingMaterial"/> 的纯白）。
         /// </para>
         /// </summary>
         private bool _splashRingMode;
@@ -186,9 +186,11 @@ namespace CR.View
         /// </summary>
         private const float DropCardHeightTiles = 2f;
 
-        /// <summary>原版环形素材（我方 f221 / 敌方 f294）；未到货时为 null ⇒ 用 <see cref="_discSprite"/> 兜底。</summary>
+        /// <summary>
+        /// 原版环形素材 f221（合法 / 非法**共用**同一张黑环，只靠 <see cref="DropRingMaterial"/> 的颜色变换区分）；
+        /// 未到货时为 null ⇒ 用 <see cref="_discSprite"/> 兜底。
+        /// </summary>
         private Sprite _ringFriendly;
-        private Sprite _ringHostile;
 
         /// <summary>环形素材到货（或确认取不到）后只留痕一次。</summary>
         private static bool _ringLoadLogged;
@@ -375,10 +377,10 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 异步取两张原版范围图元（我方 f221 / 敌方 f294）。到货前 <see cref="Show"/> 用自制圆盘兜底。
+        /// 异步取原版范围图元 f221。到货前 <see cref="Show"/> 用自制圆盘兜底。
         /// <para>
-        /// 为什么用 `Game.Res.LoadAsset&lt;Sprite&gt;`（异步）而不是 `SpriteBank.LoadDir`：这两张图**各自
-        /// 就是一个用途目录里的单帧**，没有"整条取"的需求；`HudPanel` 取卡面走的也是这条入口。
+        /// 为什么用 `Game.Res.LoadAsset&lt;Sprite&gt;`（异步）而不是 `SpriteBank.LoadDir`：这张图
+        /// **就是一个用途目录里的单帧**，没有"整条取"的需求；`HudPanel` 取卡面走的也是这条入口。
         /// </para>
         /// </summary>
         private void LoadRingSprites()
@@ -394,11 +396,10 @@ namespace CR.View
                 }
                 return;
             }
-            LoadOneRing(ResPaths.EffectRangeRingFriendly, 0);
-            LoadOneRing(ResPaths.EffectRangeRingHostile, 1);
+            LoadOneRing(ResPaths.EffectRangeRingFriendly);
         }
 
-        private void LoadOneRing(int frame, int which)
+        private void LoadOneRing(int frame)
         {
             var path = ResPaths.EffectFrame(ResPaths.EffectRangeRing, frame);
             Game.Res.LoadAsset<Sprite>(path, sprite =>
@@ -414,14 +415,13 @@ namespace CR.View
                     }
                     return;
                 }
-                if (which == 0) _ringFriendly = sprite; else _ringHostile = sprite;
+                _ringFriendly = sprite;
                 if (!_ringLoadLogged)
                 {
                     _ringLoadLogged = true;
                     Game.Logger?.Info(LogTag,
-                        $"落点范围图元已就绪：我方 f{ResPaths.EffectRangeRingFriendly} / " +
-                        $"敌方 f{ResPaths.EffectRangeRingHostile}（目录 {ResPaths.EffectRangeRing}；" +
-                        "出处 策划/单位动画分组表.md :4777 spell_radius / :4815 Poison）");
+                        $"落点范围图元已就绪：f{ResPaths.EffectRangeRingFriendly}" +
+                        $"（目录 {ResPaths.EffectRangeRing}；出处 策划/单位动画分组表.md :4777 spell_radius）");
                 }
                 // 素材是异步到的：如果此刻正显示着，按最近一次参数**重画**，否则会一直停在自制圆盘上。
                 if (_visible) Reapply();
@@ -472,7 +472,8 @@ namespace CR.View
             // 溅射范围环要压在所有单位之上（见 SplashRingOrder）；拖放落点环是一块地板高亮，仍在所有单位之下。
             _renderer.sortingOrder = _splashRingMode ? SplashRingOrder : ArenaLayers.Instance.Indicator;
 
-            var sprite = _lastLegal ? _ringFriendly : _ringHostile;
+            // 合法 / 非法共用原版 f221（黑环），差别只在下面的颜色变换（见 DropRingMaterial）。
+            var sprite = _ringFriendly;
             if (sprite == null) sprite = _discSprite;      // 兜底：原版图元还没到货 / 取不到
             var usingFallback = ReferenceEquals(sprite, _discSprite);
             _renderer.sprite = sprite;
@@ -484,24 +485,17 @@ namespace CR.View
             var scale = diameter / native;
             transform.localScale = new Vector3(scale, scale, 1f);
 
-            // 两种贴图用两套着色（理由见 ApplyTint 的注释）；溅射范围环不带合法性色偏。
-            if (_splashRingMode) _renderer.color = SplashRingColor;
-            else if (usingFallback) _renderer.color = _lastLegal ? LegalColor : IllegalColor;
-            else _renderer.color = _lastLegal ? LegalTint : IllegalTint;
+            // 着色：原版图元（黑环）一律用**白色顶点色** —— 颜色全交给材质那一层（见 DropRingMaterial
+            // 的注释：顶点色只能乘不能加）；只有自制兜底圆盘才用半透明红/绿顶点色（那张图是白的）。
+            if (usingFallback) _renderer.color = _lastLegal ? LegalColor : IllegalColor;
+            else _renderer.color = Color.white;
 
-            // 材质三条路：① 溅射范围环（用上原版图元）= 颜色变换材质（见 SplashRingMaterial）；
-            // ② 兜底圆盘 = 渲染器自带默认材质；③ 其余（拖放落点环）按 `SpriteBlendTable` 给该帧配的
-            // blend_mode 走共享材质（`Sprites/Effects/RangeRing` 的敌方帧 = Add）。
+            // 材质两条路：① 用上原版图元 = 颜色变换材质（拖放环见 DropRingMaterial / 溅射环见
+            // SplashRingMaterial）；② 兜底圆盘 = 渲染器自带默认材质。
             // ⛔ 一律不许写 null = 整块洋红（见 `SpriteBlendMaterial.For`）。
-            if (_splashRingMode && !usingFallback)
-                SpriteBlendMaterial.Set(_renderer, SplashRingMaterial() ?? _rendererDefault);
-            else
-                SpriteBlendMaterial.Set(_renderer, usingFallback
-                    ? _rendererDefault
-                    : SpriteBlendMaterial.For(
-                        ResPaths.EffectRangeRing,
-                        _lastLegal ? ResPaths.EffectRangeRingFriendly : ResPaths.EffectRangeRingHostile,
-                        _rendererDefault));
+            SpriteBlendMaterial.Set(_renderer, (usingFallback
+                ? _rendererDefault
+                : (_splashRingMode ? SplashRingMaterial() : DropRingMaterial())) ?? _rendererDefault);
 
             ApplySplashEcho(sprite, usingFallback, native);
             ReapplyDropCard();
@@ -633,19 +627,48 @@ namespace CR.View
             if (_timerStem != null) _timerStem.gameObject.SetActive(active);
         }
 
+        /// <summary>拖放落点环颜色变换的 `mul`（0 ⇒ 丢掉黑环的图元本色，只留图元的 alpha 当遮罩）。</summary>
+        private const int DropRingMul = 0;
+
+        /// <summary>「可放」颜色变换的 `add` 原值：原版通用蓝环 clip 644 的 `add = 33beff`。</summary>
+        private const int DropRingLegalAddR = 0x33;
+        private const int DropRingLegalAddG = 0xbe;
+        private const int DropRingLegalAddB = 0xff;
+
+        /// <summary>「可放」颜色变换的 `alpha` 原值：原版通用蓝环 clip 644 的 `alpha = d2`。</summary>
+        private const int DropRingLegalAlpha = 0xd2;
+
+        /// <summary>「不可放」颜色变换的 `add` 原值：原版通用红环 clip 645 的 `add = ff3300`。</summary>
+        private const int DropRingIllegalAddR = 0xff;
+        private const int DropRingIllegalAddG = 0x33;
+        private const int DropRingIllegalAddB = 0x00;
+
+        /// <summary>「不可放」颜色变换的 `alpha` 原值：原版通用红环 clip 645 的 `alpha = 8f`。</summary>
+        private const int DropRingIllegalAlpha = 0x8f;
+
         /// <summary>
-        /// 合法落点着色（白 → 略带绿，alpha = 1 保留原图元不透明度）。
+        /// 拖放落点环的颜色变换材质：`out = src × 0 + add`、`out_a = src_a × alpha`
+        /// （机制与数值口径同 <see cref="SplashRingMaterial"/>）。可放 = 青蓝 (51,190,255) / alpha 210，
+        /// 不可放 = 橙红 (255,51,0) / alpha 143。
         /// <para>
-        /// 只用于**原版范围环**：环自身已含红/白区分，整块染绿会把它染成一张绿环、丢掉那个区分
-        /// ⇒ 原版素材上只做"合法性提示"的轻量着色（合法 = 略带绿，非法 = 压红 <see cref="IllegalTint"/>），
-        /// 两者都保留原图元自己的明暗。**自制圆盘兜底时**用另两套半透明色
-        /// （<see cref="LegalColor"/> / <see cref="IllegalColor"/>）—— 那张图是白的，不染色就没有合法性提示。
+        /// <b>为什么必须走颜色变换而不是顶点色 tint</b>：原版范围图元是**黑环**
+        /// （<see cref="ResPaths.EffectRangeRingFriendly"/> f221 实测非透明像素 RGB 全为 0、alpha 均值 145）⇒
+        /// 顶点色只能乘不能加（黑 × 任何色 = 黑），只有加项能把它提成亮色。
+        /// </para>
+        /// <para>
+        /// <b>数值出处</b>：`原版资源/sc/effects_v215.sc` 里**同帧 f221** 的两个通用环 clip ——
+        /// 644（青蓝 `33beff d2`）/ 645（橙红 `ff3300 8f`）的 `09` 颜色变换；
+        /// 复跑 `python tools/probes/sc-color-transform.py --sc effects --find-shape 221`。
         /// </para>
         /// </summary>
-        private static readonly Color LegalTint = new Color(0.80f, 1f, 0.85f, 1f);
-
-        /// <summary>非法落点着色（压红 + 降一点不透明度，让"不能放"一眼可辨）。</summary>
-        private static readonly Color IllegalTint = new Color(1f, 0.55f, 0.50f, 0.9f);
+        private Material DropRingMaterial()
+        {
+            return _lastLegal
+                ? SpriteColorTransformMaterial.ForSprite(DropRingMul, DropRingMul, DropRingMul, DropRingLegalAlpha,
+                    DropRingLegalAddR, DropRingLegalAddG, DropRingLegalAddB)
+                : SpriteColorTransformMaterial.ForSprite(DropRingMul, DropRingMul, DropRingMul, DropRingIllegalAlpha,
+                    DropRingIllegalAddR, DropRingIllegalAddG, DropRingIllegalAddB);
+        }
 
         /// <summary>溅射范围环的着色（原图元本色，见 <see cref="_splashRingMode"/>）。</summary>
         private static readonly Color SplashRingColor = Color.white;
@@ -709,7 +732,7 @@ namespace CR.View
         /// 推进当前形态的动画：**落位计时件**的扫过片走一圈（形态由 <see cref="_deployTimerMode"/>
         /// 区分，见 <see cref="ShowDeployRing"/>）。
         /// <para>
-        /// 落点范围环与溅射范围环都是**静止**的（原版 f221/f294 各自只有 1 帧，没有自转这回事）；
+        /// 落点范围环与溅射范围环都是**静止**的（原版 f221 只有 1 帧，没有自转这回事）；
         /// 会转的只有落位计时件的扫过片，而且一圈 = 该卡真实的落位期。
         /// </para>
         /// <para>

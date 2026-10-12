@@ -58,7 +58,7 @@ type BattleEventNotify struct {
 
 // BattleEndNotify 结算。
 //
-// Reason 取值：king_destroyed | time_up_crowns | time_up_hp | surrender | draw。
+// Reason 取值：king_destroyed | time_up_crowns | time_up_hp | sudden_death | surrender | draw。
 type BattleEndNotify struct {
 	Win     bool   `json:"win"`
 	Draw    bool   `json:"draw"`

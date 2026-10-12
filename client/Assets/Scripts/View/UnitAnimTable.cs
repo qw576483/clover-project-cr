@@ -11,7 +11,8 @@
 //   （同组 `_1…_9` = 9 个不同视角）+ `:2758` 的处置建议「① 按 clip 播（推荐）」。
 //   取并集 ⇒ 运行时会依次播 9 个视角（现象：苍蝇海"1 秒 9 次视角"、走路时原地打转/抽搐）。
 // 口径②：每档的**默认视角** = `_5` = 右向侧身（无 `_5` 的目录退到最接近 5 的视角）。
-//   客户端朝向改用 `flipX` 表达（`UnitView.cs:294`）⇒ 只有侧身视角能读出"掉头"。
+//   客户端朝向改用 `flipX` 表达（`UnitView` 里 `_renderer.flipX = UnitAnimTable.StepFlip(_viewStep)`）
+//   ⇒ 只有侧身视角能读出"掉头"。
 //   判据 = 逐格标注的视角判据图（每格标
 //   `视角号 + frame_NNN`）：在 knight / musketeer / archer / giant 四目录上 `_1` = 背身、
 //   `_5` = 右向侧身、`_9` = 正朝镜头。
@@ -141,6 +142,11 @@ namespace CR.View
             public int ScFps;
             /// <summary>`hit_speed_ms`（ms，来源 `server/game/table/tsv/unit.tsv`）；0 = 该目录无对应单位行。</summary>
             public int HitSpeedMs;
+            /// <summary>
+            /// `load_time_ms`（ms，前摇；来源 `server/game/table/tsv/unit.tsv`）；0 = 该目录无对应单位行。
+            /// 用途 = 攻击档起播后推迟这么久才出刀（见 `BattleViewRoot` 的攻击排期）。
+            /// </summary>
+            public int LoadTimeMs;
         }
 
         /// <summary>sprite 目录 → 帧段。</summary>
@@ -154,7 +160,7 @@ namespace CR.View
             //   但没有这条表项时，`BattleViewRoot` 的开火排期会在 `Table.TryGetValue(dir)` 处 `continue`
             //   ⇒ 加农炮**开炮时连炮弹弹道都不播**（玩家只看到目标掉血 + 受击闪光）。
             //   `HitSpeedMs` 取 `server/game/table/tsv/unit.tsv:26020048` 的 `hit_speed_ms=900`。
-            ["building_basic_cannon_out"] = new Entry { Dir = "building_basic_cannon_out", ScFps = 30, HitSpeedMs = 900, Tiers = new[]
+            ["building_basic_cannon_out"] = new Entry { Dir = "building_basic_cannon_out", ScFps = 30, HitSpeedMs = 900, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = false, Source = "" },   // idle 不可用（素材层无分段语义，见上）
                 new Clip { Known = false, Source = "" },   // walk 不可用（建筑不走）
@@ -162,7 +168,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（素材层无分段语义，见上）
             } },
             // building_inferno_tower_out（表目录名 building_inferno_tower）
-            ["building_inferno_tower_out"] = new Entry { Dir = "building_inferno_tower_out", ScFps = 30, HitSpeedMs = 400, Tiers = new[]
+            ["building_inferno_tower_out"] = new Entry { Dir = "building_inferno_tower_out", ScFps = 30, HitSpeedMs = 400, LoadTimeMs = 1200, Tiers = new[]
             {
                 new Clip { Known = true, Start = 2, Count = 2, Contiguous = false, Runs = new[] { 2, 1, 1, 1 }, Source = "inferno_blue_idle1_1｜clip 5｜视角 1｜blue", ViewRuns = new int[][] { new[] { 2, 1, 1, 1 }, null, null, null, null, null, null, null, null } },
                 new Clip { Known = false, Source = "" },   // walk 不可用（无帧段/该行 runs 不足一对）
@@ -170,7 +176,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // building_mortar_out（表目录名 building_mortar）
-            ["building_mortar_out"] = new Entry { Dir = "building_mortar_out", ScFps = 30, HitSpeedMs = 5000, Tiers = new[]
+            ["building_mortar_out"] = new Entry { Dir = "building_mortar_out", ScFps = 30, HitSpeedMs = 5000, LoadTimeMs = 4000, Tiers = new[]
             {
                 new Clip { Known = true, Start = 0, Count = 1, Contiguous = true, Runs = new[] { 0, 1 }, Source = "building_mortar1_idle1_5｜clip 10｜视角 5｜main", ViewRuns = new int[][] { new[] { 4, 1 }, new[] { 3, 1 }, new[] { 2, 1 }, new[] { 1, 1 }, new[] { 0, 1 }, null, null, null, null } },
                 new Clip { Known = false, Source = "" },   // walk 不可用（无帧段/该行 runs 不足一对）
@@ -178,7 +184,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // building_xbow_out（表目录名 building_xbow）
-            ["building_xbow_out"] = new Entry { Dir = "building_xbow_out", ScFps = 30, HitSpeedMs = 300, Tiers = new[]
+            ["building_xbow_out"] = new Entry { Dir = "building_xbow_out", ScFps = 30, HitSpeedMs = 300, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = false, Source = "" },   // idle 不可用（无帧段/该行 runs 不足一对）
                 new Clip { Known = false, Source = "" },   // walk 不可用（无帧段/该行 runs 不足一对）
@@ -186,7 +192,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_archer_out（表目录名 chr_archer）
-            ["chr_archer_out"] = new Entry { Dir = "chr_archer_out", ScFps = 24, HitSpeedMs = 900, Tiers = new[]
+            ["chr_archer_out"] = new Entry { Dir = "chr_archer_out", ScFps = 24, HitSpeedMs = 900, LoadTimeMs = 400, Tiers = new[]
             {
                 new Clip { Known = true, Start = 76, Count = 1, Contiguous = true, Runs = new[] { 76, 1 }, Source = "archer1_idle1_5｜clip 265｜视角 5｜main", ViewRuns = new int[][] { new[] { 80, 1 }, new[] { 79, 1 }, new[] { 78, 1 }, new[] { 77, 1 }, new[] { 76, 1 }, new[] { 75, 1 }, new[] { 74, 1 }, new[] { 73, 1 }, new[] { 72, 1 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "archer1_run1_5｜clip 256｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -194,7 +200,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_axe_man_out（表目录名 chr_axe_man）
-            ["chr_axe_man_out"] = new Entry { Dir = "chr_axe_man_out", ScFps = 60, HitSpeedMs = 900, Tiers = new[]
+            ["chr_axe_man_out"] = new Entry { Dir = "chr_axe_man_out", ScFps = 60, HitSpeedMs = 900, LoadTimeMs = 400, Tiers = new[]
             {
                 new Clip { Known = true, Start = 152, Count = 1, Contiguous = true, Runs = new[] { 152, 1 }, Source = "axe_man_idle1_5｜clip 571｜视角 5｜main", ViewRuns = new int[][] { new[] { 160, 1 }, new[] { 158, 1 }, new[] { 156, 1 }, new[] { 154, 1 }, new[] { 152, 1 }, new[] { 150, 1 }, new[] { 148, 1 }, new[] { 146, 1 }, new[] { 144, 1 } } },
                 new Clip { Known = true, Start = 64, Count = 8, Contiguous = false, Runs = new[] { 64, 1, 66, 1, 68, 1, 70, 1, 72, 1, 74, 1, 76, 1, 78, 1 }, Source = "axe_man_run1_5｜clip 786｜视角 5｜main", ViewRuns = new int[][] { new[] { 128, 1, 130, 1, 132, 1, 134, 1, 136, 1, 138, 1, 140, 1, 142, 1 }, new[] { 112, 1, 114, 1, 116, 1, 118, 1, 120, 1, 122, 1, 124, 1, 126, 1 }, new[] { 96, 1, 98, 1, 100, 1, 102, 1, 104, 1, 106, 1, 108, 1, 110, 1 }, new[] { 80, 1, 82, 1, 84, 1, 86, 1, 88, 1, 90, 1, 92, 1, 94, 1 }, new[] { 64, 1, 66, 1, 68, 1, 70, 1, 72, 1, 74, 1, 76, 1, 78, 1 }, new[] { 48, 1, 50, 1, 52, 1, 54, 1, 56, 1, 58, 1, 60, 1, 62, 1 }, new[] { 32, 1, 34, 1, 36, 1, 38, 1, 40, 1, 42, 1, 44, 1, 46, 1 }, new[] { 16, 1, 18, 1, 20, 1, 22, 1, 24, 1, 26, 1, 28, 1, 30, 1 }, new[] { 0, 1, 2, 1, 4, 1, 6, 1, 8, 1, 10, 1, 12, 1, 14, 1 } } },
@@ -202,7 +208,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_baby_dragon_out（表目录名 chr_baby_dragon）
-            ["chr_baby_dragon_out"] = new Entry { Dir = "chr_baby_dragon_out", ScFps = 30, HitSpeedMs = 1500, Tiers = new[]
+            ["chr_baby_dragon_out"] = new Entry { Dir = "chr_baby_dragon_out", ScFps = 30, HitSpeedMs = 1500, LoadTimeMs = 1200, Tiers = new[]
             {
                 new Clip { Known = true, Start = 209, Count = 9, Contiguous = true, Runs = new[] { 209, 9 }, Source = "baby_dragon_idle1_5｜clip 754｜视角 5｜main", ViewRuns = new int[][] { new[] { 242, 1, 147, 1, 149, 1, 151, 1, 153, 1, 155, 1, 157, 1, 243, 2 }, new[] { 236, 2, 131, 1, 133, 1, 135, 1, 238, 4 }, new[] { 227, 9 }, new[] { 218, 9 }, new[] { 209, 9 }, new[] { 200, 9 }, new[] { 191, 9 }, new[] { 182, 9 }, new[] { 173, 9 } } },
                 new Clip { Known = true, Start = 209, Count = 9, Contiguous = true, Runs = new[] { 209, 9 }, Source = "baby_dragon_run1_5｜clip 741｜视角 5｜main", ViewRuns = new int[][] { new[] { 242, 1, 147, 1, 149, 1, 151, 1, 153, 1, 155, 1, 157, 1, 243, 2 }, new[] { 236, 2, 131, 1, 133, 1, 135, 1, 238, 4 }, new[] { 227, 9 }, new[] { 218, 9 }, new[] { 209, 9 }, new[] { 200, 9 }, new[] { 191, 9 }, new[] { 182, 9 }, new[] { 173, 9 } } },
@@ -210,7 +216,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_balloon_out（表目录名 chr_balloon）
-            ["chr_balloon_out"] = new Entry { Dir = "chr_balloon_out", ScFps = 30, HitSpeedMs = 2000, Tiers = new[]
+            ["chr_balloon_out"] = new Entry { Dir = "chr_balloon_out", ScFps = 30, HitSpeedMs = 2000, LoadTimeMs = 1800, Tiers = new[]
             {
                 new Clip { Known = true, Start = 0, Count = 3, Contiguous = false, Runs = new[] { 0, 2, 9, 1 }, Source = "balloon1_idle1_1｜clip 20｜视角 1｜main", ViewRuns = new int[][] { new[] { 0, 2, 9, 1 }, null, null, null, null, null, null, null, null } },
                 new Clip { Known = true, Start = 0, Count = 3, Contiguous = false, Runs = new[] { 0, 2, 9, 1 }, Source = "balloon1_run1_1｜clip 22｜视角 1｜main", ViewRuns = new int[][] { new[] { 0, 2, 9, 1 }, null, null, null, null, null, null, null, null } },
@@ -218,7 +224,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_bandit_out（表目录名 chr_bandit）
-            ["chr_bandit_out"] = new Entry { Dir = "chr_bandit_out", ScFps = 30, HitSpeedMs = 1000, Tiers = new[]
+            ["chr_bandit_out"] = new Entry { Dir = "chr_bandit_out", ScFps = 30, HitSpeedMs = 1000, LoadTimeMs = 600, Tiers = new[]
             {
                 new Clip { Known = true, Start = 152, Count = 1, Contiguous = true, Runs = new[] { 152, 1 }, Source = "bandit_idle1_5｜clip 627｜视角 5｜main", ViewRuns = new int[][] { new[] { 160, 1 }, new[] { 158, 1 }, new[] { 156, 1 }, new[] { 154, 1 }, new[] { 152, 1 }, new[] { 150, 1 }, new[] { 148, 1 }, new[] { 146, 1 }, new[] { 144, 1 } } },
                 new Clip { Known = true, Start = 64, Count = 8, Contiguous = false, Runs = new[] { 64, 1, 66, 1, 68, 1, 70, 1, 72, 1, 74, 1, 76, 1, 78, 1 }, Source = "bandit_run1_5｜clip 618｜视角 5｜main", ViewRuns = new int[][] { new[] { 128, 1, 130, 1, 132, 1, 134, 1, 136, 1, 138, 1, 140, 1, 142, 1 }, new[] { 112, 1, 114, 1, 116, 1, 118, 1, 120, 1, 122, 1, 124, 1, 126, 1 }, new[] { 96, 1, 98, 1, 100, 1, 102, 1, 104, 1, 106, 1, 108, 1, 110, 1 }, new[] { 80, 1, 82, 1, 84, 1, 86, 1, 88, 1, 90, 1, 92, 1, 94, 1 }, new[] { 64, 1, 66, 1, 68, 1, 70, 1, 72, 1, 74, 1, 76, 1, 78, 1 }, new[] { 48, 1, 50, 1, 52, 1, 54, 1, 56, 1, 58, 1, 60, 1, 62, 1 }, new[] { 32, 1, 34, 1, 36, 1, 38, 1, 40, 1, 42, 1, 44, 1, 46, 1 }, new[] { 16, 1, 18, 1, 20, 1, 22, 1, 24, 1, 26, 1, 28, 1, 30, 1 }, new[] { 0, 1, 2, 1, 4, 1, 6, 1, 8, 1, 10, 1, 12, 1, 14, 1 } } },
@@ -226,7 +232,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_barbarian_out（表目录名 chr_barbarian）
-            ["chr_barbarian_out"] = new Entry { Dir = "chr_barbarian_out", ScFps = 24, HitSpeedMs = 1300, Tiers = new[]
+            ["chr_barbarian_out"] = new Entry { Dir = "chr_barbarian_out", ScFps = 24, HitSpeedMs = 1300, LoadTimeMs = 900, Tiers = new[]
             {
                 new Clip { Known = true, Start = 691, Count = 1, Contiguous = true, Runs = new[] { 691, 1 }, Source = "barbarian1_idle1_5｜clip 1141｜视角 5｜main", ViewRuns = new int[][] { new[] { 695, 1 }, new[] { 694, 1 }, new[] { 693, 1 }, new[] { 692, 1 }, new[] { 691, 1 }, new[] { 690, 1 }, new[] { 689, 1 }, new[] { 688, 1 }, new[] { 687, 1 } } },
                 new Clip { Known = true, Start = 899, Count = 8, Contiguous = true, Runs = new[] { 899, 8 }, Source = "barbarian1_run1_5｜clip 1177｜视角 5｜main", ViewRuns = new int[][] { new[] { 931, 8 }, new[] { 923, 8 }, new[] { 915, 8 }, new[] { 907, 8 }, new[] { 899, 8 }, new[] { 891, 8 }, new[] { 883, 8 }, new[] { 875, 8 }, new[] { 867, 8 } } },
@@ -234,7 +240,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_bats_out（表目录名 chr_bats）
-            ["chr_bats_out"] = new Entry { Dir = "chr_bats_out", ScFps = 60, HitSpeedMs = 1300, Tiers = new[]
+            ["chr_bats_out"] = new Entry { Dir = "chr_bats_out", ScFps = 60, HitSpeedMs = 1300, LoadTimeMs = 700, Tiers = new[]
             {
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "bat_idle1_5｜clip 115｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "bat_run1_5｜clip 94｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -242,7 +248,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_battle_ram_out（表目录名 chr_battle_ram）
-            ["chr_battle_ram_out"] = new Entry { Dir = "chr_battle_ram_out", ScFps = 24, HitSpeedMs = 400, Tiers = new[]
+            ["chr_battle_ram_out"] = new Entry { Dir = "chr_battle_ram_out", ScFps = 24, HitSpeedMs = 400, LoadTimeMs = 50, Tiers = new[]
             {
                 new Clip { Known = true, Start = 48, Count = 12, Contiguous = false, Runs = new[] { 48, 3, 52, 1, 54, 1, 56, 1, 58, 2, 51, 1, 53, 1, 55, 1, 57, 1 }, Source = "battle_ram_idle1_5｜clip 481｜视角 5｜main", ViewRuns = new int[][] { new[] { 96, 3, 100, 1, 102, 1, 104, 1, 106, 2, 99, 1, 101, 1, 103, 1, 105, 1 }, new[] { 84, 3, 88, 1, 90, 1, 92, 1, 94, 2, 87, 1, 89, 1, 91, 1, 93, 1 }, new[] { 72, 3, 76, 1, 78, 1, 80, 1, 82, 2, 75, 1, 77, 1, 79, 1, 81, 1 }, new[] { 60, 3, 64, 1, 66, 1, 68, 1, 70, 2, 63, 1, 65, 1, 67, 1, 69, 1 }, new[] { 48, 3, 52, 1, 54, 1, 56, 1, 58, 2, 51, 1, 53, 1, 55, 1, 57, 1 }, new[] { 36, 3, 40, 1, 42, 1, 44, 1, 46, 2, 39, 1, 41, 1, 43, 1, 45, 1 }, new[] { 24, 3, 28, 1, 30, 1, 32, 1, 34, 2, 27, 1, 29, 1, 31, 1, 33, 1 }, new[] { 12, 3, 20, 1, 22, 2, 15, 2, 18, 1, 17, 1, 19, 1, 21, 1 }, new[] { 0, 3, 8, 1, 10, 2, 3, 2, 6, 1, 5, 1, 7, 1, 9, 1 } } },
                 new Clip { Known = true, Start = 48, Count = 12, Contiguous = false, Runs = new[] { 48, 3, 52, 1, 54, 1, 56, 1, 58, 2, 51, 1, 53, 1, 55, 1, 57, 1 }, Source = "battle_ram_run1_5｜clip 307｜视角 5｜main", ViewRuns = new int[][] { new[] { 96, 3, 100, 1, 102, 1, 104, 1, 106, 2, 99, 1, 101, 1, 103, 1, 105, 1 }, new[] { 84, 3, 88, 1, 90, 1, 92, 1, 94, 2, 87, 1, 89, 1, 91, 1, 93, 1 }, new[] { 72, 3, 76, 1, 78, 1, 80, 1, 82, 2, 75, 1, 77, 1, 79, 1, 81, 1 }, new[] { 60, 3, 64, 1, 66, 1, 68, 1, 70, 2, 63, 1, 65, 1, 67, 1, 69, 1 }, new[] { 48, 3, 52, 1, 54, 1, 56, 1, 58, 2, 51, 1, 53, 1, 55, 1, 57, 1 }, new[] { 36, 3, 40, 1, 42, 1, 44, 1, 46, 2, 39, 1, 41, 1, 43, 1, 45, 1 }, new[] { 24, 3, 28, 1, 30, 1, 32, 1, 34, 2, 27, 1, 29, 1, 31, 1, 33, 1 }, new[] { 12, 3, 20, 1, 22, 2, 15, 2, 18, 1, 17, 1, 19, 1, 21, 1 }, new[] { 0, 3, 8, 1, 10, 2, 3, 2, 6, 1, 5, 1, 7, 1, 9, 1 } } },
@@ -250,7 +256,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_black_knight_out（表目录名 chr_black_knight）
-            ["chr_black_knight_out"] = new Entry { Dir = "chr_black_knight_out", ScFps = 30, HitSpeedMs = 0, Tiers = new[]
+            ["chr_black_knight_out"] = new Entry { Dir = "chr_black_knight_out", ScFps = 30, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 372, Count = 1, Contiguous = true, Runs = new[] { 372, 1 }, Source = "BlackKnight_blue_idle1_5｜clip 1083｜视角 5｜blue", ViewRuns = new int[][] { new[] { 376, 1 }, new[] { 375, 1 }, new[] { 374, 1 }, new[] { 373, 1 }, new[] { 372, 1 }, new[] { 371, 1 }, new[] { 370, 1 }, new[] { 369, 1 }, new[] { 368, 1 } } },
                 new Clip { Known = true, Start = 318, Count = 10, Contiguous = true, Runs = new[] { 318, 10 }, Source = "BlackKnight_blue_run1_5｜clip 1074｜视角 5｜blue", ViewRuns = new int[][] { new[] { 358, 10 }, new[] { 348, 10 }, new[] { 338, 10 }, new[] { 328, 10 }, new[] { 318, 10 }, new[] { 308, 10 }, new[] { 298, 10 }, new[] { 288, 10 }, new[] { 278, 10 } } },
@@ -258,7 +264,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_bomber_out（表目录名 chr_bomber）
-            ["chr_bomber_out"] = new Entry { Dir = "chr_bomber_out", ScFps = 30, HitSpeedMs = 1800, Tiers = new[]
+            ["chr_bomber_out"] = new Entry { Dir = "chr_bomber_out", ScFps = 30, HitSpeedMs = 1800, LoadTimeMs = 1600, Tiers = new[]
             {
                 new Clip { Known = true, Start = 150, Count = 1, Contiguous = true, Runs = new[] { 150, 1 }, Source = "chr_bomber_idle1_5｜clip 485｜视角 5｜main", ViewRuns = new int[][] { new[] { 210, 1 }, new[] { 195, 1 }, new[] { 180, 1 }, new[] { 165, 1 }, new[] { 150, 1 }, new[] { 135, 1 }, new[] { 120, 1 }, new[] { 105, 1 }, new[] { 90, 1 } } },
                 new Clip { Known = true, Start = 382, Count = 10, Contiguous = true, Runs = new[] { 382, 10 }, Source = "chr_bomber_run1_5｜clip 499｜视角 5｜main", ViewRuns = new int[][] { new[] { 422, 10 }, new[] { 412, 10 }, new[] { 402, 10 }, new[] { 392, 10 }, new[] { 382, 10 }, new[] { 372, 10 }, new[] { 362, 10 }, new[] { 352, 10 }, new[] { 342, 10 } } },
@@ -266,7 +272,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_bowler_out（表目录名 chr_bowler）
-            ["chr_bowler_out"] = new Entry { Dir = "chr_bowler_out", ScFps = 30, HitSpeedMs = 2500, Tiers = new[]
+            ["chr_bowler_out"] = new Entry { Dir = "chr_bowler_out", ScFps = 30, HitSpeedMs = 2500, LoadTimeMs = 2000, Tiers = new[]
             {
                 new Clip { Known = true, Start = 97, Count = 1, Contiguous = true, Runs = new[] { 97, 1 }, Source = "bowler_blue_idle1_5｜clip 534｜视角 5｜blue", ViewRuns = new int[][] { new[] { 103, 1 }, new[] { 101, 1 }, new[] { 301, 1 }, new[] { 99, 1 }, new[] { 97, 1 }, new[] { 95, 1 }, new[] { 93, 1 }, new[] { 300, 1 }, new[] { 91, 1 } } },
                 new Clip { Known = true, Start = 248, Count = 13, Contiguous = true, Runs = new[] { 248, 13 }, Source = "bowler_blue_run1_5｜clip 525｜视角 5｜blue", ViewRuns = new int[][] { new[] { 460, 13 }, new[] { 287, 13 }, new[] { 274, 13 }, new[] { 261, 13 }, new[] { 248, 13 }, new[] { 235, 13 }, new[] { 222, 13 }, new[] { 209, 13 }, new[] { 196, 13 } } },
@@ -274,7 +280,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_dark_witch_out（表目录名 chr_dark_witch）
-            ["chr_dark_witch_out"] = new Entry { Dir = "chr_dark_witch_out", ScFps = 60, HitSpeedMs = 0, Tiers = new[]
+            ["chr_dark_witch_out"] = new Entry { Dir = "chr_dark_witch_out", ScFps = 60, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 80, Count = 1, Contiguous = true, Runs = new[] { 80, 1 }, Source = "dark_witch_idle1_5｜clip 648｜视角 5｜main", ViewRuns = new int[][] { new[] { 88, 1 }, new[] { 86, 1 }, new[] { 84, 1 }, new[] { 82, 1 }, new[] { 80, 1 }, new[] { 78, 1 }, new[] { 76, 1 }, new[] { 74, 1 }, new[] { 72, 1 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "dark_witch_run1_5｜clip 388｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -282,7 +288,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_electro_wizard_out（表目录名 chr_electro_wizard）
-            ["chr_electro_wizard_out"] = new Entry { Dir = "chr_electro_wizard_out", ScFps = 60, HitSpeedMs = 1800, Tiers = new[]
+            ["chr_electro_wizard_out"] = new Entry { Dir = "chr_electro_wizard_out", ScFps = 60, HitSpeedMs = 1800, LoadTimeMs = 1200, Tiers = new[]
             {
                 new Clip { Known = true, Start = 144, Count = 1, Contiguous = true, Runs = new[] { 144, 1 }, Source = "electro_wizard_idle1_5｜clip 629｜视角 5｜main", ViewRuns = new int[][] { new[] { 152, 1 }, new[] { 150, 1 }, new[] { 148, 1 }, new[] { 146, 1 }, new[] { 144, 1 }, new[] { 142, 1 }, new[] { 140, 1 }, new[] { 138, 1 }, new[] { 136, 1 } } },
                 new Clip { Known = true, Start = 16, Count = 8, Contiguous = true, Runs = new[] { 16, 8 }, Source = "electro_wizard_run1_5｜clip 363｜视角 5｜main", ViewRuns = new int[][] { new[] { 120, 1, 122, 1, 124, 1, 126, 1, 128, 1, 130, 1, 132, 1, 134, 1 }, new[] { 32, 8 }, new[] { 96, 1, 98, 1, 100, 1, 102, 1, 104, 1, 106, 1, 108, 1, 110, 1 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 56, 1, 58, 1, 60, 1, 62, 1, 64, 1, 66, 1, 68, 1, 70, 1 }, new[] { 0, 8 }, new[] { 40, 1, 42, 1, 44, 1, 46, 1, 48, 1, 50, 1, 52, 1, 54, 1 } } },
@@ -290,7 +296,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_fire_firespirit_out（表目录名 chr_fire_firespirit）
-            ["chr_fire_firespirit_out"] = new Entry { Dir = "chr_fire_firespirit_out", ScFps = 30, HitSpeedMs = 300, Tiers = new[]
+            ["chr_fire_firespirit_out"] = new Entry { Dir = "chr_fire_firespirit_out", ScFps = 30, HitSpeedMs = 300, LoadTimeMs = 100, Tiers = new[]
             {
                 new Clip { Known = true, Start = 5, Count = 2, Contiguous = false, Runs = new[] { 5, 1, 1, 1 }, Source = "firespirit_idle1_5｜clip 106｜视角 5｜main", ViewRuns = new int[][] { new[] { 9, 1, 1, 1 }, new[] { 8, 1, 1, 1 }, new[] { 7, 1, 1, 1 }, new[] { 6, 1, 1, 1 }, new[] { 5, 1, 1, 1 }, new[] { 4, 1, 1, 1 }, new[] { 3, 1, 1, 1 }, new[] { 2, 1, 1, 1 }, new[] { 0, 2 } } },
                 new Clip { Known = true, Start = 42, Count = 9, Contiguous = false, Runs = new[] { 42, 1, 1, 1, 44, 6, 43, 1 }, Source = "firespirit_run1_5｜clip 115｜视角 5｜main", ViewRuns = new int[][] { new[] { 10, 1, 1, 1, 12, 6, 11, 1 }, new[] { 18, 1, 1, 1, 20, 6, 19, 1 }, new[] { 26, 1, 1, 1, 28, 6, 27, 1 }, new[] { 34, 1, 1, 1, 36, 6, 35, 1 }, new[] { 42, 1, 1, 1, 44, 6, 43, 1 }, new[] { 50, 1, 1, 1, 52, 6, 51, 1 }, new[] { 58, 1, 1, 1, 60, 6, 59, 1 }, new[] { 66, 1, 1, 1, 68, 6, 67, 1 }, new[] { 74, 1, 1, 1, 76, 6, 75, 1 } } },
@@ -298,7 +304,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_flying_machine_out（表目录名 chr_flying_machine）
-            ["chr_flying_machine_out"] = new Entry { Dir = "chr_flying_machine_out", ScFps = 60, HitSpeedMs = 0, Tiers = new[]
+            ["chr_flying_machine_out"] = new Entry { Dir = "chr_flying_machine_out", ScFps = 60, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 56, Count = 31, Contiguous = false, Runs = new[] { 56, 1, 1, 2, 55, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, Source = "flying_machine_idle1_5｜clip 197｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 1, 1, 2, 63, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 62, 1, 1, 2, 61, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 60, 1, 1, 2, 59, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 58, 1, 1, 2, 57, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 56, 1, 1, 2, 55, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 54, 1, 1, 2, 53, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 52, 1, 1, 2, 51, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 50, 1, 1, 2, 49, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 48, 1, 1, 2, 47, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 } } },
                 new Clip { Known = true, Start = 56, Count = 31, Contiguous = false, Runs = new[] { 56, 1, 1, 2, 55, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, Source = "flying_machine_run1_5｜clip 214｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 1, 1, 2, 63, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 62, 1, 1, 2, 61, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 60, 1, 1, 2, 59, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 58, 1, 1, 2, 57, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 56, 1, 1, 2, 55, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 54, 1, 1, 2, 53, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 52, 1, 1, 2, 51, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 50, 1, 1, 2, 49, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 }, new[] { 48, 1, 1, 2, 47, 1, 65, 2, 6, 1, 67, 1, 8, 1, 68, 22 } } },
@@ -306,7 +312,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_giant_out（表目录名 chr_giant）
-            ["chr_giant_out"] = new Entry { Dir = "chr_giant_out", ScFps = 30, HitSpeedMs = 1500, Tiers = new[]
+            ["chr_giant_out"] = new Entry { Dir = "chr_giant_out", ScFps = 30, HitSpeedMs = 1500, LoadTimeMs = 1000, Tiers = new[]
             {
                 new Clip { Known = true, Start = 80, Count = 1, Contiguous = true, Runs = new[] { 80, 1 }, Source = "giant1_idle1_5｜clip 652｜视角 5｜main", ViewRuns = new int[][] { new[] { 448, 1 }, new[] { 140, 1 }, new[] { 120, 1 }, new[] { 100, 1 }, new[] { 80, 1 }, new[] { 60, 1 }, new[] { 40, 1 }, new[] { 20, 1 }, new[] { 0, 1 } } },
                 new Clip { Known = true, Start = 352, Count = 16, Contiguous = true, Runs = new[] { 352, 16 }, Source = "giant1_run1_5｜clip 672｜视角 5｜main", ViewRuns = new int[][] { new[] { 416, 16 }, new[] { 400, 16 }, new[] { 384, 16 }, new[] { 368, 16 }, new[] { 352, 16 }, new[] { 336, 16 }, new[] { 320, 16 }, new[] { 304, 16 }, new[] { 288, 16 } } },
@@ -314,7 +320,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_giant_skeleton_out（表目录名 chr_giant_skeleton）
-            ["chr_giant_skeleton_out"] = new Entry { Dir = "chr_giant_skeleton_out", ScFps = 30, HitSpeedMs = 1400, Tiers = new[]
+            ["chr_giant_skeleton_out"] = new Entry { Dir = "chr_giant_skeleton_out", ScFps = 30, HitSpeedMs = 1400, LoadTimeMs = 1100, Tiers = new[]
             {
                 new Clip { Known = true, Start = 4, Count = 1, Contiguous = true, Runs = new[] { 4, 1 }, Source = "giant_skeleton_idle1_5｜clip 454｜视角 5｜main", ViewRuns = new int[][] { new[] { 8, 1 }, new[] { 7, 1 }, new[] { 6, 1 }, new[] { 5, 1 }, new[] { 4, 1 }, new[] { 3, 1 }, new[] { 2, 1 }, new[] { 1, 1 }, new[] { 0, 1 } } },
                 new Clip { Known = true, Start = 294, Count = 15, Contiguous = true, Runs = new[] { 294, 15 }, Source = "giant_skeleton_run1_5｜clip 490｜视角 5｜main", ViewRuns = new int[][] { new[] { 354, 15 }, new[] { 339, 15 }, new[] { 324, 15 }, new[] { 309, 15 }, new[] { 294, 15 }, new[] { 279, 15 }, new[] { 264, 15 }, new[] { 249, 15 }, new[] { 234, 15 } } },
@@ -322,7 +328,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_goblin_out（表目录名 chr_goblin）
-            ["chr_goblin_out"] = new Entry { Dir = "chr_goblin_out", ScFps = 24, HitSpeedMs = 1100, Tiers = new[]
+            ["chr_goblin_out"] = new Entry { Dir = "chr_goblin_out", ScFps = 24, HitSpeedMs = 1100, LoadTimeMs = 700, Tiers = new[]
             {
                 new Clip { Known = true, Start = 241, Count = 1, Contiguous = true, Runs = new[] { 241, 1 }, Source = "goblin1_idle1_5｜clip 336｜视角 5｜main", ViewRuns = new int[][] { new[] { 273, 1 }, new[] { 265, 1 }, new[] { 257, 1 }, new[] { 249, 1 }, new[] { 241, 1 }, new[] { 233, 1 }, new[] { 225, 1 }, new[] { 217, 1 }, new[] { 209, 1 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "goblin1_run1_5｜clip 292｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -330,7 +336,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_goblin_archer_out（表目录名 chr_goblin_archer）
-            ["chr_goblin_archer_out"] = new Entry { Dir = "chr_goblin_archer_out", ScFps = 30, HitSpeedMs = 1700, Tiers = new[]
+            ["chr_goblin_archer_out"] = new Entry { Dir = "chr_goblin_archer_out", ScFps = 30, HitSpeedMs = 1700, LoadTimeMs = 1200, Tiers = new[]
             {
                 new Clip { Known = true, Start = 96, Count = 2, Contiguous = true, Runs = new[] { 96, 2 }, Source = "goblinArcher_blue_idle1_5｜clip 380｜视角 5｜blue", ViewRuns = new int[][] { new[] { 92, 2 }, new[] { 90, 2 }, new[] { 88, 2 }, new[] { 86, 2 }, new[] { 96, 2 }, new[] { 94, 2 }, new[] { 84, 2 }, new[] { 82, 2 }, new[] { 80, 2 } } },
                 new Clip { Known = true, Start = 30, Count = 10, Contiguous = true, Runs = new[] { 30, 10 }, Source = "goblinArcher_blue_run1_5｜clip 345｜视角 5｜blue", ViewRuns = new int[][] { new[] { 70, 10 }, new[] { 60, 10 }, new[] { 50, 10 }, new[] { 40, 10 }, new[] { 30, 10 }, new[] { 20, 10 }, new[] { 98, 10 }, new[] { 10, 10 }, new[] { 0, 10 } } },
@@ -338,7 +344,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_goblin_blowdart_out（表目录名 chr_goblin_blowdart）
-            ["chr_goblin_blowdart_out"] = new Entry { Dir = "chr_goblin_blowdart_out", ScFps = 30, HitSpeedMs = 700, Tiers = new[]
+            ["chr_goblin_blowdart_out"] = new Entry { Dir = "chr_goblin_blowdart_out", ScFps = 30, HitSpeedMs = 700, LoadTimeMs = 350, Tiers = new[]
             {
                 new Clip { Known = true, Start = 152, Count = 1, Contiguous = true, Runs = new[] { 152, 1 }, Source = "goblin_blowdart_idle1_5｜clip 544｜视角 5｜main", ViewRuns = new int[][] { new[] { 160, 1 }, new[] { 158, 1 }, new[] { 156, 1 }, new[] { 154, 1 }, new[] { 152, 1 }, new[] { 150, 1 }, new[] { 148, 1 }, new[] { 146, 1 }, new[] { 144, 1 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "goblin_blowdart_run1_5｜clip 296｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -346,7 +352,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_goblin_referee_out（表目录名 chr_goblin_referee）
-            ["chr_goblin_referee_out"] = new Entry { Dir = "chr_goblin_referee_out", ScFps = 60, HitSpeedMs = 0, Tiers = new[]
+            ["chr_goblin_referee_out"] = new Entry { Dir = "chr_goblin_referee_out", ScFps = 60, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = false, Source = "" },   // idle 不可用（无帧段/该行 runs 不足一对）
                 new Clip { Known = true, Start = 5, Count = 8, Contiguous = true, Runs = new[] { 5, 8 }, Source = "goblin_referee_run1_3｜clip 37｜视角 3｜main", ViewRuns = new int[][] { new[] { 5, 8 }, new[] { 5, 8 }, new[] { 5, 8 }, null, null, null, null, null, null } },
@@ -354,7 +360,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_golem_out（表目录名 chr_golem）
-            ["chr_golem_out"] = new Entry { Dir = "chr_golem_out", ScFps = 30, HitSpeedMs = 0, Tiers = new[]
+            ["chr_golem_out"] = new Entry { Dir = "chr_golem_out", ScFps = 30, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 331, Count = 2, Contiguous = false, Runs = new[] { 331, 1, 1, 1 }, Source = "golem1_idle1_5｜clip 494｜视角 5｜main", ViewRuns = new int[][] { new[] { 355, 1, 1, 1 }, new[] { 349, 1, 1, 1 }, new[] { 343, 1, 1, 1 }, new[] { 337, 1, 1, 1 }, new[] { 331, 1, 1, 1 }, new[] { 325, 1, 1, 1 }, new[] { 319, 1, 1, 1 }, new[] { 313, 1, 1, 1 }, new[] { 307, 1, 1, 1 } } },
                 new Clip { Known = true, Start = 49, Count = 13, Contiguous = false, Runs = new[] { 49, 1, 1, 1, 50, 11 }, Source = "golem1_run1_5｜clip 377｜视角 5｜main", ViewRuns = new int[][] { new[] { 97, 1, 1, 1, 98, 11 }, new[] { 85, 1, 1, 1, 86, 11 }, new[] { 73, 1, 1, 1, 74, 11 }, new[] { 61, 1, 1, 1, 62, 11 }, new[] { 49, 1, 1, 1, 50, 11 }, new[] { 37, 1, 1, 1, 38, 11 }, new[] { 25, 1, 1, 1, 26, 11 }, new[] { 13, 1, 1, 1, 14, 11 }, new[] { 0, 13 } } },
@@ -362,7 +368,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_golemite_out（表目录名 chr_golemite）
-            ["chr_golemite_out"] = new Entry { Dir = "chr_golemite_out", ScFps = 30, HitSpeedMs = 0, Tiers = new[]
+            ["chr_golemite_out"] = new Entry { Dir = "chr_golemite_out", ScFps = 30, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 331, Count = 2, Contiguous = false, Runs = new[] { 331, 1, 1, 1 }, Source = "golemite_idle1_5｜clip 484｜视角 5｜main", ViewRuns = new int[][] { new[] { 355, 1, 1, 1 }, new[] { 349, 1, 1, 1 }, new[] { 343, 1, 1, 1 }, new[] { 337, 1, 1, 1 }, new[] { 331, 1, 1, 1 }, new[] { 325, 1, 1, 1 }, new[] { 319, 1, 1, 1 }, new[] { 313, 1, 1, 1 }, new[] { 307, 1, 1, 1 } } },
                 new Clip { Known = true, Start = 257, Count = 13, Contiguous = false, Runs = new[] { 257, 1, 1, 1, 258, 4, 152, 1, 262, 5, 159, 1 }, Source = "golemite_run1_5｜clip 466｜视角 5｜main", ViewRuns = new int[][] { new[] { 297, 1, 1, 1, 298, 4, 208, 1, 302, 5, 215, 1 }, new[] { 287, 1, 1, 1, 288, 4, 194, 1, 292, 5, 201, 1 }, new[] { 277, 1, 1, 1, 278, 4, 180, 1, 282, 5, 187, 1 }, new[] { 267, 1, 1, 1, 268, 4, 166, 1, 272, 5, 173, 1 }, new[] { 257, 1, 1, 1, 258, 4, 152, 1, 262, 5, 159, 1 }, new[] { 247, 1, 1, 1, 248, 4, 138, 1, 252, 5, 145, 1 }, new[] { 237, 1, 1, 1, 238, 4, 124, 1, 242, 5, 131, 1 }, new[] { 227, 1, 1, 1, 228, 4, 110, 1, 232, 5, 117, 1 }, new[] { 217, 1, 1, 1, 218, 4, 96, 1, 222, 5, 103, 1 } } },
@@ -370,7 +376,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_hog_rider_out（表目录名 chr_hog_rider）
-            ["chr_hog_rider_out"] = new Entry { Dir = "chr_hog_rider_out", ScFps = 24, HitSpeedMs = 1600, Tiers = new[]
+            ["chr_hog_rider_out"] = new Entry { Dir = "chr_hog_rider_out", ScFps = 24, HitSpeedMs = 1600, LoadTimeMs = 1000, Tiers = new[]
             {
                 new Clip { Known = true, Start = 175, Count = 1, Contiguous = true, Runs = new[] { 175, 1 }, Source = "hog_rider_idle1_5｜clip 373｜视角 5｜main", ViewRuns = new int[][] { new[] { 179, 1 }, new[] { 178, 1 }, new[] { 177, 1 }, new[] { 176, 1 }, new[] { 175, 1 }, new[] { 174, 1 }, new[] { 173, 1 }, new[] { 172, 1 }, new[] { 171, 1 } } },
                 new Clip { Known = true, Start = 212, Count = 8, Contiguous = true, Runs = new[] { 212, 8 }, Source = "hog_rider_run1_5｜clip 382｜视角 5｜main", ViewRuns = new int[][] { new[] { 244, 8 }, new[] { 236, 8 }, new[] { 228, 8 }, new[] { 220, 8 }, new[] { 212, 8 }, new[] { 204, 8 }, new[] { 196, 8 }, new[] { 188, 8 }, new[] { 180, 8 } } },
@@ -378,7 +384,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_ice_spirits_out（表目录名 chr_ice_spirits）
-            ["chr_ice_spirits_out"] = new Entry { Dir = "chr_ice_spirits_out", ScFps = 60, HitSpeedMs = 300, Tiers = new[]
+            ["chr_ice_spirits_out"] = new Entry { Dir = "chr_ice_spirits_out", ScFps = 60, HitSpeedMs = 300, LoadTimeMs = 100, Tiers = new[]
             {
                 new Clip { Known = true, Start = 5, Count = 2, Contiguous = false, Runs = new[] { 5, 1, 1, 1 }, Source = "icespirit_idle1_5｜clip 92｜视角 5｜main", ViewRuns = new int[][] { new[] { 9, 1, 1, 1 }, new[] { 8, 1, 1, 1 }, new[] { 7, 1, 1, 1 }, new[] { 6, 1, 1, 1 }, new[] { 5, 1, 1, 1 }, new[] { 4, 1, 1, 1 }, new[] { 3, 1, 1, 1 }, new[] { 2, 1, 1, 1 }, new[] { 0, 2 } } },
                 new Clip { Known = true, Start = 1, Count = 9, Contiguous = false, Runs = new[] { 1, 1, 18, 8 }, Source = "icespirit_run1_5｜clip 110｜视角 5｜main", ViewRuns = new int[][] { new[] { 1, 1, 66, 8 }, new[] { 1, 1, 74, 8 }, new[] { 1, 1, 26, 8 }, new[] { 1, 1, 58, 8 }, new[] { 1, 1, 18, 8 }, new[] { 1, 1, 50, 8 }, new[] { 1, 1, 10, 8 }, new[] { 1, 1, 42, 8 }, new[] { 1, 1, 34, 8 } } },
@@ -386,7 +392,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_ice_wizard_out（表目录名 chr_ice_wizard）
-            ["chr_ice_wizard_out"] = new Entry { Dir = "chr_ice_wizard_out", ScFps = 24, HitSpeedMs = 1700, Tiers = new[]
+            ["chr_ice_wizard_out"] = new Entry { Dir = "chr_ice_wizard_out", ScFps = 24, HitSpeedMs = 1700, LoadTimeMs = 1200, Tiers = new[]
             {
                 new Clip { Known = true, Start = 175, Count = 3, Contiguous = false, Runs = new[] { 175, 1, 1, 2 }, Source = "ice_wizard_idle1_5｜clip 385｜视角 5｜main", ViewRuns = new int[][] { new[] { 219, 1, 1, 2, 1, 2 }, new[] { 208, 1, 1, 2, 1, 2 }, new[] { 197, 1, 1, 2, 1, 2 }, new[] { 186, 1, 1, 2 }, new[] { 175, 1, 1, 2 }, new[] { 164, 1, 1, 2 }, new[] { 153, 1, 1, 2, 1, 2 }, new[] { 142, 1, 1, 2, 1, 2 }, new[] { 131, 1, 1, 2, 1, 2 } } },
                 new Clip { Known = true, Start = 26, Count = 12, Contiguous = false, Runs = new[] { 26, 1, 1, 2, 1, 2, 29, 5, 27, 2 }, Source = "ice_wizard_run1_5｜clip 341｜视角 5｜main", ViewRuns = new int[][] { new[] { 246, 1, 1, 2, 1, 2, 249, 5, 247, 2 }, new[] { 42, 1, 1, 2, 1, 2, 45, 5, 43, 2 }, new[] { 238, 1, 1, 2, 1, 2, 241, 5, 239, 2 }, new[] { 34, 1, 1, 2, 1, 2, 37, 5, 35, 2 }, new[] { 26, 1, 1, 2, 1, 2, 29, 5, 27, 2 }, new[] { 18, 1, 1, 2, 1, 2, 21, 5, 19, 2 }, new[] { 230, 1, 1, 2, 1, 2, 233, 5, 231, 2 }, new[] { 10, 1, 1, 2, 1, 2, 13, 5, 11, 2 }, new[] { 0, 3, 1, 2, 5, 5, 3, 2 } } },
@@ -394,7 +400,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_knight_out（表目录名 chr_knight）
-            ["chr_knight_out"] = new Entry { Dir = "chr_knight_out", ScFps = 30, HitSpeedMs = 1200, Tiers = new[]
+            ["chr_knight_out"] = new Entry { Dir = "chr_knight_out", ScFps = 30, HitSpeedMs = 1200, LoadTimeMs = 700, Tiers = new[]
             {
                 new Clip { Known = true, Start = 112, Count = 1, Contiguous = true, Runs = new[] { 112, 1 }, Source = "Knight_idle1_5｜clip 499｜视角 5｜main", ViewRuns = new int[][] { new[] { 115, 1 }, new[] { 114, 1 }, new[] { 114, 1 }, new[] { 113, 1 }, new[] { 112, 1 }, new[] { 111, 1 }, new[] { 110, 1 }, new[] { 109, 1 }, new[] { 108, 1 } } },
                 new Clip { Known = true, Start = 48, Count = 12, Contiguous = true, Runs = new[] { 48, 12 }, Source = "Knight_run1_5｜clip 490｜视角 5｜main", ViewRuns = new int[][] { new[] { 96, 12 }, new[] { 84, 12 }, new[] { 72, 12 }, new[] { 60, 12 }, new[] { 48, 12 }, new[] { 36, 12 }, new[] { 24, 12 }, new[] { 12, 12 }, new[] { 0, 12 } } },
@@ -402,7 +408,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_lava_hound_out（表目录名 chr_lava_hound）
-            ["chr_lava_hound_out"] = new Entry { Dir = "chr_lava_hound_out", ScFps = 24, HitSpeedMs = 1300, Tiers = new[]
+            ["chr_lava_hound_out"] = new Entry { Dir = "chr_lava_hound_out", ScFps = 24, HitSpeedMs = 1300, LoadTimeMs = 300, Tiers = new[]
             {
                 new Clip { Known = true, Start = 189, Count = 9, Contiguous = true, Runs = new[] { 189, 9 }, Source = "lava_hound_idle1_5｜clip 355｜视角 5｜main", ViewRuns = new int[][] { new[] { 257, 9 }, new[] { 240, 9 }, new[] { 223, 9 }, new[] { 206, 9 }, new[] { 189, 9 }, new[] { 172, 9 }, new[] { 155, 9 }, new[] { 138, 9 }, new[] { 291, 9 } } },
                 new Clip { Known = true, Start = 189, Count = 9, Contiguous = true, Runs = new[] { 189, 9 }, Source = "lava_hound_run1_5｜clip 328｜视角 5｜main", ViewRuns = new int[][] { new[] { 257, 9 }, new[] { 240, 9 }, new[] { 223, 9 }, new[] { 206, 9 }, new[] { 189, 9 }, new[] { 172, 9 }, new[] { 155, 9 }, new[] { 138, 9 }, new[] { 291, 9 } } },
@@ -410,7 +416,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_lava_pups_out（表目录名 chr_lava_pups）
-            ["chr_lava_pups_out"] = new Entry { Dir = "chr_lava_pups_out", ScFps = 24, HitSpeedMs = 1300, Tiers = new[]
+            ["chr_lava_pups_out"] = new Entry { Dir = "chr_lava_pups_out", ScFps = 24, HitSpeedMs = 1300, LoadTimeMs = 300, Tiers = new[]
             {
                 new Clip { Known = true, Start = 37, Count = 10, Contiguous = false, Runs = new[] { 37, 1, 1, 1, 39, 7, 38, 1 }, Source = "lava_pups_idle1_5｜clip 169｜视角 5｜main", ViewRuns = new int[][] { new[] { 73, 1, 1, 1, 75, 7, 74, 1 }, new[] { 64, 1, 1, 1, 66, 7, 65, 1 }, new[] { 55, 1, 1, 1, 57, 7, 56, 1 }, new[] { 46, 1, 1, 1, 48, 7, 47, 1 }, new[] { 37, 1, 1, 1, 39, 7, 38, 1 }, new[] { 28, 1, 1, 1, 30, 7, 29, 1 }, new[] { 19, 1, 1, 1, 21, 7, 20, 1 }, new[] { 10, 1, 1, 1, 12, 7, 11, 1 }, new[] { 0, 2, 3, 7, 2, 1 } } },
                 new Clip { Known = true, Start = 37, Count = 10, Contiguous = false, Runs = new[] { 37, 1, 1, 1, 39, 7, 38, 1 }, Source = "lava_pups_run1_5｜clip 169｜视角 5｜main", ViewRuns = new int[][] { new[] { 73, 1, 1, 1, 75, 7, 74, 1 }, new[] { 64, 1, 1, 1, 66, 7, 65, 1 }, new[] { 55, 1, 1, 1, 57, 7, 56, 1 }, new[] { 46, 1, 1, 1, 48, 7, 47, 1 }, new[] { 37, 1, 1, 1, 39, 7, 38, 1 }, new[] { 28, 1, 1, 1, 30, 7, 29, 1 }, new[] { 19, 1, 1, 1, 21, 7, 20, 1 }, new[] { 10, 1, 1, 1, 12, 7, 11, 1 }, new[] { 0, 2, 3, 7, 2, 1 } } },
@@ -418,7 +424,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_mega_knight_out（表目录名 chr_mega_knight）
-            ["chr_mega_knight_out"] = new Entry { Dir = "chr_mega_knight_out", ScFps = 60, HitSpeedMs = 1700, Tiers = new[]
+            ["chr_mega_knight_out"] = new Entry { Dir = "chr_mega_knight_out", ScFps = 60, HitSpeedMs = 1700, LoadTimeMs = 1200, Tiers = new[]
             {
                 new Clip { Known = true, Start = 490, Count = 1, Contiguous = true, Runs = new[] { 490, 1 }, Source = "mega_knight_idle1_5｜clip 867｜视角 5｜main", ViewRuns = new int[][] { new[] { 494, 1 }, new[] { 493, 1 }, new[] { 492, 1 }, new[] { 491, 1 }, new[] { 490, 1 }, new[] { 489, 1 }, new[] { 488, 1 }, new[] { 487, 1 }, new[] { 486, 1 } } },
                 new Clip { Known = true, Start = 36, Count = 12, Contiguous = true, Runs = new[] { 36, 12 }, Source = "mega_knight_run1_5｜clip 625｜视角 5｜main", ViewRuns = new int[][] { new[] { 596, 12 }, new[] { 72, 12 }, new[] { 60, 12 }, new[] { 48, 12 }, new[] { 36, 12 }, new[] { 24, 12 }, new[] { 584, 12 }, new[] { 12, 12 }, new[] { 0, 12 } } },
@@ -426,7 +432,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_mega_minion_out（表目录名 chr_mega_minion）
-            ["chr_mega_minion_out"] = new Entry { Dir = "chr_mega_minion_out", ScFps = 24, HitSpeedMs = 1500, Tiers = new[]
+            ["chr_mega_minion_out"] = new Entry { Dir = "chr_mega_minion_out", ScFps = 24, HitSpeedMs = 1500, LoadTimeMs = 1100, Tiers = new[]
             {
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "mega_minion_idle1_5｜clip 256｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "mega_minion_run1_5｜clip 256｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -434,7 +440,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_miner_out（表目录名 chr_miner）
-            ["chr_miner_out"] = new Entry { Dir = "chr_miner_out", ScFps = 30, HitSpeedMs = 1200, Tiers = new[]
+            ["chr_miner_out"] = new Entry { Dir = "chr_miner_out", ScFps = 30, HitSpeedMs = 1200, LoadTimeMs = 700, Tiers = new[]
             {
                 new Clip { Known = true, Start = 302, Count = 2, Contiguous = false, Runs = new[] { 302, 1, 1, 1 }, Source = "miner_blue_idle1_5｜clip 470｜视角 5｜blue", ViewRuns = new int[][] { new[] { 298, 1, 1, 1 }, new[] { 299, 1, 1, 1 }, new[] { 300, 1, 1, 1 }, new[] { 301, 1, 1, 1 }, new[] { 302, 1, 1, 1 }, new[] { 303, 1, 1, 1 }, new[] { 304, 1, 1, 1 }, new[] { 305, 1, 1, 1 }, new[] { 306, 1, 1, 1 } } },
                 new Clip { Known = true, Start = 355, Count = 13, Contiguous = false, Runs = new[] { 355, 1, 1, 1, 356, 11 }, Source = "miner_blue_run1_5｜clip 483｜视角 5｜blue", ViewRuns = new int[][] { new[] { 307, 1, 1, 1, 308, 11 }, new[] { 319, 1, 1, 1, 320, 11 }, new[] { 331, 1, 1, 1, 332, 11 }, new[] { 343, 1, 1, 1, 344, 11 }, new[] { 355, 1, 1, 1, 356, 11 }, new[] { 367, 1, 1, 1, 368, 11 }, new[] { 379, 1, 1, 1, 380, 11 }, new[] { 391, 1, 1, 1, 392, 11 }, new[] { 403, 1, 1, 1, 404, 11 } } },
@@ -442,7 +448,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_mini_pekka_out（表目录名 chr_mini_pekka）
-            ["chr_mini_pekka_out"] = new Entry { Dir = "chr_mini_pekka_out", ScFps = 24, HitSpeedMs = 1600, Tiers = new[]
+            ["chr_mini_pekka_out"] = new Entry { Dir = "chr_mini_pekka_out", ScFps = 24, HitSpeedMs = 1600, LoadTimeMs = 1100, Tiers = new[]
             {
                 new Clip { Known = true, Start = 320, Count = 1, Contiguous = true, Runs = new[] { 320, 1 }, Source = "minipekka_idle1_5｜clip 456｜视角 5｜main", ViewRuns = new int[][] { new[] { 324, 1 }, new[] { 323, 1 }, new[] { 322, 1 }, new[] { 321, 1 }, new[] { 320, 1 }, new[] { 319, 1 }, new[] { 318, 1 }, new[] { 317, 1 }, new[] { 316, 1 } } },
                 new Clip { Known = true, Start = 48, Count = 12, Contiguous = true, Runs = new[] { 48, 12 }, Source = "minipekka_run1_5｜clip 420｜视角 5｜main", ViewRuns = new int[][] { new[] { 96, 12 }, new[] { 84, 12 }, new[] { 72, 12 }, new[] { 60, 12 }, new[] { 48, 12 }, new[] { 36, 12 }, new[] { 24, 12 }, new[] { 12, 12 }, new[] { 0, 12 } } },
@@ -450,7 +456,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_minion_out（表目录名 chr_minion）
-            ["chr_minion_out"] = new Entry { Dir = "chr_minion_out", ScFps = 24, HitSpeedMs = 1000, Tiers = new[]
+            ["chr_minion_out"] = new Entry { Dir = "chr_minion_out", ScFps = 24, HitSpeedMs = 1000, LoadTimeMs = 500, Tiers = new[]
             {
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "minion1_idle1_5｜clip 292｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "minion1_run1_5｜clip 279｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -458,7 +464,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_movingcannon_out（表目录名 chr_movingcannon）
-            ["chr_movingcannon_out"] = new Entry { Dir = "chr_movingcannon_out", ScFps = 60, HitSpeedMs = 1000, Tiers = new[]
+            ["chr_movingcannon_out"] = new Entry { Dir = "chr_movingcannon_out", ScFps = 60, HitSpeedMs = 1000, LoadTimeMs = 400, Tiers = new[]
             {
                 new Clip { Known = true, Start = 123, Count = 3, Contiguous = true, Runs = new[] { 123, 3 }, Source = "moving_cannon_idle1_5｜clip 287｜视角 5｜main", ViewRuns = new int[][] { new[] { 131, 1, 99, 2 }, new[] { 130, 1, 70, 2 }, new[] { 129, 1, 91, 2 }, new[] { 127, 1, 64, 2 }, new[] { 123, 3 }, new[] { 122, 1, 58, 2 }, new[] { 120, 1, 52, 2 }, new[] { 119, 1, 46, 2 }, new[] { 115, 3 } } },
                 new Clip { Known = true, Start = 141, Count = 6, Contiguous = false, Runs = new[] { 141, 4, 124, 2 }, Source = "moving_cannon_run1_5｜clip 421｜视角 5｜main", ViewRuns = new int[][] { new[] { 95, 6 }, new[] { 66, 6 }, new[] { 87, 6 }, new[] { 60, 6 }, new[] { 141, 4, 124, 2 }, new[] { 54, 6 }, new[] { 48, 6 }, new[] { 42, 6 }, new[] { 137, 4, 116, 2 } } },
@@ -466,7 +472,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_musketeer_out（表目录名 chr_musketeer）
-            ["chr_musketeer_out"] = new Entry { Dir = "chr_musketeer_out", ScFps = 30, HitSpeedMs = 1000, Tiers = new[]
+            ["chr_musketeer_out"] = new Entry { Dir = "chr_musketeer_out", ScFps = 30, HitSpeedMs = 1000, LoadTimeMs = 200, Tiers = new[]
             {
                 new Clip { Known = true, Start = 319, Count = 1, Contiguous = true, Runs = new[] { 319, 1 }, Source = "chr_musketeer_blue_idle1_5｜clip 454｜视角 5｜blue", ViewRuns = new int[][] { new[] { 323, 1 }, new[] { 322, 1 }, new[] { 321, 1 }, new[] { 320, 1 }, new[] { 319, 1 }, new[] { 318, 1 }, new[] { 317, 1 }, new[] { 316, 1 }, new[] { 315, 1 } } },
                 new Clip { Known = true, Start = 255, Count = 12, Contiguous = true, Runs = new[] { 255, 12 }, Source = "chr_musketeer_blue_run1_5｜clip 445｜视角 5｜blue", ViewRuns = new int[][] { new[] { 303, 12 }, new[] { 291, 12 }, new[] { 279, 12 }, new[] { 267, 12 }, new[] { 255, 12 }, new[] { 243, 12 }, new[] { 231, 12 }, new[] { 219, 12 }, new[] { 207, 12 } } },
@@ -474,7 +480,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_pekka_out（表目录名 chr_pekka）
-            ["chr_pekka_out"] = new Entry { Dir = "chr_pekka_out", ScFps = 24, HitSpeedMs = 1800, Tiers = new[]
+            ["chr_pekka_out"] = new Entry { Dir = "chr_pekka_out", ScFps = 24, HitSpeedMs = 1800, LoadTimeMs = 1300, Tiers = new[]
             {
                 new Clip { Known = true, Start = 130, Count = 1, Contiguous = true, Runs = new[] { 130, 1 }, Source = "pekka_idle1_5｜clip 409｜视角 5｜main", ViewRuns = new int[][] { new[] { 134, 1 }, new[] { 133, 1 }, new[] { 132, 1 }, new[] { 131, 1 }, new[] { 130, 1 }, new[] { 129, 1 }, new[] { 128, 1 }, new[] { 127, 1 }, new[] { 126, 1 } } },
                 new Clip { Known = true, Start = 56, Count = 14, Contiguous = true, Runs = new[] { 56, 14 }, Source = "pekka_run1_5｜clip 400｜视角 5｜main", ViewRuns = new int[][] { new[] { 112, 14 }, new[] { 98, 14 }, new[] { 84, 14 }, new[] { 70, 14 }, new[] { 56, 14 }, new[] { 42, 14 }, new[] { 28, 14 }, new[] { 14, 14 }, new[] { 0, 14 } } },
@@ -482,7 +488,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_prince_out（表目录名 chr_prince）
-            ["chr_prince_out"] = new Entry { Dir = "chr_prince_out", ScFps = 30, HitSpeedMs = 1400, Tiers = new[]
+            ["chr_prince_out"] = new Entry { Dir = "chr_prince_out", ScFps = 30, HitSpeedMs = 1400, LoadTimeMs = 900, Tiers = new[]
             {
                 new Clip { Known = true, Start = 265, Count = 1, Contiguous = true, Runs = new[] { 265, 1 }, Source = "Prince_idle1_5｜clip 562｜视角 5｜main", ViewRuns = new int[][] { new[] { 269, 1 }, new[] { 268, 1 }, new[] { 267, 1 }, new[] { 266, 1 }, new[] { 265, 1 }, new[] { 264, 1 }, new[] { 263, 1 }, new[] { 262, 1 }, new[] { 261, 1 } } },
                 new Clip { Known = true, Start = 472, Count = 10, Contiguous = true, Runs = new[] { 472, 10 }, Source = "Prince_run1_5｜clip 589｜视角 5｜main", ViewRuns = new int[][] { new[] { 512, 10 }, new[] { 502, 10 }, new[] { 492, 10 }, new[] { 482, 10 }, new[] { 472, 10 }, new[] { 462, 10 }, new[] { 452, 10 }, new[] { 442, 10 }, new[] { 432, 10 } } },
@@ -490,7 +496,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_princess_out（表目录名 chr_princess）
-            ["chr_princess_out"] = new Entry { Dir = "chr_princess_out", ScFps = 24, HitSpeedMs = 3000, Tiers = new[]
+            ["chr_princess_out"] = new Entry { Dir = "chr_princess_out", ScFps = 24, HitSpeedMs = 3000, LoadTimeMs = 2500, Tiers = new[]
             {
                 new Clip { Known = true, Start = 435, Count = 1, Contiguous = true, Runs = new[] { 435, 1 }, Source = "princess_idle1_5｜clip 952｜视角 5｜main", ViewRuns = new int[][] { new[] { 439, 1 }, new[] { 438, 1 }, new[] { 437, 1 }, new[] { 436, 1 }, new[] { 435, 1 }, new[] { 434, 1 }, new[] { 433, 1 }, new[] { 432, 1 }, new[] { 431, 1 } } },
                 new Clip { Known = true, Start = 622, Count = 8, Contiguous = true, Runs = new[] { 622, 8 }, Source = "princess_run1_5｜clip 1004｜视角 5｜main", ViewRuns = new int[][] { new[] { 654, 8 }, new[] { 646, 8 }, new[] { 638, 8 }, new[] { 630, 8 }, new[] { 622, 8 }, new[] { 614, 8 }, new[] { 606, 8 }, new[] { 598, 8 }, null } },
@@ -498,7 +504,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_rage_barbarian_out（表目录名 chr_rage_barbarian）
-            ["chr_rage_barbarian_out"] = new Entry { Dir = "chr_rage_barbarian_out", ScFps = 24, HitSpeedMs = 0, Tiers = new[]
+            ["chr_rage_barbarian_out"] = new Entry { Dir = "chr_rage_barbarian_out", ScFps = 24, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 120, Count = 1, Contiguous = true, Runs = new[] { 120, 1 }, Source = "rage_barbarian_idle1_5｜clip 396｜视角 5｜main", ViewRuns = new int[][] { new[] { 170, 1 }, new[] { 126, 1 }, new[] { 124, 1 }, new[] { 122, 1 }, new[] { 120, 1 }, new[] { 118, 1 }, new[] { 116, 1 }, new[] { 114, 1 }, new[] { 112, 1 } } },
                 new Clip { Known = true, Start = 228, Count = 8, Contiguous = true, Runs = new[] { 228, 8 }, Source = "rage_barbarian_run1_5｜clip 410｜视角 5｜main", ViewRuns = new int[][] { new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 228, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -506,7 +512,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_royal_giant_out（表目录名 chr_royal_giant）
-            ["chr_royal_giant_out"] = new Entry { Dir = "chr_royal_giant_out", ScFps = 30, HitSpeedMs = 1700, Tiers = new[]
+            ["chr_royal_giant_out"] = new Entry { Dir = "chr_royal_giant_out", ScFps = 30, HitSpeedMs = 1700, LoadTimeMs = 800, Tiers = new[]
             {
                 new Clip { Known = true, Start = 197, Count = 1, Contiguous = true, Runs = new[] { 197, 1 }, Source = "royalGiant_idle1_5｜clip 517｜视角 5｜main", ViewRuns = new int[][] { new[] { 241, 1 }, new[] { 230, 1 }, new[] { 219, 1 }, new[] { 208, 1 }, new[] { 197, 1 }, new[] { 186, 1 }, new[] { 175, 1 }, new[] { 164, 1 }, new[] { 153, 1 } } },
                 new Clip { Known = true, Start = 316, Count = 16, Contiguous = true, Runs = new[] { 316, 16 }, Source = "royalGiant_run1_5｜clip 535｜视角 5｜main", ViewRuns = new int[][] { new[] { 380, 16 }, new[] { 364, 16 }, new[] { 348, 16 }, new[] { 332, 16 }, new[] { 316, 16 }, new[] { 300, 16 }, new[] { 284, 16 }, new[] { 268, 16 }, new[] { 252, 16 } } },
@@ -514,7 +520,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_skeleton_out（表目录名 chr_skeleton）
-            ["chr_skeleton_out"] = new Entry { Dir = "chr_skeleton_out", ScFps = 24, HitSpeedMs = 1000, Tiers = new[]
+            ["chr_skeleton_out"] = new Entry { Dir = "chr_skeleton_out", ScFps = 24, HitSpeedMs = 1000, LoadTimeMs = 500, Tiers = new[]
             {
                 new Clip { Known = true, Start = 76, Count = 1, Contiguous = true, Runs = new[] { 76, 1 }, Source = "skeleton1_idle1_5｜clip 132｜视角 5｜main", ViewRuns = new int[][] { new[] { 80, 1 }, new[] { 79, 1 }, new[] { 78, 1 }, new[] { 77, 1 }, new[] { 76, 1 }, new[] { 75, 1 }, new[] { 74, 1 }, new[] { 73, 1 }, new[] { 72, 1 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "skeleton1_run1_5｜clip 123｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -522,7 +528,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_skeleton_balloon_out（表目录名 chr_skeleton_balloon）
-            ["chr_skeleton_balloon_out"] = new Entry { Dir = "chr_skeleton_balloon_out", ScFps = 60, HitSpeedMs = 0, Tiers = new[]
+            ["chr_skeleton_balloon_out"] = new Entry { Dir = "chr_skeleton_balloon_out", ScFps = 60, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 0, Count = 10, Contiguous = false, Runs = new[] { 0, 2, 5, 1, 5, 1, 5, 1, 3, 1, 5, 1, 5, 1, 4, 2 }, Source = "skeleton_balloon_idle1_1｜clip 21｜视角 1｜main", ViewRuns = new int[][] { new[] { 0, 2, 5, 1, 5, 1, 5, 1, 3, 1, 5, 1, 5, 1, 4, 2 }, null, null, null, null, null, null, null, null } },
                 new Clip { Known = true, Start = 0, Count = 10, Contiguous = false, Runs = new[] { 0, 2, 5, 1, 5, 1, 5, 1, 3, 1, 5, 1, 5, 1, 4, 2 }, Source = "skeleton_balloon_run1_1｜clip 24｜视角 1｜main", ViewRuns = new int[][] { new[] { 0, 2, 5, 1, 5, 1, 5, 1, 3, 1, 5, 1, 5, 1, 4, 2 }, null, null, null, null, null, null, null, null } },
@@ -530,7 +536,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_skeleton_warrior_out（表目录名 chr_skeleton_warrior）
-            ["chr_skeleton_warrior_out"] = new Entry { Dir = "chr_skeleton_warrior_out", ScFps = 30, HitSpeedMs = 0, Tiers = new[]
+            ["chr_skeleton_warrior_out"] = new Entry { Dir = "chr_skeleton_warrior_out", ScFps = 30, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 22, Count = 1, Contiguous = true, Runs = new[] { 22, 1 }, Source = "skeletonWarrior_blue_idle1_5｜clip 742｜视角 5｜blue", ViewRuns = new int[][] { new[] { 26, 1 }, new[] { 25, 1 }, new[] { 24, 1 }, new[] { 23, 1 }, new[] { 22, 1 }, new[] { 21, 1 }, new[] { 20, 1 }, new[] { 19, 1 }, new[] { 18, 1 } } },
                 new Clip { Known = true, Start = 168, Count = 10, Contiguous = true, Runs = new[] { 168, 10 }, Source = "skeletonWarrior_blue_run1_5｜clip 763｜视角 5｜blue", ViewRuns = new int[][] { new[] { 128, 10 }, new[] { 138, 10 }, new[] { 148, 10 }, new[] { 158, 10 }, new[] { 168, 10 }, new[] { 178, 10 }, new[] { 188, 10 }, new[] { 198, 10 }, new[] { 208, 10 } } },
@@ -538,7 +544,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_snowman_out（表目录名 chr_snowman）
-            ["chr_snowman_out"] = new Entry { Dir = "chr_snowman_out", ScFps = 30, HitSpeedMs = 0, Tiers = new[]
+            ["chr_snowman_out"] = new Entry { Dir = "chr_snowman_out", ScFps = 30, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 199, Count = 1, Contiguous = true, Runs = new[] { 199, 1 }, Source = "snowman_blue_idle1_5｜clip 552｜视角 5｜blue", ViewRuns = new int[][] { new[] { 272, 1 }, new[] { 265, 1 }, new[] { 206, 1 }, new[] { 258, 1 }, new[] { 199, 1 }, new[] { 251, 1 }, new[] { 192, 1 }, new[] { 244, 1 }, new[] { 237, 1 } } },
                 new Clip { Known = true, Start = 97, Count = 16, Contiguous = false, Runs = new[] { 97, 1, 96, 1, 103, 1, 106, 1, 109, 1, 112, 1, 115, 1, 118, 1, 117, 1, 108, 1, 102, 1, 111, 1, 99, 1, 114, 1, 105, 1, 100, 1 }, Source = "snowman_blue_run1_5｜clip 538｜视角 5｜blue", ViewRuns = new int[][] { new[] { 213, 1, 215, 1, 219, 1, 222, 1, 225, 1, 228, 1, 231, 1, 234, 1, 216, 1, 227, 1, 221, 1, 230, 1, 218, 1, 233, 1, 224, 1, 236, 1 }, new[] { 168, 1, 170, 1, 174, 1, 177, 1, 180, 1, 183, 1, 186, 1, 189, 1, 171, 1, 182, 1, 176, 1, 185, 1, 173, 1, 188, 1, 179, 1, 191, 1 }, new[] { 146, 1, 144, 1, 152, 1, 155, 1, 158, 1, 161, 1, 164, 1, 167, 1, 165, 1, 156, 1, 150, 1, 159, 1, 147, 1, 162, 1, 153, 1, 149, 1 }, new[] { 120, 2, 126, 1, 129, 1, 132, 1, 135, 1, 138, 1, 141, 2, 133, 1, 127, 1, 136, 1, 124, 1, 139, 1, 130, 1, 123, 1 }, new[] { 97, 1, 96, 1, 103, 1, 106, 1, 109, 1, 112, 1, 115, 1, 118, 1, 117, 1, 108, 1, 102, 1, 111, 1, 99, 1, 114, 1, 105, 1, 100, 1 }, new[] { 72, 2, 78, 1, 81, 1, 84, 1, 87, 1, 90, 1, 93, 2, 85, 1, 79, 1, 88, 1, 76, 1, 91, 1, 82, 1, 75, 1 }, new[] { 48, 2, 54, 1, 57, 1, 60, 1, 63, 1, 66, 1, 69, 2, 61, 1, 55, 1, 64, 1, 52, 1, 67, 1, 58, 1, 51, 1 }, new[] { 24, 2, 30, 1, 33, 1, 36, 1, 39, 1, 42, 1, 45, 2, 37, 1, 31, 1, 40, 1, 28, 1, 43, 1, 34, 1, 27, 1 }, new[] { 0, 2, 6, 1, 9, 1, 12, 1, 15, 1, 18, 1, 21, 2, 13, 1, 7, 1, 16, 1, 4, 1, 19, 1, 10, 1, 3, 1 } } },
@@ -546,7 +552,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_valkyrie_out（表目录名 chr_valkyrie）
-            ["chr_valkyrie_out"] = new Entry { Dir = "chr_valkyrie_out", ScFps = 24, HitSpeedMs = 1500, Tiers = new[]
+            ["chr_valkyrie_out"] = new Entry { Dir = "chr_valkyrie_out", ScFps = 24, HitSpeedMs = 1500, LoadTimeMs = 1400, Tiers = new[]
             {
                 new Clip { Known = true, Start = 76, Count = 1, Contiguous = true, Runs = new[] { 76, 1 }, Source = "valkyrie1_idle1_5｜clip 392｜视角 5｜main", ViewRuns = new int[][] { new[] { 80, 1 }, new[] { 79, 1 }, new[] { 78, 1 }, new[] { 77, 1 }, new[] { 76, 1 }, new[] { 75, 1 }, new[] { 74, 1 }, new[] { 73, 1 }, new[] { 72, 1 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "valkyrie1_run1_5｜clip 383｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -554,7 +560,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_witch_out（表目录名 chr_witch）
-            ["chr_witch_out"] = new Entry { Dir = "chr_witch_out", ScFps = 30, HitSpeedMs = 1100, Tiers = new[]
+            ["chr_witch_out"] = new Entry { Dir = "chr_witch_out", ScFps = 30, HitSpeedMs = 1100, LoadTimeMs = 400, Tiers = new[]
             {
                 new Clip { Known = true, Start = 76, Count = 1, Contiguous = true, Runs = new[] { 76, 1 }, Source = "witch1_idle1_5｜clip 266｜视角 5｜main", ViewRuns = new int[][] { new[] { 80, 1 }, new[] { 79, 1 }, new[] { 78, 1 }, new[] { 77, 1 }, new[] { 76, 1 }, new[] { 75, 1 }, new[] { 74, 1 }, new[] { 73, 1 }, new[] { 72, 1 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "witch1_run1_5｜clip 257｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -562,7 +568,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_wizard_out（表目录名 chr_wizard）
-            ["chr_wizard_out"] = new Entry { Dir = "chr_wizard_out", ScFps = 24, HitSpeedMs = 1400, Tiers = new[]
+            ["chr_wizard_out"] = new Entry { Dir = "chr_wizard_out", ScFps = 24, HitSpeedMs = 1400, LoadTimeMs = 1000, Tiers = new[]
             {
                 new Clip { Known = true, Start = 244, Count = 1, Contiguous = true, Runs = new[] { 244, 1 }, Source = "wizard1_idle1_5｜clip 380｜视角 5｜main", ViewRuns = new int[][] { new[] { 248, 1 }, new[] { 247, 1 }, new[] { 246, 1 }, new[] { 245, 1 }, new[] { 244, 1 }, new[] { 243, 1 }, new[] { 242, 1 }, new[] { 241, 1 }, new[] { 240, 1 } } },
                 new Clip { Known = true, Start = 32, Count = 8, Contiguous = true, Runs = new[] { 32, 8 }, Source = "wizard1_run1_5｜clip 317｜视角 5｜main", ViewRuns = new int[][] { new[] { 64, 8 }, new[] { 56, 8 }, new[] { 48, 8 }, new[] { 40, 8 }, new[] { 32, 8 }, new[] { 24, 8 }, new[] { 16, 8 }, new[] { 8, 8 }, new[] { 0, 8 } } },
@@ -570,7 +576,7 @@ namespace CR.View
                 new Clip { Known = false, Source = "" },   // die 不可用（无帧段/该行 runs 不足一对）
             } },
             // chr_zap_machine_out（表目录名 chr_zap_machine）
-            ["chr_zap_machine_out"] = new Entry { Dir = "chr_zap_machine_out", ScFps = 30, HitSpeedMs = 0, Tiers = new[]
+            ["chr_zap_machine_out"] = new Entry { Dir = "chr_zap_machine_out", ScFps = 30, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 166, Count = 37, Contiguous = false, Runs = new[] { 166, 1, 170, 2, 175, 2, 176, 3, 177, 1, 11, 1, 13, 1, 12, 1, 14, 2, 178, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, Source = "ZapMachine_idle1_5｜clip 488｜视角 5｜main", ViewRuns = new int[][] { new[] { 248, 3, 258, 1, 252, 1, 252, 3, 253, 1, 11, 1, 13, 1, 12, 1, 14, 2, 254, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 205, 1, 209, 2, 214, 2, 215, 3, 216, 1, 11, 1, 13, 1, 12, 1, 14, 2, 217, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 192, 1, 196, 2, 201, 2, 202, 3, 203, 1, 11, 1, 13, 1, 12, 1, 14, 2, 204, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 179, 1, 183, 2, 188, 2, 189, 3, 190, 1, 11, 1, 13, 1, 12, 1, 14, 2, 191, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 166, 1, 170, 2, 175, 2, 176, 3, 177, 1, 11, 1, 13, 1, 12, 1, 14, 2, 178, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 153, 1, 157, 2, 162, 2, 163, 3, 164, 1, 11, 1, 13, 1, 12, 1, 14, 2, 165, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 140, 1, 144, 2, 149, 2, 150, 3, 151, 1, 11, 1, 13, 1, 12, 1, 14, 2, 152, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 127, 1, 131, 2, 136, 2, 137, 3, 138, 1, 11, 1, 13, 1, 12, 1, 14, 2, 139, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 114, 1, 118, 2, 123, 2, 124, 3, 125, 1, 11, 1, 13, 1, 12, 1, 14, 2, 126, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 } } },
                 new Clip { Known = true, Start = 166, Count = 43, Contiguous = false, Runs = new[] { 166, 11, 176, 3, 177, 1, 11, 1, 13, 1, 12, 1, 14, 2, 178, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, Source = "ZapMachine_run1_5｜clip 408｜视角 5｜main", ViewRuns = new int[][] { new[] { 248, 1, 259, 3, 249, 2, 262, 3, 258, 1, 252, 1, 252, 3, 253, 1, 11, 1, 13, 1, 12, 1, 14, 2, 254, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 205, 11, 215, 3, 216, 1, 11, 1, 13, 1, 12, 1, 14, 2, 217, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 192, 11, 202, 3, 203, 1, 11, 1, 13, 1, 12, 1, 14, 2, 204, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 179, 11, 189, 3, 190, 1, 11, 1, 13, 1, 12, 1, 14, 2, 191, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 166, 11, 176, 3, 177, 1, 11, 1, 13, 1, 12, 1, 14, 2, 178, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 153, 11, 163, 3, 164, 1, 11, 1, 13, 1, 12, 1, 14, 2, 165, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 140, 11, 150, 3, 151, 1, 11, 1, 13, 1, 12, 1, 14, 2, 152, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 127, 11, 137, 3, 138, 1, 11, 1, 13, 1, 12, 1, 14, 2, 139, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 }, new[] { 114, 11, 124, 3, 125, 1, 11, 1, 13, 1, 12, 1, 14, 2, 126, 1, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2, 11, 1, 13, 1, 12, 1, 14, 2, 18, 1, 20, 1, 19, 1, 23, 1, 21, 2 } } },
@@ -578,7 +584,7 @@ namespace CR.View
                 new Clip { Known = true, Start = 255, Count = 4, Contiguous = false, Runs = new[] { 255, 3, 256, 1 }, Source = "zapMachine_deathWheel｜clip 600｜视角 -｜main", ViewRuns = new int[][] { null, null, null, null, null, null, null, null, null } },
             } },
             // effects_out（表目录名 effects）
-            ["effects_out"] = new Entry { Dir = "effects_out", ScFps = 60, HitSpeedMs = 0, Tiers = new[]
+            ["effects_out"] = new Entry { Dir = "effects_out", ScFps = 60, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = true, Start = 299, Count = 2, Contiguous = true, Runs = new[] { 299, 2 }, Source = "master_builder_idle1｜clip 831-831｜蓝(主套)" },
                 new Clip { Known = false, Source = "" },   // walk 不可用
@@ -586,7 +592,7 @@ namespace CR.View
                 new Clip { Known = true, Start = 50, Count = 9, Contiguous = false, Runs = new[] { 50, 1, 52, 1, 62, 2, 65, 5 }, Source = "Death_blue/Death_purple/death_ground/death_particle｜clip 196-215｜蓝(主套)" },
             } },
             // ui_out（表目录名 ui）
-            ["ui_out"] = new Entry { Dir = "ui_out", ScFps = 60, HitSpeedMs = 0, Tiers = new[]
+            ["ui_out"] = new Entry { Dir = "ui_out", ScFps = 60, HitSpeedMs = 0, LoadTimeMs = 0, Tiers = new[]
             {
                 new Clip { Known = false, Source = "" },   // idle 不可用
                 new Clip { Known = false, Source = "" },   // walk 不可用

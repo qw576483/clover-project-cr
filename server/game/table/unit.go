@@ -51,6 +51,7 @@ type UnitRow struct {
 	SpawnStaggerMs      int    // 周期性召唤波内错开间隔 ms（官方 spawn_interval）
 	JumpHeightMt        int    // 可跳过的水域宽度 milli-tile（官方 jump_height）
 	JumpSpeed           int    // 跳跃期间水平速度（格/分钟，官方 jump_speed）
+	Homing              int    // 1=弹道每 tick 重瞄目标（官方 cards_stats_projectile.json 的 homing）；非投射物行恒 0
 }
 
 // UnitTable 表 "unit" 的只读容器（按主键 id + 按实体 key 双索引）。
@@ -103,7 +104,7 @@ func (t *UnitTable) Load(content string) error {
 		"life_ms", "spawn_key", "spawn_n", "spawn_radius_mt", "spawn_interval_ms", "spawn_limit",
 		"summon_key", "summon_n", "summon_radius_mt", "summon_deploy_delay_ms", "aoe_radius_mt",
 		"sprite_dir", "flying",
-		"spawn_stagger_ms", "jump_height_mt", "jump_speed"); err != nil {
+		"spawn_stagger_ms", "jump_height_mt", "jump_speed", "homing"); err != nil {
 		return err
 	}
 
@@ -156,6 +157,7 @@ func (t *UnitTable) Load(content string) error {
 			SpawnStaggerMs:      c.int(rec, "spawn_stagger_ms"),
 			JumpHeightMt:        c.int(rec, "jump_height_mt"),
 			JumpSpeed:           c.int(rec, "jump_speed"),
+			Homing:              c.int(rec, "homing"),
 		}
 		if c.err != nil {
 			return c.err

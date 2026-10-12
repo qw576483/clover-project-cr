@@ -16,6 +16,7 @@ namespace CR.View
 
         private static readonly Dictionary<string, int[]> Table = new Dictionary<string, int[]>
         {
+            { "building_basic_cannon_out", new[] { 0, 0, 0, 0 } },   // idle=无 | run=无 | attack=无 | die=无
             { "building_inferno_tower_out", new[] { 33, 0, 0, 0 } },   // idle=inferno_blue_idle1_1 | run=无 | attack=无 | die=无
             { "building_mortar_out", new[] { 100, 0, 100, 0 } },   // idle=building_mortar1_idle1_5 | run=无 | attack=building_mortar1_attack1_5 | die=无
             { "building_xbow_out", new[] { 0, 0, 633, 0 } },   // idle=无 | run=无 | attack=building_xbow_attack1_1 | die=无

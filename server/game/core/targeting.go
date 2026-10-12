@@ -6,9 +6,11 @@ package core
 //
 //  1. Range is measured to a hitbox, not to a point -- so a Giant with a 0.75
 //     tile radius can be hit from further away than a Skeleton with 0.5.
-//  2. Sight range answers "who", and it is re-answered every tick: the target is
-//     the nearest legal one inside sight (参考规格 §5). A unit walking to a
-//     tower therefore turns onto an enemy that comes closer on the way.
+//  2. Targets are sticky: sight range answers "who" at the moment a target is
+//     picked, and that target is then kept while it stays alive and inside
+//     sight (cr-sim engine/targeting.py:16 "Targets are sticky"). A unit
+//     walking to a tower does not turn onto an enemy that merely comes closer
+//     on the way.
 //  3. Building-targeting troops are not "preferring" buildings, they cannot
 //     see troops at all.
 
@@ -93,14 +95,9 @@ func inAttackRange(attacker *entity, target *entity) bool {
 // is what determinism requires (cr-sim engine/targeting.py:147). The candidate
 // order is therefore irrelevant to the result.
 //
-// ⛔ 视野半径（`sight_range`）是"选谁"的唯一判据，**每 tick 重取一次最近者**：
-// 参考规格 §5 = 「在 sight_range 内取距离最近的合法目标」。
-// 不存在"旧目标还在视野里就一直不换"这回事 —— 参考实现里那点粘滞只是防止
-// 两只等距目标之间抖动的滞回带，且该带在官方全局缺省时为 0
-// （cr-sim engine/battle.py:405 `_globals.get('LOGIC_RANGE_EXTENSION_TO_KEEP_TARGET', 0)`；
-// 另见 targeting.py:16 对滞回带用途的说明）。
-// 把"仍在视野内"当成保留条件，会让一只南下打塔的单位从 5.5 格外锁死在塔上，
-// 对擦身而过、且**比塔更近**的敌人一眼都不看（行进途中该打的敌人不打）。
+// This is the *acquisition* half of targeting: it is consulted only for a unit
+// that has no retainable target (see holdsTarget). 参考规格 §5 索敌 =
+// 「在 sight_range 内取距离最近的合法目标」。
 func acquireTarget(attacker *entity, candidates []*entity) *entity {
 	var best *entity
 	bestGap := int32(0)
@@ -120,14 +117,25 @@ func acquireTarget(attacker *entity, candidates []*entity) *entity {
 	return best
 }
 
-// holdsTarget reports whether `cur` is still exactly what acquireTarget picks
-// this tick, i.e. the attacker may keep it without re-engaging.
+// holdsTarget reports whether the attacker keeps `cur` for another tick.
 //
-// The only thing a unit "keeps" is the attack cycle it has already paid for:
-// `attackState` keys on targetID, so leaving targetID alone means the windup
-// keeps running (entity.go: switching target restarts the windup, which is what
-// makes distraction cost something). Everything else about targeting is
-// re-decided every tick from sight range (参考规格 §5).
-func holdsTarget(attacker *entity, cur *entity, best *entity) bool {
-	return best != nil && cur == best
+// A target is sticky: it is held while it is still legal (canTarget) and still
+// inside the attacker's sight range, measured hitbox-to-hitbox like
+// withinSight. Only when one of those fails does the unit pick a new nearest
+// target (cr-sim engine/targeting.py:206-226 `should_keep_target`: alive +
+// acquirable + within gap of `sight_range + range_extension`; the extension
+// band is at its zero default -- cr-sim engine/battle.py:405).
+//
+// Keeping the targetID is what preserves the attack windup already paid for:
+// `attackState` keys on targetID, so leaving it alone means the windup keeps
+// running (entity.go: switching target restarts the windup, which is what makes
+// distraction cost something).
+func holdsTarget(attacker *entity, cur *entity) bool {
+	if cur == nil {
+		return false
+	}
+	if !canTarget(attacker, cur) {
+		return false
+	}
+	return withinSight(attacker, cur, 0)
 }

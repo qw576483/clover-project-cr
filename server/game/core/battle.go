@@ -51,6 +51,10 @@ type Battle struct {
 	hands  [2]*hand
 	elixir [2]*elixirBar
 	crowns [2]int32
+	// preTickCrowns is both sides' crown count as of the start of the tick being
+	// resolved, so sudden death can tell "a tower died this tick" apart from "a
+	// tower was already down" (rules.go checkVictory).
+	preTickCrowns [2]int32
 	// elixirFullEdge tracks the "elixir full" event edge so it fires once per
 	// filling rather than every tick.
 	elixirFullEdge [2]bool
@@ -161,8 +165,10 @@ func (b *Battle) Step() {
 	b.tick++
 	b.seq++
 	b.serverMs = b.tick * MSecPerTick
+	b.preTickCrowns = b.crowns
 
 	b.stepElixir()
+	b.stepHand()
 	b.stepDeploy()
 	b.stepBuildings()
 	b.stepKingActivation()
@@ -214,7 +220,7 @@ func (b *Battle) PlayCard(team Team, cardID, xMilli, yMilli int32) error {
 	if !bar.spend(card.Elixir) {
 		return ErrNotEnoughElixir
 	}
-	if !h.play(cardID) {
+	if !h.play(cardID, b.serverMs, NextSpellCooldownMsAt(b.serverMs)) {
 		return fmt.Errorf("%w: %d", ErrCardNotInHand, cardID)
 	}
 	// EvPlayCard 先入队、施法者 id 生成后回填（单位是这条事件之后才产生的）：
@@ -312,6 +318,16 @@ func (b *Battle) stepElixir() {
 			b.events = append(b.events, Event{Kind: EvElixirFull, Team: int32(team)})
 		}
 		b.elixirFullEdge[team] = full
+	}
+}
+
+// stepHand reveals the next card into every hand slot whose next-card cooldown
+// has expired (参考规格 §3 隐藏手牌（下一张）冷却).
+func (b *Battle) stepHand() {
+	for _, team := range []Team{TeamBlue, TeamRed} {
+		if h := b.hands[team]; h != nil {
+			h.stepDraw(b.serverMs)
+		}
 	}
 }
 
@@ -448,12 +464,13 @@ func (b *Battle) stepKingActivation() {
 	}
 }
 
-// updateTargets re-acquires each entity's target as the nearest legal one
-// inside sight range (参考规格 §5 索敌).
+// updateTargets keeps each entity's target or, for a unit that has none it can
+// keep, re-acquires the nearest legal one inside sight range (参考规格 §5 索敌).
 //
-// A unit that already holds that nearest target is left untouched, so its
-// attack windup survives; any other outcome writes a new targetID and the
-// attack cycle pays the first-hit delay again.
+// A unit holds its target while the target stays alive and inside sight
+// (holdsTarget), and is then left untouched so the attack windup survives;
+// only a unit with no retainable target writes a new targetID, which restarts
+// the attack cycle and pays the first-hit delay again.
 func (b *Battle) updateTargets() {
 	candidates := b.allEntities()
 	for _, e := range candidates {
@@ -472,14 +489,13 @@ func (b *Battle) updateTargets() {
 		if !e.Def.Attackable() {
 			continue
 		}
-		cur := b.entityByID(e.targetID)
+		if holdsTarget(e, b.entityByID(e.targetID)) {
+			continue
+		}
 		best := acquireTarget(e, candidates)
 		if best == nil {
 			e.targetID = 0
 			e.st.disengage()
-			continue
-		}
-		if holdsTarget(e, cur, best) {
 			continue
 		}
 		e.targetID = best.ID
@@ -561,18 +577,22 @@ func (b *Battle) stepProjectiles() {
 		if b.advanceProjectile(p) {
 			src := b.entityByID(p.ownerID)
 			t := b.entityByID(p.targetID)
-			// ★ 2026-09-23 增：**落点溅射**（差异登记 D142）。官方把溅射半径放在
-			// 投射物行的 `radius` 上（法师 1500 / 屠夫 1000 / 滚石 1800 / 炸弹兵 1500 /
-			// 公主 2000 / 火精灵 2300 …），旧实现的 `aoe_radius_mt` 列全 0 ⇒ 这些卡的
-			// 溅射一发不剩。中心取**到达点** (p.x,p.y)，⛔ 不是开火点：目标中途死亡时
-			// 落点就是它最后的位置，这是 advanceProjectile 的既有语义。
-			if p.aoeRadius > 0 {
-				var skip *entity
-				if t != nil && t.alive {
-					b.damageEntity(t, p.damage, src)
-					skip = t
-				}
-				b.splashDamage(src, p.x, p.y, p.aoeRadius, p.damage, skip)
+			// 落点溅射：官方把溅射半径放在投射物行的 `radius` 上（法师 1500 / 屠夫
+			// 1000 / 滚石 1800 / 炸弹兵 1500 / 公主 2000 / 火精灵 2300 …），经配表进
+			// `UnitDef.AoeRadiusMilli`。中心取**到达点** (p.x,p.y)，⛔ 不是开火点：
+			// 目标中途死亡时落点就是它最后的位置，这是 advanceProjectile 的既有语义。
+			//
+			// 有半径的弹道**只按落点结算**，⛔ 不先按 target id 直接命中一下：官方
+			// `_impact` 的溅射分支（cr_sim/engine/battle.py:1752-1778）就是"遍历落点
+			// 半径内的敌人"，原目标只是恰好在半径里才吃伤害。这是不制导弹道（官方
+			// `homing=false`：迫击炮 / 炸弹塔 / 炸弹兵 / 公主 / 屠夫 / 滚木的投掷段）
+			// **可以被走位躲开**的另一半 —— 落点固定在发射时刻的目标位置（见
+			// advanceProjectile），目标走开就只挨到半径边缘或完全不挨。
+			//
+			// src == nil（射手尸体已被 compact 回收）时没有实体可做 canTarget 过滤 ⇒
+			// 退回 target id 命中：core 没有 logger，静默丢伤害比这个角落情况更糟。
+			if p.aoeRadius > 0 && src != nil {
+				b.splashDamage(src, p.x, p.y, p.aoeRadius, p.damage, nil)
 			} else if t != nil && t.alive {
 				b.damageEntity(t, p.damage, src)
 			}

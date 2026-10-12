@@ -42,9 +42,10 @@ type BaseUnitRow struct {
 	AoeRadiusMt int // 普攻溅射半径 milli-tile（0=无溅射）← 官方 area_damage_radius
 	SpriteDir string // 素材目录名（本项目自定：参考规格 §6）
 	Flying int // 1=飞行单位（官方 cards_stats_characters.json 的 flying_height>0）；0=地面（建筑/塔/投射物恒 0）
-	SpawnStaggerMs int
-	JumpHeightMt int
-	JumpSpeed int
+	SpawnStaggerMs int // 周期性召唤波内错开间隔 ms（官方 spawn_interval）
+	JumpHeightMt int // 可跳过的水域宽度 milli-tile（官方 jump_height）
+	JumpSpeed int // 跳跃期间水平速度（格/分钟，官方 jump_speed）
+	Homing int // 1=弹道每 tick 重瞄目标（官方 cards_stats_projectile.json:homing）；非投射物行 0
 }
 
 // BaseUnitTable 表 "unit" 的只读容器（按主键索引）。
@@ -89,7 +90,8 @@ func (t *BaseUnitTable) Load(content string) error {
 		"speed", "range_mt", "sight_mt", "deploy_ms", "radius_mt", "mass", "atk_air", "atk_ground",
 		"only_buildings", "only_towers", "only_troops", "projectile_key", "death_spawn_key", "death_spawn_n", "death_damage", "death_aoe_radius_mt",
 		"life_ms", "spawn_key", "spawn_n", "spawn_radius_mt", "spawn_interval_ms", "spawn_limit", "summon_key", "summon_n",
-		"summon_radius_mt", "summon_deploy_delay_ms", "aoe_radius_mt", "sprite_dir", "flying", "spawn_stagger_ms", "jump_height_mt", "jump_speed"); err != nil {
+		"summon_radius_mt", "summon_deploy_delay_ms", "aoe_radius_mt", "sprite_dir", "flying", "spawn_stagger_ms", "jump_height_mt", "jump_speed",
+		"homing"); err != nil {
 		return err
 	}
 	// 整体替换
@@ -141,6 +143,7 @@ func (t *BaseUnitTable) Load(content string) error {
 		row.SpawnStaggerMs = c.int(rec, "spawn_stagger_ms")
 		row.JumpHeightMt = c.int(rec, "jump_height_mt")
 		row.JumpSpeed = c.int(rec, "jump_speed")
+		row.Homing = c.int(rec, "homing")
 		if c.err != nil {
 			return c.err
 		}

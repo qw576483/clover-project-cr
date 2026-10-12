@@ -82,7 +82,7 @@ namespace CR.View
         /// </para>
         /// <para>
         /// 为什么按「用途目录 + 起始帧」两级索引：`Spell` 一个目录里并了 9 张法术各自的段
-        ///（`ResPaths.EffectFireballFirst` / `EffectFreezeFirst` …），逐段 `upp` 不同（13.05～19.81）。
+        ///（`ResPaths.EffectFireballBlastFirst` / `EffectFreezeFirst` …），逐段 `upp` 不同（13.05～19.81）。
         /// </para>
         /// <para>生成路径：`tools/probes/sc-placement.py`（解析 `.sc`）+ `tools/probes/fx-scale-table.py`（出表；
         /// 表项由该脚本打印，⛔ 不许手改，改素材后重跑）。</para>
@@ -127,7 +127,7 @@ namespace CR.View
             // Spell：一个目录里并了多段（逐段 upp 不同）
             { "Spell", new Dictionary<int, float>
                 {
-                    { 396, 1.9727f },   // fireball（upp 取值 strict）
+                    { 412, 1.8886f },   // fireball 落地爆炸段（帧列 412-436）（upp 取值 strict）
                     { 498, 1.4257f },   // Arrow_enemy_ground_anim（upp 取值 strict）
                     { 206, 1.9732f },   // rage_effect（upp 取值 strict）
                     { 536, 1.3052f },   // projectile_rocket（upp 取值 strict）
@@ -138,6 +138,12 @@ namespace CR.View
                 } },
             // spell_goblin_barrel（帧列 0 2-12）（upp 取值 strict）
             { "SpellBarrel", Single(0, 1.2912f) },
+            // fireball_projectile1（帧列 396-411）（upp 取值 strict）
+            { "SpellFlight", Single(396, 1.9737f) },
+            // bowler_hit_cloud / catapult_hit_cloud（帧列 22）（upp 取值 strict）
+            { "HitCloud", Single(22, 1.3013f) },
+            // ice_wiz_hit（帧列 123-124）（upp 取值 geo）
+            { "IceWizHit", Single(123, 1.4419f) },
         };
 
         private static Dictionary<int, float> Single(int first, float scale)
@@ -284,6 +290,66 @@ namespace CR.View
 
                 default:
                     fx = ArrowFx;
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// <see cref="TryGetProjectileHitFx"/> 能返回的**全部用途目录**（与 <see cref="ProjectileUses"/>
+        /// 同一用途：战斗开始前整目录预热，避免第一次命中在热路径里现加载）。
+        /// <para>⛔ 往 <see cref="TryGetProjectileHitFx"/> 加新段落时必须同步加到这里（两处同源）。</para>
+        /// </summary>
+        public static readonly string[] ProjectileHitUses =
+        {
+            ResPaths.EffectHitCloud,
+            ResPaths.EffectIceWizHit,
+        };
+
+        /// <summary>
+        /// 按**官方投射物名**取该投射物的原版**命中**段（弹道到达落点那一刻播）。
+        /// <para>
+        /// 出处 = `策划/单位动画分组表.md` 的 `effects` 小节里**档位列写成 `hit`** 的那几行：
+        /// `bowler_hit_cloud`（`:4690`，帧列 `22`｜60 fps｜341 条）/
+        /// `catapult_hit_cloud`（`:4692`，帧列 `22`｜30 fps｜173 条）/
+        /// `ice_wiz_hit`（`:4728`，帧列 `123-124`｜30 fps｜35 条）。
+        /// </para>
+        /// <para>
+        /// <paramref name="holdSeconds"/> = 该命中段的**演出时长**（秒）。命中云只有 1 个像素帧
+        ///（f22）⇒ 按 `帧数 ÷ DefaultFps` 播只有 1/14 s，必须走 <see cref="PlayHold"/> 定格播；
+        /// 取值与为什么不照该 export 自己的 frame_count 播，见
+        /// <see cref="ResPaths.EffectHitCloudSeconds"/> / <see cref="ResPaths.EffectIceWizHitSeconds"/>。
+        /// </para>
+        /// <para>
+        /// 返回 <c>false</c> = 该投射物在原版图集里**没有专属命中段**（箭矢 / 长矛 / 飞斧 / 炸弹 /
+        /// 冰晶 / 火精灵 / 龙息 / 塔的弹体）⇒ 调用方保持既有表现（`EffectHit` 闪光）不动，
+        /// ⛔ 不许按"看起来像"自选一段。
+        /// </para>
+        /// </summary>
+        public static bool TryGetProjectileHitFx(string projectileKey, out ProjectileFx fx, out float holdSeconds)
+        {
+            switch (projectileKey)
+            {
+                // 保龄球：原版 `bowler_hit_cloud`（帧列 `22`）。
+                case "BowlerProjectile":
+                    fx = new ProjectileFx { Use = ResPaths.EffectHitCloud, First = ResPaths.EffectHitCloudFirst, Count = ResPaths.EffectHitCloudCount };
+                    holdSeconds = ResPaths.EffectHitCloudSeconds;
+                    return true;
+
+                // 迫击炮的抛射石球：原版 `catapult_hit_cloud`（帧列 `22`，与保龄球同一像素帧）。
+                case "MortarProjectile":
+                    fx = new ProjectileFx { Use = ResPaths.EffectHitCloud, First = ResPaths.EffectHitCloudFirst, Count = ResPaths.EffectHitCloudCount };
+                    holdSeconds = ResPaths.EffectHitCloudSeconds;
+                    return true;
+
+                // 寒冰法师的冰锥：原版 `ice_wiz_hit`（帧列 `123-124`）。
+                case "ice_wizardProjectile":
+                    fx = new ProjectileFx { Use = ResPaths.EffectIceWizHit, First = ResPaths.EffectIceWizHitFirst, Count = ResPaths.EffectIceWizHitCount };
+                    holdSeconds = ResPaths.EffectIceWizHitSeconds;
+                    return true;
+
+                default:
+                    fx = default(ProjectileFx);
+                    holdSeconds = 0f;
                     return false;
             }
         }
@@ -674,7 +740,14 @@ namespace CR.View
         private void Update()
         {
             if (_live.Count == 0) return;
-            var dt = Time.deltaTime;
+
+            // 本层是特效的推进时钟（逐帧动画 + 飞行段进度 + `PlayHold` 倒数），取**不受 timeScale 影响**的步长：
+            // ① 特效的播放时刻由 `BattleViewRoot` 按服务端时间轴排期（挂起队列同样用 `Time.unscaledDeltaTime`，
+            //    见 `BattleViewRoot.ProcessPendingSpellImpacts`）⇒ 两处步长必须同源，否则慢镜 / 暂停时
+            //    队列照走而特效冻住（`Time.deltaTime` 随 `Time.timeScale` 缩放）；
+            // ② `Time.deltaTime` 在掉帧时被 `Time.maximumDeltaTime`（默认 1/3 s）截断 ⇒ 一帧的推进量会小于
+            //    真实经过的时间，特效会跳帧。
+            var dt = Time.unscaledDeltaTime;
             for (var i = _live.Count - 1; i >= 0; i--)
             {
                 var node = _live[i];

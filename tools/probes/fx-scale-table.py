@@ -62,7 +62,7 @@ SEGS = [
     ('IceSpirit', 453, 6, 'projectile_icespirit'),
     ('FireSpirit', 512, 24, 'projectile_firespirit'),
     ('Dragon', 470, 1, 'dragon_projectile'),
-    ('Spell', 396, 41, 'fireball'),
+    ('Spell', 412, 25, 'fireball 落地爆炸段（帧列 412-436）'),
     ('Spell', 498, 7, 'Arrow_enemy_ground_anim'),
     ('Spell', 206, 6, 'rage_effect'),
     ('Spell', 536, 60, 'projectile_rocket'),
@@ -71,6 +71,9 @@ SEGS = [
     ('Spell', 263, 31, 'poison'),
     ('Spell', 180, 8, 'log'),
     ('SpellBarrel', 0, 12, 'spell_goblin_barrel（帧列 0 2-12）'),
+    ('SpellFlight', 396, 16, 'fireball_projectile1（帧列 396-411）'),
+    ('HitCloud', 22, 1, 'bowler_hit_cloud / catapult_hit_cloud（帧列 22）'),
+    ('IceWizHit', 123, 2, 'ice_wiz_hit（帧列 123-124）'),
 ]
 
 # 帧列与 [first, first+count-1] 不一致的那几段：显式给帧号（出处 = ResPaths 的注释）

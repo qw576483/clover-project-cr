@@ -403,6 +403,7 @@ func TestCoverHandFullCycle(t *testing.T) {
 				t.Fatalf("play (card %d): %v", c, err)
 			}
 		}
+		settleDraws(b) // 下一张冷却走完，四个槽位才换成队头四张
 	}
 	playInOrder() // first four: the opening hand
 	playInOrder() // next four: the queued cards

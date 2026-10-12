@@ -73,14 +73,16 @@ func TestEmptyCellsPreserved(t *testing.T) {
 	// 逐行列宽 = 表头列宽（错列这一类故障的机械判据）。
 	lines := strings.Split(strings.TrimRight(readTSV(t, "unit.tsv"), "\n"), "\n")
 	want := len(strings.Split(lines[0], "\t"))
-	// 37 → 40：2026-09-23 追加 3 列（差异登记 D142），**一律加在末尾**，
-	// 这样前面所有列的索引不变（`base_unit.go` 的 cell(rec, N) 与 `unit.go` 的列名映射
-	// 都不会被扰动 —— 加在中间才是真正危险的）：
-	//   spawn_stagger_ms ← 官方 spawn_interval（**波内错开**；旧实现把它当成了波间隔）
+	// 37 → 40：2026-09-23 追加 3 列（差异登记 D142）；40 → 41：追加 homing（官方
+	// cards_stats_projectile.json 的制导标志）。**一律加在末尾**，这样前面所有列的索引
+	// 不变（`base_unit.go` 的 cell(rec, N) 与 `unit.go` 的列名映射都不会被扰动 ——
+	// 加在中间才是真正危险的）：
+	//   spawn_stagger_ms ← 官方 spawn_interval（**波内错开**）
 	//   jump_height_mt   ← 官方 jump_height（跳河，野猪骑士/王子/黑暗王子/攻城槌）
 	//   jump_speed       ← 官方 jump_speed
-	if want != 40 {
-		t.Fatalf("unit.tsv 表头应为 40 列，实际 %d", want)
+	//   homing           ← 官方 homing（1=弹道每 tick 重瞄目标）
+	if want != 41 {
+		t.Fatalf("unit.tsv 表头应为 41 列，实际 %d", want)
 	}
 	for i, line := range lines {
 		if got := len(strings.Split(line, "\t")); got != want {
@@ -89,6 +91,54 @@ func TestEmptyCellsPreserved(t *testing.T) {
 	}
 	t.Logf("archers: summon_key=%q summon_n=%d projectile_key=%q death_spawn_key=%q spawn_key=%q（%d 行全部 %d 列）",
 		row.SummonKey, row.SummonN, row.ProjectileKey, row.DeathSpawnKey, row.SpawnKey, len(lines)-1, want)
+}
+
+// TestHomingColumnMatchesOfficial 断言 `homing` 列就是官方
+// `cards_stats_projectile.json` 的 `homing`：那六张**不制导**的抛射物必须是 0
+// （迫击炮 / 炸弹塔 / 炸弹兵 / 公主 / 屠夫 / 滚木的投掷段），制导的必须是 1，
+// 非投射物行恒 0。列名口径见 unit.go 的 `require("homing")`。
+func TestHomingColumnMatchesOfficial(t *testing.T) {
+	var units table.UnitTable
+	if err := units.Load(readTSV(t, "unit.tsv")); err != nil {
+		t.Fatalf("unit 表加载失败: %v", err)
+	}
+	// 官方 homing=false 的 6 行（cards_stats_projectile.json）。
+	for _, key := range []string{
+		"MortarProjectile", "BombTowerProjectile", "BombSkeletonProjectile",
+		"PrincessProjectile", "BowlerProjectile", "AxeManProjectile",
+	} {
+		row := units.GetByKey(key)
+		if row == nil {
+			t.Fatalf("unit 表里没有 %s 行", key)
+		}
+		if row.Homing != 0 {
+			t.Fatalf("%s 官方 homing=false，表里 homing=%d", key, row.Homing)
+		}
+	}
+	// 制导的对照面（箭 / 火枪 / 亡灵 / 两座塔的弹）。
+	for _, key := range []string{
+		"ArcherArrow", "MusketeerProjectile", "MinionSpit",
+		"TowerPrincessProjectile", "KingProjectile",
+	} {
+		row := units.GetByKey(key)
+		if row == nil {
+			t.Fatalf("unit 表里没有 %s 行", key)
+		}
+		if row.Homing != 1 {
+			t.Fatalf("%s 官方 homing=true，表里 homing=%d", key, row.Homing)
+		}
+	}
+	// 非投射物行恒 0（homing 只写在投射物行上）。
+	for _, key := range []string{"knight", "PrincessTower", "mortar"} {
+		row := units.GetByKey(key)
+		if row == nil {
+			t.Fatalf("unit 表里没有 %s 行", key)
+		}
+		if row.Homing != 0 {
+			t.Fatalf("非投射物行 %s 的 homing=%d，应为 0", key, row.Homing)
+		}
+	}
+	t.Log("homing 列：6 张不制导抛射物 = 0，制导投射物 = 1，非投射物行 = 0")
 }
 
 // TestLoadRejectsRaggedRow 少一列的行必须报错（⛔ 不许静默按空值处理 —— 那正是空单元格被吃掉的静默形态）。

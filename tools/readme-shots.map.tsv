@@ -1,0 +1,3 @@
+from	to	what
+readme/readme-title.png	game-title.png	启动画面（Boot：Logo + by clover-engine）
+readme/readme-battle.png	game-first-stage.png	对局首场景（Battle01：竞技场 + HUD + 手牌）

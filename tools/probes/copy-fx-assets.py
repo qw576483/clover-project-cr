@@ -75,6 +75,26 @@ RANGES = [
     ("FireSpirit", 512, 535),
     # 飞龙宝宝的吐息弹：原版 `dragon_projectile` 的飞行段像素帧（f470）。
     ("Dragon", 470, 470),
+    # ── 法术弹体：火球（飞行员目 = `SpellFlight`，落地爆 = `Spell` 的 f412..f436）──
+    # 出处：`策划/单位动画分组表.md:4710` 的 `fireball` 组（帧列 `22 396-436`）与
+    # `:5276` 的 `fireball_projectile1`（clip 1353｜60fps｜15 条｜91 步，帧列 `396-398 … 411-425`）。
+    # 逐帧像素：f398..f411 = 带火焰拖尾的火球本体（飞行），f412..f436 = 实心火球闪 + 余烬（落地爆）。
+    # 联络图 `.ai-tmp/test/fx-semantics/fireball-a-396-416.png` / `fireball-b-417-436.png`。
+    # ⚠️ 这 16 帧与 `Spell` 目录里的同号帧**各存一份**：`SegmentScale` 按 (用途目录, 起始帧) 索引
+    #    （同一像素帧在不同 export 里语义不同时不能并目录）。
+    ("SpellFlight", 396, 411),
+    # 撞击扬尘：`bowler_hit_cloud`（:4690，帧列 `22`）/ `catapult_hit_cloud`（:4692，帧列 `22`）
+    # 是同一个像素帧、同一种语义（撞击云，档位列 = hit）⇒ 合用一个用途目录。
+    ("HitCloud", 22, 22),
+    # 寒冰法师冰锥的命中（原版 `ice_wiz_hit`，:4728，帧列 `123-124`，档位列 = hit）。
+    ("IceWizHit", 123, 124),
+]
+
+# 帧列不连续、无法写成闭区间的用途目录：显式列帧号（与 RANGES 同样的 meta 口径）。
+EXPLICIT = [
+    # 死亡粒子（原版 `death_particle`，:4698，帧列 `50 66`；与 `Death_blue`/`Death_purple`
+    # 同属 die 档但帧号不同 ⇒ 单独一个用途目录）。
+    ("Death/Particle", [50, 66]),
 ]
 
 
@@ -156,10 +176,12 @@ def build_meta(rel_path, sprite_name):
 def main():
     os.makedirs(DST_ROOT, exist_ok=True)
     total = 0
-    for use, a, b in RANGES:
+    groups = [(use, list(range(a, b + 1))) for use, a, b in RANGES] + list(EXPLICIT)
+    for use, frames in groups:
         dst_dir = os.path.join(DST_ROOT, use)
         os.makedirs(dst_dir, exist_ok=True)
-        for i in range(a, b + 1):
+        a, b = frames[0], frames[-1]
+        for i in frames:
             src = os.path.join(SRC_DIR, "effects_sprite_%03d.png" % i)
             if not os.path.exists(src):
                 print("ERROR: 源帧缺失 %s" % src)
@@ -174,7 +196,9 @@ def main():
             with open(dst + ".meta", "w", encoding="utf-8", newline="\n") as f:
                 f.write(build_meta(rel, "frame_%03d_0" % i))
             total += 1
-        print("%-6s f%03d..f%03d -> %s (%d 张)" % (use, a, b, dst_dir, b - a + 1))
+        span = "f%03d..f%03d" % (a, b) if len(frames) == b - a + 1 else \
+               "f%03d,f%03d..f%03d" % (a, a + 1, b)
+        print("%-15s %-22s -> %s (%d 张)" % (use, span, dst_dir, len(frames)))
     print("copied %d png (+%d meta)  源=%s" % (total, total, SRC_DIR))
     return 0
 

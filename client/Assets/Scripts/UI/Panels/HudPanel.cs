@@ -20,9 +20,11 @@ namespace CR.UI.Panels
     /// `Battle.Ended`、`Battle.StartFailed` 进来；请求一律 `Emit(Battle.PlayCardRequest)` 出去。
     /// </para>
     /// <para>
-    /// <b>为什么读的是快照而不是插值</b>：HUD 显示的是**离散数值**（圣水 / 冠数 / 阶段 / 手牌 / 计时），
-    /// 它们没有"中间态"，插值只会显示假值；插值只对**位置**有意义，那是 `View/UnitView` 的事
-    /// （`BattleManager.Sample`）。所以本面板直接消费快照原值。
+    /// <b>数值取快照原值，只有圣水条逐帧插值</b>：冠数 / 阶段 / 手牌 / 计时都是**离散数值**，没有"中间态"，
+    /// 插值只会显示假值 ⇒ 它们直接消费快照原值（10 Hz）。唯独**圣水条是连续量** —— 服务端每毫秒都在涨
+    /// （1/1000 定点），10 Hz 快照直接驱动它只会得到"每 100 ms 跳一格"的阶梯 ⇒ 它按
+    /// `BattleViewRoot` 的**渲染时钟**（= `View/UnitView` 摆位置用的同一个时刻）在相邻快照之间插值，
+    /// 见 <see cref="RefreshElixir"/>。
     /// </para>
     /// <para>
     /// <b>卡面（真卡面 + 原版战斗 HUD 卡槽，⛔ 不再是"类型色底"）</b>：卡槽底 = 原版图元
@@ -579,14 +581,14 @@ namespace CR.UI.Panels
         /// <summary>已经 Warn 过的卡面路径（缺素材只报一次）。</summary>
         private static readonly HashSet<string> WarnedArtMissing = new HashSet<string>();
 
-        /// <summary>拖放中的幽灵卡色调（半透白：真卡面保持原色，只降不透明度表示"跟着手走"）。</summary>
-        private static readonly Color GhostColor = new Color(1f, 1f, 1f, 0.55f);
+        /// <summary>
+        /// 拖卡不透明度 = <b>1（不透明）</b>：拖起来的就是手牌里那一张卡，观感与手牌一致。
+        /// 本项目自定（原版拖卡的透明度没有可量读数）。
+        /// </summary>
+        private const float GhostAlpha = 1f;
 
-        /// <summary>卡面帧号没登记时幽灵卡的兜底色（该卡本来就不画卡面 ⇒ 只是能看见手指下有东西）。</summary>
-        private static readonly Color GhostColorFallback = new Color(1f, 1f, 1f, 0.35f);
-
-        /// <summary>幽灵卡上的文字色（压在浅色底上，用近黑）。</summary>
-        // `GhostTextColor` 随 `_ghostText` 一并删除（幽灵卡不再有文字）。
+        /// <summary>幽灵卡卡体 / 卡面的统一 tint（不透明白；⛔ 不改素材原色，只用它表达不透明度）。</summary>
+        private static readonly Color GhostTint = new Color(1f, 1f, 1f, GhostAlpha);
 
         // ───────────────────────── 运行时状态 ─────────────────────────
 
@@ -674,6 +676,26 @@ namespace CR.UI.Panels
         /// <summary>徽章内的圣水**整数**（原版 `elixir_bar/elixirBarLeftNumbers` 的 `elixirAmount` 口径）。</summary>
         private Text _elixirBadgeText;
 
+        /// <summary>一条圣水采样：该快照的 `server_ms` 与我方圣水（1/1000）。</summary>
+        private struct ElixirSample
+        {
+            public float ServerMs;
+            public int Milli;
+        }
+
+        /// <summary>
+        /// 圣水采样保留条数 = 6（= 5 个快照间隔，见 `GameConst.SnapshotIntervalMs`）。
+        /// 渲染时钟最多落后最新快照 <c>TargetLagMs</c>（200 ms = 2 个间隔）⇒ 6 条足够覆盖插值窗口
+        /// （<see cref="RenderServerMs"/>）落在的两条采样。
+        /// </summary>
+        private const int ElixirHistSlots = 6;
+
+        /// <summary>
+        /// 逐帧插值用的圣水采样（快照到达时 <see cref="PushElixirSample"/> 追加，最多 <see cref="ElixirHistSlots"/> 条）。
+        /// 末条 = 最新一条快照，这也是 <see cref="SampleElixirMilli"/> 的不变量。
+        /// </summary>
+        private readonly List<ElixirSample> _elixirHist = new List<ElixirSample>(ElixirHistSlots);
+
         // ── 手牌 ──
         private readonly Image[] _handCards = new Image[HandSlots];   // 卡槽底（原版 `SlotCard` 九宫格）
         private readonly Image[] _handArts = new Image[HandSlots];    // 真卡面（原版 `ui_spells_out` 帧）
@@ -697,16 +719,25 @@ namespace CR.UI.Panels
         private int _dragCardId;
 
         /// <summary>
-        /// 跟着指针走的幽灵卡（面板根下的一张 <see cref="Image"/>，轴心居中于指针）。
+        /// 跟着指针走的幽灵卡**容器根**（面板根下的一张 <see cref="Image"/>，轴心居中于指针）。
+        /// 根自身不画图元（无 sprite 的 `Image` 不渲染），子层 = 卡体 + 卡面 + 费用泡 + 费用数字
+        /// （见 <see cref="BuildGhost"/>）；位置只写根（见 <see cref="MoveGhost"/>）。
         /// <para>
-        /// <b>为什么不接引擎的跟随件</b>：`DragDropLayer` 的拖影与"UI 网格命中 / 落点判定"绑在同一个构造
-        /// （必填网格几何，缺省即降频告警），而本项目的落点是**世界平面**（相机投影 + 业务几何），
-        /// 不是 UI 格盘；`PointerFloatLayer` 的定位契约是"从指针右下展开 + 贴边镜像翻转"的 tooltip 口径，
-        /// 拖影必须**居中于指针**。两者都不覆盖，故这一块（节点 + 居中贴指针）自建，
-        /// 换算仍走引擎 `ScreenPointUtil`（见 <see cref="MoveGhost"/> 与 `引擎问题.md`）。
+        /// <b>为什么不接引擎的跟随件</b>：本项目的落点是**世界平面**（相机投影 + 业务几何），不是 UI 格盘，
+        /// 且拖影必须**居中于指针**；这一块（节点 + 居中贴指针）自建，
+        /// 换算仍走引擎 `ScreenPointUtil`（见 <see cref="MoveGhost"/>）。
         /// </para>
         /// </summary>
         private Image _ghost;
+
+        /// <summary>幽灵卡的卡体（原版 `SlotCard` 九宫格，口径同手牌 <see cref="DressCardBody"/>）。</summary>
+        private Image _ghostBody;
+
+        /// <summary>幽灵卡的卡面（`ui_spells_out` 帧；`BeginDrag` 时从手牌槽取同一张 sprite）。</summary>
+        private Image _ghostArt;
+
+        /// <summary>幽灵卡的费用数字（压在原版圣水水滴上，取值口径同 <see cref="RefreshHand"/>）。</summary>
+        private Text _ghostCost;
 
         /// <summary>
         /// 本次拖动那张卡的**卡面**（<see cref="BeginDrag"/> 时从手牌槽取一次）。
@@ -1026,15 +1057,16 @@ namespace CR.UI.Panels
         /// 给卡体节点套上**裁掉投影带**的原版卡体件（`ResPaths.SlotCard` = `ui_out/43`）的四角镜像九宫格。
         /// <para>
         /// 取不到件时保持兜底色并留一条 Warn（⛔ 不静默、也不换成别的帧）。
+        /// <paramref name="tint"/> = <c>null</c> ⇒ 原色（`Color.white`）；幽灵卡传 <see cref="GhostTint"/> 表达不透明度。
         /// </para>
         /// </summary>
-        private static void DressCardBody(Image card)
+        private static void DressCardBody(Image card, Color? tint = null)
         {
             if (card == null) return;
 
             if (_cardBodySprite != null)
             {
-                CrUiStyle.Dress(card, _cardBodySprite, CardBodyCorner, Vector4.zero, null);
+                CrUiStyle.Dress(card, _cardBodySprite, CardBodyCorner, Vector4.zero, tint);
                 return;
             }
 
@@ -1048,7 +1080,7 @@ namespace CR.UI.Panels
                 }
                 _cardBodySprite = Sprite.Create(s.texture, CardBodyCrop, new Vector2(0.5f, 0.5f), s.pixelsPerUnit);
                 _cardBodySprite.name = "SlotCardBody";
-                CrUiStyle.Dress(card, _cardBodySprite, CardBodyCorner, Vector4.zero, null);
+                CrUiStyle.Dress(card, _cardBodySprite, CardBodyCorner, Vector4.zero, tint);
             });
         }
 
@@ -1103,16 +1135,39 @@ namespace CR.UI.Panels
 
         private void BuildGhost()
         {
-            // 拖放幽灵卡：跟着指针走的一张卡面（`BeginDrag` 里把拖的那张卡的 `Sprite` 写进来）。
-            // 中性色（不做合法/非法判定，见类注释与 `_ghost` 的说明）。
-            _ghost = UIFactory.CreatePanel("DragGhost", _root, GhostColor, false);
-            // 锚点/轴心都放中心，位置在 `MoveGhost` 里直接写 `position`（世界坐标），不依赖 anchoredPosition 口径。
+            // 拖放幽灵卡 = 跟着指针走的**一张完整卡**（卡体 + 卡面 + 费用泡 + 费用数字），
+            //   三个子层与手牌卡**同一套**常量与函数（`DressCardBody` / `ArtFillX` / `ArtFillY` /
+            //   `ArtOffsetYFrac` / `CostIconW` / `CostIconBottom` / `CardFontSize`），⛔ 不另写第二套尺寸。
+            //   颜色中性（不做合法/非法判定，合法性由服务端裁决，见类注释）。
+            // 根不画图元：无 sprite 的 `Image` 不渲染 ⇒ 根只当容器与"贴指针"的坐标载体。
+            // 锚点/轴心都放中心，位置在 `MoveGhost` 里直接写根的 `position`（世界坐标），
+            // 不依赖 anchoredPosition 口径（⛔ 别把 position 写到子节点上）。
+            _ghost = UIFactory.CreatePanel("DragGhost", _root, Color.clear, false);
             UIFactory.Place(_ghost.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(GhostW, GhostH));
 
-            // **幽灵卡上也不画卡名** —— 原版拖放时跟着手指的就是那张卡面本身，没有文字带
+            // ① 卡体：铺满容器，走手牌同一件（原版 `SlotCard` 九宫格）。
+            _ghostBody = UIFactory.CreatePanel("DragGhostBody", _ghost.rectTransform, CrUiStyle.ButtonBg, false);
+            UIFactory.Stretch(_ghostBody.rectTransform);
+            DressCardBody(_ghostBody, GhostTint);
+
+            // ② 卡面：画在卡体**内部**（后建 ⇒ 画在卡体之上），内缩与手牌同一比例。
+            _ghostArt = UIFactory.CreatePanel("DragGhostArt", _ghost.rectTransform, Color.white, false);
+            UIFactory.Place(_ghostArt.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, GhostH * ArtOffsetYFrac), new Vector2(GhostW * ArtFillX, GhostH * ArtFillY));
+            _ghostArt.gameObject.SetActive(false);
+
+            // ③ 费用泡 + ④ 费用数字：挂在容器底中央（与手牌同一常量）；数字在 `BeginDrag` 里填该卡当前费用。
+            var costIcon = CrUiStyle.AspectImage("DragGhostCostIcon", _ghost.rectTransform,
+                ResPaths.IconElixirDrop, CostIconW, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, CostIconBottom), CrUiStyle.Accent);
+            _ghostCost = UIFactory.CreateText("DragGhostCostText", costIcon.rectTransform, string.Empty,
+                CardFontSize, TextAnchor.MiddleCenter, CrUiStyle.TextColor);
+            UIFactory.Stretch(_ghostCost.rectTransform);
+
+            // **幽灵卡上不画卡名** —— 原版拖放时跟着手指的就是那张卡本身，没有文字带
             //   （出处：`策划/参考图/20_对局_1080x1920.jpg` 手牌/出牌区域的逐格量取）。
-            //   ⛔ 这里连节点都不建，不是置空。
+            //   ⛔ 连节点都不建，不是置空。
             _ghost.gameObject.SetActive(false);
         }
 
@@ -1206,6 +1261,11 @@ namespace CR.UI.Panels
         public override void OnUpdate(float dt)
         {
             PollDrag();
+
+            // 圣水条是连续量：每帧按渲染时钟重算一次（见 `RefreshElixir`）。
+            // ⛔ 不用 `dt` 推进 —— 它是 `Time.deltaTime`（随 `Time.timeScale` 缩放），
+            //   而条要跟的是服务端时间轴（渲染时钟），不是本地帧步长。
+            RefreshElixir();
 
             if (_statusText != null && _statusUntil > 0f && Time.unscaledTime >= _statusUntil)
             {
@@ -1333,23 +1393,34 @@ namespace CR.UI.Panels
             // 幽灵卡不写卡名（见 `BuildGhost` 的注释）
             if (_ghost != null)
             {
-                // 幽灵卡用**同一张真卡面**（G4：⛔ 不再是一个纯色小块跟着手走），半透明表示"跟着手"。
+                // 卡面 = 手牌槽上**已经载好的**那一张（`_handArts[slot].sprite`）：
+                // 拖的卡与手牌上看到的完全同图，且拖动链路上 ⛔ 不再查一次卡池/再发一次加载。
                 var art = slot >= 0 && slot < HandSlots ? _handArts[slot] : null;
                 var sprite = art != null ? art.sprite : null;
                 _dragArt = sprite;   // 落点虚影用同一张卡面（见 _dragArt）
-                _ghost.sprite = sprite;
-                _ghost.type = Image.Type.Simple;
-                _ghost.preserveAspect = false;
-                _ghost.color = sprite != null ? GhostColor : GhostColorFallback;
+
+                if (_ghostArt != null)
+                {
+                    _ghostArt.sprite = sprite;
+                    _ghostArt.type = Image.Type.Simple;
+                    _ghostArt.preserveAspect = false;
+                    _ghostArt.color = GhostTint;
+                    _ghostArt.gameObject.SetActive(sprite != null);
+                }
+
+                // 费用数字 = 该卡当前费用，取数口径与 `RefreshHand` 同一处（`CardInfo.elixir`）。
+                if (_ghostCost != null) _ghostCost.text = card != null ? card.elixir.ToString() : string.Empty;
+
                 _ghost.gameObject.SetActive(true);
-                // 卡面取不到时**必须留痕**：否则现象是"拖卡时手指下只有一块半透明白色方块"，
-                // 看起来就像"放卡没有卡模型"（用户第 5 条的原话），而日志里一条线索都没有。
+
+                // 卡面取不到时**必须留痕**：否则现象是"拖卡时手下只有一张没有图案的原版空卡槽"，
+                // 看起来就像"放卡没有卡模型"，而日志里一条线索都没有。
                 if (sprite == null && !_ghostArtFallbackWarned)
                 {
                     _ghostArtFallbackWarned = true;
                     var key = card != null ? card.key : ("id=" + cardId);
                     Game.Logger?.Warn(Tag,
-                        $"幽灵卡拿不到卡面（card={key} slot={slot}）⇒ 退成半透明纯色块。" +
+                        $"幽灵卡拿不到卡面（card={key} slot={slot}）⇒ 只画原版卡槽底 + 费用泡。" +
                         "可能原因：卡面帧号表没有这张卡（`CrUiStyle.TryGetCardArtFrame` 返回 false）、" +
                         "或 `ui_spells_out` 素材没落地（只报一次）");
                 }
@@ -1495,7 +1566,7 @@ namespace CR.UI.Panels
         /// <summary>「法术半径缺值、退到兜底常量」只告警一次。</summary>
         private bool _spellRadiusFallbackWarned;
 
-        /// <summary>「幽灵卡拿不到卡面、退成纯色块」只告警一次。</summary>
+        /// <summary>「幽灵卡拿不到卡面、只画卡槽底」只告警一次。</summary>
         private bool _ghostArtFallbackWarned;
 
         /// <summary>「表现层根未建」只告警一次（避免每帧刷屏）。</summary>
@@ -1630,6 +1701,11 @@ namespace CR.UI.Panels
             _lastPhase = -1;
             _noElixirPhaseWarned = false;
 
+            // 圣水条插值基线：新局的 `server_ms` 从 0 重走 ⇒ 采样历史必须清空，
+            // 否则会拿上一局的采样（时间戳大得多）去插值。首帧前只有开打初值，按 0 ms 记一条。
+            _elixirHist.Clear();
+            PushElixirSample(0f, GameConst.StartingElixirMilli);
+
             Game.Logger?.Info(Tag,
                 $"开打配置到达 my_team={_myTeam}（0=蓝 1=红）圣水上限={_maxElixirMilli / (float)ElixirMilliPerUnit:0} " +
                 $"常规={_regulationMs}ms 加时={_overtimeMs}ms 倍率段={PhaseMsText()}");
@@ -1646,6 +1722,7 @@ namespace CR.UI.Panels
             }
 
             _snapshot = snap;
+            PushElixirSample(snap.server_ms, _myTeam == 0 ? snap.elixir_a : snap.elixir_b);
             ReadHand();
             RefreshTop();
             RefreshElixir();
@@ -2003,24 +2080,97 @@ namespace CR.UI.Panels
             }
         }
 
+        /// <summary>
+        /// 刷新圣水条与徽章数字：取值 = **渲染时钟**对应的圣水（见 <see cref="SampleElixirMilli"/>），
+        /// 每帧由 <see cref="OnUpdate"/> 调用一次 ⇒ 条在任何帧率下都是连续推进的，
+        /// 且与 <see cref="RenderServerMs"/> 同一时刻的**单位位置**一致（出牌生成单位与扣圣水同帧可见）。
+        /// 快照链（<see cref="OnSnapshot"/>）也调它，保证"快照刚到、窗口还没到"的那几帧也有新值。
+        /// </summary>
         private void RefreshElixir()
         {
-            var elixir = CurrentElixirMilli();
-            var shown = elixir < 0 ? 0 : elixir;
-            var maxUnits = _maxElixirMilli / (float)ElixirMilliPerUnit;
-            var units = shown / (float)ElixirMilliPerUnit;
+            var shown = SampleElixirMilli(RenderServerMs());
+            if (shown < 0f) shown = CurrentElixirMilli();
+            if (shown < 0f) return;                       // 既无快照也无开打配置 ⇒ 未知，条与数字都不动
 
+            var clamped = Mathf.Clamp(shown, 0f, _maxElixirMilli);
             if (_elixirFill != null)
             {
-                UIFactory.SetBarWidth(_elixirFill, _maxElixirMilli > 0 ? shown / (float)_maxElixirMilli : 0f);
+                UIFactory.SetBarWidth(_elixirFill, _maxElixirMilli > 0 ? clamped / _maxElixirMilli : 0f);
             }
 
             // 数字进徽章（原版口径），条上不写字（`_elixirText` 已在 BuildElixir 里停用）。
             // 取**整数**（原版 18 图徽章里就是一位整数「2」；`elixirAmount` 是整数文本域，不是 "8.2/10"）。
             if (_elixirBadgeText != null)
             {
-                _elixirBadgeText.text = ((int)units).ToString();
+                _elixirBadgeText.text = ((int)(clamped / ElixirMilliPerUnit)).ToString();
             }
+        }
+
+        /// <summary>
+        /// **渲染时钟**对应的服务端毫秒 = `BattleViewRoot` 正在渲染的那一对快照之间、按
+        /// <c>InterpRatio</c> 取到的时刻（单位位置插值用的就是它）。
+        /// <para>
+        /// ⛔ 不复用 `SnapshotInterpolator`（那会另起一套时钟 / 快照历史），更不用
+        /// <c>Time.deltaTime</c> 自己积分（它随 <c>Time.timeScale</c> 缩放、掉帧时又被
+        /// <c>Time.maximumDeltaTime</c> 截断 ⇒ 与服务端时间轴漂移）。
+        /// </para>
+        /// 尚未选出一对窗口（首帧前 / 表现层根未建）时返回 -1，调用方退回快照原值。
+        /// </summary>
+        private static float RenderServerMs()
+        {
+            var view = CR.View.BattleViewRoot.Instance;
+            if (view == null || !view.HasWindow) return -1f;
+            var t = view.InterpRatio;
+            if (float.IsNaN(t)) return -1f;
+            return view.WindowStartMs + (view.WindowEndMs - view.WindowStartMs) * t;
+        }
+
+        /// <summary>记一条圣水采样（<see cref="_elixirHist"/> 末条恒 = 最新一条）。</summary>
+        private void PushElixirSample(float serverMs, int milli)
+        {
+            var n = _elixirHist.Count;
+            if (n > 0 && serverMs <= _elixirHist[n - 1].ServerMs)
+            {
+                // 时间戳没前进（同刻重发 / 服务端回退）：覆盖末条，保住"末条 = 最新"的不变量，
+                // 否则 <see cref="SampleElixirMilli"/> 会按倒退的时间戳算出负的时间跨度。
+                _elixirHist[n - 1] = new ElixirSample { ServerMs = serverMs, Milli = milli };
+                return;
+            }
+
+            _elixirHist.Add(new ElixirSample { ServerMs = serverMs, Milli = milli });
+            while (_elixirHist.Count > ElixirHistSlots) _elixirHist.RemoveAt(0);
+        }
+
+        /// <summary>
+        /// 取 <paramref name="renderMs"/> 时刻的圣水（1/1000）；采样为空或时钟不可用时返回 -1。
+        /// <para>
+        /// 增长段（后一条采样更大）按时间**线性插值** —— 服务端的圣水就是按毫秒匀速涨的
+        /// （每点 <c>timeline.elixir_ms_per_unit</c>），线性即准确。
+        /// 花费段（后一条采样更小）**不插值**：出牌的扣除在快照那一刻瞬间生效，
+        /// 整段保持旧值、到该采样的时刻直接落值（否则条会"漏"下去）。
+        /// </para>
+        /// </summary>
+        private float SampleElixirMilli(float renderMs)
+        {
+            var n = _elixirHist.Count;
+            if (n == 0) return -1f;
+            if (renderMs < 0f || n == 1) return _elixirHist[n - 1].Milli;
+
+            if (renderMs <= _elixirHist[0].ServerMs) return _elixirHist[0].Milli;
+            for (var i = n - 1; i >= 1; i--)
+            {
+                var a = _elixirHist[i - 1];
+                var b = _elixirHist[i];
+                if (renderMs >= b.ServerMs) return b.Milli;   // 追到最新采样（窗口不超前，兜底）
+                if (renderMs < a.ServerMs) continue;
+
+                var span = b.ServerMs - a.ServerMs;
+                if (span <= 0f) return b.Milli;
+                if (b.Milli <= a.Milli) return a.Milli;       // 花费段：整段保持旧值
+                var t = (renderMs - a.ServerMs) / span;
+                return Mathf.Lerp(a.Milli, b.Milli, t);
+            }
+            return _elixirHist[0].Milli;
         }
 
         /// <summary>自己那侧的圣水（1/1000 单位）；没有快照时退到开打初值，仍无则 -1（= 未知）。</summary>

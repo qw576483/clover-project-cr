@@ -300,6 +300,7 @@ func TestHandCycle(t *testing.T) {
 		if err := b.PlayCard(TeamBlue, hand0[i], 9000, 9000); err != nil {
 			t.Fatalf("play #%d (card %d): %v", i, hand0[i], err)
 		}
+		settleDraws(b) // 揭晓延迟（下一张冷却）走完，槽位才拿到队头那张卡
 		got := b.Hand(TeamBlue)
 		for j := 0; j <= i; j++ {
 			if got[j] != q[j] {
@@ -332,6 +333,7 @@ func TestHandCycle(t *testing.T) {
 			t.Fatalf("second-cycle play #%d (card %d): %v", i, cycled[i], err)
 		}
 	}
+	settleDraws(b)
 	back := b.Hand(TeamBlue)
 	for j := 0; j < 4; j++ {
 		if back[j] != hand0[j] {

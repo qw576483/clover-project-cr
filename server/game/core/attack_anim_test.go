@@ -16,10 +16,12 @@ const snapshotPeriodTicks = 2
 // TestAttackAnimWindowPerSwing 驱动一个持续攻击的单位（骑士站进红方公主塔的攻击
 // 距离内原地挥砍），逐 tick 记录 anim 与挥砍次数，断言：
 //
+//   - 前摇开始（= 距离出刀 load_time_ms 的那一 tick）起 anim == AnimAttack；
 //   - 每次挥砍后 anim == AnimAttack 至少保持 attackAnimHoldTicks 个 tick；
 //   - 任意 100 ms 快照窗口里都有这次挥砍被采到（窗口内存在快照 tick）；
 //   - 窗口之后至少一个 tick 不是 AnimAttack（= 相邻两刀不被并成一段）；
-//   - AnimAttack 的上升沿次数 == 挥砍次数（没有"一刀播两次"也没有"某刀被吞"）；
+//   - 每个 AnimAttack 上升沿后面都对应一次挥砍（唯一例外是收尾那次**还没走到出刀**
+//     的前摇 —— 跑完时它还没落刀，见下面的 edges 断言）；
 //   - 窗口 < 该单位的 hit_speed_ms，且 >= 2 个快照周期。
 func TestAttackAnimWindowPerSwing(t *testing.T) {
 	b := mustBattle(t, troopDeck, troopDeck, 7)
@@ -74,9 +76,32 @@ func TestAttackAnimWindowPerSwing(t *testing.T) {
 			attackAnimHoldTicks, 2*snapshotPeriodTicks)
 	}
 
+	// 前摇：到出刀那一刻为止的 load_time 里，attack 档必须是抬着的 —— 客户端就是靠
+	// 这个上升沿起手（起手后再等 load_time 才是这一刀的落点）。
+	loadTicks := TicksForMs(knight.LoadTimeMs)
+	if loadTicks < 2 {
+		t.Fatalf("fixture: load_time %d ms = %d ticks is too short to observe a windup", knight.LoadTimeMs, loadTicks)
+	}
+	hold := k.attackAnimHold()
+
 	for _, sw := range swingAt {
+		// 前摇：从 `sw - loadTicks + 1` 起（含出刀那一 tick 共 loadTicks 个 tick）都是攻击档。
+		for d := int(loadTicks) - 1; d >= 0; d-- {
+			tick := sw - d
+			if tick < 1 {
+				continue
+			}
+			if animAt[tick] != AnimAttack {
+				t.Fatalf("swing at tick %d: anim=%d at tick %d (windup), want AnimAttack(%d)",
+					sw, animAt[tick], tick, AnimAttack)
+			}
+		}
+		// 前摇之前必须是释放的（否则客户端看不到"抬手"的上升沿）。
+		if tick := sw - int(loadTicks); tick >= 1 && animAt[tick] == AnimAttack && animAt[tick-1] == AnimAttack {
+			t.Fatalf("swing at tick %d: no release before the windup (tick %d is already attack)", sw, tick)
+		}
 		// 窗口：挥砍那一 tick 起连续 attackAnimHoldTicks 个 tick 都必须是攻击档。
-		for d := 0; d < int(attackAnimHoldTicks); d++ {
+		for d := 0; d < int(hold); d++ {
 			tick := sw + d
 			if tick > ticks {
 				t.Fatalf("run of %d ticks is too short to observe the window of the swing at tick %d", ticks, sw)
@@ -88,17 +113,17 @@ func TestAttackAnimWindowPerSwing(t *testing.T) {
 		}
 		// 100 ms 快照网格：窗口内必须存在一个快照 tick（否则客户端整刀看不见）。
 		sampled := false
-		for d := 0; d < int(attackAnimHoldTicks); d++ {
+		for d := 0; d < int(hold); d++ {
 			if (sw+d)%snapshotPeriodTicks == 0 {
 				sampled = true
 				break
 			}
 		}
 		if !sampled {
-			t.Fatalf("swing at tick %d: no snapshot tick inside the %d-tick window", sw, attackAnimHoldTicks)
+			t.Fatalf("swing at tick %d: no snapshot tick inside the %d-tick window", sw, hold)
 		}
 		// 释放：窗口之后至少一个 tick 不是攻击档 —— 下一刀的上升沿靠它。
-		if after := sw + int(attackAnimHoldTicks); after <= ticks && animAt[after] == AnimAttack {
+		if after := sw + int(hold); after <= ticks && animAt[after] == AnimAttack {
 			t.Fatalf("swing at tick %d: the attack tier is still set at tick %d -- two swings merged, the client would play one attack",
 				sw, after)
 		}
@@ -112,9 +137,67 @@ func TestAttackAnimWindowPerSwing(t *testing.T) {
 		}
 		prev = animAt[i]
 	}
-	if edges != len(swingAt) {
-		t.Fatalf("AnimAttack rising edges=%d but swings=%d: every swing must produce exactly one fresh attack", edges, len(swingAt))
+	// 上升沿 == 挥砍数，除非跑完那一 tick 还停在一段**尚未出刀**的前摇里（最后那次
+	// 上升沿的出刀落在 ticks 之后）。
+	extra := 0
+	if edges > len(swingAt) {
+		lastEdge := 0
+		prev = AnimIdle
+		for i := 1; i <= ticks; i++ {
+			if animAt[i] == AnimAttack && prev != AnimAttack {
+				lastEdge = i
+			}
+			prev = animAt[i]
+		}
+		if lastEdge+int(loadTicks)-1 > ticks {
+			extra = 1
+		}
 	}
+	if edges != len(swingAt)+extra {
+		t.Fatalf("AnimAttack rising edges=%d but swings=%d (+%d unfinished windup): every swing must produce exactly one fresh attack",
+			edges, len(swingAt), extra)
+	}
+}
+
+// TestAttackWindupKeepsDamageOnTheSwingTick 断言把攻击档提前到前摇**不移动伤害**：
+// 塔掉血只发生在出刀那一 tick，前摇期间一 tick 都不掉（伤害落在前摇结束，见
+// cr-sim engine/combat.py:6-18）。
+func TestAttackWindupKeepsDamageOnTheSwingTick(t *testing.T) {
+	b := mustBattle(t, troopDeck, troopDeck, 17)
+	knight, _ := b.cfg.Table.Unit("Knight")
+	tower := redPrincessTower(t, b)
+	k := b.spawnUnit(TeamBlue, knight, cardKnight, tower.xMilli, tower.yMilli-2000, 0)
+
+	loadTicks := TicksForMs(knight.LoadTimeMs)
+	hpStart := tower.hp
+	b.Step()
+	// 前摇第一 tick 就已是攻击档……
+	if k.anim != AnimAttack {
+		t.Fatalf("the windup's first tick reads anim=%d, want AnimAttack(%d)", k.anim, AnimAttack)
+	}
+	if tower.hp != hpStart {
+		t.Fatalf("damage landed on the windup's first tick: hp %d -> %d", hpStart, tower.hp)
+	}
+	// ……而伤害还要等 load_time 才落。
+	for i := 1; i < int(loadTicks)-1; i++ {
+		b.Step()
+		if tower.hp != hpStart {
+			t.Fatalf("damage landed %d ticks into the windup (load_time = %d ticks): hp %d -> %d",
+				i+1, loadTicks, hpStart, tower.hp)
+		}
+		if k.anim != AnimAttack {
+			t.Fatalf("the attack tier dropped during the windup at tick %d (anim=%d)", i+1, k.anim)
+		}
+	}
+	b.Step() // 第 loadTicks 个 tick：出刀
+	if k.swings != 1 {
+		t.Fatalf("swings after load_time = %d, want 1", k.swings)
+	}
+	if tower.hp >= hpStart {
+		t.Fatalf("the hit did not land on the swing tick (hp %d -> %d)", hpStart, tower.hp)
+	}
+	t.Logf("windup: attack tier from tick 1 (load_time %d ticks), first damage exactly on tick %d, tower hp %d -> %d",
+		loadTicks, loadTicks, hpStart, tower.hp)
 }
 
 // TestAttackAnimWindowEndsOnDeath 断言死亡档不被窗口的关闭覆盖：窗口内死亡的单位

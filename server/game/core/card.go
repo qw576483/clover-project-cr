@@ -109,6 +109,15 @@ type UnitDef struct {
 	// 0 = single target.
 	AoeRadiusMilli int32
 
+	// Homing marks a shot that re-aims at its target every tick, so it lands on
+	// wherever the target is when it arrives. Source: 官方
+	// cards_stats_projectile.json `homing`, carried on the projectile row
+	// (MortarProjectile / BombTowerProjectile / BombSkeletonProjectile /
+	// PrincessProjectile / BowlerProjectile / AxeManProjectile read false).
+	// A non-homing shot commits to the point it was fired at and can be dodged by
+	// walking away -- see fireProjectile / advanceProjectile.
+	Homing bool
+
 	// JumpHeightMilli is how wide a stretch of water the unit can leap over
 	// (官方 `jump_height`, 4000 for Hog Rider; 0 elsewhere).
 	// JumpSpeedTilesPerMinute is the horizontal speed

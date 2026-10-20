@@ -112,6 +112,38 @@ def turret_aim():
     return out
 
 
+# ── 公主塔乘员攻击档 ─────────────────────────────────────────────────────────
+# 出处 = `策划/单位动画分组表.md` 的 `chr_princess` 小节（导出表逐视角像素帧）：
+#   · 蓝方 `princess_tower_attack1_N`（`:3747-3755`）；蓝方帧区间 `496-573`（`:3712`）。
+#   · 红方 `princess_tower_red_attack1_N`（`:3816-3824`）；红方帧区间 `0-116`（`:3719`）。
+# 每个导出除本队帧外还夹着 **2 帧另一队配色的同姿势帧**（蓝方导出里的 `86/88`、红方导出里的
+# `62/64` 之类）——那些帧整块是另一队的红衣公主，播出来会闪一帧异色，故只保留本队帧区间内的帧。
+# 逐帧像素核对：`.ai-tmp/test/princess-atk.png`（502 = 蓝方站姿，553-560 = 蓝方施法）。
+ATTACK_BLUE_SPAN = {1: (569, 573), 2: (561, 568), 3: (553, 560), 4: (545, 552), 5: (537, 544),
+                    6: (529, 536), 7: (521, 528), 8: (513, 520), 9: (505, 512)}
+ATTACK_BLUE_IDLE = {1: 504, 2: 503, 3: 502, 4: 501, 5: 500, 6: 499, 7: 498, 8: 497, 9: 496}
+ATTACK_BLUE = {v: ([ATTACK_BLUE_IDLE[v]], list(range(lo, hi + 1)))
+               for v, (lo, hi) in ATTACK_BLUE_SPAN.items()}
+# 红方每个视角 12 帧（`起始..起始+11`），其中 `起始+6` / `起始+8` 两帧只有箭
+# （不透明像素 ~1.4%、无身体；逐帧像素核对 `.ai-tmp/test/princess-atk.png` 的 f39 / f41）
+# ⇒ 这两帧不进动画，否则攻击段会闪两帧"只有一支箭"。
+ATTACK_RED_SPAN = {1: (105, 116), 2: (93, 104), 3: (81, 92), 4: (69, 80), 5: (57, 68),
+                   6: (45, 56), 7: (33, 44), 8: (21, 32), 9: (9, 20)}
+ATTACK_RED_IDLE = {1: 8, 2: 7, 3: 6, 4: 5, 5: 4, 6: 3, 7: 2, 8: 1, 9: 0}
+ATTACK_RED = {v: ([ATTACK_RED_IDLE[v]], [f for f in range(lo, hi + 1) if (f - lo) not in (6, 8)])
+              for v, (lo, hi) in ATTACK_RED_SPAN.items()}
+
+
+def attack_keys(table, repeat):
+    """把逐视角像素帧表（`(站姿帧, 施法帧列表)`）展开成 `Anim.Keys`（每帧定格 repeat 个时间轴帧）。"""
+    out = []
+    for view in range(1, 10):
+        firsts, frames = table[view]
+        keys = [(f, repeat, 1.0, 0.0) for f in list(firsts) + list(frames)]
+        out.append(keys)
+    return out
+
+
 def fnum(v, is_int=False):
     if is_int or abs(v - round(v)) < 1e-9:
         return '%d' % int(round(v))
@@ -123,7 +155,7 @@ def fflt(v):
     return fnum(v) + 'f'
 
 
-def emit(defs, turret_dirs):
+def emit(defs, turret_dirs, atk_blue, atk_red):
     L = []
     A = L.append
     A('namespace CR.View')
@@ -233,6 +265,16 @@ def emit(defs, turret_dirs):
         for k in keys:
             A('            new Key(%d, %d, %s, %s),' % (k[0], k[1], fflt(k[2]), fflt(k[3])))
         A('        });')
+    for field, doc, fps, views in (('OccupantAttackBlue', 'BLUE 公主塔乘员攻击档（下标 = 视角号 − 1；`princess_tower_attack1_N`）', 24, atk_blue),
+                                   ('OccupantAttackRed', 'RED 公主塔乘员攻击档（下标 = 视角号 − 1；`princess_tower_red_attack1_N`）', 24, atk_red)):
+        A('')
+        A('        /// <summary>%s。</summary>' % doc)
+        A('        private static readonly Anim[] %s = new[]' % field)
+        A('        {')
+        for keys in views:
+            body = ', '.join('new Key(%d, %d, %s, %s)' % (k[0], k[1], fflt(k[2]), fflt(k[3])) for k in keys)
+            A('            new Anim(%d, new[] { %s }),' % (fps, body))
+        A('        };')
     A('')
     A('        /// <summary>国王坐像的 idle 动画（`team` = 0 BLUE / 1 RED）。</summary>')
     A('        public static Anim KingIdle(int team)')
@@ -244,6 +286,22 @@ def emit(defs, turret_dirs):
     A('        public static Anim OccupantIdle(int team)')
     A('        {')
     A('            return team == TeamRed ? OccupantRed : OccupantBlue;')
+    A('        }')
+    A('')
+    A('        /// <summary>')
+    A('        /// 公主塔乘员的**攻击档**（开火时播一遍，见 `ArenaView.TowerView.PlayAttack`）。')
+    A('        /// <para>`view` = 视角号（1..9）；越界或该视角无帧 ⇒ 返回 `FrameCount == 0` 的动画（调用方保持 idle）。</para>')
+    A('        /// <para>')
+    A('        /// 帧来源见生成器 `tower-anim-gen.py` 的 `ATTACK_BLUE` / `ATTACK_RED`：')
+    A('        /// `策划/单位动画分组表.md` 的 `princess_tower_attack1_N` / `princess_tower_red_attack1_N`，')
+    A('        /// 已剔除导出里夹带的另一队配色帧。')
+    A('        /// </para>')
+    A('        /// </summary>')
+    A('        public static Anim OccupantAttack(int team, int view)')
+    A('        {')
+    A('            var all = team == TeamRed ? OccupantAttackRed : OccupantAttackBlue;')
+    A('            var i = view - 1;')
+    A('            return i >= 0 && i < all.Length ? all[i] : default(Anim);')
     A('        }')
     A('    }')
     A('}')
@@ -272,4 +330,6 @@ if __name__ == '__main__':
         ('KingBlue', 'BLUE 国王坐像 idle（`KingTower_blue` 的 `king_idle`，clip 251，13 个姿态帧）。', fps_kb, keys_kb),
         ('OccupantRed', 'RED 公主塔乘员 idle（export `princess_tower_red_idle1_7`，clip 753，单姿态 + 逐帧 squash 矩阵）。', fps_or, keys_or),
         ('OccupantBlue', 'BLUE 公主塔乘员 idle（export `princess_tower_idle1_3`，clip 981，单姿态 + 逐帧 squash 矩阵）。', fps_ob, keys_ob),
-    ], tdirs)
+    ], tdirs,
+        attack_keys(ATTACK_BLUE, 2),    # 蓝方每个像素帧 2 个时间轴帧（`.sc` clip 992 的 cnt1 节奏）
+        attack_keys(ATTACK_RED, 3))     # 红方 40 时间轴帧 / 13 像素帧 ≈ 3

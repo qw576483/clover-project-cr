@@ -1,7 +1,7 @@
 # 客户端架构契约（clover-project-cr）
 
 > **所有客户端 agent 必须先读本文 + `策划/client-api-reference.md`。**
-> 本文是主 agent 定下的架构与接口契约；⛔ 不许私自改。发现问题 → 回报主 agent。
+> 本文是架构与接口契约；⛔ 不许私自改。发现问题 → 先回报再改。
 
 ## 0. 唯一原则：**面板驱动，不切场景**
 
@@ -55,7 +55,7 @@ Assets/Configs/config.json
 | **D5** | 单位动画 = **逐帧精灵**，帧率由服务端 `anim` 字段选档 | `anim`：0=idle 1=walk 2=attack 3=die。每档一组 `Sprite[]`，用 `Game.Timer` 或 `View` 自更新按固定 FPS 换帧。素材 = `原版资源/cr-assets-png/assets/sc/chr_*/`（逐帧 PNG） |
 | **D6** | 血条用引擎的 `WorldHpBar` | `WorldHpBar.Create(unitTransform, …)` + `SetRatio(hp/maxHp)`，见 API 摘要 §4 |
 | **D7** | 竞技场用**原版素材**，按自己算的几何摆放 | 底图 = `arena_training_out`（1090×1677，对应 18×32 格）；6 座塔用 `building_tower_out` 帧。世界坐标换算一律走 `Core/GameConst.cs` 的 `TileToWorld/MilliToWorld`，⛔ 不许在 View 里散落魔法数字 |
-| **D8** | 素材**复制**进 `Assets/Resources/`，路径收敛到 `Core/ResPaths.cs` | 引擎要求工程内资源；⛔ 不许直接引用 `原版资源/` 路径。**只复制 60 张卡实际用到的目录**（不是 21000 张全拷） |
+| **D8** | 素材**复制**进 `Assets/Resources/`，路径收敛到 `Core/ResPaths.cs` | 引擎要求工程内资源；⛔ 不许直接引用 `原版资源/` 路径。**只复制 20 张卡实际用到的目录**（不是 21000 张全拷） |
 | **D9** | 拖放出牌 | 按下手牌 → 跟随 `Game.Input.MousePosition` → `View/HandView` 显示落点指示（合法/非法两色）→ 抬起时发 C2S。合法性由**服务端**最终裁决，客户端只做**预校验**（用同一套 `Core/GameConst` 几何规则，避免"看起来能放结果被拒"） |
 | **D10** | 一切日志走 `Game.Logger.Info/Warn/Error(tag, msg)` | ⛔ 裸 `Debug.Log` 一律算错（`tools/verify.ps1` 的 `hard-rules` 会报）。非预期分支必须留痕 |
 | **D11** | 事件名、资源路径、消息号**各自只有一个定义处** | `Core/Events.cs` / `Core/ResPaths.cs` / `Def/MsgDef.cs`。⛔ 业务脚本里出现裸事件名字符串或裸资源路径一律算错 |

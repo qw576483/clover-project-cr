@@ -123,6 +123,13 @@ type roomState struct {
 	ticks       int64
 	ticking     bool
 
+	// seats 本局的「玩家 → 座位号」，开打时定死（座位号 = 队伍号）。
+	//
+	// 结算必须按**本局开始时的座位**算人，不能按结算那一刻的 members 下标：
+	// 对局中途有人离房（换房 / 对局中退房走掉）会让 members 前移，那时再按下标
+	// 取座位就会把胜方记成负方（`result.Winner` 是 Team，即开局时的座位号）。
+	seats map[string]int
+
 	// entered 本局已报「进场」的座位号（客户端进战斗场景后发 MsgBattleSync）。
 	// **只增不减**：中途掉线 / 重连都不清除 ⇒ 模拟一旦推进就不会退回等待态。
 	entered map[int]bool
@@ -162,6 +169,21 @@ func (r *roomState) seatOf(playerID string) int {
 		}
 	}
 	return -1
+}
+
+// matchSeat 返回玩家在**本局开始时**的座位号（= 队伍号）；-1 = 本局没有这个玩家。
+//
+// 结算只能按它算人：members 的下标会因中途离房而前移，而 `core.Result.Winner`
+// 是开局时的 Team。调用方须持锁。
+func (r *roomState) matchSeat(playerID string) int {
+	if r.seats == nil {
+		return -1
+	}
+	seat, ok := r.seats[playerID]
+	if !ok {
+		return -1
+	}
+	return seat
 }
 
 // humanIDs 返回真人玩家（AI 不发推送）。
@@ -219,6 +241,24 @@ type roomExport struct {
 	Started bool               `json:"started"`
 	Members []def.RoomMember   `json:"members"`
 	Decks   map[string][]int32 `json:"decks,omitempty"`
+}
+
+// resultForSeat 把一局的结局折算到某个座位上：胜负与王冠数都按**这个座位**取。
+//
+// seat 必须是开局时的座位号（roomState.matchSeat）：`res.Winner` 是 Team（= 座位号），
+// 拿结算那一刻的 members 下标来比，会在"有人中途离房"时把胜方算成负方。
+func resultForSeat(seat int, res core.Result, plays map[int32]int32) matchResult {
+	mr := matchResult{Draw: res.Draw, Plays: plays}
+	if res.Draw || !res.Ended || seat < 0 {
+		return mr
+	}
+	mr.Win = int(res.Winner) == seat
+	if seat == 0 {
+		mr.Crowns = res.CrownsA
+	} else {
+		mr.Crowns = res.CrownsB
+	}
+	return mr
 }
 
 // matchResult 一局结算后待补记的战绩。
@@ -467,6 +507,18 @@ func (r *roomRegistry) setAiFill(roomID, playerID string, aiFill bool) error {
 		return fmt.Errorf("对局已开始")
 	}
 	st.aiFill = aiFill
+	if !aiFill {
+		// 关掉补位 ⇒ 撤掉 AI 占的座位。留着它，房间在列表里永远是满员
+		// （Cur=2/2），真人进不来，而房主以为自己已经关掉了补位。
+		for i, m := range st.members {
+			if !m.IsAI {
+				continue
+			}
+			logger.Infof("logic: AI 补位关闭，撤掉占位座位 room=%s player=%s seat=%d", roomID, m.PlayerID, i)
+			r.removeMemberLocked(st, i)
+			break
+		}
+	}
 	r.version++
 	return nil
 }
@@ -570,6 +622,17 @@ func (r *roomRegistry) started(roomID string) (bool, bool) {
 	return st.started, true
 }
 
+// full 房间座位是否已满（含 AI 座位）；房间不存在返回 false。
+func (r *roomRegistry) full(roomID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st := r.rooms[roomID]
+	if st == nil {
+		return false
+	}
+	return len(st.members) >= maxRoomMembers
+}
+
 // aiFill 房间的 AI 补位开关；ok=false 表示房间不存在。
 func (r *roomRegistry) aiFill(roomID string) (bool, bool) {
 	r.mu.Lock()
@@ -624,6 +687,11 @@ func (r *roomRegistry) importState(roomID string, state json.RawMessage) error {
 	st.started = false // 对局态不迁移
 	st.ended = false
 	st.battle = nil
+	if len(ex.Members) > maxRoomMembers {
+		logger.Warnf("logic: 导入的房间态有 %d 个座位，超过上限 %d ⇒ 只保留前 %d 个 room=%s",
+			len(ex.Members), maxRoomMembers, maxRoomMembers, roomID)
+		ex.Members = ex.Members[:maxRoomMembers]
+	}
 	st.members = st.members[:0]
 	for _, m := range ex.Members {
 		st.members = append(st.members, &memberState{
@@ -759,6 +827,32 @@ func (r *roomRegistry) surrenderOnDisconnect(roomID string, seat int) bool {
 	return true
 }
 
+// markOfflineLocked 把一个座位标记为离线（调用方须持锁）。不改 members 的长度：
+// 座位号就是队伍号，对局进行中摘座位会让后面的座位前移，结算就按错的人算。
+func markOfflineLocked(st *roomState, i int) bool {
+	if st == nil || i < 0 || i >= len(st.members) {
+		return false
+	}
+	if st.members[i].Offline {
+		return false
+	}
+	st.members[i].Offline = true
+	st.members[i].Ready = false
+	return true
+}
+
+// markOffline 对局进行中把某座位标记为离线（不摘座位），返回是否首次标记。
+func (r *roomRegistry) markOffline(roomID string, seat int) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st := r.rooms[roomID]
+	if !markOfflineLocked(st, seat) {
+		return false
+	}
+	r.version++
+	return true
+}
+
 // detach 断线清理：把玩家从房间摘掉；对局进行中只标记离线（保住座位号 = 队伍号）。
 func (r *roomRegistry) detach(playerID string) (roomID string, seat int, running bool, ok bool) {
 	r.mu.Lock()
@@ -774,8 +868,7 @@ func (r *roomRegistry) detach(playerID string) (roomID string, seat int, running
 		}
 		running = st.battle != nil && !st.ended
 		if running {
-			st.members[i].Offline = true
-			st.members[i].Ready = false
+			markOfflineLocked(st, i)
 			seat = i
 			return id, seat, true, true
 		}
@@ -803,13 +896,25 @@ func (r *roomRegistry) dropOffline(roomID string) (empty bool, humans []string) 
 		kept = append(kept, m)
 	}
 	st.members = kept
-	if st.host == "" {
+	// 房主自己就是掉线座位时，`st.host` 仍指着已经不在房里的那个 ID：
+	// 剩下的真人于是既开不了打、也改不了 AI 补位（房主校验按 ID 比）。
+	// 判据是"房主是否还在座"，不是"st.host 是否为空"。
+	hostSeated := false
+	for _, m := range st.members {
+		if m.PlayerID == st.host && !m.IsAI {
+			hostSeated = true
+			break
+		}
+	}
+	if !hostSeated {
+		st.host = ""
 		for _, m := range st.members {
-			if !m.IsAI {
-				m.IsHost = true
-				st.host = m.PlayerID
-				break
+			if m.IsAI {
+				continue
 			}
+			m.IsHost = true
+			st.host = m.PlayerID
+			break
 		}
 	}
 	r.version++
@@ -1062,6 +1167,15 @@ func (l *gameLogic) onRoomJoin(c event.Ctx) error {
 		l.g.Reply(c, def.RoomJoinReply{Err: "对局已开始"})
 		return nil
 	}
+	// 满房先拒：紧接着的 leaveRoomsOf 会先退掉玩家的旧房，
+	// 等到 JoinRoom 才失败时，失败路径已经把玩家从原房间踢了出去。
+	if l.rooms.full(req.RoomID) {
+		if _, in := l.rooms.seatOf(req.RoomID, pid); !in {
+			logger.Warnf("logic: 加入满房被拒 room=%s player=%s", req.RoomID, pid)
+			l.g.Reply(c, def.RoomJoinReply{Err: "房间已满"})
+			return nil
+		}
+	}
 	l.leaveRoomsOf(pid)
 
 	if _, switched, joinErr := l.roomMod.JoinRoom(c.ConnID(), req.RoomID, pid); joinErr != nil {
@@ -1259,6 +1373,14 @@ func (l *gameLogic) leaveRoomsOf(playerID string) {
 					logger.Warnf("logic: 旧房标记为对局中但没有可结束的对局实例 room=%s player=%s seat=%d",
 						id, playerID, seat)
 				}
+				// 本局还没结算 ⇒ 只标离线、不摘座位：座位号 = 队伍号，摘掉会让
+				// 剩下的座位前移，那一局结算就按错的人算胜负、离房者的战绩也会丢。
+				// 由结算后的 dropOffline 统一清理（见 battle.go finishMatch）。
+				if l.rooms.markOffline(id, seat) {
+					logger.Infof("logic: 旧房对局结算前保留座位（标离线）room=%s player=%s seat=%d", id, playerID, seat)
+				}
+				l.pushRoomState(id)
+				continue
 			}
 			if err := l.roomMod.LeaveRoom(id, playerID); err != nil {
 				logger.Warnf("logic: 清理旧房失败 room=%s player=%s: %v", id, playerID, err)

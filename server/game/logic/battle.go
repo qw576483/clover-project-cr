@@ -94,6 +94,11 @@ func (l *gameLogic) startMatch(roomID string) error {
 	st.ticking = false
 	st.started = true
 	st.ended = false
+	// 本局座位表定死（座位号 = 队伍号）：结算按它算人，见 roomState.seats。
+	st.seats = make(map[string]int, maxRoomMembers)
+	for i, m := range st.members {
+		st.seats[m.PlayerID] = i
+	}
 	st.plays = make(map[string]map[int32]int32) // 本局的出牌计数从零开始（房间可能被复用打第二局）
 	// 进场闸门从零开始：模拟等每个真人座位进图（MsgBattleSync）才推进（房间可能被复用打第二局）。
 	st.entered = make(map[int]bool, maxRoomMembers)
@@ -226,7 +231,6 @@ func (l *gameLogic) battleTick(roomID string) {
 	var result core.Result
 	var targets []string
 	var results []matchResult
-	seats := make([]int, 0, maxRoomMembers)
 	if ended {
 		result = b.Result()
 		st.ended = true
@@ -235,26 +239,20 @@ func (l *gameLogic) battleTick(roomID string) {
 		st.battle = nil
 	}
 	targets = append(targets, st.humanIDs()...)
-	for i, m := range st.members {
-		if !m.IsAI {
-			seats = append(seats, i)
-		}
-	}
 	if ended {
 		// 结算的**待补记内容**必须在锁内取（出去以后 st 可能已被回收）：
 		// 胜负 + 本方王冠数（三冠胜场的判据）+ 本局出牌计数（常用卡牌的判据）。
+		//
+		// 座位取**本局开始时的**（st.matchSeat），不取当前 members 下标：
+		// 对局中途有人离房会让下标前移，那一格的下标对应的是另一个人。
 		results = make([]matchResult, 0, len(targets))
-		for i, pid := range targets {
-			mr := matchResult{Draw: result.Draw, Plays: st.plays[pid]}
-			if !result.Draw && i < len(seats) && result.Ended {
-				mr.Win = int(result.Winner) == seats[i]
-				if seats[i] == 0 {
-					mr.Crowns = result.CrownsA
-				} else {
-					mr.Crowns = result.CrownsB
-				}
+		for _, pid := range targets {
+			seat := st.matchSeat(pid)
+			if seat < 0 {
+				logger.Warnf("logic: 结算时找不到玩家的开局座位，退回当前下标 room=%s player=%s", roomID, pid)
+				seat = st.seatOf(pid)
 			}
-			results = append(results, mr)
+			results = append(results, resultForSeat(seat, result, st.plays[pid]))
 		}
 	}
 	st.ticking = false
@@ -438,6 +436,7 @@ func snapshotToDef(s core.Snapshot) def.BattleSnapshot {
 	out.Entities = make([]def.EntitySnapshot, 0, len(s.Entities))
 	for _, e := range s.Entities {
 		out.Entities = append(out.Entities, def.EntitySnapshot{
+			SpriteDir: e.SpriteDir,
 			ID:       e.ID,
 			Kind:     e.Kind,
 			CardID:   e.CardID,

@@ -69,6 +69,7 @@ namespace CR.Module.Deck
         private Action<DeckRef> _onChangedFromPanel;
         private Action<int> _onSlotRequest;
         private Action<string> _onStationChanged;
+        private Action _onLogoutRequest;
 
         /// <summary>已缓存的卡池（未拉到时为 null）。</summary>
         public CardInfo[] CardPool => _pool;
@@ -121,6 +122,7 @@ namespace CR.Module.Deck
             _onChangedFromPanel = OnChangedFromPanel;
             _onSlotRequest = OnSlotRequest;
             _onStationChanged = OnStationChanged;
+            _onLogoutRequest = OnLogoutRequest;
 
             bus.On(Events.Deck.OpenRequest, _onOpenRequest);
             bus.On<DeckRef>(Events.Deck.Changed, _onChangedFromPanel);
@@ -129,6 +131,7 @@ namespace CR.Module.Deck
             // 「首次进主菜单时拉一次并缓存」：主菜单是卡组数据的第一个可能入口，
             // 在这里预取 ⇒ 玩家点「卡组编辑」时面板能立刻出内容，不必先看一次转圈。
             bus.On<string>(Events.Flow.StationChanged, _onStationChanged);
+            bus.On(Events.Flow.LogoutRequest, _onLogoutRequest);
 
             Game.Logger?.Info(Tag,
                 $"卡组模块已装载（订阅 Deck.OpenRequest / Deck.Changed / Deck.SlotRequest / Flow.StationChanged，"
@@ -160,6 +163,22 @@ namespace CR.Module.Deck
             if (station != Stations.MainMenu) return;
             // 进主菜单就预取（幂等：已缓存时 EnsureXxx 不会重复发 C2S）。
             LoadAsync();
+        }
+
+        /// <summary>
+        /// 退出登录：丢掉上一个账号的卡池与 5 个卡组号缓存。
+        /// 不丢的话，换账号后第一次开卡组编辑会先画上一号的卡组（等 `LoadAsync` 回来才纠正）。
+        /// </summary>
+        private void OnLogoutRequest()
+        {
+            _pool = null;
+            _deck = Array.Empty<int>();
+            for (var i = 0; i < _slots.Length; i++) _slots[i] = null;
+            _activeSlot = 0;
+            _deckFetched = false;
+            _saving = false;
+            _slotReqSeq++;
+            Game.Logger?.Info(Tag, "退出登录：卡池与 5 个卡组号缓存已清空");
         }
 
         /// <summary>面板请求保存某个卡组号（见类注释「双通道」）。</summary>

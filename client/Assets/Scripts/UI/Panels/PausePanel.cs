@@ -22,9 +22,9 @@ namespace CR.UI.Panels
     /// （服务端会拒绝其中一条并回一条失败提示）。分工：面板只发"请求"，C2S 一律由 Module 侧发。
     /// </para>
     /// <para>
-    /// <b>⚠️ 对局不真暂停</b>（参考规格 §7 S22 / `AppFlow.EnterPause` 的注释）：进 `Pause` 站点
+    /// <b>对局不真暂停</b>（参考规格 §7 S22 / `AppFlow.EnterPause` 的注释）：进 `Pause` 站点
     /// **不动 `timeScale`**、不关下层 HUD，服务端的 tick 照跑（计时 / 圣水 / 兵线都在动）。
-    /// 所以面板上必须把这件事**写出来**，⛔ 不许假装暂停。
+    /// 这是运行时契约，面板只提供操作入口，界面上不写说明文字。
     /// </para>
     /// <para>
     /// <b>二次确认</b>：投降与"回主菜单"（= 弃赛）都不可撤销，两者都走引擎自带的
@@ -34,10 +34,9 @@ namespace CR.UI.Panels
     ///
     /// <para>
     /// <b>竖版排版</b>：画布 = <see cref="CrUiStyle.DesignW"/>×<see cref="CrUiStyle.DesignH"/> = 1080×1920、`match = 0`。
-    /// 内容框 = <see cref="CrUiStyle.ContentPanel"/>（贴顶居中、宽 <see cref="CrUiStyle.ContentW"/> = 1000）、
-    /// 标题 = <see cref="CrUiStyle.TitleBar"/>（原版金色标题条九宫格）、
-    /// 「对局不真暂停」提示框 = 原版深蓝灰圆角块 <see cref="ResPaths.ButtonDarkGrey"/> 九宫格（⛔ 不再是纯色块）、
-    /// 四个动作 = <see cref="CrUiStyle.ActionButton"/>（原版金 / 深蓝灰按钮底九宫格）。
+    /// 内容框 = <see cref="CrUiStyle.SettingsPopup"/>（贴顶居中、宽 <see cref="CrUiStyle.ContentW"/> = 1000）、
+    /// 标题 = <see cref="CrUiStyle.BandTitle"/>（板岩带白字黑描边）、
+    /// 四个动作 = <see cref="CrUiStyle.BlueButton"/>（原版蓝底白字按钮九宫格）。
     /// </para>
     ///
     /// <para>
@@ -56,9 +55,6 @@ namespace CR.UI.Panels
         private const float GapM = 24f;                                  // 行间缝隙
         private const float GapL = 32f;                                  // 块间缝隙
 
-        /// <summary>「对局不真暂停」提示框高（两行 <see cref="CrUiStyle.FontSmall"/> + 上下留白）。本项目新增界面自定。</summary>
-        private const float WarnH = 120f;
-
         /// <summary>
         /// 动作按钮宽 = 824（= A 宽条按钮 572px@750 × 1.44 = 823.7，与 `DeckEditPanel` 的宽条按钮同宽）。
         /// <para>
@@ -75,13 +71,11 @@ namespace CR.UI.Panels
         /// <summary>
         /// 动作按钮之间的缝。**本项目自定**：A 的暂停界面未取到（`策划/参考图/清单.md:40`），
         /// 12_主菜单 里也量不到"两个同宽按钮上下相邻"的样本 ⇒ **无原版值可比**，取 16 只为让四个按钮
-        /// 连成一条可点列（登记进 `策划/差异登记.tsv` 的「允许的差异」）。
+        /// 连成一条可点列（登记进 `策划/对照表.md` §D.3）。
         /// </summary>
         private const float BtnGap = 16f;
 
-        private const float RulesH = 72f;                                // 规则说明（两行 FontSmall）
-        private const float StatusH = 90f;                               // 状态行（投降在途 / 被拒原因）
-        private const float HintH = 30f;                                 // 底部提示行
+        private const float StatusH = 40f;                               // 状态行（投降在途 / 被拒原因，单行）
 
         /// <summary>暂停菜单是 Popup 层（架构契约 §4：暂停 = Popup）。</summary>
         public override UILayer Layer => UILayer.Popup;
@@ -112,11 +106,12 @@ namespace CR.UI.Panels
             _busy = false;
             SetInteractable(true);
             Subscribe();
-            SetStatus("对局仍在进行：服务端不会因为打开这个菜单而停下。点「继续」回到战场。", CrUiStyle.TextOnLightDim);
+            SetStatus(string.Empty, CrUiStyle.TextOnLightDim);
         }
 
         public override void OnClose()
         {
+            CrUiFx.PanelOut(transform);
             Unsubscribe();
         }
 
@@ -127,12 +122,10 @@ namespace CR.UI.Panels
             var root = (RectTransform)transform;
             UIFactory.Stretch(root);
 
-            float yWarn = -(CrUiStyle.TitleBarH + GapM);                                 // −116
-            float yButtons = yWarn - WarnH - GapM;                                       // −260
-            float yRules = yButtons - 4f * BtnH - 3f * BtnGap - GapL;                    // −604
-            float yStatus = yRules - RulesH - GapM;                                      // −700
-            float yHint = yStatus - StatusH - GapM;                                      // −814
-            float boxH = -yHint + HintH + Pad;                                           // 884
+            // 纵向排布：标题条 → 四颗按钮（间距 / 高度固定）→ 状态行 → 下留白。面板高由内容反算。
+            float yButtons = -(CrUiStyle.TitleBarH + GapM);                               // −116
+            float yStatus = yButtons - 4f * BtnH - 3f * BtnGap - GapL;                   // −460
+            float boxH = -yStatus + StatusH + Pad;                                       // 540
 
             // 弹窗自己不铺全屏底（Popup 层的模态遮罩由 UIManager 负责，`UI.cs:143-147`），只画内容框。
             //
@@ -145,22 +138,6 @@ namespace CR.UI.Panels
             var c = box.rectTransform;
 
             CrUiStyle.BandTitle("TitleBar", box, "暂 停", CrUiStyle.ContentW);
-
-            // ── 对局不真暂停：必须明说（⛔ 不许让玩家以为世界停了） ──
-            // 提示框底 = 原版板岩灰蓝圆角块（`ui_out/014`）。
-            // 014 是**左上圆角件**（`CrUiStyle.Skin` 的注释写明：直接配 `border` 会把同一个角
-            //   贴到四个角上、三个角是错的）⇒ 从 `NineSlice` 改成 `Skin(corner 24)`（四角镜像拼，只用原版像素）。
-            CrUiStyle.Skin("WarnBox", c, CrUiStyle.PopupFrameSlate, 24, Vector4.zero,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, yWarn),
-                new Vector2(InnerW, WarnH), CrUiStyle.FieldBg, false);
-
-            // ⛔ 可见文案里不写 `**粗体**`：`UIFactory.CreateText` 把 `supportRichText` 置为 false
-            //    （`UIWidgets.cs:153`）⇒ 富文本标记会被**原样显示**成星号。
-            UIFactory.CreateLabel("WarnText", c,
-                "注意：本作的对局不会真正暂停 —— 这个菜单只覆盖操作，服务端仍在推进" +
-                "（计时、圣水、兵线、塔血都在动）。点「继续」立刻回到战场。",
-                CrUiStyle.FontSmall, new Vector2(Pad + 18f, yWarn - 8f), new Vector2(InnerW - 36f, WarnH - 16f),
-                TextAnchor.MiddleLeft, CrUiStyle.Accent);
 
             // ── 四个动作：竖版 = 单列纵向堆叠（⛔ 不再 2×2 左右排） ──
             // 四颗按钮的底从 `ActionButton`（金 300 / 深蓝灰 014）换成 **`BlueButton`（`ui_out/165` 蓝底白字）**。
@@ -182,20 +159,11 @@ namespace CR.UI.Panels
                 new Vector2(btnX, yButtons - 3f * (BtnH + BtnGap)), new Vector2(BtnW, BtnH),
                 OnMainMenuClicked);
 
-            // ── 规则说明（把"投降 / 回主菜单意味着什么"写在按钮下面，⛔ 不做"点了才知道"） ──
-            UIFactory.CreateLabel("Rules", c,
-                "投降：立刻判你输掉这一局（不可撤销，会二次确认）。\n" +
-                "回主菜单：对局中离开等于弃赛（不可撤销，会二次确认）。",
-                CrUiStyle.FontSmall, new Vector2(Pad, yRules), new Vector2(InnerW, RulesH),
-                TextAnchor.UpperLeft, CrUiStyle.TextOnLightDim);
-
-            // 状态行（投降请求在途 / 被服务端拒绝的原因都在这里）。
+            // 状态行：只在异常 / 在途时出现（投降请求在途、被服务端拒绝等）。
             _status = UIFactory.CreateLabel("Status", c, string.Empty, CrUiStyle.FontSmall,
                 new Vector2(Pad, yStatus), new Vector2(InnerW, StatusH), TextAnchor.UpperLeft, CrUiStyle.TextOnLightDim);
 
-            UIFactory.CreateLabel("Hint", c, "（暂停菜单不改变对局结果，只提供操作入口）", CrUiStyle.FontSmall,
-                new Vector2(0f, yHint), new Vector2(CrUiStyle.ContentW, HintH), TextAnchor.MiddleCenter,
-                CrUiStyle.TextOnLightDim);
+            CrUiFx.PanelIn(c);
         }
 
         // ───────────────────────── 四个动作 ─────────────────────────
@@ -246,7 +214,7 @@ namespace CR.UI.Panels
             {
                 // 非预期分支：表现域未挂载 ⇒ 连确认框都弹不出来。留痕，别让点击静默无反应。
                 Game.Logger?.Error(Tag, "Game.UI 为空，无法弹投降确认框，本次投降未发出");
-                SetStatus("界面未就绪，投降按钮暂时不可用（已记录）", CrUiStyle.ErrorText);
+                SetStatus("界面未就绪，投降按钮暂时不可用", CrUiStyle.ErrorText);
                 return;
             }
 
@@ -256,7 +224,7 @@ namespace CR.UI.Panels
                     _busy = true;
                     SetInteractable(false);
                     Game.Logger?.Info(Tag, "已确认投降，请求对局模块发 MsgBattleSurrender");
-                    SetStatus("已请求投降，等待服务端结算…（结算面板会自动出现）", CrUiStyle.Accent);
+                    SetStatus("已请求投降，等待结算…", CrUiStyle.Accent);
                     // ⛔ 这里**不**直接发 C2S：`Events.Battle.SurrenderRequest` 的处理者是
                     //    `BattleManager`（它持有 room_id）。面板再发一次就会重复请求。
                     Game.Event?.Emit(Events.Battle.SurrenderRequest);
@@ -274,7 +242,7 @@ namespace CR.UI.Panels
             {
                 // 非预期分支：表现域未挂载 ⇒ 连确认框都弹不出来。留痕，别让点击静默无反应。
                 Game.Logger?.Error(Tag, "Game.UI 为空，无法弹回主菜单确认框，本次请求未发出");
-                SetStatus("界面未就绪，回主菜单按钮暂时不可用（已记录）", CrUiStyle.ErrorText);
+                SetStatus("界面未就绪，回主菜单按钮暂时不可用", CrUiStyle.ErrorText);
                 return;
             }
 
@@ -329,7 +297,8 @@ namespace CR.UI.Panels
         /// </summary>
         private void OnBattleFailed(string reason)
         {
-            var text = string.IsNullOrEmpty(reason) ? "对局操作失败（服务端未给出原因）" : reason;
+            // 拒因可能是服务端英文原文（如 `core: ...`）⇒ 先映射成玩家文案，原文只在日志里留痕。
+            var text = ServerText.ToPlayer(reason, Tag);
             _busy = false;
             SetInteractable(true);
             SetStatus(text, CrUiStyle.ErrorText);

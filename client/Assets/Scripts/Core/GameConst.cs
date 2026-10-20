@@ -125,5 +125,17 @@ namespace CR
         {
             return IsMirroredForTeam(team) ? ArenaTilesH - yTile : yTile;
         }
+
+        // ───────────────────────── 对局 HUD 配色 ─────────────────────────
+
+        /// <summary>
+        /// 血条填充色 = 原版塔 / 单位血条的品红深红 <b>(182,51,68)</b>，恒定不随血量变档。
+        /// <para>
+        /// 出处 = 基线图 `策划/参考图/18_对局HUD_1080x1920.jpg` 塔条中段均色
+        /// （量法：`python .ai-tmp/test/hud-measure*.py`，条内 182±25 / 51±25 / 68±25）；
+        /// 原版的血条只有"长度"变化，不存在绿 / 橙 / 红分档。
+        /// </para>
+        /// </summary>
+        public static readonly Color HpBarFill = new Color(182f / 255f, 51f / 255f, 68f / 255f, 1f);
     }
 }

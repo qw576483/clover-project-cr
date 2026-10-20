@@ -135,12 +135,21 @@ namespace CR.Module.Flow
         /// </summary>
         private int _aiBattleGateSeq;
 
+        /// <summary>
+        /// 最近一次被 `PushBattleStart` 接手的闸代号（见 <see cref="OnBattleStartPush"/>）。
+        /// 回包与推送是两条独立通道：推送先到并开始读条时，主线程会被场景加载占住，
+        /// `MsgAiBattleStart` 的回包可能排到 <see cref="StartAiBattleAsync"/> 的调用超时之后
+        /// ⇒ 用它对账，避免把"已开打成功"误报成"网络超时"。
+        /// </summary>
+        private int _aiBattlePushTakeSeq;
+
         private Action<string, string> _onLoginRequest;
         private Action<string, string> _onRegisterRequest;
         private Action _onOpenRegisterRequest;
         private Action _onBackToLoginRequest;
         private Action<string> _onNicknameSubmit;
         private Action _onOpenSettingsRequest;
+        private Action _onLogoutRequest;
         private Action _onQuitRequest;
         private Action<string> _onStationEnterRequest;
         private Action _onAiBattleRequest;
@@ -406,9 +415,10 @@ namespace CR.Module.Flow
             _onLoginRequest = (account, password) => LoginAsync(account, password);
             _onRegisterRequest = (account, password) => RegisterAsync(account, password);
             _onOpenRegisterRequest = OnOpenRegister;
-            _onBackToLoginRequest = () => GoTo(Stations.Login);
+            _onBackToLoginRequest = OnBackToLogin;
             _onNicknameSubmit = SubmitNicknameAsync;
             _onOpenSettingsRequest = OpenSettings;
+            _onLogoutRequest = Logout;
             _onQuitRequest = Quit;
             _onStationEnterRequest = OnStationEnterRequest;
             // ⚠️ `Events.Battle.AiBattleRequest` 的处理者只允许是"不重发该事件的内部实现"：
@@ -426,6 +436,7 @@ namespace CR.Module.Flow
             Game.Event?.On(Events.Flow.BackToLoginRequest, _onBackToLoginRequest);
             Game.Event?.On(Events.Flow.NicknameSubmit, _onNicknameSubmit);
             Game.Event?.On(Events.Flow.OpenSettingsRequest, _onOpenSettingsRequest);
+            Game.Event?.On(Events.Flow.LogoutRequest, _onLogoutRequest);
             Game.Event?.On(Events.Flow.QuitRequest, _onQuitRequest);
             Game.Event?.On(Events.Flow.StationEnterRequest, _onStationEnterRequest);
             // ⛔ 本类**不订阅** `Events.Deck.OpenRequest` / `Events.Room.OpenListRequest`：
@@ -460,6 +471,7 @@ namespace CR.Module.Flow
             Game.Event?.Off(Events.Flow.BackToLoginRequest, _onBackToLoginRequest);
             Game.Event?.Off(Events.Flow.NicknameSubmit, _onNicknameSubmit);
             Game.Event?.Off(Events.Flow.OpenSettingsRequest, _onOpenSettingsRequest);
+            Game.Event?.Off(Events.Flow.LogoutRequest, _onLogoutRequest);
             Game.Event?.Off(Events.Flow.QuitRequest, _onQuitRequest);
             Game.Event?.Off(Events.Flow.StationEnterRequest, _onStationEnterRequest);
             Game.Event?.Off(Events.Battle.AiBattleRequest, _onAiBattleRequest);
@@ -492,6 +504,20 @@ namespace CR.Module.Flow
         {
             Game.UI?.CloseAll();
             Game.UI?.Open<RegisterPanel>();
+        }
+
+        /// <summary>
+        /// 注册面板的「返回登录」。注册面板不占独立站点（站点仍是 `Login`），所以
+        /// <see cref="GoTo"/> 在同一站点上会早退、不重建面板栈 ⇒ 这里必须在站点未变时直接重建登录面板。
+        /// </summary>
+        private void OnBackToLogin()
+        {
+            if (Game.Fsm != null && Game.Fsm.Current == Stations.Login)
+            {
+                EnterLogin();
+                return;
+            }
+            GoTo(Stations.Login);
         }
 
         private void OnStationEnterRequest(string station)
@@ -1025,6 +1051,14 @@ namespace CR.Module.Flow
             }
             catch (Exception e)
             {
+                // 推送已接手 ⇒ 这一局确实开起来了（读条/场景加载把回包挤到超时之后）。
+                // 只留痕，⛔ 不再弹"网络超时"，否则成功开局会附一条假报错。
+                if (_aiBattlePushTakeSeq == gateSeq)
+                {
+                    Game.Logger?.Info(Tag, $"[AiBattle] 推送已接手，回包异常忽略：{e.Message}");
+                    handedOff = true;
+                    return;
+                }
                 BattleStartFailed("人机对战启动失败：" + e.Message);
             }
             finally
@@ -1092,6 +1126,7 @@ namespace CR.Module.Flow
                 $"hand={start.hand_a?.Length ?? 0} 张 deck_a={start.deck_a?.Length ?? 0} 张");
             RequestEnterBattle(start.room_id, start);
             // 交接点：进图（读条 + 场景加载）自有 `_enteringBattle` 幂等闸，人机对战闸到此为止。
+            _aiBattlePushTakeSeq = _aiBattleGateSeq;
             SetAiBattleInFlight(false, "PushBattleStart 已接手进图");
         }
 
@@ -1134,6 +1169,44 @@ namespace CR.Module.Flow
             // 传一份**现读**的快照进去：面板不能自己读设置（那要引 CR.Module）。
             var snapshot = _settings != null ? _settings.Snapshot() : null;
             Game.UI.Open<SettingsPanel>(snapshot);
+        }
+
+        /// <summary>
+        /// 退出登录：清掉本地会话与上个账号的缓存，断开并重连网关，然后回登录站点。
+        /// <para>
+        /// 只在主菜单可用：对局 / 房间内退出会留下未结束的对局与占座，而且 `RoomLeave` 在开打后
+        /// 会被服务端拒绝。面板侧对其它站点直接拒绝并提示先结束对局，这里再兜一道。
+        /// </para>
+        /// <para>
+        /// 清会话后**必须重连**：`Disconnect()` 会清掉会话与场景投影，不重连则下一次登录
+        /// 要等 `WaitConnectedAsync` 的超时才走到主动重连。
+        /// </para>
+        /// </summary>
+        private void Logout()
+        {
+            var station = Game.Fsm?.Current;
+            if (station != Stations.MainMenu)
+            {
+                Game.Logger?.Warn(Tag, $"当前站点 '{station}' 不允许退出登录（先结束对局并回到主菜单）");
+                return;
+            }
+            if (_busy)
+            {
+                Game.Logger?.Warn(Tag, "登录链在途，忽略退出登录请求");
+                return;
+            }
+
+            Game.Logger?.Info(Tag, "退出登录：清会话 → 断开并重连网关 → 回登录站点");
+            PlayerSession.Clear();
+            _pendingLoginError = null;
+
+            if (Game.Net != null)
+            {
+                Game.Net.Disconnect();
+                Game.Net.Reconnect();
+            }
+
+            GoTo(Stations.Login);
         }
 
         private void Quit()

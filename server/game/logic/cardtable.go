@@ -239,6 +239,7 @@ func spellDefOf(row *table.SpellRow) *core.SpellDef {
 
 		RadiusMilli:      int32(row.RadiusMt),
 		InstantDamage:    int32(row.InstantDamage),
+		CrownDamage:      int32(row.CrownDamage),
 		DurationMs:       int32(row.DurationMs),
 		TickMs:           int32(row.TickMs),
 		DamagePerTick:    int32(row.DamagePerTick),
@@ -247,6 +248,7 @@ func spellDefOf(row *table.SpellRow) *core.SpellDef {
 		SpawnN:           int32(row.SpawnN),
 		SpawnRadiusMilli: int32(row.SpawnRadiusMt),
 		Pushback:         int32(row.Pushback),
+		FlightMs:         int32(row.FlightMs),
 		Anywhere:         row.Anywhere != 0,
 		OnWater:          row.OnWater != 0,
 	}
@@ -268,7 +270,7 @@ func (t *cardTable) Unit(key string) (*core.UnitDef, bool) {
 func (t *cardTable) CardCount() int { return len(t.cards) }
 func (t *cardTable) UnitCount() int { return len(t.units) }
 
-// cardPool 把 60 张卡池下发成协议体（GetCardPoolReply.cards）。
+// cardPool 把 20 张卡池下发成协议体（GetCardPoolReply.cards）。
 //
 // 每张卡额外带 `projectile_key` + `proj_speed`（远程判定 + 弹道速度）：这两条是
 // 玩法规则（参考规格 §4 投射物），所以走 core.ProjectileOf，⛔ 不在本层写判定分支。
@@ -290,6 +292,7 @@ func (t *cardTable) cardPool() []def.CardInfo {
 			Elixir:         int32(row.Elixir),
 			Arena:          int32(row.Arena),
 			Icon:           row.Icon,
+			SpriteDir:      row.SpriteDir,
 			ProjectileKey:  projKey,
 			ProjSpeed:      projSpeed,
 			AoeRadiusMilli: cardAoeRadius(t, card, projKey),

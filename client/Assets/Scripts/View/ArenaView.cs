@@ -211,7 +211,7 @@ namespace CR.View
         /// </para>
         /// <para>
         /// <b>本常量的消费点</b>：代码内**无**（另一处引用只是注释里的脚注）；
-        /// 按名字引用它的只有 `策划/对照表.md`、`策划/差异登记.tsv`、`tools/probes/FlowProbe.cs`（探针读值）。
+        /// 按名字引用它的只有 `策划/对照表.md` §D.3、`tools/probes/FlowProbe.cs`（探针读值）。
         /// ⛔ 保留本名不删 —— 那三处按它引用「f006 唯一与 18×32 自洽」这条结论；
         /// 但**判「地面用什么帧」一律看 <see cref="NearGroundFrameNumber"/>**。
         /// </para>
@@ -551,6 +551,31 @@ namespace CR.View
 
         /// <summary>桥板落位上界格（格 y）= 17.43（跨过河面 15..17，两端各搭上岸 0.43 格）。</summary>
         public const float BridgePlankTileTop = 17.43f;
+
+        /// <summary>
+        /// 河岸带裁条上沿（帧 22 画布行）= 576 —— 该帧「草须边（576..583）+ 泥岸（584..603）
+        /// + 草须边（604..616）」的整条河岸带，带内还含三块原版灰石（画布 x 137..167 / 530..586 / 664..699）。
+        /// </summary>
+        public const float RiverBankPyTop = 576f;
+
+        /// <summary>河岸带裁条下沿（帧 22 画布行）= 616（下侧草须边的末行）。</summary>
+        public const float RiverBankPyBottom = 616f;
+
+        /// <summary>
+        /// 河岸带横向的**断口左沿**（帧 22 画布 px）= 326。该帧在 328..400 另有一束竖木板
+        /// （不属于任何桥位；桥位是 223..296 那一束），整条河岸带照铺会把木板墙砌在场地中段第 5~6.6 格上
+        /// ⇒ 河岸带横向分成两段，让开这束木板；断口处留 1.5 格直边。
+        /// </summary>
+        public const float RiverBankSplitPxLeft = 326f;
+
+        /// <summary>河岸带横向的断口右沿（帧 22 画布 px）= 396。</summary>
+        public const float RiverBankSplitPxRight = 396f;
+
+        /// <summary>
+        /// 河岸带越过水沿压进水面的深度（格）。取 0.25 ⇒ 草须边落在水面上、水面露出约 1.5 格，
+        /// 既破掉直边又不把河道整体变窄。
+        /// </summary>
+        public const float RiverBankOverlapTiles = 0.25f;
 
         // ══════════ ★★ 河岸带与桥板分层 ★★ ══════════
         //
@@ -929,9 +954,10 @@ namespace CR.View
         {
             new LayerSpec(BlueTowerBodyFrame, 1f, 0f, 0f, "Body"),            // child 214 → rec 213，无矩阵
             new LayerSpec(99, 1f, -1.5f, 0.5f, "BackA"),                      // child 99，matrix 261
-            new LayerSpec(BlueKingTurretFrame, 1f, 0f, -57f, "Turret"),       // child 247，matrix 184
             new LayerSpec(100, 1f, 0f, 0f, "BackB"),                          // child 100，无矩阵
             new LayerSpec(BlueKingSeatFrame, KingLayerScale, 0f, -42f, "King"),// child 252，matrix 185
+            // 炮塔层 = `.sc` 的最后一项（画在最上层，炮管压在王身前）；未激活时整层关掉。
+            new LayerSpec(BlueKingTurretFrame, 1f, 0f, -57f, "Turret"),       // child 247，matrix 184
         };
 
         /// <summary>
@@ -1143,6 +1169,10 @@ namespace CR.View
         /// <summary>本场保持当前方向不动的次数（自检用）。</summary>
         public int AimKept { get { return _aimKept; } }
         private readonly List<Sprite> _generated = new List<Sprite>();
+
+        /// <summary>皇家底图 Sprite 的进程级缓存（`royal_field.png` 1413×1877，重建时复用不重新加载）。</summary>
+        private static Sprite _royalFieldCached;
+
         private Transform _artRoot;
         private Transform _towerRoot;
 
@@ -1173,8 +1203,49 @@ namespace CR.View
             // 美术帧只取一次，底衬与地层共用（取帧失败的分支各自留痕）。
             var frames = SpriteBank.LoadDir(ResPaths.ArenaRoot);
             BuildBaseQuad(frames);
-            BuildArt(frames);
+            // 皇家底图自带草地/石墙/河道/双桥，训练场那套六段地层 + 水面 + 桥板 + 外圈整段跳过；
+            // 皇家图取不到时回退训练场（Warn 在 BuildRoyalField 里）。
+            if (!UseRoyalArena || !BuildRoyalField())
+                BuildArt(frames);
             BuildTowers();
+            BuildDecor(frames);
+        }
+
+        /// <summary>
+        /// 建装饰 / 光线层（装饰件、塔脚阴影、桥端暗部、全屏暗角）—— 见 <see cref="ArenaDecor"/>。
+        /// <para>
+        /// 层序：装饰件 = <see cref="SortingLayers.Decoration"/>（单位 / 落点环 / 血条都在它之上）；
+        /// 接地阴影 = <see cref="SortingLayers.Structure"/> − 2（压在塔体与废墟之下）；
+        /// 桥端暗部 = 桥面层 + 1；暗角由 <see cref="ArenaDecor"/> 自己按浮层 − 100 计算。
+        /// </para>
+        /// </summary>
+        private void BuildDecor(Sprite[] frames)
+        {
+            var go = new GameObject("ArenaDecor");
+            go.transform.SetParent(transform, false);
+            var decor = go.AddComponent<ArenaDecor>();
+            decor.Build(frames, _towerRoot, ArenaLayers.Instance.Decoration, ArenaLayers.Instance.Ground + 6,
+                ArenaLayers.Instance.Structure - 2);
+            if (UseRoyalArena) HideTrainingDecor(go.transform);
+        }
+
+        /// <summary>
+        /// 皇家底图下关掉训练场专属的装饰件：草丛 / 浮空绿岛 / 木栅栏（<c>Decor*</c>）、它们的接地阴影
+        /// （<c>Shadow_Decor*</c>）与桥端暗部（<c>BridgeShadow*</c>）—— 这三族的落位表按训练场画布量的，
+        /// 皇家底图里没有对应的位置。塔脚阴影（<c>Shadow_&lt;序号&gt;_*</c>）与暗角保留。
+        /// </summary>
+        private static void HideTrainingDecor(Transform decorRoot)
+        {
+            var hidden = 0;
+            for (var i = 0; i < decorRoot.childCount; i++)
+            {
+                var child = decorRoot.GetChild(i);
+                var n = child.name;
+                if (!n.StartsWith("Decor") && !n.StartsWith("Shadow_Decor") && !n.StartsWith("BridgeShadow")) continue;
+                child.gameObject.SetActive(false);
+                hidden++;
+            }
+            Game.Logger?.Info(LogTag, $"皇家竞技场：隐藏训练场装饰件 {hidden} 个（塔脚阴影 / 暗角保留）");
         }
 
         /// <summary>
@@ -1302,7 +1373,7 @@ namespace CR.View
             // 塔的逐帧动画（国王坐像 / 乘员 idle）在这里推进 —— 塔视图不是 MonoBehaviour，
             // 由本组件的帧后回调驱动（见 TowerView.TickAnimations）。
             // 步长取**不受 timeScale 影响**的 `Time.unscaledDeltaTime`，与特效层 / `BattleViewRoot` 的挂起队列
-            // 同一口径（`BattleViewRoot.ProcessPendingSplashRings`）：整条表现链共用一个推进时钟，
+            // 同一口径（`BattleViewRoot.ProcessPendingSpellImpacts`）：整条表现链共用一个推进时钟，
             // 慢镜 / 暂停时不会出现"单位走、塔与特效冻"；`Time.deltaTime` 还会在掉帧时被
             // `Time.maximumDeltaTime`（默认 1/3 s）截断 ⇒ 动画跳帧。
             var dt = Time.unscaledDeltaTime;
@@ -1322,6 +1393,91 @@ namespace CR.View
         }
 
         // ─────────────────────────── 底图 ───────────────────────────
+
+        // ────────── 底图选型：皇家竞技场（整幅合成图） / 训练场（23 帧分层裁条） ──────────
+
+        /// <summary>
+        /// true = 底图用**皇家竞技场**（<see cref="ResPaths.RoyalArenaRoot"/> 的 `royal_field.png`，
+        /// 原版 `level_royal_arena_v215.sc` 的 export `royal_base_bgr` 整幅合成，生成器
+        /// `tools/probes/royal-arena-compose.py`）；false = 沿用训练场 `arena_training_out` 的 23 帧分层裁条。
+        /// <para>
+        /// 两种底图都是"18 格铺满画宽、32 格纵占 1440 px"的同一坐标系，塔位 / 单位 / 血条 / 落点环全部不动：
+        /// 皇家那张把**草地、石墙、河道、双桥、塔基台**烘在同一张图里，所以
+        /// <see cref="BuildArt"/>（含 <see cref="BuildRiver"/> / <see cref="BuildOuterRing"/> / 围栏）整段不跑。
+        /// </para>
+        /// </summary>
+        public const bool UseRoyalArena = true;
+
+        /// <summary>皇家底图的横向密度：18 格 ÷ 1080 px（与 <see cref="GroundPxPerTileX"/> 同口径）。</summary>
+        public const float RoyalFieldPxPerTileX = 60f;
+
+        /// <summary>皇家底图的纵向密度：32 格 ÷ 1440 px（与 <see cref="GroundCompressY"/> 的 60:45 同口径）。</summary>
+        public const float RoyalFieldPxPerTileY = 45f;
+
+        /// <summary>`royal_field.png` 的像素宽（生成器打印，改图必须同步这几个常量）。</summary>
+        public const int RoyalFieldPngW = 1413;
+
+        /// <summary>见 <see cref="RoyalFieldPngW"/>。</summary>
+        public const int RoyalFieldPngH = 1877;
+
+        /// <summary>PNG 里「格 x = 0」那一列的像素 x（= PNG 左沿到场地左沿的水岸外圈宽）。</summary>
+        public const float RoyalFieldPxLeft = 163.7f;
+
+        /// <summary>PNG 里「格 y = <see cref="GameConst.ArenaTilesH"/>」那一行的像素 y（PNG 上沿到场地顶沿）。</summary>
+        public const float RoyalFieldPxTop = 204.4f;
+
+        /// <summary>
+        /// 铺皇家竞技场底图：单张 <see cref="SpriteRenderer"/>，PNG 定标成"1 px = 1/60 格（横）/ 1/45 格（纵）"，
+        /// 于是 PNG 里的场地矩形正好落在格 0..18 × 0..32，水岸外圈落在场地之外（上 3.1 格 / 下 4.9 格在 1080×1920 视野内）。
+        /// </summary>
+        /// <returns>false = 底图取不到（已 Warn），调用方回退训练场底图。</returns>
+        private bool BuildRoyalField()
+        {
+            if (_royalFieldCached == null)
+            {
+                var loadFrames = SpriteBank.LoadDir(ResPaths.RoyalArenaRoot);
+                _royalFieldCached = loadFrames != null && loadFrames.Length > 0 ? loadFrames[0] : null;
+            }
+            var field = _royalFieldCached;
+            if (field == null || field.texture == null)
+            {
+                // 缓存被 ClearCache 释放后会变假 null，强制重载一次。
+                var reloadFrames = SpriteBank.LoadDir(ResPaths.RoyalArenaRoot);
+                field = reloadFrames != null && reloadFrames.Length > 0 ? reloadFrames[0] : null;
+                _royalFieldCached = field;
+            }
+            if (field == null || field.texture == null)
+            {
+                Game.Logger?.Warn(LogTag,
+                    $"皇家竞技场底图取不到（{ResPaths.RoyalArenaRoot}）" +
+                    " ⇒ 回退训练场底图");
+                return false;
+            }
+
+            var ppu = field.pixelsPerUnit > 0.01f ? field.pixelsPerUnit : SpriteBank.FallbackPixelsPerUnit;
+            var go = new GameObject("RoyalField");
+            go.transform.SetParent(_artRoot, false);
+            var r = go.AddComponent<SpriteRenderer>();
+            r.sprite = field;
+            r.color = Color.white;
+            r.sortingOrder = ArenaLayers.Instance.Ground + 1;
+
+            // 目标世界尺寸 = PNG 像素 ÷ 每格像素数；Sprite 自然尺寸 = 像素 ÷ ppu ⇒ 缩放 = ppu ÷ 每格像素数。
+            go.transform.localScale = new Vector3(ppu / RoyalFieldPxPerTileX, ppu / RoyalFieldPxPerTileY, 1f);
+            // 图心落在哪一格：横向 = 格 0 加「左沿到图心的格数」；纵向从顶沿（格 32）往下量。
+            var centerTileX = (RoyalFieldPngW * 0.5f - RoyalFieldPxLeft) / RoyalFieldPxPerTileX;
+            var centerTileY = GameConst.ArenaTilesH - (RoyalFieldPngH * 0.5f - RoyalFieldPxTop) / RoyalFieldPxPerTileY;
+            go.transform.position = GameConst.TileToWorld(centerTileX, centerTileY);
+
+            Game.Logger?.Info(LogTag,
+                $"皇家竞技场底图：源={field.name} {RoyalFieldPngW}x{RoyalFieldPngH}px" +
+                $" 场地矩形 PNG({RoyalFieldPxLeft},{RoyalFieldPxTop})..({RoyalFieldPxLeft + GameConst.ArenaTilesW * RoyalFieldPxPerTileX}," +
+                $"{RoyalFieldPxTop + GameConst.ArenaTilesH * RoyalFieldPxPerTileY})" +
+                $" ⇒ 格 x{-RoyalFieldPxLeft / RoyalFieldPxPerTileX:F2}..{(RoyalFieldPngW - RoyalFieldPxLeft) / RoyalFieldPxPerTileX:F2}" +
+                $" y{GameConst.ArenaTilesH - (RoyalFieldPngH - RoyalFieldPxTop) / RoyalFieldPxPerTileY:F2}..{GameConst.ArenaTilesH + RoyalFieldPxTop / RoyalFieldPxPerTileY:F2}" +
+                $"（order={r.sortingOrder}，场地格 0..{GameConst.ArenaTilesW} × 0..{GameConst.ArenaTilesH} 与之对齐）");
+            return true;
+        }
 
         // ────────── 场地外圈：场地两端之外那两条带（原版是围栏/崖壁/看台，见 BuildOuterRing） ──────────
 
@@ -1383,6 +1539,63 @@ namespace CR.View
         /// </para>
         /// </summary>
         private const float OuterCliffRowGapRows = 0f;
+
+        /// <summary>
+        /// 外圈**垫层**的纵向宽度（格）= 与场内边界带垫层**同一段**源带的自然高度
+        /// （52 行 ÷ <see cref="BlueRowsPerTile"/> ≈ **2.33 格**，故与场内草地的纹理密度一致）。
+        /// <para>
+        /// <b>为什么需要</b>：外圈件（崖壁 / 围栏）的 alpha 边缘是稀疏的 —— 按"件边贴场地边界"铺好之后，
+        /// 边界外第 1 格里有 **65%~90%** 的像素落空、露出相机底色（1080×1920 实机帧：屏下端
+        /// y=1580..1592、屏上端 y=133..139 的像素与相机底色 (11,16,27) 逐通道差 ≤ 6；原版同两条带
+        /// 分别是满美术的亮草地 / 崖壁，暗像元 2.2% / 3.5%）。
+        /// </para>
+        /// <para>
+        /// 垫层 = **同一张地面帧的干净草地**（<see cref="EdgeFillSrcPyTop"/>..<see cref="BluePrincessPyTop"/>，
+        /// 与场内边界带垫层同一源带、同一缩放），铺在场外、order = <c>Ground − 1</c> ⇒ 只补掉件边缘的
+        /// 空洞，⛔ 不改外圈件的落位、缩放与层序。
+        /// </para>
+        /// </summary>
+        private const float OuterBandBackingTiles =
+            (BluePrincessPyTop - EdgeFillSrcPyTop) / BlueRowsPerTile;
+
+        /// <summary>
+        /// 远端垫层**再往上**加高的一段（格），接在 <see cref="OuterBandBackingTiles"/> 之上。
+        /// <para>
+        /// <b>为什么必须加高</b>：取景在 1080×1920 下相机可见的世界 y 上界 =
+        /// <c>cy + halfH</c> ≈ 19.11 格（= 场地顶 32 + 3.11 格），而 2.33 格的老垫层只铺到 34.33；
+        /// 34.33..35.11 这一段只有崖壁/树冠件覆盖，两簇树冠在**顶部中央**留了一道透明缺口
+        /// ⇒ 露出相机底色 (11,16,27)，屏上就是一块 ~155×36 px 的黑矩形。
+        /// </para>
+        /// <para>
+        /// 段高取 2.0 格（铺到 36.33）⇒ 屏高比例再高一些也仍在垫层内；源带与老垫层完全同一块
+        /// 干净草地（同 <see cref="EdgeFillSrcPyTop"/>..<see cref="BluePrincessPyTop"/> 窗口、同缩放），
+        /// order 也与老垫层相同 ⇒ 只补缺口，⛔ 不动外圈件落位/缩放/层序，⛔ 不新造美术。
+        /// </para>
+        /// </summary>
+        private const float OuterTopBackingTiles = 2f;
+
+        /// <summary>
+        /// 左右两侧垫层的宽度（格）。地面帧在场地左右沿各有约 9 画布 px 的透明列（逐列实测：
+        /// 画布 x 99..108 在多数行 alpha = 0），按 18 格铺满画宽后就是屏上左右各一竖条相机底色
+        /// （1080×1920 实测：左列最近背景色最长连续 815 px、右列 711 px）。
+        /// </summary>
+        private const float OuterSideBackingTiles = 0.6f;
+
+        /// <summary>
+        /// 左右垫层**压进场地内**的宽度（格）。地面帧的边缘是按画布矩形裁的，采样到矩形外即透明，
+        /// 屏上表现为一条 8~12 px 的淡出边；垫层必须铺到这条淡出边的**下面**（同色草地），
+        /// 淡出才会与草地混合而不是与相机底色混合。越界 0.5 格足够盖住淡出宽度的上限。
+        /// </summary>
+        private const float OuterSideBackingOverlapTiles = 0.5f;
+
+        /// <summary>左侧垫层的源列（画布 px；取场地内一块纯草，避开左右沿的透明列）。</summary>
+        private const float OuterSideBackingLeftSrcPx = 300f;
+
+        /// <summary>右侧垫层的源列（画布 px）。</summary>
+        private const float OuterSideBackingRightSrcPx = 700f;
+
+        /// <summary>左右垫层源列的宽度（画布 px；横向会被拉伸到 <see cref="OuterSideBackingTiles"/> 格）。</summary>
+        private const float OuterSideBackingSrcPxWidth = 20f;
 
         /// <summary>
         /// 铺场地的**底衬**：18×32 整块（order = <see cref="ArenaLayers"/>.Instance 的 Ground 层）。
@@ -1491,7 +1704,8 @@ namespace CR.View
             // 格 16.75..18.41，横跨 BLUE/RED 两段；残留桥板覆盖落在格 11.08..13.95（BLUE 段内）。
             int orderGroundOverlay = ArenaLayers.Instance.Ground + 3;
             int orderWater = ArenaLayers.Instance.Ground + 4;    // 河面压在两层半场与叠层之上
-            int orderBridge = ArenaLayers.Instance.Ground + 5;   // 桥面压在河面之上
+            int orderBank = ArenaLayers.Instance.Ground + 5;     // 河岸带压在河面之上
+            int orderBridge = ArenaLayers.Instance.Ground + 6;   // 桥面压在河面与河岸带之上
 
             var ground = FindFrameByNumber(frames, NearGroundFrameNumber);
             if (ground == null || ground.texture == null)
@@ -1565,14 +1779,14 @@ namespace CR.View
                 $" | 横向=格 0..{GameConst.ArenaTilesW} ⇔ 画布px {GroundFieldLeftPx}..{GroundFieldRightPx:F1}（{GroundPxPerTileX}px/格）" +
                 $" | 叠层：覆盖带 源行 {GapSrcPyTop}..{GapSrcPyBottom}×2 → 格 y {GapTileLow:F2}..{GapTileHigh:F1}" +
                 $"（抹掉贴图集残留的「泥带+竖木板」）" +
-                $" | 河岸带=不铺（原版水上沿以上是草+窄泥岸、无木板）" +
+                $" | 河岸带=帧22 画布行 {RiverBankPyTop}..{RiverBankPyBottom}（两段铺在两条水沿上，见 RiverBank 日志）" +
                 $" | 河面/桥见后续 RiverWater/BridgeLeft/BridgeRight 日志");
 
             // 场地**两端之外**那两条带的外圈（原版在这两条带上也有美术）。
-            BuildOuterRing(frames, ArenaLayers.Instance.Ground);
+            BuildOuterRing(frames, ground, ArenaLayers.Instance.Ground);
 
-            // 河道 = 帧 6 的蓝色水带；桥 = 帧 22 的桥板。见 BuildRiver。
-            BuildRiver(frames, orderWater, orderBridge);
+            // 河道 = 帧 6 的蓝色水带 + 帧 22 的河岸带；桥 = 帧 22 的桥板。见 BuildRiver。
+            BuildRiver(frames, orderWater, orderBridge, orderBank);
         }
 
         /// <summary>
@@ -1607,9 +1821,55 @@ namespace CR.View
         /// </para>
         /// </summary>
         /// <param name="frames">整个竞技场目录的帧（按帧号取外圈件）。</param>
+        /// <param name="ground">地面帧（铺外圈垫层用；构造与成分为 <see cref="NearGroundFrameNumber"/> 的草地源带）。</param>
         /// <param name="sortingOrder">外圈件的 sortingOrder（外圈**不与场地矩形重叠**，故与底衬同序不冲突）。</param>
-        private void BuildOuterRing(Sprite[] frames, int sortingOrder)
+        private void BuildOuterRing(Sprite[] frames, Sprite ground, int sortingOrder)
         {
+            // ⓪ 垫层：场外一条干净草地（宽度见 <see cref="OuterBandBackingTiles"/>，与场内边界带垫层同源同缩放），
+            //    order 低于崖壁 ⇒ 只补外圈件边缘的透明空洞。
+            if (ground == null || ground.texture == null)
+            {
+                Game.Logger?.Warn(LogTag,
+                    $"外圈垫层跳过：地面帧不可用（帧号 {NearGroundFrameNumber}，贴图为空）⇒ 两端之外的件边缘空洞会露相机底色");
+            }
+            else
+            {
+                var backing = sortingOrder - 1;
+                MakeCrop("OuterBackingNear", ground,
+                    GroundFieldLeftPx, EdgeFillSrcPyTop, GroundFieldRightPx, BluePrincessPyTop,
+                    0f, GameConst.ArenaTilesW, -OuterBandBackingTiles, 0f, backing);
+                MakeCrop("OuterBackingFar", ground,
+                    GroundFieldLeftPx, EdgeFillSrcPyTop, GroundFieldRightPx, BluePrincessPyTop,
+                    0f, GameConst.ArenaTilesW, GameConst.ArenaTilesH, GameConst.ArenaTilesH + OuterBandBackingTiles, backing);
+                // 相机可见上界（1080×1920 下 ≈ 场地顶 + 3.11 格）超出老垫层的那一段：
+                // 顶部中央两簇树冠之间的透明缺口会露相机底色，用同一块草地再补一条。
+                MakeCrop("OuterBackingFarTop", ground,
+                    GroundFieldLeftPx, EdgeFillSrcPyTop, GroundFieldRightPx, BluePrincessPyTop,
+                    0f, GameConst.ArenaTilesW,
+                    GameConst.ArenaTilesH + OuterBandBackingTiles,
+                    GameConst.ArenaTilesH + OuterBandBackingTiles + OuterTopBackingTiles, backing);
+                // 左右两条（场地沿外 0.55 格）：地面帧自己的透明列就落在这里，垫上同源草地后
+                // 屏上左右不再有相机底色的竖条；order 与其它垫层相同（Ground − 1）。
+                MakeCrop("OuterBackingLeft", ground,
+                    OuterSideBackingLeftSrcPx, EdgeFillSrcPyTop,
+                    OuterSideBackingLeftSrcPx + OuterSideBackingSrcPxWidth, BluePrincessPyTop,
+                    -OuterSideBackingTiles, OuterSideBackingOverlapTiles, -OuterBandBackingTiles,
+                    GameConst.ArenaTilesH + OuterBandBackingTiles, backing);
+                MakeCrop("OuterBackingRight", ground,
+                    OuterSideBackingRightSrcPx, EdgeFillSrcPyTop,
+                    OuterSideBackingRightSrcPx + OuterSideBackingSrcPxWidth, BluePrincessPyTop,
+                    GameConst.ArenaTilesW - OuterSideBackingOverlapTiles,
+                    GameConst.ArenaTilesW + OuterSideBackingTiles,
+                    -OuterBandBackingTiles, GameConst.ArenaTilesH + OuterBandBackingTiles, backing);
+                Game.Logger?.Info(LogTag,
+                    $"左右垫层已铺：各 {OuterSideBackingTiles:F2} 格（源列 px {OuterSideBackingLeftSrcPx} / " +
+                    $"{OuterSideBackingRightSrcPx}，宽 {OuterSideBackingSrcPxWidth} px → 拉伸），order={backing}");
+                Game.Logger?.Info(LogTag,
+                    $"外圈远端顶部垫层已加高 {OuterTopBackingTiles:F2} 格：格 y " +
+                    $"{GameConst.ArenaTilesH + OuterBandBackingTiles:F3}..{GameConst.ArenaTilesH + OuterBandBackingTiles + OuterTopBackingTiles:F3}" +
+                    $"（order={backing}，与远端垫层同源同缩放）");
+            }
+
             // ① 围栏一排（两端各一排）：铺在场地边界那条边上，横向铺满 [0, ArenaTilesW]。
             //    返回值 = 这一排的行高（格），给 ② 的崖壁让位用 ⇒ 两组不穿模。
             var fenceRowH = BuildFenceRow(frames, GameConst.ArenaTilesH, true, sortingOrder + 1);
@@ -1665,7 +1925,7 @@ namespace CR.View
         /// 铺一排**围栏**：4 件按 <see cref="OuterFenceFrameNumbers"/> 的顺序横向排开，铺满格 <c>[0, ArenaTilesW]</c>。
         /// <para>
         /// <b>余量怎么处理</b>：4 件自身宽度合计 ≈ 18.49 格，比场地宽多 0.49 格 ⇒ **按件间均分**
-        /// （<c>gap = (ArenaTilesW − Σ件宽) / 3</c>，本轮是 −0.162 格 ⇒ 相邻两件**轻微重叠** 0.162 格），
+        /// （<c>gap = (ArenaTilesW − Σ件宽) / 3</c>，当前取值是 −0.162 格 ⇒ 相邻两件**轻微重叠** 0.162 格），
         /// ⛔ **不缩放件本身**（"件自身像素"是硬出处，缩放会连像素密度一起改掉）。
         /// </para>
         /// </summary>
@@ -1732,7 +1992,8 @@ namespace CR.View
         /// <param name="frames">整个竞技场目录的帧（用来按帧号取 WaterFrameNumber / NearGroundFrameNumber）。</param>
         /// <param name="orderWater">河面的 sortingOrder。</param>
         /// <param name="orderBridge">桥板的 sortingOrder。</param>
-        private void BuildRiver(Sprite[] frames, int orderWater, int orderBridge)
+        /// <param name="orderBank">河岸带的 sortingOrder（河面之上、桥板之下）。</param>
+        private void BuildRiver(Sprite[] frames, int orderWater, int orderBridge, int orderBank)
         {
             // 河的纵向 = 河本身（格 15..17，2 格高）：⛔ 只许来自 GameConst。
             var riverTop = GameConst.RiverTopTile;
@@ -1754,6 +2015,56 @@ namespace CR.View
             {
                 MakeCrop("RiverWater", water, pxLeft, WaterPyTop, pxRight, WaterPyBottom,
                     0f, GameConst.ArenaTilesW, riverTop, riverBottom, orderWater);
+            }
+
+            // ①b 河岸带：帧 22 的**河岸带**（草须边 + 泥岸 + 灰石）沿两条水沿各铺一条 ——
+            //    它比水带高不到 1 格，只在两岸各压进水面 RiverBankOverlapTiles 格，
+            //    用原版自己的锯齿草边破掉水面的直线硬边（水面色本身不动）。
+            var bankSrc = FindFrameByNumber(frames, NearGroundFrameNumber);
+            if (bankSrc == null || bankSrc.texture == null)
+            {
+                Game.Logger?.Warn(LogTag,
+                    $"河岸带源帧按帧号取不到（帧号 {NearGroundFrameNumber}）⇒ 水面保持直边");
+            }
+            else
+            {
+                var bankH = (RiverBankPyBottom - RiverBankPyTop) / GroundPxPerTileX;
+                // 横向两段（断口见 RiverBankSplitPxLeft）：每段都按"画布 px → 格"同一算式落位。
+                var segPx = new[] { GroundFieldLeftPx, RiverBankSplitPxLeft, RiverBankSplitPxRight, GroundFieldRightPx };
+                for (var s = 0; s < 2; s++)
+                {
+                    var pxL = segPx[s * 2];
+                    var pxR = segPx[s * 2 + 1];
+                    var tileL = (pxL - GroundFieldLeftPx) / GroundPxPerTileX;
+                    var tileR = (pxR - GroundFieldLeftPx) / GroundPxPerTileX;
+                    var tag = s == 0 ? "L" : "R";
+                    // 远端水沿（格 y = riverBottom）：草须边朝水（下），不镜像。
+                    MakeCrop("RiverBankFar" + tag, bankSrc, pxL, RiverBankPyTop, pxR, RiverBankPyBottom,
+                        tileL, tileR,
+                        riverBottom - RiverBankOverlapTiles, riverBottom - RiverBankOverlapTiles + bankH, orderBank);
+                    // 近端水沿（格 y = riverTop）：草须边朝上（朝水）⇒ flipY。
+                    MakeCrop("RiverBankNear" + tag, bankSrc, pxL, RiverBankPyTop, pxR, RiverBankPyBottom,
+                        tileL, tileR,
+                        riverTop + RiverBankOverlapTiles - bankH, riverTop + RiverBankOverlapTiles, orderBank, flipY: true);
+                }
+                // ①c 断口补齐：两段河岸之间 px 326..396 在源帧里是一束非桥位竖板（不铺草须），
+                //     两段各自收边会在河中间留下两个硬切口。这里用同一行段的**干净河岸**（px 640..710）
+                //     把断口整段铺满，视觉上是一条连续岸线；桥上再压桥板（order 更高）。
+                // 断口两侧各多盖 8 px：源帧在 326 / 396 处各有一束竖板的边缘，正好压在两段收边上，
+                // 会露出两条竖木片（实机帧 x≈385 的细木条）⇒ 补片放大到 318..404，盖住两条毛边。
+                var gapL = (RiverBankSplitPxLeft - 8f - GroundFieldLeftPx) / GroundPxPerTileX;
+                var gapR = (RiverBankSplitPxRight + 8f - GroundFieldLeftPx) / GroundPxPerTileX;
+                MakeCrop("RiverBankGapFar", bankSrc, 640f, RiverBankPyTop, 710f, RiverBankPyBottom,
+                    gapL, gapR,
+                    riverBottom - RiverBankOverlapTiles, riverBottom - RiverBankOverlapTiles + bankH, orderBank);
+                MakeCrop("RiverBankGapNear", bankSrc, 640f, RiverBankPyTop, 710f, RiverBankPyBottom,
+                    gapL, gapR,
+                    riverTop + RiverBankOverlapTiles - bankH, riverTop + RiverBankOverlapTiles, orderBank, flipY: true);
+
+                Game.Logger?.Info(LogTag,
+                    $"河岸带：源=帧 {NearGroundFrameNumber} 画布行 {RiverBankPyTop}..{RiverBankPyBottom}" +
+                    $"（{bankH:F3} 格高）→ 两条水沿各压进水面 {RiverBankOverlapTiles} 格，order={orderBank}" +
+                    $"（河面 {orderWater} / 桥面 {orderBridge}）；带内含原版灰石（画布 x 137..167 / 530..586 / 664..699）");
             }
 
             // ② 两座桥：中心 x 只许来自 GameConst（桥心 3.5 / 14.5）；桥板宽 = 裁条像素宽 ÷ 45.545 px/格。
@@ -2130,9 +2441,10 @@ namespace CR.View
             //   · **条上的数字与等级牌**（原版 04 图底部公主塔条上「1740」+ 左侧金色等级牌）：
             //     挂在引擎血条的**附属版面**插槽上（`WorldHpBar.GetAttachment`，见
             //     `AttachTowerBarDeco` 的常量出处），跟着条体做广告牌朝向 / 显隐 / 改尺寸。
+            // 国王塔条离塔顶 2.35 格（比公主塔高 0.35 格）：再高就会顶到顶部冠数徽章。
             var bar = WorldHpBar.Create(go.transform, isKing ? 1.8f : 1.4f, 0.20f,
-                isKing ? 2.6f : 2.0f, LogTag + (isKing ? ".KingHp" : ".PrinHp"), ArenaLayers.Instance.Overlay);
-            var hpNumber = AttachTowerBarDeco(bar, LogTag);
+                isKing ? KingHpBarYOffset : 2.0f, LogTag + (isKing ? ".KingHp" : ".PrinHp"), ArenaLayers.Instance.Overlay);
+            var hpNumber = AttachTowerBarDeco(bar, LogTag, team);
             var view = new TowerView(team, isKing, xTile, yTile, roster, FindLayerRenderer(go.transform), bar,
                 rubble, hpNumber, muzzle, turret, kingLayer, occupantLayer, frames, princessOccupantFrames);
             _towers.Add(view);
@@ -2168,28 +2480,26 @@ namespace CR.View
         /// </summary>
         private const int TowerLevelPlateValue = 11;
 
-        /// <summary>等级牌高（版面单位）。出处 = 04 图实测 55 px ÷ 条高 42 px = 1.310 ⇒ 131。</summary>
+        /// <summary>等级徽章高（版面单位）。出处 = 04 图实测 55 px ÷ 条高 42 px = 1.310 ⇒ 131（≈ 19 设计像素 ≤ 22）。</summary>
         private const float LevelPlateH = 131f;
 
-        /// <summary>
-        /// 等级牌宽高比。出处 = **帧自身**：原版帧 `ui_out` 883 的非透明包围盒 **66×62**（`ui-sc-index` 的
-        /// 尺寸列）⇒ 1.065。⛔ 不用量到的 1.072 去拉伸素材（那会把原版像素拉变形）。
-        /// </summary>
-        private const float LevelPlateAspect = 66f / 62f;
+        /// <summary>等级徽章（金冠）宽 = 同一高度档（版面单位）；素材自身宽高比由 `AspectImage` 保持。</summary>
+        private const float LevelBadgeW = 131f;
 
-        /// <summary>等级牌中心相对条体中心的 y（版面单位，正 = 向上）。出处 = 04 图实测 金牌中心 1996.5 − 条中心 2004 = −7.5 px ÷ 42 ⇒ +17.9 ⇒ 18。</summary>
+        /// <summary>等级数字与金冠之间的缝（版面单位）。</summary>
+        private const float LevelBadgeGap = 12f;
+
+        /// <summary>等级文字矩形宽（版面单位）：容得下「Lv11」。</summary>
+        private const float LevelValueW = 130f;
+
+        /// <summary>等级文字字号（版面单位）= 72（字面高 ≈ 52 单位 ≈ 7 设计像素，与 19px 高的金冠同档）。</summary>
+        private const int LevelValueFontSize = 72;
+
+        /// <summary>等级徽章中心相对条体中心的 y（版面单位，正 = 向上）。出处 = 04 图实测 金牌中心 1996.5 − 条中心 2004 = −7.5 px ÷ 42 ⇒ +17.9 ⇒ 18。</summary>
         private const float LevelPlateCenterY = 18f;
 
-        /// <summary>
-        /// 等级数字字号（版面单位）。出处 = `策划/基线图/20_对局_1080x1920.jpg` 的 3× 放大裁切上量取：
-        /// 数字芯高 ≈ **0.53 × 金牌高**（该图金牌 38 px、牌内数字 ≈20 px）⇒ 0.53 × 131 ÷ 0.72
-        /// （数字字形高/字号比，与 `CrUiStyle` 字号档同一分母）= **96**。
-        /// 该值 = 字形比折算（金牌自身的高光/暗缘会破坏数字掩膜，逐像素量取不可用）。
-        /// </summary>
-        private const int LevelPlateFontSize = 96;
-
-        /// <summary>等级数字色。原版是深色数字压在金牌上（04 图上量得中位 (132,107,23)，被金牌自身混合）⇒ 取黑（与全项目描边色同一支）。</summary>
-        private static readonly Color LevelPlateInk = Color.black;
+        /// <summary>国王塔血条离塔顶的高度（格）。比公主塔的 2.0 高 0.35，且顶部冠数徽章矩形与条体不相交。</summary>
+        private const float KingHpBarYOffset = 2.35f;
 
         /// <summary>
         /// 血量数字字号（版面单位）。出处 = 04 图实测 数字芯高 26 px ÷ 条高 42 px = 0.619 ⇒ 61.9 单位
@@ -2221,7 +2531,7 @@ namespace CR.View
         /// </summary>
         /// <param name="bar">血条；<c>null</c>（建件失败）时返回 <c>null</c>。</param>
         /// <param name="logTag">日志标签（沿用该塔的标签）。</param>
-        private static Text AttachTowerBarDeco(WorldHpBar bar, string logTag)
+        private static Text AttachTowerBarDeco(WorldHpBar bar, string logTag, int team)
         {
             if (bar == null) return null;
             var slot = bar.GetAttachment(BarDecoNodeName);
@@ -2232,17 +2542,24 @@ namespace CR.View
                 return null;
             }
 
-            var plateW = LevelPlateH * LevelPlateAspect;
-            // 等级牌：右缘贴条体外框左缘、竖直方向按 04 图的读数抬高。
-            CrUiStyle.Icon("LevelPlate", slot, ResPaths.IconCrownBig,
-                new Vector2(0f, 0.5f), new Vector2(1f, 0.5f),
-                new Vector2(0f, LevelPlateCenterY), new Vector2(plateW, LevelPlateH));
+            // 条体外观（圆角胶囊 + 描边 + 高光 + 队伍色填充）建在同一块版面的最底层：
+            // 之后建的等级徽章与数字都在它之上。取不到时退化为"引擎填充 = 队伍色"。
+            var fill = team == 0 ? CrUiStyle.HpFillBlue : CrUiStyle.HpFillRed;
+            var skin = CrUiStyle.DressHpBar(bar, slot, fill);
+            bar.SetFillColor(skin != null ? new Color(0f, 0f, 0f, 0f) : fill);
 
-            // 等级数字：压在同一块牌上（同一锚点/尺寸 ⇒ 准居中）。
-            var level = UIFactory.CreateText("LevelValue", slot, TowerLevelPlateValue.ToString(),
-                LevelPlateFontSize, TextAnchor.MiddleCenter, LevelPlateInk);
-            UIFactory.Place(level.rectTransform, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f),
-                new Vector2(0f, LevelPlateCenterY), new Vector2(plateW, LevelPlateH));
+            // 等级徽章 = 原版金冠（`ui_out/50`）+ 等级数字，整体贴在条体外框左缘**之外**
+            // （⛔ 不压条体）：金冠右缘贴条左缘，数字排在金冠左侧。
+            CrUiStyle.AspectImage("LevelCrown", slot, ResPaths.IconCrownGold, LevelBadgeW,
+                new Vector2(0f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(0f, LevelPlateCenterY), CrUiStyle.Accent);
+
+            var level = CrUiStyle.ValueText("LevelValue", slot, "Lv" + TowerLevelPlateValue,
+                LevelValueFontSize, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(-(LevelBadgeW + LevelBadgeGap), LevelPlateCenterY),
+                new Vector2(LevelValueW, LevelPlateH), TextAnchor.MiddleRight);
+            // 两个数字 + 前缀比矩形宽，⛔ 不许换行（换行会变成「Lv1 / 1」两行）
+            level.horizontalOverflow = HorizontalWrapMode.Overflow;
 
             // 血量数字：白字 + 黑描边（原版口径；描边件与 `CrUiStyle.Outlined` 同一支），左对齐排在条内左端。
             var number = CrUiStyle.Outlined("HpNumber", slot, string.Empty, HpNumberFontSize,
@@ -2515,7 +2832,7 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 按**服务端塔 id**取该塔的**炮口世界坐标**（见 `策划/差异登记.tsv`）。
+        /// 按**服务端塔 id**取该塔的**炮口世界坐标**（见 `策划/对照表.md` §D.3）。
         /// <para>
         /// 用途：服务端开火事件 <c>EvTowerShoot</c> 的载荷里 <c>entity_id</c> 是塔 id、坐标是**塔根**；
         /// 弹道要从塔顶那门弩/炮出发才对得上原版画面，而塔不在快照的 <c>entities</c> 里（见
@@ -2528,9 +2845,8 @@ namespace CR.View
         /// </summary>
         public bool TryTowerMuzzle(int towerId, out Vector2 world)
         {
-            // `towerId == 0` 不是合法键：服务端的塔实体 id **从 0 起**（见 `TryTowerMuzzle(int,int,int,out)` 的注释），
-            // 而 `TowerView.Id` 的初值也是 0 ⇒ 用 0 去匹配会命中的是"快照还没 `Apply` 过的那座塔"，
-            // 取到的是不相干那座塔的炮口。
+            // `towerId == 0` 不是合法的塔实体 id（服务端的塔实体 id 从 1 起）⇒ 这条守卫只拦
+            // 「还没被任何快照 `Apply` 过、id 仍是初值 0 的那座塔」，不会误伤任何合法塔。
             if (towerId == 0)
             {
                 world = default(Vector2);
@@ -2549,14 +2865,13 @@ namespace CR.View
         /// <summary>
         /// 按**塔位 + 队伍**取炮口世界坐标（不用服务端 id）。
         /// <para>
-        /// 为什么还需要这一条：<see cref="TryTowerMuzzle(int,out Vector2)"/> 靠 id 对号，而塔**不在**快照的
-        /// `entities` 里（见 <see cref="TowerView"/> 的类注释）⇒ 开火事件里的 `entity_id` 实测恒为 **0**
-        /// （客户端日志行 `对局事件 kind=6 team=0 card=0 ent=0 pos=(9.00,3.00)`；服务端 `emitTowerShoot`
-        /// 填的就是塔实体自己的 id，而塔实体 id 从 0 起）⇒ 永远匹配不上，闪光会落回**塔底**而不是炮口。
-        /// </para>
-        /// <para>
         /// 对号方式：取**同队伍里离事件坐标最近**的那座塔。塔位是固定几何（`GameConst`，两塔最近相距 ≥ 3 格），
         /// 而事件坐标就是塔根 ⇒ 这条匹配在几何上是唯一的，不需要 id。
+        /// </para>
+        /// <para>
+        /// 塔不在快照的 `entities` 里（见 <see cref="TowerView"/> 的类注释）⇒ 事件载荷里的塔 id
+        /// 要靠 <see cref="TryTowerMuzzle(int,out Vector2)"/> 在塔列表里按 id 认；这条按坐标的匹配与它
+        /// 互为兜底（这条不依赖 id 认到塔）。
         /// </para>
         /// </summary>
         public bool TryTowerMuzzle(int xMilli, int yMilli, int team, out Vector2 world)
@@ -2578,6 +2893,112 @@ namespace CR.View
             }
             world = best;
             return found;
+        }
+
+        /// <summary>
+        /// **开火时让该塔的乘员播一遍攻击动画**（服务端 `EvTowerShoot` 的表现用）。
+        /// <para>
+        /// 对号方式与 <see cref="TryTowerMuzzle(int,int,int,out Vector2)"/> 同：取该队伍里离事件坐标最近的塔
+        /// （事件载荷带的就是该塔自己的塔根坐标，塔位是固定几何 ⇒ 几何上唯一）。
+        /// </para>
+        /// <para>
+        /// 国王塔没有攻击档（原版 `building_tower` 的国王坐像只有 idle，见生成器 `tower-anim-gen.py`）
+        /// ⇒ 返回 false 且不改状态；公主塔返回是否真的开始了这一遍动画。
+        /// </para>
+        /// </summary>
+        public bool TryPlayTowerAttack(int xMilli, int yMilli, int team)
+        {
+            var t = NearestTower(team, GameConst.MilliToWorld(xMilli, yMilli));
+            return t != null && t.PlayAttack();
+        }
+
+        /// <summary>
+        /// **国王塔开火后坐**（服务端 `EvTowerShoot` 的表现用）。对号方式同 <see cref="TryPlayTowerAttack"/>
+        /// （取该队伍里离事件坐标最近的塔）。
+        /// <para>
+        /// 公主塔**不动**（它已有乘员攻击档，见 <see cref="TryPlayTowerAttack"/>）；对上的不是国王塔时
+        /// <paramref name="started"/> = false 且不改任何状态。
+        /// </para>
+        /// </summary>
+        /// <returns>true = 对上的那座塔**是国王塔**（用于"王塔开火数"计数）；false = 对上的是公主塔 / 没对上。</returns>
+        /// <param name="roster">对上的塔在服务端 roster 里的下标（0 = 王塔）；没对上 = -1。</param>
+        /// <param name="started">本次是否真的起了后坐（没有目标方向 / 炮塔层缺失 ⇒ false）。</param>
+        public bool TryPlayKingRecoil(int xMilli, int yMilli, int team, Vector2 targetWorld,
+            out int roster, out bool started)
+        {
+            roster = -1;
+            started = false;
+            var t = NearestTower(team, GameConst.MilliToWorld(xMilli, yMilli));
+            if (t == null || !t.IsKing) return false;
+            roster = t.Roster;
+            float px, seconds;
+            started = t.PlayKingRecoil(targetWorld, out px, out seconds);
+            return true;
+        }
+
+        /// <summary>本场国王塔后坐累计触发次数（自检用：应等于王塔开火事件数）。</summary>
+        public int KingRecoilPlays
+        {
+            get
+            {
+                var n = 0;
+                for (var i = 0; i < _towers.Count; i++) n += _towers[i].RecoilPlays;
+                return n;
+            }
+        }
+
+        /// <summary>本场塔乘员攻击动画播出的总次数（自检用）。</summary>
+        public int TowerAttackPlays
+        {
+            get
+            {
+                var n = 0;
+                for (var i = 0; i < _towers.Count; i++) n += _towers[i].AttackPlays;
+                return n;
+            }
+        }
+
+        /// <summary>本场塔攻击档累计推进的不同时间轴帧数（自检用；取所有塔的最大值）。</summary>
+        public int TowerAttackFramesSeen
+        {
+            get
+            {
+                var n = 0;
+                for (var i = 0; i < _towers.Count; i++) n = Mathf.Max(n, _towers[i].AttackFramesSeen);
+                return n;
+            }
+        }
+
+        /// <summary>每座塔的攻击动画读数（自检日志用）。</summary>
+        public string TowerAttackReport()
+        {
+            var sb = new System.Text.StringBuilder();
+            for (var i = 0; i < _towers.Count; i++)
+            {
+                var t = _towers[i];
+                if (i > 0) sb.Append(" | ");
+                sb.Append(t.Team == 0 ? "BLUE/" : "RED/").Append(t.IsKing ? "King " : "Princess ")
+                  .Append(t.AttackReport());
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>同队伍里离 <paramref name="p"/> 最近的塔（塔不在快照实体里，按固定塔位对号）。</summary>
+        private TowerView NearestTower(int team, Vector2 p)
+        {
+            TowerView best = null;
+            var bestSq = float.MaxValue;
+            for (var i = 0; i < _towers.Count; i++)
+            {
+                var t = _towers[i];
+                if (t.Team != team) continue;
+                var w = GameConst.TileToWorld(t.TileX, t.TileY);
+                var dx = w.x - p.x;
+                var dy = w.y - p.y;
+                var d2 = dx * dx + dy * dy;
+                if (d2 < bestSq) { bestSq = d2; best = t; }
+            }
+            return best;
         }
 
         /// <summary>
@@ -2766,7 +3187,7 @@ namespace CR.View
             /// <summary>
             /// **炮口**层（公主塔 = 乘员层 `Princess`；国王塔 = 炮塔层 `Turret`）的 Transform。
             /// <para>
-            /// 用途（见 `策划/差异登记.tsv`）：服务端开火事件 <c>EvTowerShoot</c> 只在载荷里给**塔根**坐标，
+            /// 用途（见 `策划/对照表.md` §D.3）：服务端开火事件 <c>EvTowerShoot</c> 只在载荷里给**塔根**坐标，
             /// 而弹道/枪口闪光应该从**塔顶那门弩/炮**出发 —— 这一层的世界坐标就是**从原版 art 的
             /// 层配方直接得到的**（见 <see cref="ArenaView.BluePrincessRecipe"/> 等），
             /// ⛔ 不需要在这里编一个"炮口高度"的常数。
@@ -2788,6 +3209,10 @@ namespace CR.View
             /// <summary>
             /// 服务端给的塔 id（`TowerState.id`）—— 用来把开火事件 <c>EvTowerShoot.entity_id</c>
             /// 认到具体哪一座塔（塔不在快照的 `entities` 里，只能这样对号）。
+            /// <para>
+            /// 初值 0 = 这座塔还没被任何快照 `Apply` 过（服务端的塔实体 id 从 1 起 ⇒ 0 不是合法塔 id，
+            /// 不会与任何塔撞车）。
+            /// </para>
             /// </summary>
             public int Id { get; private set; }
 
@@ -2826,6 +3251,41 @@ namespace CR.View
             /// </summary>
             private readonly AimLayer _turretAim;
 
+            /// <summary>国王塔开火的炮塔**后坐位移**（原版像素）：沿开火反方向退这么多。</summary>
+            private const float KingRecoilPx = 2.5f;
+
+            /// <summary>
+            /// 后坐回弹时长（秒）：线性回到原位。
+            /// 取 60 ms（区间 60~80 ms 的下沿）：回弹按帧推进，60 fps 下 4 帧 = 67 ms、
+            /// 40 fps 下 3 帧 = 75 ms，都在区间内；取 80 ms 会在 25 fps 下量到 ~100 ms。
+            /// </summary>
+            private const float KingRecoilSeconds = 0.06f;
+
+            /// <summary>后坐是否在进行中（由 <see cref="TickRecoil"/> 推进、到点归位）。</summary>
+            private bool _recoiling;
+
+            /// <summary>
+            /// 本帧是否要**跳过**推进：起手那一帧先原样渲染峰值位姿。
+            /// <para>
+            /// 为什么需要：后坐只有 60 ms，低帧率下（编辑器 10~15 fps）起手帧的 LateUpdate
+            /// 会一步推进 60~100 ms 直接归位 ⇒ 画面上一帧都看不到后坐。起手帧不平移时间轴，
+            /// 保证峰值位姿至少被渲染一帧；时间轴本身仍是 60 ms。
+            /// </para>
+            /// </summary>
+            private bool _recoilHoldPeak;
+
+            /// <summary>本次后坐已推进的时间（秒）。</summary>
+            private float _recoilT;
+
+            /// <summary>后坐起点的炮塔层局部坐标（连发时按当前偏移折回，见 <see cref="PlayKingRecoil"/>）。</summary>
+            private Vector3 _recoilBase;
+
+            /// <summary>后坐在炮塔父节点局部空间里的方向（= 开火方向的反向，单位向量）。</summary>
+            private Vector3 _recoilDirLocal;
+
+            /// <summary>本塔累计触发的后坐次数（自检用）。</summary>
+            public int RecoilPlays { get; private set; }
+
             public TowerView(int team, bool isKing, float tileX, float tileY, int roster, SpriteRenderer renderer,
                 WorldHpBar bar, SpriteRenderer[] rubbleRenderers, Text hpNumber = null,
                 Transform muzzle = null, Transform turret = null,
@@ -2847,7 +3307,12 @@ namespace CR.View
                 _turretAim = MakeTurretAim(turret, towerFrames);
                 // 国王塔起手**未激活** ⇒ 炮塔层不显示（原版同一状态，见 KingTurretAlphaZeroCt）。
                 KingActive = !isKing;
-                if (isKing) SetTurretEnabled(false);
+                if (isKing)
+                {
+                    SetTurretEnabled(false);
+                    // 未激活 = 沉睡：坐像停在首帧（收到 EvTowerActivated 才恢复 idle，见 SetKingActive）。
+                    if (_kingAnim != null) _kingAnim.SetFrozen(true);
+                }
             }
 
             /// <summary>
@@ -2863,16 +3328,62 @@ namespace CR.View
                 {
                     var r = kingLayer.GetComponent<SpriteRenderer>();
                     if (r != null && r.sprite != null)
-                        list.Add(new AnimLayer(r, towerFrames, TowerAnimTable.KingIdle(Team), who + r.name));
+                    {
+                        _kingAnim = new AnimLayer(r, towerFrames, TowerAnimTable.KingIdle(Team), who + r.name);
+                        list.Add(_kingAnim);
+                    }
                 }
                 if (occupantLayer != null)
                 {
                     var r = occupantLayer.GetComponent<SpriteRenderer>();
                     if (r != null && r.sprite != null)
-                        list.Add(new AnimLayer(r, occupantFrames, TowerAnimTable.OccupantIdle(Team), who + r.name));
+                    {
+                        // 乘员的朝向视角是**固定**的（配方给的那一帧：蓝 = 视角 3、红 = 视角 7，见
+                        // `BluePrincessOccupantFrame` / `RedPrincessOccupantFrame`）⇒ 攻击档取同一视角。
+                        var view = Team == 1 ? OccupantViewRed : OccupantViewBlue;
+                        _occupant = new AnimLayer(r, occupantFrames, TowerAnimTable.OccupantIdle(Team), who + r.name,
+                            TowerAnimTable.OccupantAttack(Team, view));
+                        list.Add(_occupant);
+                    }
                 }
                 return list.ToArray();
             }
+
+            /// <summary>公主塔乘员动画所用的视角：蓝方 = 3（`princess_tower_idle1_3`）、红方 = 7（`princess_tower_red_idle1_7`）。</summary>
+            private const int OccupantViewBlue = 3;
+            private const int OccupantViewRed = 7;
+
+            /// <summary>乘员的逐帧动画层（无乘员层时为 null）。</summary>
+            private AnimLayer _occupant;
+
+            /// <summary>
+            /// 国王坐像的逐帧动画层（只有国王塔有）。后坐时与炮塔层一起退同样的位移 ——
+            /// 蓝方配方把王画在最后一层（盖住炮管近端，见 <see cref="ArenaView.BlueKingRecipe"/>），
+            /// 只动炮塔层时画面上几乎看不出后退。
+            /// </summary>
+            private AnimLayer _kingAnim;
+
+            /// <summary>
+            /// 开火时让乘员播一遍攻击档（播完由 <see cref="AnimLayer.Advance"/> 自动回 idle）。
+            /// 没有乘员层 / 该塔无攻击档（国王塔坐像）⇒ false，调用方不改任何状态。
+            /// </summary>
+            public bool PlayAttack()
+            {
+                if (_destroyed || _occupant == null) return false;
+                return _occupant.PlayAttackOnce();
+            }
+
+            /// <summary>本塔乘员攻击档的读数（自检用）：`plays=N frames=M`。</summary>
+            public string AttackReport()
+            {
+                return _occupant == null ? "无乘员层" : $"plays={_occupant.AttackPlays} frames={_occupant.AttackFramesSeen}";
+            }
+
+            /// <summary>本塔累计播出的攻击动画次数（自检用）。</summary>
+            public int AttackPlays { get { return _occupant != null ? _occupant.AttackPlays : 0; } }
+
+            /// <summary>本塔攻击档累计推进过的不同时间轴帧数（自检用：≥3 说明序列在走）。</summary>
+            public int AttackFramesSeen { get { return _occupant != null ? _occupant.AttackFramesSeen : 0; } }
 
             /// <summary>建炮塔瞄准层（<paramref name="turret"/> 为 null = 公主塔 ⇒ 不建）。</summary>
             private static AimLayer MakeTurretAim(Transform turret, Sprite[] towerFrames)
@@ -2896,6 +3407,109 @@ namespace CR.View
                 frame = _turretAim.Aim(targetWorld, out angleDeg);
                 flip = _turretAim.CurrentFlip;
                 return frame >= 0;
+            }
+
+            /// <summary>
+            /// **国王塔开火后坐**：炮塔层沿开火方向的反向退 <see cref="KingRecoilPx"/> 像素，
+            /// 在 <see cref="KingRecoilSeconds"/> 秒内线性回到原位（由 <see cref="TickRecoil"/> 推进）。
+            /// <para>
+            /// 只对国王塔生效：公主塔已有乘员攻击档（<see cref="PlayAttack"/>），⛔ 不叠第二套动作；
+            /// 国王塔在原版 `building_tower_v215.sc` 里没有攻击帧，开火的"动"就由后坐表达。
+            /// 退的是**炮塔层 + 国王坐像层**（两者同位移）：蓝方配方把王画在最后一层、盖住炮管近端
+            /// （见 <see cref="ArenaView.BlueKingRecipe"/>），只动炮塔层时画面上几乎看不出后退。
+            /// </para>
+            /// <para>
+            /// 方向 = 炮塔 → 目标（调用方的最近敌方近似，与弹道同一个目标）。像素到局部坐标的换算按炮塔
+            /// 精灵的 `pixelsPerUnit` ⇒ 位移就是原版美术的 2.5 px（父节点缩放由局部空间自动承担）。
+            /// </para>
+            /// </summary>
+            /// <returns>true = 真的起了这次后坐（国王塔 + 炮塔层在 + 有方向）。</returns>
+            public bool PlayKingRecoil(Vector2 targetWorld, out float px, out float seconds)
+            {
+                px = KingRecoilPx;
+                seconds = KingRecoilSeconds;
+                if (!IsKing || _destroyed || _turret == null) return false;
+
+                var world = (Vector3)targetWorld - _turret.position;
+                if (world.sqrMagnitude < 1e-6f) return false;
+                world.Normalize();
+                var parent = _turret.parent;
+                var localDir = parent != null ? parent.InverseTransformDirection(world) : world;
+                if (localDir.sqrMagnitude < 1e-6f) return false;
+                localDir.Normalize();
+
+                // 连发时上一发可能还没回弹完 ⇒ 把当前已施加的偏移从基线里折掉，避免基点漂移。
+                _recoilBase = _turret.localPosition - RecoilOffset();
+                _recoilDirLocal = -localDir;
+                _recoilT = 0f;
+                _recoiling = true;
+                _recoilHoldPeak = true;
+                RecoilPlays++;
+                // 起手就写满位移（不等下一次 LateUpdate）：否则第一帧推进 16 ms 后只剩 ~77% 位移，
+                // 观感上"退得不够"且截图/读数取不到满幅。
+                var offLocal = _recoilDirLocal * (KingRecoilPx / TurretPpu());
+                _turret.localPosition = _recoilBase + offLocal;
+                if (_kingAnim != null) _kingAnim.ExtraOffset = offLocal;
+                var offWorld = parent != null ? parent.TransformVector(offLocal) : offLocal;
+                var cam = Camera.main;
+                var screen = cam != null
+                    ? cam.WorldToScreenPoint(_turret.position + offWorld) - cam.WorldToScreenPoint(_turret.position)
+                    : Vector3.zero;
+                Game.Logger?.Info(LogTag,
+                    $"塔后坐：team={Team} roster={Roster} 炮塔层={_turret.name} " +
+                    $"位移={KingRecoilPx:F1}px（局部 ({offLocal.x:F4},{offLocal.y:F4}) " +
+                    $"世界 ({offWorld.x:F4},{offWorld.y:F4}) 屏幕 ({screen.x:F2},{screen.y:F2}) " +
+                    $"基线 ({_recoilBase.x:F4},{_recoilBase.y:F4})） " +
+                    $"时长={KingRecoilSeconds * 1000f:F0}ms 本塔累计={RecoilPlays}");
+                return true;
+            }
+
+            /// <summary>当前这一帧应施加的后坐偏移（局部坐标；`0` = 已归位 / 未在播）。</summary>
+            private Vector3 RecoilOffset()
+            {
+                if (_turret == null) return Vector3.zero;
+                var k = 1f - Mathf.Clamp01(_recoilT / KingRecoilSeconds);
+                return _recoilDirLocal * (KingRecoilPx / TurretPpu()) * k;
+            }
+
+            /// <summary>炮塔精灵的 PPU（决定"1 像素 = 多少局部单位"）。</summary>
+            private float TurretPpu()
+            {
+                var sr = _turret != null ? _turret.GetComponent<SpriteRenderer>() : null;
+                var sp = sr != null ? sr.sprite : null;
+                return sp != null && sp.pixelsPerUnit > 0.01f ? sp.pixelsPerUnit : SpriteBank.FallbackPixelsPerUnit;
+            }
+
+            /// <summary>
+            /// 推进后坐（每帧，由 <see cref="TickAnimations"/> 调）：线性回弹，到点写回基线并留一条归位读数
+            /// （判据 = 归位误差为 0）。
+            /// </summary>
+            private void TickRecoil(float dt)
+            {
+                if (!_recoiling || _turret == null) return;
+                if (_recoilHoldPeak)
+                {
+                    // 起手帧：保持满幅位移不推进（见 _recoilHoldPeak 的注释）。
+                    _recoilHoldPeak = false;
+                    var hold = RecoilOffset();
+                    _turret.localPosition = _recoilBase + hold;
+                    if (_kingAnim != null) _kingAnim.ExtraOffset = hold;
+                    return;
+                }
+                _recoilT += dt;
+                if (_recoilT >= KingRecoilSeconds)
+                {
+                    _recoiling = false;
+                    _turret.localPosition = _recoilBase;
+                    if (_kingAnim != null) _kingAnim.ExtraOffset = Vector3.zero;
+                    var err = (_turret.localPosition - _recoilBase).magnitude;
+                    Game.Logger?.Info(LogTag,
+                        $"塔后坐回弹：team={Team} roster={Roster} 用时={_recoilT * 1000f:F0}ms 归位误差={err:F6}（局部单位）");
+                    return;
+                }
+                var off = RecoilOffset();
+                _turret.localPosition = _recoilBase + off;
+                if (_kingAnim != null) _kingAnim.ExtraOffset = off;
             }
 
             /// <summary>
@@ -2991,6 +3605,8 @@ namespace CR.View
             {
                 // 阵亡后塔体各层已关掉（废墟亮）⇒ 不再推进（废墟是静态帧，无动画）。
                 if (_destroyed) return;
+                TickRecoil(dt);
+                TickWakeFlash();
                 for (var i = 0; i < _anims.Length; i++) _anims[i].Advance(dt);
             }
 
@@ -3017,15 +3633,34 @@ namespace CR.View
             {
                 private readonly SpriteRenderer _renderer;
                 private readonly Sprite[] _pool;
-                private readonly TowerAnimTable.Anim _anim;
+                private readonly TowerAnimTable.Anim _idle;
+                /// <summary>攻击档（`FrameCount == 0` = 该层没有攻击动画，如国王坐像）。</summary>
+                private readonly TowerAnimTable.Anim _attack;
                 private readonly Vector3 _basePos;
                 private readonly Vector3 _baseScale;
                 private readonly Vector2 _refCenter;
                 private float _time;
                 private int _timelineFrame = -1;
+                /// <summary>current 是否正在播攻击档（播完自动回 idle）。</summary>
+                private bool _attacking;
+
+                /// <summary>时间轴是否冻结（国王塔未激活时停首帧，激活后恢复 idle）。</summary>
+                private bool _frozen;
+
+                /// <summary>本层的渲染器（国王塔激活闪光用）。</summary>
+                public SpriteRenderer Renderer { get { return _renderer; } }
+
+                /// <summary>冻结 / 恢复本层的时间轴（已冻结时不会重置已播到的帧）。</summary>
+                public void SetFrozen(bool frozen) { _frozen = frozen; }
 
                 /// <summary>本局播过的**不同时间轴帧**数（自检用：= 1 就是"只播了一帧"，动画没接上）。</summary>
                 public int FramesSeen { get; private set; }
+
+                /// <summary>本局攻击档播出的次数（自检用）。</summary>
+                public int AttackPlays { get; private set; }
+
+                /// <summary>本局攻击档播过的**不同时间轴帧**数（自检用：≥3 说明攻击序列真的在走）。</summary>
+                public int AttackFramesSeen { get; private set; }
 
                 /// <summary>推进断言日志只打一次（建塔时那条只说"表接上了"，这条证明**时间轴真的在走**）。</summary>
                 private bool _advanceLogged;
@@ -3033,12 +3668,23 @@ namespace CR.View
                 /// <summary>日志用标签（"BLUE/KingTower/King" 这种；建塔时传入）。</summary>
                 private readonly string _label;
 
-                public AnimLayer(SpriteRenderer renderer, Sprite[] pool, TowerAnimTable.Anim anim, string label)
+                /// <summary>
+                /// 额外的位置偏移（父节点局部空间；`0` = 无）。国王塔开火后坐用它把坐像整体退开
+                /// （炮塔层另有自己的位移，见 <see cref="TowerView.TickRecoil"/>）。
+                /// </summary>
+                public Vector3 ExtraOffset;
+
+                /// <summary>上一次已写进 `localPosition` 的 <see cref="ExtraOffset"/>（变了就重写，见 <see cref="Advance"/>）。</summary>
+                private Vector3 _appliedExtra;
+
+                public AnimLayer(SpriteRenderer renderer, Sprite[] pool, TowerAnimTable.Anim idle, string label,
+                    TowerAnimTable.Anim attack = default(TowerAnimTable.Anim))
                 {
                     _label = label;
                     _renderer = renderer;
                     _pool = pool;
-                    _anim = anim;
+                    _idle = idle;
+                    _attack = attack;
                     // 配方刚建出来的状态就是**参考帧**（国王 = 首帧 101/16、乘员 = 502/2）：
                     // 它的 localPosition/localScale 与裁剪框中心就是后续每帧的对位基准。
                     _basePos = renderer.transform.localPosition;
@@ -3049,23 +3695,60 @@ namespace CR.View
 
                 public string Describe()
                 {
-                    return $"{_renderer.name} fps={_anim.Fps} 时间轴帧={_anim.FrameCount} 段={_anim.Keys.Length} " +
-                           $"首帧={(_anim.Keys.Length == 0 ? -1 : _anim.Keys[0].Frame)}";
+                    return $"{_renderer.name} fps={_idle.Fps} 时间轴帧={_idle.FrameCount} 段={_idle.Keys.Length} " +
+                           $"首帧={(_idle.Keys.Length == 0 ? -1 : _idle.Keys[0].Frame)} " +
+                           $"攻击帧={_attack.FrameCount}";
                 }
 
-                /// <summary>按 `.sc` 时间轴推帧（循环播放），帧变了才写 sprite / 位置 / 缩放。</summary>
+                /// <summary>从攻击档首帧播一遍；没有攻击档 ⇒ false（调用方保持 idle）。</summary>
+                public bool PlayAttackOnce()
+                {
+                    if (_attack.FrameCount <= 0 || _attack.Keys == null || _attack.Keys.Length == 0) return false;
+                    AttackPlays++;
+                    _time = 0f;
+                    _timelineFrame = -1;
+                    _attacking = true;
+                    return true;
+                }
+
+                /// <summary>
+                /// 按 `.sc` 时间轴推帧：idle 循环；攻击档**播一遍**，播完自动回 idle（见 <see cref="PlayAttackOnce"/>）。
+                /// 帧变了才写 sprite / 位置 / 缩放。
+                /// </summary>
                 public void Advance(float dt)
                 {
-                    var total = _anim.FrameCount;
-                    if (total <= 0 || _anim.Keys.Length == 0) return;
-                    var fps = _anim.Fps > 0 ? _anim.Fps : 30;
+                    // 冻结（国王塔未激活 = 沉睡状态）：时间轴不走，停在首帧。
+                    if (_frozen) return;
+                    var anim = _attacking ? _attack : _idle;
+                    var total = anim.FrameCount;
+                    if (total <= 0 || anim.Keys == null || anim.Keys.Length == 0) return;
+                    var fps = anim.Fps > 0 ? anim.Fps : 30;
                     _time += dt;
-                    var f = (int)(_time * fps) % total;
-                    if (f == _timelineFrame) return;
+                    var f = (int)(_time * fps);
+                    if (_attacking)
+                    {
+                        if (f >= total)
+                        {
+                            // 攻击档播完：本帧起回 idle（下一帧写 idle 首帧）。
+                            _attacking = false;
+                            _time = 0f;
+                            _timelineFrame = -1;
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        f %= total;
+                    }
+                    // 帧没变、额外偏移也没变 ⇒ 什么都不写（同 `UnitView` 的"只在变化时写"口径）。
+                    // 额外偏移单独判一次：后坐期间帧可能不变，但坐像必须跟着退。
+                    var frameChanged = f != _timelineFrame;
+                    if (!frameChanged && ExtraOffset == _appliedExtra) return;
                     _timelineFrame = f;
-                    FramesSeen++;
+                    _appliedExtra = ExtraOffset;
+                    if (frameChanged) { if (_attacking) AttackFramesSeen++; else FramesSeen++; }
 
-                    var keys = _anim.Keys;
+                    var keys = anim.Keys;
                     var acc = 0;
                     var key = keys[keys.Length - 1];
                     for (var i = 0; i < keys.Length; i++)
@@ -3091,8 +3774,8 @@ namespace CR.View
                     var ppu = sp.pixelsPerUnit > 0.01f ? sp.pixelsPerUnit : SpriteBank.FallbackPixelsPerUnit;
                     var dr = sp.rect.center - _refCenter;
                     _renderer.transform.localPosition = new Vector3(
-                        _basePos.x + dr.x / ppu,
-                        _basePos.y + dr.y / ppu - key.DyPx / ppu,
+                        _basePos.x + dr.x / ppu + ExtraOffset.x,
+                        _basePos.y + dr.y / ppu - key.DyPx / ppu + ExtraOffset.y,
                         0f);
                     _renderer.transform.localScale = new Vector3(_baseScale.x, _baseScale.y * key.Sy, 1f);
 
@@ -3119,11 +3802,68 @@ namespace CR.View
                 if (!IsKing || KingActive) return false;
                 KingActive = true;
                 var shown = SetTurretEnabled(true);
+                // 惊醒：坐像从"停首帧"恢复 idle + 全塔金色闪光（炮塔同时亮起）。
+                if (_kingAnim != null) _kingAnim.SetFrozen(false);
+                var flashed = BeginWakeFlash();
                 Game.Logger?.Info(LogTag,
                     $"国王塔激活：team={Team} 位置=({TileX:F1},{TileY:F1}) serverMs={serverMs} " +
-                    $"炮塔层={(shown ? "已亮" : "素材缺失（配方里没有 Turret 层）")}");
+                    $"炮塔层={(shown ? "已亮" : "素材缺失（配方里没有 Turret 层）")} " +
+                    $"惊醒闪光={(flashed ? "已播" : "材质不可用")}");
                 return true;
             }
+
+            /// <summary>惊醒闪光的结束时刻（`Time.time`）；0 = 没有进行中的闪光。</summary>
+            private float _wakeFlashUntil;
+
+            /// <summary>惊醒闪光用的金色材质（`add = (255,170,60)`，原版像素 + 颜色变换）。</summary>
+            private Material _wakeFlashMat;
+
+            /// <summary>被闪光照到的渲染器（坐像层 + 炮塔层）。</summary>
+            private SpriteRenderer[] _wakeTargets;
+
+            /// <summary>闪光前各渲染器的原始材质（到点逐个还原）。</summary>
+            private Material[] _wakeBaseMats;
+
+            /// <summary>
+            /// 国王塔惊醒：坐像 + 炮塔整体加一层金色（0.45 s）。
+            /// <para>原版激活没有独立特效帧（effects 里无 `activate` 导出），只有坐像起身与炮塔出现；
+            /// 这里用"坐像恢复动画 + 炮塔亮起 + 金色闪光"表达同一件事，⛔ 不新造美术。</para>
+            /// </summary>
+            /// <returns>true = 闪光真的挂上了。</returns>
+            private bool BeginWakeFlash()
+            {
+                var list = new List<SpriteRenderer>(4);
+                if (_kingAnim != null && _kingAnim.Renderer != null) list.Add(_kingAnim.Renderer);
+                if (_turret != null) list.AddRange(_turret.GetComponentsInChildren<SpriteRenderer>(true));
+                if (list.Count == 0) return false;
+                _wakeFlashMat = SpriteColorTransformMaterial.ForSprite(255, 255, 255, 255, 255, 170, 60);
+                if (_wakeFlashMat == null) return false;
+                _wakeTargets = list.ToArray();
+                _wakeBaseMats = new Material[_wakeTargets.Length];
+                for (var i = 0; i < _wakeTargets.Length; i++)
+                {
+                    if (_wakeTargets[i] == null) continue;
+                    _wakeBaseMats[i] = _wakeTargets[i].sharedMaterial;
+                    _wakeTargets[i].sharedMaterial = _wakeFlashMat;
+                }
+                _wakeFlashUntil = Time.time + WakeFlashSeconds;
+                return true;
+            }
+
+            /// <summary>闪光到点还原材质（每帧一次；没有进行中的闪光时是空操作）。</summary>
+            private void TickWakeFlash()
+            {
+                if (_wakeTargets == null || Time.time < _wakeFlashUntil) return;
+                for (var i = 0; i < _wakeTargets.Length; i++)
+                {
+                    if (_wakeTargets[i] != null) _wakeTargets[i].sharedMaterial = _wakeBaseMats[i];
+                }
+                _wakeTargets = null;
+                _wakeBaseMats = null;
+            }
+
+            /// <summary>惊醒闪光的时长（0.45 s ≈ 原版激活金光的两三帧观感）。</summary>
+            private const float WakeFlashSeconds = 0.45f;
 
             /// <summary>
             /// 开关**炮塔层**的渲染器（<see cref="_turret"/>）。层是 <see cref="ArenaView.AddTower"/>
@@ -3135,7 +3875,15 @@ namespace CR.View
                 if (_turret == null) return false;
                 var rs = _turret.GetComponentsInChildren<SpriteRenderer>(true);
                 for (var i = 0; i < rs.Length; i++)
-                    if (rs[i] != null) rs[i].enabled = enabled;
+                {
+                    if (rs[i] == null) continue;
+                    rs[i].enabled = enabled;
+                    // 原版这一层的放置项带 alpha=0（见 KingTurretAlphaZeroCt）⇒ 只开 enabled 仍然是透明。
+                    // 激活时显式把顶点色 alpha 拉满，沉睡时保持 0（与 enabled 一起关）。
+                    var c = rs[i].color;
+                    c.a = enabled ? 1f : 0f;
+                    rs[i].color = c;
+                }
                 return rs.Length > 0;
             }
 

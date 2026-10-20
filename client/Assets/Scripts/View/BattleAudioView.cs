@@ -44,6 +44,14 @@ namespace CR.View
     ///   <see cref="AudioPaths.OvertimeJingle"/>）：那一条链上才**同时**有 `timeline.elixir_phase_ms`
     ///   与快照的 `server_ms` —— 本组件由对局场景晚建，会**错过** `Battle.Started`（时间线拿不到）。</item>
     /// <item>胜负 —— <c>Events.Battle.Ended</c>（<c>BattleEndNotify</c>，<c>win</c> 字段）⇒ <see cref="AudioPaths.Win"/> / <see cref="AudioPaths.Lose"/>。</item>
+    /// <item><b>逐卡攻击音</b> —— 快照里实体 `anim` 由非 2 变 2（每一次挥砍 / 开火的上升沿）⇒
+    ///   该卡 key 的攻击音（<see cref="AudioPaths.Cards.TryGetAttack"/>）；法术卡没有实体 ⇒ 挂在
+    ///   `kind == 0`（<c>EvPlayCard</c>）上（见 <see cref="PlaySpellCast"/>）。</item>
+    /// <item><b>逐卡命中音</b> —— 快照里某实体 `hp` 下降 ⇒ 按**被打者**卡 key 播命中音
+    ///   （<see cref="AudioPaths.Cards.TryGetHit"/>）；该卡无命中音 / 卡未知名 ⇒ 回落 <see cref="AudioPaths.Hit"/>。</item>
+    /// <item><b>塔开火 / 塔受击</b> —— `kind == 6`（<c>EvTowerShoot</c>）按开火塔的 <c>TowerState.kind</c> 播
+    ///   <see cref="AudioPaths.TowerPrincessFire"/> / <see cref="AudioPaths.TowerKingFire"/>；
+    ///   塔 hp 下降播 <see cref="AudioPaths.Hit"/>。</item>
     /// </list>
     /// </para>
     ///
@@ -93,6 +101,24 @@ namespace CR.View
         /// <summary>`kind == 5`：塔激活（`EvTowerActivated`）。无对应音效槽。</summary>
         private const int EventKindTowerActivated = 5;
 
+        /// <summary>`kind == 6`：塔开火（`EvTowerShoot`）。载荷带开火塔的 id ⇒ 按该塔类型播开火音。</summary>
+        private const int EventKindTowerShoot = 6;
+
+        /// <summary>卡类型 = 法术（`Def/ProtoDef.cs` 的 `CardInfo.type`：`0=部队 1=法术 2=建筑`）。</summary>
+        private const int CardTypeSpell = 1;
+
+        /// <summary>塔类型 = 国王塔（`TowerState.kind`：`0=公主塔 1=国王塔`）。</summary>
+        private const int TowerKindKing = 1;
+
+        /// <summary>`anim` 档位 = 攻击（`Def/ProtoDef.cs` 的 `EntitySnapshot.anim`：`0=idle 1=walk 2=attack 3=die`）。</summary>
+        private const int AnimAttack = 2;
+
+        /// <summary>攻击音单帧上限：一次快照里多个单位同时进入攻击档时，最多播这么多次（防空爆刷屏）。</summary>
+        private const int MaxAttackPerSnapshot = 3;
+
+        /// <summary>同一 clip 的最小起播间隔（秒）：并排单位同帧挥砍时错开，⛔ 不叠成一记重击。</summary>
+        private const float MinSameClipIntervalSeconds = 0.05f;
+
         private bool _subscribed;
 
         /// <summary>`Game.Sound` 为空只报一次（表现域未挂载 ⇒ 整局都播不出声，不该每帧刷屏）。</summary>
@@ -110,6 +136,7 @@ namespace CR.View
         private Action<BattleEndNotify> _onEnded;
         private Action<BattleStartNotify> _onStarted;
         private Action<BattleSnapshot> _onSnapshot;
+        private Action<CardInfo[]> _onCardPool;
 
         /// <summary>`BattleStartNotify.my_team`（0=BLUE 1=RED）。仅作 <see cref="_root"/> 缺失时的兜底，见 <see cref="MyTeam"/>。</summary>
         private int _myTeam;
@@ -129,6 +156,61 @@ namespace CR.View
 
         /// <summary>命中音单帧上限：一次快照里有多个单位同时掉血时，最多播这么多次（防空爆刷屏）。</summary>
         private const int MaxHitPerSnapshot = 4;
+
+        /// <summary>
+        /// 上一帧每个实体的 `anim`（`entity_id → anim`）。攻击音的判据 = **上升沿**
+        /// （`anim` 由非 2 变成 2）。服务端每挥一次刀都先置 2、`holdAttackAnim` 保住 4 tick 再收回
+        /// （`server/game/core/combat.go:67` / `battle.go:672`）⇒ 每次挥砍都有独立的上升沿，
+        /// 与 `UnitView` 重播攻击 clip 用的是同一条边沿。
+        /// </summary>
+        private Dictionary<int, int> _prevAnim = new Dictionary<int, int>();
+
+        /// <summary>本帧 `anim` 的暂存（双缓冲，用法同 <see cref="_curHp"/>）。</summary>
+        private Dictionary<int, int> _curAnim = new Dictionary<int, int>();
+
+        /// <summary>卡池索引（`card_id → CardInfo`）：卡 key 与类型（0=部队 1=法术 2=建筑）的唯一来源。</summary>
+        private readonly Dictionary<int, CardInfo> _cards = new Dictionary<int, CardInfo>();
+
+        /// <summary>本局卡池还没到时查不到的 card_id（只 Warn 一次 / id，⛔ 不刷屏）。</summary>
+        private readonly HashSet<int> _cardMissingWarned = new HashSet<int>();
+
+        /// <summary>卡表里没有攻击音的卡 key（只 Warn 一次 / key）。</summary>
+        private readonly HashSet<string> _missingAttackWarned = new HashSet<string>();
+
+        /// <summary>每个 clip 上一次起播的时刻（`Time.unscaledTime`）：<see cref="MinSameClipIntervalSeconds"/> 的限流依据。</summary>
+        private readonly Dictionary<string, float> _lastClipAt = new Dictionary<string, float>();
+
+        /// <summary>塔 id → 塔类型（0=公主塔 1=国王塔），每帧从快照的 `towers_a` / `towers_b` 重建。</summary>
+        private readonly Dictionary<int, int> _towerKind = new Dictionary<int, int>();
+
+        /// <summary>上一帧塔 hp：键 = 队伍 × 1000 + 塔 id（塔 id = 服务端全局实体 id，蓝 1/2/3、红 4/5/6）。</summary>
+        private Dictionary<int, int> _prevTowerHp = new Dictionary<int, int>();
+
+        /// <summary>本帧塔 hp 的暂存（双缓冲）。</summary>
+        private Dictionary<int, int> _curTowerHp = new Dictionary<int, int>();
+
+        /// <summary>塔开火事件在快照之前到达、查不到塔类型时只 Warn 一次。</summary>
+        private bool _towerKindWarned;
+
+        /// <summary>卡池一直没到（<see cref="_cards"/> 为空）只 Warn 一次。</summary>
+        private bool _poolMissingWarned;
+
+        // ── 本局计数（玩法自检 / 探针读数；一行一个判据，⛔ 不只看日志）──
+
+        /// <summary>本局真的提交播放的**卡牌攻击音**条数。</summary>
+        public int CardAttackPlays { get; private set; }
+
+        /// <summary>本局真的提交播放的**卡牌命中音**条数（专属 + 通用回落都算）。</summary>
+        public int CardHitPlays { get; private set; }
+
+        /// <summary>本局真的提交播放的**塔开火音**条数。</summary>
+        public int TowerAttackPlays { get; private set; }
+
+        /// <summary>本局真的提交播放的**塔受击音**条数。</summary>
+        public int TowerHitPlays { get; private set; }
+
+        /// <summary>本局因单帧上限 / 同 clip 限流而没播的卡牌攻击音条数。</summary>
+        public int CardAttackSkipped { get; private set; }
 
         /// <summary>我方队伍（0=BLUE 1=RED）—— 统一从 <see cref="BattleViewRoot.MyTeam"/> 读，见 <see cref="Create"/>。</summary>
         private BattleViewRoot _root;
@@ -158,6 +240,9 @@ namespace CR.View
             if (parent != null) go.transform.SetParent(parent, false);
             var view = go.AddComponent<BattleAudioView>();
             view.Bind(root);
+            // 当场订阅：本组件在 `BattleViewRoot.Build()` 内被建出，同一帧稍后 `Module/Battle` 会补发
+            // 卡池事件（`ReplayCardPoolForHud`）⇒ 等到下一次 Update 才订阅就会错过它，逐卡音效查不到卡 key。
+            if (Game.IsRunning && Game.Event != null) view.Subscribe();
             return view;
         }
 
@@ -196,16 +281,18 @@ namespace CR.View
             _onEnded = OnBattleEnded;
             _onStarted = OnBattleStarted;
             _onSnapshot = OnSnapshot;
+            _onCardPool = OnCardPool;
 
             bus.On<int, Vector2>(Events.Battle.PlayCardRequest, _onPlayCardRequest);
             bus.On<BattleEventNotify>(Events.Battle.Events, _onEvents);
             bus.On<BattleEndNotify>(Events.Battle.Ended, _onEnded);
             bus.On<BattleStartNotify>(Events.Battle.Started, _onStarted);
             bus.On<BattleSnapshot>(Events.Battle.Snapshot, _onSnapshot);
+            bus.On<CardInfo[]>(Events.Deck.PoolLoaded, _onCardPool);
 
             _subscribed = true;
             // 日志里刻意不写事件名字面量（事件名只有 `Core/Events.cs` 一处定义；写进日志会污染对「裸事件名」的静态检查）。
-            Game.Logger?.Info(LogTag, "音效已订阅：出牌请求 + 离散事件（命中 / 死亡 / 塔毁 / 塔激活 / 圣水满 / 敌方出牌）+ 结算（胜/负/平）+ 快照（非致死命中）");
+            Game.Logger?.Info(LogTag, "音效已订阅：出牌请求 + 离散事件（命中 / 死亡 / 塔毁 / 塔激活 / 圣水满 / 敌方出牌 / 塔开火）+ 结算（胜/负/平）+ 快照（非致死命中 / 攻击档）+ 卡池（逐卡音效）");
         }
 
         private void Unsubscribe()
@@ -219,6 +306,7 @@ namespace CR.View
                 bus.Off<BattleEndNotify>(Events.Battle.Ended, _onEnded);
                 bus.Off<BattleStartNotify>(Events.Battle.Started, _onStarted);
                 bus.Off<BattleSnapshot>(Events.Battle.Snapshot, _onSnapshot);
+                bus.Off<CardInfo[]>(Events.Deck.PoolLoaded, _onCardPool);
             }
             _subscribed = false;
         }
@@ -264,11 +352,19 @@ namespace CR.View
                             Game.Logger?.Info(LogTag, $"敌方出牌：事件 team={e.team} 我方={MyTeam}（0=BLUE 1=RED）");
                             Play(AudioPaths.EnemySummon);
                         }
+                        // 法术卡不生成实体（没有攻击档），它的「攻击音」只能挂在出牌事件上。
+                        // 部队 / 建筑卡的攻击音走快照的 `anim` 上升沿（见 OnSnapshot），这里不播 ⇒ 不会双响。
+                        PlaySpellCast(e.card_id, e.team);
                         break;
 
                     case EventKindTowerActivated:
                         // 塔激活（kind==5）：原版国王塔激活音（`king_activate_01`）。
                         Play(AudioPaths.TowerActivate);
+                        break;
+
+                    case EventKindTowerShoot:
+                        // 塔开火（kind==6）：按开火塔的类型播公主塔 / 国王塔开火音。
+                        PlayTowerShot(e);
                         break;
 
                     case EventKindSpawn:
@@ -319,19 +415,39 @@ namespace CR.View
             _myTeam = start.my_team;
             _prevHp.Clear();
             _curHp.Clear();
-            Game.Logger?.Info(LogTag, $"对局开始：my_team={_myTeam}（兜底值；出牌敌我判定读 BattleViewRoot.MyTeam）");
+            _prevAnim.Clear();
+            _curAnim.Clear();
+            _prevTowerHp.Clear();
+            _curTowerHp.Clear();
+            _towerKind.Clear();
+            _lastClipAt.Clear();
+            CardAttackPlays = 0;
+            CardHitPlays = 0;
+            TowerAttackPlays = 0;
+            TowerHitPlays = 0;
+            CardAttackSkipped = 0;
+            Game.Logger?.Info(LogTag, $"对局开始：my_team={_myTeam}（兜底值；出牌敌我判定读 BattleViewRoot.MyTeam）卡池={_cards.Count} 张");
         }
 
         /// <summary>
-        /// 周期快照（10 Hz）：**逐 id 比对 `hp`** ⇒ 任何一次"掉血"都算一次命中，播 <see cref="AudioPaths.Hit"/>。
+        /// 周期快照（10 Hz）：逐 id 比对 `hp` 与 `anim`，推出**命中音**与**攻击音**；塔另走
+        /// `towers_a` / `towers_b` 的 hp 比对。
         ///
         /// <para>
-        /// <b>为什么必须靠快照而不能靠事件</b>：协议（`Def/ProtoDef.cs:194`）只有 0..5 六种 `kind`，
-        /// **没有独立的「命中」事件**，而 `kind==2` 只在死亡时发 ⇒ 命中必须由快照 `hp` 比对推出。
+        /// <b>命中音</b>：任何一次"掉血"都算一次命中。按**被打者**的卡 key 播该卡的命中音
+        /// （<see cref="AudioPaths.Cards.TryGetHit"/>），该卡目录没有命中音时回落通用 <see cref="AudioPaths.Hit"/>；
+        /// 塔被打时同样播通用 <see cref="AudioPaths.Hit"/>（原版整包 `Towers/` 下无独立受击音）。
         /// </para>
         /// <para>
-        /// 三条防误报：① 首次出现（新 id）不判命中；② 只有"上一帧有、这一帧 hp 变小"才算；
-        /// ③ 单帧最多 <see cref="MaxHitPerSnapshot"/> 声（多个单位同时掉血时不炸音）。
+        /// <b>攻击音</b>：实体的 `anim` 由非 2 变成 2 = 这一次挥砍 / 开火的上升沿 ⇒ 播该卡攻击音。
+        /// 服务端每次挥砍都会先置 2、保住 4 tick 再收回（`server/game/core/combat.go:67`），
+        /// 所以上升沿 ≠ 每个单位一次，而是**每一刀一次**。法术没有实体 ⇒ 攻击音挂在出牌事件上（见
+        /// <see cref="PlaySpellCast"/>）。
+        /// </para>
+        /// <para>
+        /// 防误报 / 防炸音：① 首次出现（新 id）不判命中、也不判攻击；② 只有"上一帧有、这一帧变小 / 变 2"才算；
+        /// ③ 单帧最多 <see cref="MaxHitPerSnapshot"/> 声命中、<see cref="MaxAttackPerSnapshot"/> 声攻击；
+        /// ④ 同一 clip 在 <see cref="MinSameClipIntervalSeconds"/> 内只起播一次。
         /// </para>
         /// </summary>
         private void OnSnapshot(BattleSnapshot s)
@@ -340,28 +456,243 @@ namespace CR.View
             var list = s.entities;
             if (list == null) return;
 
+            // 塔 id → 类型（0=公主塔 1=国王塔）：塔开火事件（kind=6）靠它选音。
+            _towerKind.Clear();
+            RememberTowerKinds(s.towers_a);
+            RememberTowerKinds(s.towers_b);
+
             _curHp.Clear();
+            _curAnim.Clear();
             var hits = 0;
+            var attacks = 0;
             for (var i = 0; i < list.Length; i++)
             {
                 var e = list[i];
                 if (e == null) continue;
                 _curHp[e.id] = e.hp;
+                _curAnim[e.id] = e.anim;
 
-                int prev;
-                if (!_prevHp.TryGetValue(e.id, out prev)) continue; // 新单位：出场那帧不判命中
-                if (e.hp >= prev) continue;                          // 没掉血
+                int prevHp;
+                if (!_prevHp.TryGetValue(e.id, out prevHp)) continue; // 新单位：出场那帧不判命中 / 攻击
 
-                if (hits < MaxHitPerSnapshot)
+                if (e.hp < prevHp)
                 {
-                    hits++;
-                    Play(AudioPaths.Hit);
+                    if (hits < MaxHitPerSnapshot)
+                    {
+                        hits++;
+                        PlayCardHit(e.card_id, e.id, prevHp, e.hp);
+                    }
                 }
+
+                int prevAnim;
+                var rising = _prevAnim.TryGetValue(e.id, out prevAnim) && prevAnim != AnimAttack && e.anim == AnimAttack;
+                if (!rising) continue;
+                if (e.deploy_ms > 0) continue;                        // 部署中不攻击（服务端 `acquirable()`）
+                if (attacks >= MaxAttackPerSnapshot)
+                {
+                    CardAttackSkipped++;
+                    continue;
+                }
+                attacks++;
+                PlayCardAttack(e.card_id, e.id);
             }
 
-            var swap = _prevHp;
-            _prevHp = _curHp;
-            _curHp = swap;
+            // 塔的命中：塔不在 `entities` 里（由 towers_a / towers_b 报告），同一条 hp 比对口径。
+            _curTowerHp.Clear();
+            var towerHits = 0;
+            AccumulateTowerHits(s.towers_a, 0, ref towerHits);
+            AccumulateTowerHits(s.towers_b, 1, ref towerHits);
+
+            var swapHp = _prevHp; _prevHp = _curHp; _curHp = swapHp;
+            var swapAnim = _prevAnim; _prevAnim = _curAnim; _curAnim = swapAnim;
+            var swapTower = _prevTowerHp; _prevTowerHp = _curTowerHp; _curTowerHp = swapTower;
+        }
+
+        /// <summary>把一队的塔类型记进 <see cref="_towerKind"/>（幂等覆盖）。</summary>
+        private void RememberTowerKinds(TowerState[] towers)
+        {
+            if (towers == null) return;
+            for (var i = 0; i < towers.Length; i++)
+            {
+                var t = towers[i];
+                if (t != null) _towerKind[t.id] = t.kind;
+            }
+        }
+
+        /// <summary>累计一队的塔命中：hp 变小 ⇒ 播通用受击音（单帧上限同单位命中）。</summary>
+        private void AccumulateTowerHits(TowerState[] towers, int team, ref int towerHits)
+        {
+            if (towers == null) return;
+            for (var i = 0; i < towers.Length; i++)
+            {
+                var t = towers[i];
+                if (t == null) continue;
+                var key = team * 1000 + t.id;
+                _curTowerHp[key] = t.hp;
+
+                int prev;
+                if (!_prevTowerHp.TryGetValue(key, out prev)) continue; // 首次出现不判
+                if (t.hp >= prev) continue;                             // 没掉血
+                if (towerHits >= MaxHitPerSnapshot) continue;
+                towerHits++;
+
+                TowerHitPlays++;
+                Play(AudioPaths.Hit);
+                Game.Logger?.Info(LogTag,
+                    $"播放塔受击音：team={team} tower={t.id} kind={(t.kind == TowerKindKing ? "国王塔" : "公主塔")} " +
+                    $"hp {prev}→{t.hp} clip={AudioPaths.Hit}（原版 Towers/ 无独立受击音，回落通用）");
+            }
+        }
+
+        // ═════════════════════════ 逐卡（攻击 / 命中 / 法术 / 塔） ═════════════════════════
+
+        /// <summary>卡池到达：建 `card_id → CardInfo` 索引（卡 key 与类型从服务端下发，客户端不落地配表）。</summary>
+        private void OnCardPool(CardInfo[] cards)
+        {
+            if (cards == null) return;
+            for (var i = 0; i < cards.Length; i++)
+            {
+                var c = cards[i];
+                if (c != null) _cards[c.id] = c;
+            }
+            Game.Logger?.Info(LogTag, $"卡池已索引：{_cards.Count} 张（逐卡攻击 / 命中音按卡 key 查表）");
+        }
+
+        /// <summary>按 card_id 取 CardInfo；查不到时每个 id 只 Warn 一次（⛔ 不静默、⛔ 不刷屏）。</summary>
+        private bool TryResolveCard(int cardId, out CardInfo info)
+        {
+            if (_cards.TryGetValue(cardId, out info) && info != null) return true;
+            info = null;
+            if (_cards.Count == 0)
+            {
+                if (!_poolMissingWarned)
+                {
+                    _poolMissingWarned = true;
+                    Game.Logger?.Warn(LogTag, "卡池为空 ⇒ 逐卡音效查不到卡 key（本次及后续只报一次）");
+                }
+                return false;
+            }
+            if (_cardMissingWarned.Add(cardId))
+                Game.Logger?.Warn(LogTag, $"card_id={cardId} 不在卡池里 ⇒ 该卡不播专属音效（只报一次 / id）");
+            return false;
+        }
+
+        /// <summary>卡牌**攻击音**：单位 `anim` 上升沿（近战挥砍 / 远程开火）⇒ 该卡 key 的攻击音。</summary>
+        private void PlayCardAttack(int cardId, int entityId)
+        {
+            CardInfo info;
+            if (!TryResolveCard(cardId, out info)) { CardAttackSkipped++; return; }
+            string clip;
+            if (!AudioPaths.Cards.TryGetAttack(info.key, out clip))
+            {
+                CardAttackSkipped++;
+                if (_missingAttackWarned.Add(info.key))
+                    Game.Logger?.Warn(LogTag, $"卡 {info.key}（id={info.id}）没有配攻击音 ⇒ 这一刀不播（只报一次 / 卡）");
+                return;
+            }
+            if (!PlayClip(clip)) { CardAttackSkipped++; return; }
+            CardAttackPlays++;
+            Game.Logger?.Info(LogTag,
+                $"播放卡牌攻击音：card={info.key} ent={entityId} 音效={clip} 资源={AudioPaths.SfxPath(clip)} " +
+                $"提交PlaySFX=true 本局累计={CardAttackPlays}（跳过 {CardAttackSkipped}）");
+        }
+
+        /// <summary>
+        /// 卡牌**命中音**：按**被打者**的卡 key 播该卡命中音；目录里没有命中音（minions / cannon / zap）
+        /// 或卡 key 未知时回落通用 <see cref="AudioPaths.Hit"/>（既有通用命中链路不删）。
+        /// </summary>
+        private void PlayCardHit(int cardId, int entityId, int prevHp, int hp)
+        {
+            CardInfo info;
+            var known = TryResolveCard(cardId, out info);
+            string clip = null;
+            var dedicated = known && AudioPaths.Cards.TryGetHit(info.key, out clip);
+            if (!dedicated) clip = AudioPaths.Hit;
+
+            if (!PlayClip(clip)) return;
+            CardHitPlays++;
+            Game.Logger?.Info(LogTag,
+                $"播放卡牌命中音：card={(known ? info.key : "?")} ent={entityId} hp {prevHp}→{hp} " +
+                $"音效={clip} 资源={AudioPaths.SfxPath(clip)} 提交PlaySFX=true " +
+                $"{(dedicated ? "专属" : "回落通用")} 本局累计={CardHitPlays}");
+        }
+
+        /// <summary>
+        /// 法术卡的攻击 / 命中音。法术不生成实体（没有 `anim`），只能挂 `EvPlayCard`：
+        /// 落点即时生效的法术（万箭 / 电击）施法音与落地音同帧；
+        /// 有飞行段的法术（火球）落地音按 <see cref="SpellFxTable.Entry.FlightSeconds"/> 延迟。
+        /// </summary>
+        private void PlaySpellCast(int cardId, int team)
+        {
+            CardInfo info;
+            if (!TryResolveCard(cardId, out info)) return;
+            if (info.type != CardTypeSpell) return;
+
+            string clip;
+            if (AudioPaths.Cards.TryGetAttack(info.key, out clip) && PlayClip(clip))
+            {
+                CardAttackPlays++;
+                Game.Logger?.Info(LogTag,
+                    $"播放法术施法音：card={info.key} team={team} 音效={clip} 资源={AudioPaths.SfxPath(clip)} " +
+                    $"提交PlaySFX=true 本局累计={CardAttackPlays}");
+            }
+
+            string hit;
+            if (!AudioPaths.Cards.TryGetHit(info.key, out hit)) return;
+
+            SpellFxTable.Entry fx;
+            var flightSeconds = SpellFxTable.TryGet(info.key, out fx) && !string.IsNullOrEmpty(fx.FlightUse)
+                ? Mathf.Max(0f, fx.FlightSeconds)
+                : 0f;
+            var key = info.key;
+            if (flightSeconds <= 0f)
+            {
+                PlaySpellImpact(key, hit);
+                return;
+            }
+            var timer = Game.Timer;
+            if (timer == null)
+            {
+                // 非预期分支：计时服务缺失 ⇒ 落地音只能立即播（留痕，⛔ 不静默）。
+                Game.Logger?.Warn(LogTag, $"Game.Timer 为空 ⇒ 法术 {key} 的落地音改为立即播（不等待飞行段）");
+                PlaySpellImpact(key, hit);
+                return;
+            }
+            timer.After(flightSeconds, () => PlaySpellImpact(key, hit));
+        }
+
+        /// <summary>法术落地音（飞行段到点 / 即时生效两种触发共用）。</summary>
+        private void PlaySpellImpact(string cardKey, string clip)
+        {
+            if (!PlayClip(clip)) return;
+            CardHitPlays++;
+            Game.Logger?.Info(LogTag,
+                $"播放法术命中音：card={cardKey} 音效={clip} 资源={AudioPaths.SfxPath(clip)} " +
+                $"提交PlaySFX=true 本局累计={CardHitPlays}");
+        }
+
+        /// <summary>塔开火音：按 `EvTowerShoot` 的开火塔 id 查 `TowerState.kind` ⇒ 公主塔 / 国王塔开火音。</summary>
+        private void PlayTowerShot(BattleEvent e)
+        {
+            int kind;
+            if (!_towerKind.TryGetValue(e.entity_id, out kind))
+            {
+                // 事件可能早于第一帧快照到达；塔 id 只有快照里的 `TowerState.kind` 是权威来源。
+                if (!_towerKindWarned)
+                {
+                    _towerKindWarned = true;
+                    Game.Logger?.Warn(LogTag,
+                        $"塔开火事件 tower={e.entity_id} 在快照里还没有类型 ⇒ 本次按公主塔音播（只报一次）");
+                }
+                kind = 0;
+            }
+
+            var clip = kind == TowerKindKing ? AudioPaths.TowerKingFire : AudioPaths.TowerPrincessFire;
+            if (!PlayClip(clip)) return;
+            TowerAttackPlays++;
+            Game.Logger?.Info(LogTag,
+                $"播放塔开火音：tower={e.entity_id} kind={(kind == TowerKindKing ? "国王塔" : "公主塔")} " +
+                $"音效={clip} 资源={AudioPaths.SfxPath(clip)} 提交PlaySFX=true 本局累计={TowerAttackPlays}");
         }
 
         // ═════════════════════════ 播放（只走 clover-engine API） ═════════════════════════
@@ -392,6 +723,37 @@ namespace CR.View
             Game.Logger?.Info(LogTag, $"播放音效 {clipName}（SoundGroup.SFX 音量 {vol:F2}）");
 
             sound.PlaySFX(clipName);
+        }
+
+        /// <summary>
+        /// 逐卡 / 塔音效的起播：资源在 + 同一 clip 的最小间隔未到 ⇒ 真正调 <c>PlaySFX</c>。
+        /// 返回 false = 服务缺失 / 资源缺失 / 被限流（调用方据此计数，⛔ 不把"没播"当"播了"）。
+        /// <para>
+        /// 限流的对象是**同一个 clip**：并排三个骷髅兵同帧挥砍时只响一下（<see cref="MinSameClipIntervalSeconds"/>），
+        /// 不同卡的音各响各的。
+        /// </para>
+        /// </summary>
+        private bool PlayClip(string clipName)
+        {
+            var sound = Game.Sound;
+            if (sound == null)
+            {
+                if (!_serviceWarned)
+                {
+                    _serviceWarned = true;
+                    Game.Logger?.Warn(LogTag, "Game.Sound 为空（表现域未挂载）⇒ 音效无法播放（只报一次）");
+                }
+                return false;
+            }
+            if (!ClipExists(clipName)) return false;
+
+            var now = Time.unscaledTime;
+            float last;
+            if (_lastClipAt.TryGetValue(clipName, out last) && now - last < MinSameClipIntervalSeconds) return false;
+            _lastClipAt[clipName] = now;
+
+            sound.PlaySFX(clipName);
+            return true;
         }
 
         /// <summary>

@@ -137,10 +137,10 @@ TextureImporter:
       name: frame_262_0
       rect:
         serializedVersion: 2
-        x: 93
-        y: 121
-        width: 44
-        height: 27
+        x: 89
+        y: 93
+        width: 62
+        height: 54
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -159,10 +159,10 @@ TextureImporter:
       name: frame_262_1
       rect:
         serializedVersion: 2
-        x: 136
-        y: 130
-        width: 13
-        height: 8
+        x: 89
+        y: 93
+        width: 62
+        height: 54
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -181,10 +181,10 @@ TextureImporter:
       name: frame_262_2
       rect:
         serializedVersion: 2
-        x: 88
-        y: 92
-        width: 64
-        height: 36
+        x: 89
+        y: 93
+        width: 62
+        height: 54
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}

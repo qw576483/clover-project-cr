@@ -86,6 +86,12 @@ namespace CR
             return ArenaRoot + "/" + FrameName(frameIndex);
         }
 
+        /// <summary>
+        /// 皇家竞技场底图目录：`Sprites/Arenas/royal`（单张整幅合成图 `royal_field.png`，由
+        /// `tools/probes/royal-arena-compose.py` 从原版 `level_royal_arena_v215.sc` 的 `royal_base_bgr` 生成）。
+        /// </summary>
+        public const string RoyalArenaRoot = SpritesRoot + "/Arenas/royal";
+
         // ───────────────────────── 卡面 ─────────────────────────
 
         /// <summary>
@@ -352,6 +358,23 @@ namespace CR
         /// <summary>木纹面板标题条（`ui_out` 70）。</summary>
         public static string TitleBarWood { get { return UiFrame(UiBarsDir, UiSrcUi, 70); } }
 
+        // ── 区块标题缎带（左尾 / 条身 / 右尾） ──
+        //    出处：`ui.sc` export `profile_stats`(clip 4619) 的三个子件
+        //    `<shape 1446>` / `<shape 1447>` / `<shape 1448>` → 帧 372 / 373 / 374；
+        //    原版每一条 “Stats Royale / Tournament Stats / Battle Deck” 横带都由这三件拼成
+        //    （可复跑：`python tools/probes/sc-subtree.py --clip profile_stats --depth 3`）。
+        //    帧本身是**纯黑 alpha 模板**（RGB 全 0，颜色由原版颜色变换上色）
+        //    ⇒ 显示色由 `CrUiStyle.Ribbon` 按基线读数着色，⛔ 不在此处登记颜色。
+
+        /// <summary>缎带 左折尾（`ui_out` 372，31×71）。</summary>
+        public static string RibbonEndLeft { get { return UiFrame(UiBarsDir, UiSrcUi, 372); } }
+
+        /// <summary>缎带 条身（`ui_out` 373，1×1，靠横向拉伸）。</summary>
+        public static string RibbonBody { get { return UiFrame(UiBarsDir, UiSrcUi, 373); } }
+
+        /// <summary>缎带 右折尾（`ui_out` 374，31×71）。</summary>
+        public static string RibbonEndRight { get { return UiFrame(UiBarsDir, UiSrcUi, 374); } }
+
         // ✅ 圣水条三件：**来源已定**。
         //    HUD 层**就在 `ui.sc` 里**，只是以 `HUD_*` export 内部的**具名子元件**出现（不是顶层 export）——
         //    判据 = `ui.sc` → `HUD_player`(clip 1091) → `elixir_bar`(clip 1080) 的 `0c` 记录 cnt2 子元件表自带原版命名。
@@ -359,7 +382,7 @@ namespace CR
         //    ⇒ 原版对应：槽 = `bar_bg`(clip 902) / 填充 = `bar_body`+`ghost`(clip 904/905) / 描边端 = `bar_end`(clip 906)。
         //    ⛔ 原键指向的 `ui_out` 516/517/518 **不在** `elixir_bar` 的引用闭包内：516 不被任何 `0c` 动画引用，
         //       517/518 被 `spell_card_full` / `win_reward_bar` / `Menu_topLayer` 引用（= 卡牌条 / 奖励条，见索引 §1.1 表）
-        //       ⇒ 那三帧不能当圣水条用（换帧登记 `策划/对照表.md`）。
+        //       ⇒ 那三帧不能当圣水条用（换帧登记 `策划/对照表.md` §D.3）。
 
         /// <summary>
         /// 圣水条 槽底 —— 原版 `HUD_player` → `elixir_bar`(clip 1080) → 子元件 **`bar_bg`**（clip 902），
@@ -867,7 +890,7 @@ namespace CR
         /// <summary>弹道帧数（f437..f451 = `projectile_arrow_basic` 的 15 帧）。</summary>
         public const int EffectArrowCount = 15;
 
-        // ── 命中闪光（原版独立 export `effect_Hit1`；差异登记见 `策划/差异登记.tsv`）──
+        // ── 命中闪光（原版独立 export `effect_Hit1`；差异登记见 `策划/对照表.md` §D.3）──
         //
         // 出处：`策划/单位动画分组表.md:5179` —— export `effect_Hit1` / clip 829 / 60 fps /
         // timeline 5 条 / 唯一像素帧 `295-298`（46×44 → 49×46 → 57×57 → 53×55）/ **档位列 = hit**。
@@ -893,7 +916,7 @@ namespace CR
         /// </summary>
         public const float EffectHitSeconds = 5f / 60f;
 
-        // ── 死亡特效（原版 die 档；差异登记见 `策划/差异登记.tsv`）──
+        // ── 死亡特效（原版 die 档；差异登记见 `策划/对照表.md` §D.3）──
         //
         // 出处：`策划/单位动画分组表.md:4697-4700` 的 `effects` 小节 —— die 档只有四个 export：
         //   `Death_blue`（唯一像素帧 `52 62 65`）/ `Death_purple`（`52 63`）/
@@ -941,7 +964,7 @@ namespace CR
         /// <summary>死亡粒子整段时长（秒）= 2 帧 ÷ 30 fps（分组表 `:4698` 的 fps 列）。</summary>
         public const float EffectDeathParticleSeconds = 2f / 30f;
 
-        // ───────────────────────── 法术命中特效（差异登记见 `策划/差异登记.tsv`）─────────────────────────
+        // ───────────────────────── 法术命中特效（差异登记见 `策划/对照表.md` §D.3）─────────────────────────
         //
         // 法术卡必须有独立命中特效的原因：法术卡走 `EvPlayCard` 事件，而客户端那条分支
         // 只处理"远程卡"（`CardInfo.projectile_key` 非空）⇒ **法术卡 projectile_key 为空，
@@ -1214,7 +1237,7 @@ namespace CR
         /// <summary>吐息弹帧数（f470 = 该 export 的飞行段唯一像素帧）。</summary>
         public const int EffectDragonCount = 1;
 
-        // ───────────────────────── 落点范围指示（差异登记见 `策划/差异登记.tsv`）─────────────────────────
+        // ───────────────────────── 落点范围指示（差异登记见 `策划/对照表.md` §D.3）─────────────────────────
         //
         // ⛔ 落点指示**不许自绘**（`PlacementIndicator` 不造圆盘贴图）：`策划/单位动画分组表.md`
         // 的 `effects` 小节里有原版的
@@ -1233,7 +1256,7 @@ namespace CR
         /// <summary>
         /// **我方**落点范围环：分组表 `:4777` `spell_radius` 帧列 `221`。
         /// 图元本身是**黑环**（实测非透明像素 RGB 全为 0、alpha 均值 145/255）⇒ 想让它呈亮色必须走
-        /// 颜色变换的加项，顶点色 tint 乘不出亮色（见 `PlacementIndicator.SplashRingMaterial`）。
+        /// 颜色变换的加项，顶点色 tint 乘不出亮色（见 `PlacementIndicator.DropRingMaterial`）。
         /// </summary>
         public const int EffectRangeRingFriendly = 221;
 
@@ -1267,6 +1290,27 @@ namespace CR
 
         /// <summary>`troopDeployTimer_*` 的指针 / 表冠（6×22，RGB(88,80,76)）。</summary>
         public const int EffectDeployTimerStem = 255;
+
+        // ───────────────────────── 落位特效（原版 `deploy_arrows_effect`）─────────────────────────
+        //
+        // 出处：`策划/单位动画分组表.md:5021` —— export `deploy_arrows_effect` / clip 354 / 60 fps /
+        // **timeline 16 条全部指向同一像素帧 f119**（档位列 = spawn）；同表 `:4725` 的 `deploy_arrows`
+        // （同 clip 354）与它是同一段动画的两种导出名。
+        // ⇒ 该 export 只有 **1 个像素帧**（绿色上箭头）：播法 = 在单位落点**定格**这一帧，
+        // 定格时长 = 该 export 自己的时间轴长度（16 ÷ 60 = 0.267 s，见 `BattleViewRoot.DeployArrowSeconds`）。
+        // 落点 = 该单位实际落地的坐标；时刻 = 单位出现的那一刻（`EvSpawn`）。
+        // 素材：`Sprites/Effects/Deploy/frame_119.png`（导入 PPU = 100，见 `tools/probes/copy-fx-assets.py`）。
+        // 尺寸系数 = `upp/10` = 1.9455（`EffectsView.SegmentScale` 的 `Deploy` 段，
+        // `tools/probes/fx-scale-table.py` 的 strict 取值）⇒ 播它不许再乘任何额外系数。
+
+        /// <summary>用途目录：单位落位特效（原版 `deploy_arrows_effect`，唯一像素帧 f119）。</summary>
+        public const string EffectDeploy = "Deploy";
+
+        /// <summary>落位特效起始帧（原版 f119；见上方出处块）。</summary>
+        public const int EffectDeployFirst = 119;
+
+        /// <summary>落位特效帧数（该 export 的 16 条 timeline 全指向同一像素帧 ⇒ 只有 1 帧）。</summary>
+        public const int EffectDeployCount = 1;
 
         // ── 卡面品质边框（原版 `card_frame_glow_*` / `card_glow_*` 一族）──────────────────────
 

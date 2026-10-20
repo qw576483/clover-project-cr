@@ -170,14 +170,28 @@ func pointToward(ox, oy, tx, ty, dist int32) (int32, int32, bool) {
 		int32(int64(oy) + int64(ty-oy)*int64(dist)/int64(d)), true
 }
 
-// totalDamage 法术的总伤害估计（瞬伤 + 一整段持续伤害）。仅用于「能不能补刀塔」的粗判。
-func (sp *SpellDef) totalDamage() int32 {
+// totalCrownDamage 是法术**打在王冠塔上**的总伤害估计（瞬伤 + 一整段持续伤害），
+// 仅用于「能不能补刀塔」的粗判。
+//
+// 必须走 CrownDamage 这一档：塔吃的是官方减伤后的伤害（火球 207，不是 689），
+// 按部队伤害估会高估 2~4 倍 ⇒ AI 会拿一张补不掉塔的法术去砸塔。
+// 单跳伤害为 0 的分支（瞬伤为 0 的持续伤害法术）仍然取 0，不由 CrownDamage 顶替。
+func (sp *SpellDef) totalCrownDamage() int32 {
 	if sp == nil {
 		return 0
 	}
-	d := sp.InstantDamage
+	perHit := func(unitDamage int32) int32 {
+		if unitDamage <= 0 {
+			return 0
+		}
+		if sp.CrownDamage > 0 {
+			return sp.CrownDamage
+		}
+		return unitDamage
+	}
+	d := perHit(sp.InstantDamage)
 	if sp.DurationMs > 0 && sp.TickMs > 0 && sp.DamagePerTick > 0 {
-		d += sp.DamagePerTick * (sp.DurationMs / sp.TickMs)
+		d += perHit(sp.DamagePerTick) * (sp.DurationMs / sp.TickMs)
 	}
 	return d
 }
@@ -319,8 +333,8 @@ func decideSpell(b *Battle, team Team) (int32, int32, int32, bool) {
 			pick, px, py = c, x, y
 			break
 		}
-		// (b) 能补刀塔（塔剩余血量 ≤ 法术总伤害）
-		total := sp.totalDamage()
+		// (b) 能补刀塔（塔剩余血量 ≤ 法术对塔的最大总伤害）
+		total := sp.totalCrownDamage()
 		if total <= 0 {
 			continue
 		}

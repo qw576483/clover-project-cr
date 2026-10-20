@@ -102,6 +102,7 @@ namespace CR.UI.Panels
 
         public override void OnClose()
         {
+            CrUiFx.PanelOut(transform);
             Unsubscribe();
         }
 
@@ -117,6 +118,7 @@ namespace CR.UI.Panels
 
             // 面板底 = 原版板岩外框（`ui_out` 014）+ 亮面体（019），居中（依据见 LoginPanel 类注释）。
             var box = CrUiStyle.SettingsPopup("RegisterBox", root, PanelH);
+            CrUiFx.PanelIn(box.rectTransform);
             var c = box.rectTransform.Find("RegisterBoxBody") as RectTransform;
             if (c == null)
             {
@@ -126,10 +128,11 @@ namespace CR.UI.Panels
             }
 
             // 标题：白字 + 黑描边压在弹窗自带板岩带上（基线「Settings」的写法）。
-            CrUiStyle.Outlined("Title", box.rectTransform, "注册新账号", CrUiStyle.FontPopupTitle, Color.white, Color.black,
+            CrUiStyle.StyleTitle(CrUiStyle.Outlined("Title", box.rectTransform, "注册新账号",
+                CrUiStyle.FontPopupTitle, Color.white, Color.black,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(CrUiStyle.PopupBorder, 0f),
                 new Vector2(CrUiStyle.PopupW - 2f * CrUiStyle.PopupBorder, CrUiStyle.PopupTitleH),
-                TextAnchor.MiddleCenter);
+                TextAnchor.MiddleCenter));
 
             // 亮面上的字 = 深墨蓝（基线亮面标签最暗像素 (42,44,46)）。
             UIFactory.CreateLabel("AccountLabel", c, "账号", CrUiStyle.FontBody,
@@ -158,7 +161,7 @@ namespace CR.UI.Panels
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, StatusY),
                 new Vector2(InnerW, StatusH), CrUiStyle.BandSlate, false);
             _status = UIFactory.CreateLabel("Status", c, string.Empty, CrUiStyle.FontSmall,
-                new Vector2(Pad + GapM, StatusY + GapM), new Vector2(InnerW - 2f * GapM, StatusH - 2f * GapM),
+                new Vector2(Pad + GapM, StatusY - GapM), new Vector2(InnerW - 2f * GapM, StatusH - 2f * GapM),
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);
 
             // 主按钮 = 原版蓝按钮（165）；次按钮 = 原版板岩（014）。
@@ -167,7 +170,7 @@ namespace CR.UI.Panels
             _backButton = CrUiStyle.SlateButton("BackButton", c, "返回登录",
                 new Vector2(ButtonX, SecondaryButtonY), new Vector2(BtnW, BtnH), OnBackClicked, Color.white);
 
-            UIFactory.CreateLabel("Hint", c, "账号仅用于本项目联机（服务端自建账号服）", CrUiStyle.FontSmall,
+            UIFactory.CreateLabel("Hint", c, "账号仅用于本游戏登录", CrUiStyle.FontSmall,
                 new Vector2(Pad, HintY), new Vector2(InnerW, 40f),
                 TextAnchor.MiddleCenter, CrUiStyle.TextOnLight);
 
@@ -247,7 +250,8 @@ namespace CR.UI.Panels
         private void SetStatus(string text, Color color)
         {
             if (_status == null) return;
-            _status.text = text ?? string.Empty;
+            // 注册失败原因是服务端原文（长度不受本面板控制）⇒ 单行状态条必须过 TextFit。
+            _status.text = TextFit.Clamp(_status, text);
             _status.color = color;
         }
     }

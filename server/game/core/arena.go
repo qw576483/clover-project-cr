@@ -100,6 +100,37 @@ func (a *Arena) IsBlocked(xMilli, yMilli int32) bool {
 	return false
 }
 
+// BlockedExitDistance returns the distance from a point to the nearest spot
+// outside the king towers' blocked footprints. A point that is not inside one
+// of them has distance zero.
+func (a *Arena) BlockedExitDistance(xMilli, yMilli int32) int32 {
+	best := int32(-1)
+	for _, pos := range [2][2]int32{BlueKingTowerPos, RedKingTowerPos} {
+		x0, y0 := pos[0]-KingFootprintHalfMilli, pos[1]-KingFootprintHalfMilli
+		x1, y1 := pos[0]+KingFootprintHalfMilli, pos[1]+KingFootprintHalfMilli
+		if xMilli < x0 || xMilli >= x1 || yMilli < y0 || yMilli >= y1 {
+			continue
+		}
+		d := xMilli - x0
+		if v := x1 - xMilli; v < d {
+			d = v
+		}
+		if v := yMilli - y0; v < d {
+			d = v
+		}
+		if v := y1 - yMilli; v < d {
+			d = v
+		}
+		if best < 0 || d < best {
+			best = d
+		}
+	}
+	if best < 0 {
+		return 0
+	}
+	return best
+}
+
 // IsWalkable reports whether a unit may occupy this point.
 //
 // Flying units ignore terrain entirely (except for leaving the arena) -- that

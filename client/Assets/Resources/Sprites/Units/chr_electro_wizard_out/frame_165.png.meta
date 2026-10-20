@@ -149,10 +149,10 @@ TextureImporter:
       name: frame_165_0
       rect:
         serializedVersion: 2
-        x: 50
-        y: 57
-        width: 11
-        height: 11
+        x: 36
+        y: 29
+        width: 77
+        height: 49
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -171,10 +171,10 @@ TextureImporter:
       name: frame_165_1
       rect:
         serializedVersion: 2
-        x: 55
-        y: 66
-        width: 21
-        height: 13
+        x: 36
+        y: 29
+        width: 77
+        height: 49
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -193,10 +193,10 @@ TextureImporter:
       name: frame_165_2
       rect:
         serializedVersion: 2
-        x: 82
-        y: 65
-        width: 8
-        height: 7
+        x: 36
+        y: 29
+        width: 77
+        height: 49
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -215,10 +215,10 @@ TextureImporter:
       name: frame_165_3
       rect:
         serializedVersion: 2
-        x: 86
-        y: 50
-        width: 11
-        height: 20
+        x: 36
+        y: 29
+        width: 77
+        height: 49
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -237,10 +237,10 @@ TextureImporter:
       name: frame_165_4
       rect:
         serializedVersion: 2
-        x: 98
-        y: 49
-        width: 16
-        height: 17
+        x: 36
+        y: 29
+        width: 77
+        height: 49
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -259,10 +259,10 @@ TextureImporter:
       name: frame_165_5
       rect:
         serializedVersion: 2
-        x: 35
-        y: 28
-        width: 36
-        height: 30
+        x: 36
+        y: 29
+        width: 77
+        height: 49
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -281,10 +281,10 @@ TextureImporter:
       name: frame_165_6
       rect:
         serializedVersion: 2
-        x: 77
-        y: 28
-        width: 15
-        height: 20
+        x: 36
+        y: 29
+        width: 77
+        height: 49
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}

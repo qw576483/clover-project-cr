@@ -52,83 +52,9 @@ namespace CR.UI.Panels
         /// <summary>两条带的内容左 / 右边界留白 = **32**（= <see cref="CrUiStyle.PopupBorder"/> + <see cref="CrUiStyle.PopupPad"/>，与面板亮面体内缩同一口径）。</summary>
         private const float BarPadX = CrUiStyle.PopupBorder + CrUiStyle.PopupPad;
 
-        /// <summary>资源槽高 = **58**（本项目自定：资源条 78 − 上下各 10；原版槽盘边界压在深色背景上量不稳）。</summary>
-        private const float BarSlotH = 58f;
-
-        /// <summary>
-        /// 资源槽端帽宽 = **9.5**。出处：帧 <see cref="ResPaths.MenuTopSlotCap"/> 原生 **11×67**，
-        /// 原版按 1:1 放置（`sx` 1.2168 ≈ 1）⇒ 本工程按槽高 58 保原比例 = 58 × 11/67 = **9.5**（⛔ 不横拉变形）。
-        /// </summary>
-        private const float BarSlotCapW = 9.5f;
-
-        /// <summary>
-        /// 槽内资源图标宽 = **36**。出处：基线 `12_主菜单_750x1334` 行 1 的金币图标 y25..50@750
-        /// （高 25 ⇒ 36@1080；帧 <see cref="ResPaths.MenuTopCoinIcon"/> 70×76 按该宽等比高 39 &lt; 槽高 58）。
-        /// </summary>
-        private const float BarIconW = 36f;
-
-        /// <summary>资源槽「+」（buy）按钮宽 = **63.4**（基线 `12_主菜单_750x1334` 绿色钮外接 x250..293 = 44@750 ×1.44）。</summary>
-        private const float BuyW = 63.4f;
-
-        /// <summary>资源槽「+」按钮高 = **57.6**（基线 y15..54 = 40@750 ×1.44；≈ 槽高 <see cref="BarSlotH"/> 58）。</summary>
-        private const float BuyH = 57.6f;
-
-        /// <summary>「+」按钮离槽左沿 = **7.2**（基线 250 − 槽左沿 245 = 5@750 ×1.44）。</summary>
-        private const float BuyPadX = 7.2f;
-
-        // ── 顶带左端的等级盘 + 经验条（原版 `left_top` → `xp` 整组） ──
-        //
-        // 出处：基线 `12_主菜单_750x1334` 逐点量取，全部 ×1.44 折到 1080：
-        //   等级盘外接 x21..90 / y6..66；经验条外框 x88..228 / y17..58；条内填充读数 (10,57,72)。
-        //   `xp` 组在 `.sc` 里的设计期相对坐标与基线**不成同一比例**（同组内盘宽/条宽在 `.sc` 是 1.16、
-        //   基线是 0.51）⇒ 绝对几何一律以基线为准，`.sc` 只用来定帧与结构。
-
-        /// <summary>等级盘 左沿 = **30.2**（基线 x21@750 ×1.44）。</summary>
-        private const float LevelDiscX = 30.2f;
-
-        /// <summary>等级盘 宽 = **100.8**（基线 x21..90 = 70@750 ×1.44）。</summary>
-        private const float LevelDiscW = 100.8f;
-
-        /// <summary>等级盘 高 = **86.4**（基线 y6..66 = 60@750 ×1.44；比资源条 <see cref="ResBarH"/> 高 ⇒ 原版该盘也压出带外）。</summary>
-        private const float LevelDiscH = 86.4f;
-
-        /// <summary>经验条 左沿 = **126.7**（基线 x88@750 ×1.44；左端与原版一样压在等级盘的锯齿上）。</summary>
-        private const float XpBarX = 126.7f;
-
-        /// <summary>经验条 宽 = **201.6**（基线 x88..228 = 140@750 ×1.44）。</summary>
-        private const float XpBarW = 201.6f;
-
-        /// <summary>
-        /// 等级盘标定 = 帧 <see cref="ResPaths.MenuLevelDisc"/> 的均值 **(39,147,177)** → 基线盘面读数 **(13,46,55)**。
-        /// 原版顶带整体压暗；同一压暗系数也能从经验条帧均值 (215,66,221) 与基线 (10,57,72) 复算。
-        /// </summary>
-        private static readonly Color LevelDiscTint = new Color(13f / 39f, 46f / 147f, 55f / 177f, 1f);
-
-        /// <summary>
-        /// 经验条内填色标定 = 帧 <see cref="ResPaths.MenuXpBarFill"/> 的**众数色 (240,136,244)** → 基线条内读数 **(10,57,72)**。
-        /// <para>
-        /// 分母用**众数**而不是均值：该帧是一条纵向渐变（顶/底 (216,16,224)/(188,28,196)、中部 (240,136,244)），
-        /// 用均值当分母会让 G 通道被拉亮成绿色。用众数 ⇒ 中部渲染为 (10,57,72)，两端自然压暗成深蓝，
-        /// 即原版那条「中间亮、上下暗」的条面。
-        /// </para>
-        /// </summary>
-        private static readonly Color XpFillTint = new Color(10f / 240f, 57f / 136f, 72f / 244f, 1f);
-
-        /// <summary>
-        /// 名字板端帽宽 = **13.2**。出处：帧 <see cref="ResPaths.MenuNamePlateCap"/> 原生 **24×162**
-        /// （含竖向渐变），本工程带高只有 89 ⇒ 按 89 × 24/162 保原比例 = **13.2**（⛔ 不横拉 / 不竖压变形）。
-        /// </summary>
-        private const float NamePlateCapW = 13.2f;
-
-        /// <summary>
-        /// 资源槽 / 名字板的槽底色 = <c>(10,12,14)</c>。出处：基线 `12_主菜单_750x1334` 的槽盘内部逐点读数
-        /// （金币槽 `(330,30)` = (11,13,15)、`(360,20)` = (9,11,12)、宝石槽 `(600,30)` = (11,13,15)）。
-        /// </summary>
-        private static readonly Color BarSlotReading = new Color32(10, 12, 14, 255);
-
         // ═══════════════════ 底部导航带（原版整条缺失项） ═══════════════════
         //
-        // 出处：`策划/差异登记.tsv`（原版带高 120@750 = **172.8**@1080、5 个页签）。
+        // 出处：`策划/对照表.md` §D.3（原版带高 120@750 = **172.8**@1080、5 个页签）。
         // 原版 5 格的页签边界见 `12_主菜单_750x1334` 的 4 处整带高分隔槽（中心 125.5 / 251.5 / 497.5 / 623.5）
         // ×1.44 ⇒ 180.7 / 362.2 / 716.4 / 897.8，中间两格被原版的「对战」页签合并成一格宽。
         //
@@ -160,8 +86,8 @@ namespace CR.UI.Panels
         private const float NavSepW = 10.1f;
 
         /// <summary>
-        /// 导航带底色 = <c>(35,43,48)</c>。出处：`策划/对照表.md` §U#4 的审计读数
-        /// （原版该区均色 (35,43,48) vs 我们的 (6,28,6)）。
+        /// 导航带底色 = <c>(35,43,48)</c>。出处：`策划/参考图/12_主菜单_750x1334.png`
+        /// 第 1240 行的均色 (34,45,49)（逐行统计 x=20..730）。
         /// </summary>
         private static readonly Color NavBandReading = new Color32(35, 43, 48, 255);
 
@@ -227,14 +153,17 @@ namespace CR.UI.Panels
         /// <summary>提示行（贴导航带上沿）：对战失败原因 / 各入口的即时提示。</summary>
         private Text _status;
 
-        /// <summary>两个资源槽的数值文本（顺序 = 金币 / 宝石，见 <see cref="BuildTopBars"/>）。</summary>
-        private readonly Text[] _resValues = new Text[2];
-
         /// <summary>「对战入口」覆盖层（<see cref="BuildBattleEntry"/> 建，默认隐藏）。</summary>
         private GameObject _battleEntry;
 
         /// <summary>「对战入口」覆盖层的模态遮罩（挡掉下层页签的点击）。</summary>
         private GameObject _battleEntryMask;
+
+        /// <summary>「玩家资料」弹窗（<see cref="BuildProfile"/> 建，默认隐藏）。</summary>
+        private GameObject _profile;
+
+        /// <summary>「玩家资料」弹窗的模态遮罩。</summary>
+        private GameObject _profileMask;
 
         /// <summary>
         /// "没拿到服务端昵称"这条非预期分支**只报一次**。
@@ -245,9 +174,6 @@ namespace CR.UI.Panels
         /// </para>
         /// </summary>
         private static bool _nicknameWarned;
-
-        /// <summary>"资源条 / 名字条奖杯没有出处"这条**只报一次**（与会话同粒度，理由同 <see cref="_nicknameWarned"/>）。</summary>
-        private static bool _resGapWarned;
 
         private Action<string> _onBattleStartFailed;
         private Action<string> _onNicknameKnown;
@@ -275,8 +201,8 @@ namespace CR.UI.Panels
             var nickname = param as string;
             if (string.IsNullOrEmpty(nickname)) nickname = PlayerSession.Nickname;
             ApplyNickname(nickname);
-            RefreshValues();
             SetBattleEntryVisible(false);   // 入口是"当次一次动作"：面板被再次 OnOpen 时收起，不残留
+            SetProfileVisible(false);       // 资料弹窗同口径：重开主菜单时不残留
             SetStatus(string.Empty, CrUiStyle.TextDim);
         }
 
@@ -300,6 +226,7 @@ namespace CR.UI.Panels
             BuildStatusLine(root);   // 提示行（贴导航带上沿）
             BuildNavBand(root);      // 导航带 172.8、2 个入口（卡组编辑 / 战斗）
             BuildBattleEntry(root);  // 「战斗」入口的落点 = 对战入口覆盖层（默认隐藏）
+            // 玩家资料弹窗**首次点名字条时**才建（见 OpenProfile）：那时 GetProfile 的 8 项战绩已落库。
 
             // 非预期分支（必须留痕）：提示行没建出来 ⇒ 失败原因 / 提示文本无处可显。
             if (_status == null)
@@ -330,7 +257,7 @@ namespace CR.UI.Panels
         /// `right_top` → `coins` / `gems` 两组的矩形），槽身 = <see cref="ResPaths.MenuTopSlotBar"/> 横拉、
         /// 两端 = <see cref="ResPaths.MenuTopSlotCap"/> 镜像对、图标 = <see cref="ResPaths.MenuTopCoinIcon"/> /
         /// <see cref="ResPaths.MenuTopGemIcon"/>。
-        /// ⚠️ 数值域**留空** —— 本工程没有货币 / 奖杯系统（`策划/差异登记.tsv`），
+        /// ⚠️ 数值域**留空** —— 本工程没有货币 / 奖杯系统（`策划/对照表.md` §D.3），
         /// ⛔ 不编数值（只落版式与图元，缺口在运行时 Warn 一次）。
         /// 左端另有一组**等级盘 + 经验条**（`left_top` → `xp`），见 <see cref="BuildLevelXp"/>。
         /// </para>
@@ -344,61 +271,41 @@ namespace CR.UI.Panels
         /// </summary>
         private void BuildTopBars(Transform root)
         {
-            // 原版两个资源槽的横向范围（基线 `12_主菜单_750x1334` 行 1 槽色分段实测
-            // x245..498 / x512..694 ⇒ ×1.44）：
-            const float coinX = 352.8f;
-            const float coinW = 365.8f;
-            const float gemX = 737.3f;
-            const float gemW = 263.5f;
-            // 行内容顶边 = **23**（基线 `12_主菜单_750x1334` 资源槽盘顶边 y16@750 ×1.44 = 23.0；
-            // 盘高 40@750 ⇒ 底边 80.6，落在资源条 83.5 之内）。
-            const float slotY = 23f;
+            // 资源条（等级盘 / 经验条 / 金币 / 宝石）**整行不建**：本工程没有货币 / 等级 / 经验系统，
+            // 四处数值都没有出处 ⇒ 建出来就是一条空黑胶囊（与“界面坏了”分不开）。
+            // 口径 = 没数据就整行隐藏（与资料页空字段同一口径，见 `策划/对照表.md` §D.3）。
+            Game.Logger?.Info("MainMenuPanel",
+                "资源条整行不建：本工程无货币 / 等级 / 经验系统（对照表 §D.3）⇒ 不留空槽");
 
-            // 左端整组：等级盘 + 经验条（见本文件「顶带左端的等级盘 + 经验条」段）。
-            BuildLevelXp(root, slotY);
-
-            _resValues[0] = BuildResourceSlot(root, "ResCoin", coinX, slotY, coinW, ResPaths.MenuTopCoinIcon);
-            _resValues[1] = BuildResourceSlot(root, "ResGem", gemX, slotY, gemW, ResPaths.MenuTopGemIcon);
-
-            if (!_resGapWarned)
-            {
-                _resGapWarned = true;
-                // 非预期分支（必须留痕）：本工程没有货币 / 奖杯系统 ⇒ 资源条与名字条奖杯**没有出处**。
-                Game.Logger?.Warn("MainMenuPanel",
-                    "资源条 / 名字条奖杯无数值出处：本工程无货币 / 奖杯系统（见 `策划/差异登记.tsv`）" +
-                    "⇒ 只落版式与图元、数值显示占位符 " + NoValueGlyph);
-            }
-
-            // ── 名字条：名字板（原版 `profile_button`）+ 昵称 + 奖杯 + 设置齿轮 ──
+            // ── 名字条：原版木质名字板 + 原版亮色描边 + 昵称 + 设置齿轮 ──
             var plateW = CrUiStyle.DesignW - 2f * BarPadX;   // 1016
-            // 名字板用的就是原版那一帧（`profile_button` 的 `<shape 1653>`）⇒ 原色直出，⛔ 不加 tint。
-            var plate = CrUiStyle.Skin("NamePlate", root, ResPaths.MenuNamePlateBar, 0, Vector4.zero,
+            // 板身 = 原版木质标题条帧（`ui_out` 70，1067×79；见 <see cref="ResPaths.TitleBarWood"/>）横拉，
+            // 帧自带上下暗边（木质描边），⛔ 不再叠第二层描边件（802 的亮面会把木纹整片盖白）。
+            var plate = CrUiStyle.Skin("NamePlate", root, ResPaths.TitleBarWood, 0, Vector4.zero,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(BarPadX, -NameBarY),
-                new Vector2(plateW, NameBarH), BarSlotReading, false);
+                new Vector2(plateW, NameBarH), new Color32(83, 66, 48, 255), false);
             var pr = plate.rectTransform;
 
-            CrUiStyle.Icon("NamePlateCapL", pr, ResPaths.MenuNamePlateCap,
-                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero,
-                new Vector2(NamePlateCapW, NameBarH));
-            var capR = CrUiStyle.Icon("NamePlateCapR", pr, ResPaths.MenuNamePlateCap,
-                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero,
-                new Vector2(NamePlateCapW, NameBarH));
-            // 原版同一张端帽帧放两次（sx +0.7998 / −0.8008）⇒ 右端是本图的水平镜像。
-            capR.rectTransform.localScale = new Vector3(-1f, 1f, 1f);
+            // 名字条 = 原版 `profile_button`：点开玩家资料弹窗（同原版 profile 按钮的入口）。
+            var plateBtn = plate.gameObject.AddComponent<Button>();
+            plateBtn.targetGraphic = plate;
+            DressButtonColors(plateBtn);
+            CrUiFx.ButtonFx(plate);
+            plateBtn.onClick.AddListener(() =>
+            {
+                CrUiStyle.PlayClick("NamePlate");
+                OpenProfile();
+            });
 
             // 板内的元素留白 = GapM（板本身已从屏幕边内缩 BarPadX）⇒ ⛔ 不再叠一层 BarPadX。
             // 昵称：服务端权威值（`PlayerSession.Nickname`），白字黑描边（原版名字条的读法）。
-            // 右端给奖杯 + 设置齿轮留位，右边界 = 板右沿 −（GapM + 奖杯宽 + GapM + 齿轮宽 + GapM）。
+            // 右端只给设置齿轮留位；⛔ 不放奖杯徽章 —— 本工程没有奖杯数据，空徽章会被读成“坏了”。
             _nicknameLabel = CrUiStyle.Outlined("Nickname", pr, Cfg.Game.default_nick, CrUiStyle.FontBody,
                 Color.white, Color.black,
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(GapM, 0f),
-                new Vector2(plateW - 4f * GapM - BarTrophyW - GearW, NameBarH),
+                new Vector2(plateW - 3f * GapM - GearW, NameBarH),
                 TextAnchor.MiddleLeft);
-
-            CrUiStyle.AspectImage("TrophyBadge", pr, ResPaths.IconTrophyGold, BarTrophyW,
-                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-GapM - GearW - GapM, 0f),
-                CrUiStyle.TextDim);
 
             // ── 设置入口 = 原版 `settings_button` 的齿轮帧（`ui_out` 563），贴名字条右端 ──
             var gear = CrUiStyle.Skin("SettingsButton", pr, ResPaths.IconGear, 0, Vector4.zero,
@@ -407,6 +314,7 @@ namespace CR.UI.Panels
             var gearBtn = gear.gameObject.AddComponent<Button>();
             gearBtn.targetGraphic = gear;
             DressButtonColors(gearBtn);
+            CrUiFx.ButtonFx(gear);
             gearBtn.onClick.AddListener(() =>
             {
                 CrUiStyle.PlayClick("SettingsButton");
@@ -414,117 +322,11 @@ namespace CR.UI.Panels
             });
         }
 
-        /// <summary>
-        /// 顶带左端的**等级盘 + 经验条**（原版 `Menu_topLayer`(ui.sc clip 4539) 的 `left_top` → `xp` →
-        /// `xp_icon` / `xp_bar`）。
-        /// <para>
-        /// 结构与帧全取自 `.sc`：等级盘 = <see cref="ResPaths.MenuLevelDisc"/>（帧 543）；
-        /// 经验条轨道 = <see cref="ResPaths.MenuTopSlotFill"/>（帧 208 横拉）+ <see cref="ResPaths.MenuTopSlotCap"/>
-        /// （帧 209 镜像端帽对，与两个资源槽**同一件**）；条内填充 = <see cref="ResPaths.MenuXpBarFill"/>（帧 518）。
-        /// </para>
-        /// <para>
-        /// ⚠️ 数值域**留空**：本工程没有等级 / 经验系统（`策划/差异登记.tsv`）⇒ 盘内的等级数字与
-        /// 条上的经验文字都写 <see cref="NoValueGlyph"/>，⛔ 不编等级值。填充按基线 `12_主菜单_750x1334` 量到的
-        /// 「整条内区都是填充读数」铺满条内区（⛔ 同样不代表任何人的经验进度）。
-        /// </para>
-        /// </summary>
-        private void BuildLevelXp(Transform root, float rowY)
-        {
-            // 等级盘：中心与顶带行同高（基线盘 y6..66 的中心 = 行中心；盘比行高 ⇒ 原版也压出带外）。
-            CrUiStyle.Skin("LevelDisc", root, ResPaths.MenuLevelDisc, 0, Vector4.zero,
-                new Vector2(0f, 1f), new Vector2(0f, 0.5f),
-                new Vector2(LevelDiscX, -(rowY + BarSlotH * 0.5f)),
-                new Vector2(LevelDiscW, LevelDiscH), new Color32(13, 46, 55, 255), false, LevelDiscTint);
-            CrUiStyle.Outlined("LevelValue", root, NoValueGlyph, CrUiStyle.FontBody,
-                Color.white, Color.black,
-                new Vector2(0f, 1f), new Vector2(0f, 0.5f),
-                new Vector2(LevelDiscX, -(rowY + BarSlotH * 0.5f)),
-                new Vector2(LevelDiscW, LevelDiscH), TextAnchor.MiddleCenter);
-
-            // 经验条：轨道（帧 208 横拉 + 帧 209 镜像端帽对）—— 与资源槽同一件的读法。
-            var bar = CrUiStyle.Skin("XpBar", root, ResPaths.MenuTopSlotFill, 0, Vector4.zero,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(XpBarX, -rowY),
-                new Vector2(XpBarW, BarSlotH), BarSlotReading, false);
-            var br = bar.rectTransform;
-
-            var innerW = XpBarW - 2f * BarSlotCapW;
-            CrUiStyle.Icon("XpBarCapL", br, ResPaths.MenuTopSlotCap,
-                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero,
-                new Vector2(BarSlotCapW, BarSlotH));
-            var capR = CrUiStyle.Icon("XpBarCapR", br, ResPaths.MenuTopSlotCap,
-                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero,
-                new Vector2(BarSlotCapW, BarSlotH));
-            // 原版同一张端帽帧放两次（sx +1.167 / −1.167）⇒ 右端是本图的水平镜像。
-            capR.rectTransform.localScale = new Vector3(-1f, 1f, 1f);
-
-            // 条内填充：帧 518，铺满条内区。帧本身是品红 ⇒ 靠纯乘标定到基线读数。
-            CrUiStyle.Skin("XpBarFill", br, ResPaths.MenuXpBarFill, 0, Vector4.zero,
-                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(BarSlotCapW, 0f),
-                new Vector2(innerW, BarSlotH - 2f * GapS), new Color32(10, 57, 72, 255), false, XpFillTint);
-            CrUiStyle.Outlined("XpBarValue", br, NoValueGlyph, CrUiStyle.FontBody,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(innerW, BarSlotH), TextAnchor.MiddleCenter);
-        }
-
         /// <summary>名字条内设置齿轮 高 = **44**（本项目自定：名字条 89 高，齿轮上下各留 ~22）。</summary>
         private const float GearH = 44f;
 
         /// <summary>名字条内设置齿轮 宽 = **40.2**（帧 <see cref="ResPaths.IconGear"/> 107×117 按高 44 保原比例）。</summary>
         private const float GearW = 40.2f;
-
-        /// <summary>名字条内奖杯图元的占位宽 = **42**（<see cref="ResPaths.IconTrophyGold"/> 按 <see cref="CrUiStyle.AspectImage"/> 的目标宽）。</summary>
-        private const float BarTrophyW = 42f;
-
-        /// <summary>
-        /// 建一个资源槽：槽条（<see cref="ResPaths.MenuTopSlotBar"/> 横向拉伸）+ 内填
-        /// （<see cref="ResPaths.MenuTopSlotFill"/>）+ 两端端帽（<see cref="ResPaths.MenuTopSlotCap"/> 镜像对）
-        /// + 原版资源图标 + 数值域（返回它，交给 <see cref="RefreshValues"/> 写占位符）。
-        /// 数值域**不写数**：本工程没有货币系统（`策划/差异登记.tsv`），⛔ 不编数值。
-        /// <para>槽条本身是**纯黑**的原版帧（落盘均值 (0,0,0)），基线读数 (10,12,14) 是截图压缩噪声 ⇒ ⛔ 不提亮。</para>
-        /// </summary>
-        private Text BuildResourceSlot(Transform root, string name, float x, float y, float w, string iconPath)
-        {
-            var slot = CrUiStyle.Skin(name, root, ResPaths.MenuTopSlotBar, 0, Vector4.zero,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(x, -y),
-                new Vector2(w, BarSlotH), BarSlotReading, false);
-            var sr = slot.rectTransform;
-
-            var innerW = w - 2f * BarSlotCapW;
-            CrUiStyle.Skin(name + "Fill", sr, ResPaths.MenuTopSlotFill, 0, Vector4.zero,
-                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(BarSlotCapW, 0f),
-                new Vector2(innerW, BarSlotH - 2f * GapS), BarSlotReading, false);
-
-            CrUiStyle.Icon(name + "CapL", sr, ResPaths.MenuTopSlotCap,
-                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero,
-                new Vector2(BarSlotCapW, BarSlotH));
-            var capR = CrUiStyle.Icon(name + "CapR", sr, ResPaths.MenuTopSlotCap,
-                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero,
-                new Vector2(BarSlotCapW, BarSlotH));
-            // 原版同一张端帽帧放两次（sx +1.2168 / −1.2178）⇒ 右端是本图的水平镜像。
-            capR.rectTransform.localScale = new Vector3(-1f, 1f, 1f);
-
-            // 原版图标压在槽的**右端**（基线行 1：金币图标 x455..500 在金币组 x245..498 的右沿）。
-            CrUiStyle.AspectImage(name + "Icon", sr, iconPath, BarIconW,
-                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-BarPadX, 0f), CrUiStyle.TextDim);
-
-            // 原版资源槽**左端**还有一颗绿色「+」（`right_top` → `coins`/`gems` → `buy_gold`/`buy_gems`）：
-            // 帧 = <see cref="ResPaths.IconPlus"/>（`ui_out` 521，帧本身就是"绿底 + 深绿加号"的整颗按钮，
-            // 实测 50×50 满幅不透明、主色 (72,176,72) + 深绿 (0,48,0) 笔画）。
-            var buy = CrUiStyle.Skin(name + "Buy", sr, ResPaths.IconPlus, 0, Vector4.zero,
-                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(BuyPadX, 0f),
-                new Vector2(BuyW, BuyH), CrUiStyle.PrimaryBg, true);
-            var buyBtn = buy.gameObject.AddComponent<Button>();
-            buyBtn.targetGraphic = buy;
-            DressButtonColors(buyBtn);
-            var buyName = name;
-            buyBtn.onClick.AddListener(() => OnBuyClicked(buyName));
-
-            var value = CrUiStyle.Outlined(name + "Value", sr, string.Empty, CrUiStyle.FontBody,
-                new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(GapM, 0f),
-                new Vector2(innerW - BarIconW - 3f * GapM, BarSlotH), TextAnchor.MiddleRight);
-            value.raycastTarget = false;
-            return value;
-        }
 
         /// <summary>
         /// 底部导航带（原版整条缺失项，出处见本文件「底部导航带」段的抬头）。
@@ -569,6 +371,9 @@ namespace CR.UI.Panels
 
                 if (selected)
                 {
+                    // 选中态：2px 亮边 + 底部高亮条（纯色件；选中格几何不变）。
+                    CrUiFx.SelectedTabEdge(cell.rectTransform, w, NavBandH, CrUiFx.NumberGold);
+
                     // 原版选中格**两侧各一颗页选箭头**（`UI_pageSelection_arrow_anim` → 帧 564）：
                     // 帧本身是**朝左**的那一颗，原版左格用镜像件（▶ 指向格内）、右格用原向件（◀ 指向格内）。
                     // 镜像件的锚点取整格右沿、枢轴 (0,1) ⇒ 翻转后右沿落在格左沿 + 内缩处（⛔ 用 (1,1) 枢轴
@@ -595,6 +400,7 @@ namespace CR.UI.Panels
                 var btn = cell.gameObject.AddComponent<Button>();
                 btn.targetGraphic = cell;
                 DressButtonColors(btn);
+                CrUiFx.ButtonFx(cell);
                 var idx = i;
                 btn.onClick.AddListener(() =>
                 {
@@ -643,16 +449,7 @@ namespace CR.UI.Panels
         /// <summary>按钮四态（常态 = 白 = 原版图元原色；⛔ 不用底色当滤镜）。口径同其它面板的建按钮处。</summary>
         private static void DressButtonColors(Button btn)
         {
-            if (btn == null) return;
-            var colors = btn.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
-            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
-            colors.selectedColor = Color.white;
-            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 1f);
-            colors.colorMultiplier = 1f;
-            colors.fadeDuration = CrUiStyle.ButtonFade;
-            btn.colors = colors;
+            CrUiFx.ApplyButtonColors(btn);
         }
 
         /// <summary>
@@ -685,18 +482,6 @@ namespace CR.UI.Panels
         private const float GapM = 16f;
 
         // ───────────────────────── 交互 ─────────────────────────
-
-        /// <summary>
-        /// 资源槽「+」（原版 `buy_gold` / `buy_gems`，进内购）被点。本工程**没有商店 / 货币系统**
-        /// （`策划/差异登记.tsv`）⇒ 按本面板既有口径给**可读提示**（⛔ 不做点了没反应的假按钮，
-        /// ⛔ 也不假装能进内购）。
-        /// </summary>
-        private void OnBuyClicked(string slot)
-        {
-            Game.Logger?.Info("MainMenuPanel",
-                $"资源槽「{slot}」的「+」：原版进内购商店，本工程没有商店 / 货币系统（见 `策划/差异登记.tsv`）⇒ 只给可读提示");
-            SetStatus("本工程没有商店 / 货币系统（原版这个「+」是内购入口）", CrUiStyle.Accent);
-        }
 
         private void EmitRequest(string eventName, string what)
         {
@@ -733,7 +518,6 @@ namespace CR.UI.Panels
         {
             if (string.IsNullOrEmpty(nickname)) return;
             ApplyNickname(nickname);
-            RefreshValues();
         }
 
         /// <summary>
@@ -772,35 +556,28 @@ namespace CR.UI.Panels
         {
             // 失败原因必须显示（同样不许只打日志）：最常见的是"还没编辑过卡组"
             //（服务端 `onAiBattleStart` 在 len(deck) != 8 时回落到档案卡组，档案卡组为空 ⇒ 回 err）。
-            SetStatus(string.IsNullOrEmpty(reason) ? "人机对战启动失败（原因未知）" : reason, CrUiStyle.ErrorText);
+            // err 可能是英文原文 ⇒ 先映射成玩家文案，原文只在日志里留痕。
+            SetStatus(ServerText.ToPlayer(reason, "MainMenuPanel"), CrUiStyle.ErrorText);
         }
 
         private void SetStatus(string text, Color color)
         {
             if (_status == null) return;
-            _status.text = text ?? string.Empty;
+            // 提示行是**单行**（高 32）：对战失败原因是服务端 err 原文，长度不受本面板控制
+            // ⇒ 必须过 `TextFit`，否则换行后会压到导航带上（D4 同族）。
+            _status.text = TextFit.Clamp(_status, text);
             _status.color = color;
         }
 
         // ───────────────────────── 资源数值 ─────────────────────────
-
-        /// <summary>
-        /// 把两个资源槽的数值域刷成 <see cref="NoValueGlyph"/>（本工程没有货币系统）⇒
-        /// <see cref="OnOpen"/> 与 <see cref="OnNicknameKnown"/> 各调一次。
-        /// </summary>
-        private void RefreshValues()
-        {
-            for (var i = 0; i < _resValues.Length; i++)
-                if (_resValues[i] != null) _resValues[i].text = NoValueGlyph;
-        }
 
         // ───────────────────────── 对战入口 ─────────────────────────
 
         /// <summary>入口里按钮高 = **88**（本项目自定：<see cref="CrUiStyle.ButtonSecondaryH"/> 同档，三颗放进 388 高的亮面体）。</summary>
         private const float EntryBtnH = 88f;
 
-        /// <summary>入口亮面体高 = **364**（上下留白 16 + 3×88 按钮 + 2×20 缝 + 28 说明行）。</summary>
-        private const float EntryBodyH = 16f + 3f * EntryBtnH + 2f * 20f + 28f + 16f;
+        /// <summary>入口亮面体高 = **388**（上留白 16 + 3×88 按钮 + 2×20 缝 + 28 说明行 + 下留白 40）。</summary>
+        private const float EntryBodyH = 16f + 3f * EntryBtnH + 2f * 20f + 28f + 40f;
 
         /// <summary>入口框高 = **424**（亮面体 364 + 标题带 <see cref="CrUiStyle.PopupTitleH"/> + 描边）。</summary>
         private const float EntryH = EntryBodyH + CrUiStyle.PopupTitleH + CrUiStyle.PopupBorder;
@@ -850,11 +627,238 @@ namespace CR.UI.Panels
                 new Vector2(x, y3), new Vector2(btnW, EntryBtnH), CloseBattleEntry);
 
             UIFactory.CreateLabel("EntryHint", body,
-                "原版点「对战」直接进配对；本工程没有配对服 —— 先建房、或直接开局打人机。",
+                "和好友同房对战，或直接与 AI 开局。",
                 CrUiStyle.FontSmall, new Vector2(x, y3 - EntryBtnH - gapY),
                 new Vector2(btnW, 28f), TextAnchor.MiddleLeft, CrUiStyle.TextOnLightDim);
 
             SetBattleEntryVisible(false);
+        }
+
+        // ══════════════════ 玩家资料弹窗（原版 `popup_profile_new` 的版式） ══════════════════
+        //
+        // 版式出处：`策划/参考图/12_主菜单_750x1334.png`（原版整屏 750×1334）×1.44 折到 1080 画布：
+        //   弹窗 x=17..727 ⇒ 宽 **1024**；标题带 y=119..188 ⇒ 高 **99**；缎带 x=136..608 ⇒ 宽 **680**。
+        // 素材：外框 / 亮面 = `ui_out` 014 / 019（与设置、房间同一套）；区块标题 = 原版缎带
+        //   372 / 373 / 374（<see cref="CrUiStyle.Ribbon"/>）；关闭 = 477 + 164；奖杯 = 562。
+        // 数据 = <see cref="PlayerSession"/>（服务端 `GetProfileReply` 的 8 项）。
+        // ⛔ 本工程没有部落 / 竞技场 / 奖杯机制 ⇒ 部落名、竞技场图、奖杯行**不建节点**（不留空框）；
+        //   未拿到战绩时统计格也不建，只留一行说明。
+
+        /// <summary>资料弹窗宽 = **1024**（基线 x17..727 = 711@750 ×1.44）。</summary>
+        private const float ProfileW = 1024f;
+
+        /// <summary>资料弹窗标题带高 = **99**（基线 y119..188 = 69@750 ×1.44）。</summary>
+        private const float ProfileTitleH = 99f;
+
+        /// <summary>资料弹窗高 = **1003**（名字行 + 两条缎带 + 4 行统计格 + 卡组编辑缎带）。</summary>
+        private const float ProfileH = 1003f;
+
+        /// <summary>资料弹窗内左右留白 = **32**（与顶带 <see cref="BarPadX"/> 同一口径）。</summary>
+        private const float ProfilePadX = 32f;
+
+        /// <summary>统计行节距 = **132**（基线 y653→745→834 = 92@750 ×1.44）。</summary>
+        private const float StatRowPitch = 132f;
+
+        /// <summary>统计标签行高 = **34**。</summary>
+        private const float StatLabelH = 34f;
+
+        /// <summary>统计数值盘高 = **66**（基线 y653..698 = 46@750 ×1.44）。</summary>
+        private const float StatPlateH = 66f;
+
+        /// <summary>两列统计格之间的缝 = **24**。</summary>
+        private const float StatColGap = 24f;
+
+        /// <summary>统计格盘色 = 基线 (51,51,51) ÷ 019 亮面 (216,229,235)（纯乘标定，与其它 tint 同口径）。</summary>
+        private static readonly Color StatPlateTint = new Color(51f / 216f, 51f / 229f, 51f / 236f, 1f);
+
+        /// <summary>建资料弹窗时的 <see cref="PlayerSession.HasStats"/>；打开时若已变化就重建一次。</summary>
+        private bool _profileBuiltWithStats;
+
+        /// <summary>资料弹窗是否已建过（首次点名字条时才建，数据此时已从 GetProfile 落库）。</summary>
+        private bool _profileBuilt;
+
+        private void BuildProfile(Transform root)
+        {
+            var mask = UIFactory.CreatePanel("ProfileMask", root, EntryMaskColor, true);
+            UIFactory.Stretch(mask.rectTransform);
+            _profileMask = mask.gameObject;
+
+            var box = CrUiStyle.SettingsPopup("ProfileBox", root, ProfileH, ProfileW, ProfileTitleH);
+            _profile = box.gameObject;
+            CrUiStyle.BandTitle("ProfileTitle", box, "玩家资料", ProfileW, ProfileTitleH);
+
+            // 关闭 = 原版红钮底 477 + 白叉 164（与设置面板右上角同一对帧）。
+            var close = CrUiStyle.Skin("ProfileClose", box.rectTransform, CrUiStyle.ButtonRed, 0,
+                CrUiStyle.BorderStateButton, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-16f, -17f), new Vector2(64f, 64f), CrUiStyle.ErrorText, true);
+            CrUiStyle.Icon("ProfileCloseCross", close.rectTransform, ResPaths.IconClose,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(38f, 38f));
+            var closeBtn = close.gameObject.AddComponent<Button>();
+            closeBtn.targetGraphic = close;
+            DressButtonColors(closeBtn);
+            CrUiFx.ButtonFx(close);
+            closeBtn.onClick.AddListener(() => { CrUiStyle.PlayClick("ProfileClose"); CloseProfile(); });
+
+            var body = box.rectTransform.Find("ProfileBoxBody") as RectTransform;
+            if (body == null)
+            {
+                // 非预期分支（必须留痕）：亮面体没建出来 ⇒ 资料内容无处摆放。
+                Game.Logger?.Error("MainMenuPanel", "玩家资料弹窗的亮面体 ProfileBoxBody 没建出来");
+                SetProfileVisible(false);
+                return;
+            }
+
+            var hasStats = PlayerSession.HasStats;
+            _profileBuiltWithStats = hasStats;
+
+            // ── 名字行（原版 player_name：白字黑描边）──
+            var name = string.IsNullOrEmpty(PlayerSession.Nickname) ? Cfg.Game.default_nick : PlayerSession.Nickname;
+            var nameLabel = CrUiStyle.Outlined("ProfileName", body, name, CrUiStyle.FontTitle,
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(ProfilePadX, -8f),
+                new Vector2(ProfileW - 2f * ProfilePadX, 72f), TextAnchor.MiddleLeft);
+            nameLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+            nameLabel.text = TextFit.Clamp(nameLabel, name);
+
+            // ── 对战数据缎带 + 3 行 × 2 列 ──
+            CrUiStyle.Ribbon("ProfileRibbonStats", body, "对战数据",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -130f), CrUiStyle.RibbonW);
+
+            const float row1 = -206f;
+            if (hasStats)
+            {
+                BuildStatRow(body, row1, "胜场", PlayerSession.Wins.ToString(),
+                    "常用卡牌", PlayerSession.HasFavouriteCard ? PlayerSession.FavouriteCardName : NoValueGlyph);
+                BuildStatRow(body, row1 - StatRowPitch, "三冠胜场", PlayerSession.ThreeCrownWins.ToString(),
+                    "已收集卡牌", PlayerSession.CardsFound.ToString());
+                BuildStatRow(body, row1 - 2f * StatRowPitch, "最高奖杯", PlayerSession.HighestTrophies.ToString(),
+                    "累计捐赠", PlayerSession.CardsDonated.ToString());
+            }
+            else
+            {
+                CrUiStyle.Outlined("ProfileNoStats", body, "暂无战绩数据", CrUiStyle.FontBody,
+                    CrUiStyle.TextOnLightDim, CrUiStyle.OutlineDark,
+                    new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(ProfilePadX, row1),
+                    new Vector2(ProfileW - 2f * ProfilePadX, 66f), TextAnchor.MiddleCenter);
+            }
+
+            // ── 锦标赛数据缎带 + 1 行 × 2 列 ──
+            var ribbon2Y = row1 - 2f * StatRowPitch - StatPlateH - (StatLabelH + 6f) * 0.5f - 40f;
+            CrUiStyle.Ribbon("ProfileRibbonTournament", body, "锦标赛数据",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, ribbon2Y), CrUiStyle.RibbonW);
+            if (hasStats)
+            {
+                BuildStatRow(body, ribbon2Y - 76f, "参赛场次", PlayerSession.Matches.ToString(),
+                    "赢得卡牌", PlayerSession.CardsWon.ToString());
+            }
+
+            // ── 卡组编辑缎带（原版 Battle Deck 那一格，本工程 = 打开卡组编辑）──
+            var deckY = ribbon2Y - (hasStats ? 76f + StatPlateH : 0f) - 40f;
+            var deck = CrUiStyle.Ribbon("ProfileRibbonDeck", body, "卡组编辑",
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, deckY),
+                CrUiStyle.RibbonW, true);
+            var deckBtn = deck.gameObject.AddComponent<Button>();
+            deckBtn.targetGraphic = deck;
+            DressButtonColors(deckBtn);
+            deckBtn.onClick.AddListener(() =>
+            {
+                CrUiStyle.PlayClick("ProfileDeck");
+                CloseProfile();
+                EmitRequest(Events.Deck.OpenRequest, "卡组编辑");
+            });
+
+            SetProfileVisible(false);
+            Game.Logger?.Info("MainMenuPanel",
+                $"玩家资料弹窗已建：hasStats={hasStats}，缎带 3 条（对战数据 / 锦标赛数据 / 卡组编辑）");
+        }
+
+        /// <summary>一行两格统计（左、右各一组“标签 + 数值盘”）。</summary>
+        private static void BuildStatRow(Transform parent, float topY, string leftLabel, string leftValue,
+            string rightLabel, string rightValue)
+        {
+            var colW = (ProfileW - 2f * ProfilePadX - StatColGap) * 0.5f;
+            BuildStatCell(parent, ProfilePadX, topY, colW, leftLabel, leftValue);
+            BuildStatCell(parent, ProfilePadX + colW + StatColGap, topY, colW, rightLabel, rightValue);
+        }
+
+        /// <summary>一格统计：蓝标签（原版同色）+ 深色数值盘（019 亮面纯乘标定到基线 (51,51,51)）+ 白字。</summary>
+        private static void BuildStatCell(Transform parent, float x, float topY, float w,
+            string label, string value)
+        {
+            CrUiStyle.Outlined(label, parent, label, CrUiStyle.FontSmall, CrUiStyle.RibbonReading,
+                CrUiStyle.OutlineDark, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(x, topY), new Vector2(w, StatLabelH), TextAnchor.MiddleLeft);
+
+            var plate = CrUiStyle.Skin("StatPlate", parent, CrUiStyle.PopupSkinLight, 10, Vector4.zero,
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(x, topY - StatLabelH - 6f),
+                new Vector2(w, StatPlateH), CrUiStyle.BandSlate, false, StatPlateTint);
+            CrUiStyle.Outlined("Value", plate.rectTransform, value, CrUiStyle.FontBody, CrUiStyle.TextColor,
+                CrUiStyle.OutlineDark, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(16f, 0f),
+                new Vector2(w - 32f, StatPlateH), TextAnchor.MiddleLeft);
+        }
+
+        /// <summary>点名字条打开资料弹窗；首次打开时才建（数据已由 GetProfile 落库）。</summary>
+        private void OpenProfile()
+        {
+            if (!_profileBuilt)
+            {
+                BuildProfile(transform);
+                _profileBuilt = true;
+            }
+            else if (PlayerSession.HasStats != _profileBuiltWithStats)
+            {
+                // 建窗之后才拿到 / 清空战绩 ⇒ 重建一次（值域与统计格的有无都要跟着变）。
+                if (_profile != null) Destroy(_profile);
+                if (_profileMask != null) Destroy(_profileMask);
+                _profile = null;
+                _profileMask = null;
+                BuildProfile(transform);
+            }
+            SetProfileVisible(true);
+            Game.Logger?.Info("MainMenuPanel", "打开玩家资料弹窗（名字条入口）");
+        }
+
+        private void CloseProfile()
+        {
+            SetProfileVisible(false);
+        }
+
+        private void SetProfileVisible(bool visible)
+        {
+            if (visible) CrUiFx.ShowOverlay(_profile); else CrUiFx.HideOverlay(_profile);
+            if (_profileMask != null) _profileMask.SetActive(visible);
+        }
+
+        /// <summary>
+        /// 是否有覆盖层（对战入口 / 玩家资料）正在屏幕上。
+        /// 供返回键路由判断"这一层该关掉谁"，⛔ 不改变面板自己的开关逻辑。
+        /// </summary>
+        public bool HasOverlayOpen
+        {
+            get
+            {
+                return (_battleEntry != null && _battleEntry.activeSelf)
+                    || (_profile != null && _profile.activeSelf);
+            }
+        }
+
+        /// <summary>
+        /// 关掉当前最上面的覆盖层：资料弹窗优先（它后开、盖在对战入口之上），否则关对战入口。
+        /// 返回 false = 没有覆盖层可关（调用方继续处理下一层）。
+        /// </summary>
+        public bool TryCloseTopOverlay()
+        {
+            if (_profile != null && _profile.activeSelf)
+            {
+                CloseProfile();
+                return true;
+            }
+            if (_battleEntry != null && _battleEntry.activeSelf)
+            {
+                CloseBattleEntry();
+                return true;
+            }
+            return false;
         }
 
         /// <summary>「战斗」入口的落点：显式打开对战入口（⛔ 入口本身不开打）。</summary>
@@ -873,7 +877,7 @@ namespace CR.UI.Panels
 
         private void SetBattleEntryVisible(bool visible)
         {
-            if (_battleEntry != null) _battleEntry.SetActive(visible);
+            if (visible) CrUiFx.ShowOverlay(_battleEntry); else CrUiFx.HideOverlay(_battleEntry);
             if (_battleEntryMask != null) _battleEntryMask.SetActive(visible);
         }
 

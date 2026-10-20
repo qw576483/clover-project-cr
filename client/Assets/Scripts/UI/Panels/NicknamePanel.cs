@@ -27,8 +27,8 @@ namespace CR.UI.Panels
     /// </summary>
     public sealed class NicknamePanel : UIPanel
     {
-        /// <summary>面板高（像素）= 标题带 58 + 亮面体 386 + 外框描边 2（分段表见下）。</summary>
-        private const float PanelH = 446f;
+        /// <summary>面板高（像素）= 标题带 58 + 亮面体 471 + 外框描边 2（分段表见下）。</summary>
+        private const float PanelH = 531f;
 
         /// <summary>弹窗内左右留白（= `CrUiStyle.PopupPad`，基线 14px@499 × 2.1643 = 30）。</summary>
         private const float Pad = CrUiStyle.PopupPad;
@@ -62,11 +62,13 @@ namespace CR.UI.Panels
         //   -76  .. -171   昵称输入框
         //  -195  .. -267   状态条（板岩条）
         //  -291  .. -356   主按钮（蓝底 165，几何 = 原版按钮 424×65）
-        //  -356  .. -386   底部留白 30
+        //  -376  .. -441   次按钮（板岩 014，「返回登录」）
+        //  -441  .. -471   底部留白 30
         private const float FieldLabelY = -Pad;                             // -30
         private const float FieldY = -(Pad + LabelH + LabelGap);             // -76
         private const float StatusY = -(FieldY * -1f + FieldH + GapL);       // -195
         private const float PrimaryButtonY = -(StatusY * -1f + StatusH + GapL); // -291
+        private const float SecondaryButtonY = -(PrimaryButtonY * -1f + BtnH + GapM); // -376
 
         /// <summary>按钮水平居中位（= (871 − 424)/2 = 223.5）。</summary>
         private const float ButtonX = (InnerW - BtnW) * 0.5f;
@@ -80,6 +82,7 @@ namespace CR.UI.Panels
         private InputField _nickname;
         private Text _status;
         private Image _submitButton;
+        private Image _backButton;
 
         private Action<string> _onFailed;
 
@@ -100,6 +103,7 @@ namespace CR.UI.Panels
 
         public override void OnClose()
         {
+            CrUiFx.PanelOut(transform);
             Unsubscribe();
         }
 
@@ -115,6 +119,7 @@ namespace CR.UI.Panels
 
             // 面板底 = 原版板岩外框（`ui_out` 014）+ 亮面体（019），居中（依据见 LoginPanel 类注释）。
             var box = CrUiStyle.SettingsPopup("NicknameBox", root, PanelH);
+            CrUiFx.PanelIn(box.rectTransform);
             var c = box.rectTransform.Find("NicknameBoxBody") as RectTransform;
             if (c == null)
             {
@@ -124,10 +129,11 @@ namespace CR.UI.Panels
             }
 
             // 标题：白字 + 黑描边压在弹窗自带板岩带上（基线「Settings」的写法）。
-            CrUiStyle.Outlined("Title", box.rectTransform, "创建角色", CrUiStyle.FontPopupTitle, Color.white, Color.black,
+            CrUiStyle.StyleTitle(CrUiStyle.Outlined("Title", box.rectTransform, "创建角色",
+                CrUiStyle.FontPopupTitle, Color.white, Color.black,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(CrUiStyle.PopupBorder, 0f),
                 new Vector2(CrUiStyle.PopupW - 2f * CrUiStyle.PopupBorder, CrUiStyle.PopupTitleH),
-                TextAnchor.MiddleCenter);
+                TextAnchor.MiddleCenter));
 
             // 亮面上的字 = 深墨蓝（基线亮面标签最暗像素 (42,44,46)）。
             UIFactory.CreateLabel("NicknameLabel", c, "昵称", CrUiStyle.FontBody,
@@ -147,12 +153,14 @@ namespace CR.UI.Panels
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, StatusY),
                 new Vector2(InnerW, StatusH), CrUiStyle.BandSlate, false);
             _status = UIFactory.CreateLabel("Status", c, string.Empty, CrUiStyle.FontSmall,
-                new Vector2(Pad + GapM, StatusY + GapM), new Vector2(InnerW - 2f * GapM, StatusH - 2f * GapM),
+                new Vector2(Pad + GapM, StatusY - GapM), new Vector2(InnerW - 2f * GapM, StatusH - 2f * GapM),
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);
 
             // 主按钮 = 原版蓝按钮（`ui_out` 165）+ 白字黑描边，几何 = 原版 424×65。
             _submitButton = CrUiStyle.BlueButton("SubmitButton", c, "进入游戏",
                 new Vector2(ButtonX, PrimaryButtonY), new Vector2(BtnW, BtnH), OnSubmitClicked, Color.white);
+            _backButton = CrUiStyle.SlateButton("BackButton", c, "返回登录",
+                new Vector2(ButtonX, SecondaryButtonY), new Vector2(BtnW, BtnH), OnBackClicked, Color.white);
 
             Game.Logger?.Info("NicknamePanel",
                 "创角界面已打开（原版图元：面板底 ui_out/014+019 九宫格 · 标题带 014 · 输入框底 014 四角镜像 · " +
@@ -174,6 +182,13 @@ namespace CR.UI.Panels
             SetInteractable(false);
             SetStatus("正在创建…", CrUiStyle.Accent);
             Game.Event?.Emit(Events.Flow.NicknameSubmit, nickname);
+        }
+
+        /// <summary>返回登录：创角不成功 / 想换账号时唯一的退路（⛔ 不能把玩家锁在创角页）。</summary>
+        private void OnBackClicked()
+        {
+            Game.Logger?.Info("NicknamePanel", "返回登录（放弃本次创角，会话保持）");
+            Game.Event?.Emit(Events.Flow.BackToLoginRequest);
         }
 
         // ───────────────────────── 订阅 ─────────────────────────
@@ -200,12 +215,15 @@ namespace CR.UI.Panels
         {
             var btn = _submitButton != null ? _submitButton.GetComponent<Button>() : null;
             if (btn != null) btn.interactable = on;
+            var back = _backButton != null ? _backButton.GetComponent<Button>() : null;
+            if (back != null) back.interactable = on;
         }
 
         private void SetStatus(string text, Color color)
         {
             if (_status == null) return;
-            _status.text = text ?? string.Empty;
+            // 创角失败原因是服务端原文（长度不受本面板控制）⇒ 单行状态条必须过 TextFit。
+            _status.text = TextFit.Clamp(_status, text);
             _status.color = color;
         }
     }

@@ -279,7 +279,7 @@ func TestSeparationMatchesReferenceWhenWithinBudget(t *testing.T) {
 }
 
 // TestSeparationRateLimitIsTheOnlyDivergenceFromReference quantifies the one
-// registered difference (策划/差异登记.tsv D149/D150): the reference has no rate
+// registered difference (策划/对照表.md §D.3): the reference has no rate
 // limit, so a fully coincident pair is torn apart by the whole overlap inside a
 // single call, while this solver moves each unit at most its own walk step per
 // tick. The divergence is bounded, monotone in the same direction, and gone as

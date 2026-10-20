@@ -152,6 +152,166 @@ namespace CR
         /// </summary>
         public const string CountdownTick = "CountdownTick/deploy_timer_tick_01v4";
 
+        // ───────────────────────── 塔的开火音 ─────────────────────────
+        //
+        // 源 = <c>原版资源/cr-sfx/Towers/&lt;塔&gt;/&lt;源文件名&gt;.ogg</c>，落地 = <c>Resources/Sound/SFX/Towers/</c>。
+        // 塔只有开火音（原版整包的 `Towers/` 下没有独立的「塔被命中」音）⇒ 塔受击沿用 <see cref="Hit"/>。
+
+        /// <summary>公主塔开火。源：<c>Towers/Archer Tower/archer_tower_fire_05.ogg</c>（整包唯一的公主塔开火音）。</summary>
+        public const string TowerPrincessFire = "Towers/archer_tower_fire_05";
+
+        /// <summary>国王塔开火。源：<c>Towers/King Tower/king_fire_06.ogg</c>（`king_activate_01` 是激活音，各有其用）。</summary>
+        public const string TowerKingFire = "Towers/king_fire_06";
+
+        /// <summary>
+        /// 逐卡攻击 / 命中音：卡 key（= 服务端 <c>CardInfo.key</c>，逐字等于 <c>策划/数值文档/card_cs.txt</c> 的 key 列）
+        /// → <c>PlaySFX</c> 的 clipName。
+        ///
+        /// <para>
+        /// 落地路径 = <c>Resources/Sound/SFX/Cards/&lt;卡 key&gt;/&lt;源文件名&gt;.ogg</c>，
+        /// 每个常量都能按 <c>原版资源/cr-sfx/Cards/&lt;卡目录&gt;/&lt;源文件名&gt;.ogg</c> 反查。
+        /// 选型口径：远程卡取开火 / 施法音，近战卡取挥砍音；命中音取同卡目录的 hit / impact / explo，
+        /// 目录里没有命中音的卡（minions / cannon / zap）返回 <c>false</c> ⇒ 调用方回落 <see cref="Hit"/>。
+        /// </para>
+        /// </summary>
+        public static class Cards
+        {
+            /// <summary>骑士（Key `knight`）。近战挥砍 + 同组命中。</summary>
+            public const string KnightAttack = "Cards/knight/card_hero_knight_atk_cast_a";
+            public const string KnightHit = "Cards/knight/card_hero_knight_atk_hit_a";
+
+            /// <summary>弓箭手（Key `archers`）。开火 + 箭矢命中。</summary>
+            public const string ArchersAttack = "Cards/archers/archer_attack_07";
+            public const string ArchersHit = "Cards/archers/arrow_hit_13";
+
+            /// <summary>哥布林（Key `goblins`）。近战挥砍 + 通用兵命中（同目录）。</summary>
+            public const string GoblinsAttack = "Cards/goblins/gob_attack_01v2";
+            public const string GoblinsHit = "Cards/goblins/footman_attack_hit_01";
+
+            /// <summary>哥布林投矛手（Key `spear-goblins`）。投矛 + 同目录命中。</summary>
+            public const string SpearGoblinsAttack = "Cards/spear-goblins/spear_gob_atk_01";
+            public const string SpearGoblinsHit = "Cards/spear-goblins/spear_gob_atk_hit_01";
+
+            /// <summary>巨人（Key `giant`）。巨拳挥击 + 同组命中。</summary>
+            public const string GiantAttack = "Cards/giant/giant_attack_swing_01";
+            public const string GiantHit = "Cards/giant/card_hero_giant_atk_hit_a";
+
+            /// <summary>亡灵（Key `minions`）。俯冲攻击音；目录里没有命中音 ⇒ <see cref="TryGetHit"/> 返回 false。</summary>
+            public const string MinionsAttack = "Cards/minions/tinymite_attack_04";
+
+            /// <summary>女巫（Key `witch`）。施法 + 同组命中。</summary>
+            public const string WitchAttack = "Cards/witch/card_evolution_witch_attack";
+            public const string WitchHit = "Cards/witch/card_evolution_witch_attack_hit";
+
+            /// <summary>野蛮人（Key `barbarians`）。挥砍 + 同目录的砍击命中。</summary>
+            public const string BarbariansAttack = "Cards/barbarians/barbarian_attack_02";
+            public const string BarbariansHit = "Cards/barbarians/knight_attack_hack_01";
+
+            /// <summary>骷髅兵（Key `skeletons`）。挥砍 + 通用兵命中（同目录）。</summary>
+            public const string SkeletonsAttack = "Cards/skeletons/skeleton_atk_03";
+            public const string SkeletonsHit = "Cards/skeletons/footman_attack_hit_01";
+
+            /// <summary>瓦基丽武神（Key `valkyrie`）。旋斧 + 同目录命中。</summary>
+            public const string ValkyrieAttack = "Cards/valkyrie/valkyrie_atk_04";
+            public const string ValkyrieHit = "Cards/valkyrie/valkyrie_hit_01";
+
+            /// <summary>炸弹兵（Key `bomber`）。投弹 + 同目录爆炸。</summary>
+            public const string BomberAttack = "Cards/bomber/bomb_skeleton_atk_04";
+            public const string BomberHit = "Cards/bomber/bomb_skeleton_01v3";
+
+            /// <summary>火枪手（Key `musketeer`）。开枪 + 同目录弹着。</summary>
+            public const string MusketeerAttack = "Cards/musketeer/musket_fire_02";
+            public const string MusketeerHit = "Cards/musketeer/musket_impact_01";
+
+            /// <summary>飞龙宝宝（Key `baby-dragon`）。火球 + 同组命中。</summary>
+            public const string BabyDragonAttack = "Cards/baby-dragon/baby_dragon_fireball_08";
+            public const string BabyDragonHit = "Cards/baby-dragon/card_evolution_baby_dragon_atk_hit";
+
+            /// <summary>法师（Key `wizard`）。施法 + 同组命中。</summary>
+            public const string WizardAttack = "Cards/wizard/card_hero_wizard_atk_cast_01";
+            public const string WizardHit = "Cards/wizard/card_hero_wizard_atk_hit_01";
+
+            /// <summary>迷你皮卡（Key `mini-pekka`）。挥砍 + 同目录命中。</summary>
+            public const string MiniPekkaAttack = "Cards/mini-pekka/mini_pekka_atk_12";
+            public const string MiniPekkaHit = "Cards/mini-pekka/mini_pekka_hit_03";
+
+            /// <summary>野猪骑士（Key `hog-rider`）。挥锤 + 同目录冲击。</summary>
+            public const string HogRiderAttack = "Cards/hog-rider/hogrider_atk_01";
+            public const string HogRiderHit = "Cards/hog-rider/boulder_impact_01";
+
+            /// <summary>加农炮（Key `cannon`）。开炮；目录里没有命中音 ⇒ <see cref="TryGetHit"/> 返回 false。</summary>
+            public const string CannonAttack = "Cards/cannon/cannon_fire_03";
+
+            /// <summary>火球（Key `fireball`）。发射 + 爆炸。</summary>
+            public const string FireballAttack = "Cards/fireball/fire_ball_02";
+            public const string FireballHit = "Cards/fireball/fire_ball_explo_02";
+
+            /// <summary>万箭齐发（Key `arrows`）。弓弦 + 同目录箭矢落地。</summary>
+            public const string ArrowsAttack = "Cards/arrows/archer_queen_attack_02";
+            public const string ArrowsHit = "Cards/arrows/arrow_norm_impact_06";
+
+            /// <summary>电击法术（Key `zap`）。放电；目录里没有命中音 ⇒ <see cref="TryGetHit"/> 返回 false。</summary>
+            public const string ZapAttack = "Cards/zap/zap_02";
+
+            /// <summary>取该卡的**攻击 / 施法**音。返回 false = key 不在本表（调用方须留痕，⛔ 不静默）。</summary>
+            public static bool TryGetAttack(string cardKey, out string clipName)
+            {
+                switch (cardKey)
+                {
+                    case "knight": clipName = KnightAttack; return true;
+                    case "archers": clipName = ArchersAttack; return true;
+                    case "goblins": clipName = GoblinsAttack; return true;
+                    case "spear-goblins": clipName = SpearGoblinsAttack; return true;
+                    case "giant": clipName = GiantAttack; return true;
+                    case "minions": clipName = MinionsAttack; return true;
+                    case "witch": clipName = WitchAttack; return true;
+                    case "barbarians": clipName = BarbariansAttack; return true;
+                    case "skeletons": clipName = SkeletonsAttack; return true;
+                    case "valkyrie": clipName = ValkyrieAttack; return true;
+                    case "bomber": clipName = BomberAttack; return true;
+                    case "musketeer": clipName = MusketeerAttack; return true;
+                    case "baby-dragon": clipName = BabyDragonAttack; return true;
+                    case "wizard": clipName = WizardAttack; return true;
+                    case "mini-pekka": clipName = MiniPekkaAttack; return true;
+                    case "hog-rider": clipName = HogRiderAttack; return true;
+                    case "cannon": clipName = CannonAttack; return true;
+                    case "fireball": clipName = FireballAttack; return true;
+                    case "arrows": clipName = ArrowsAttack; return true;
+                    case "zap": clipName = ZapAttack; return true;
+                    default: clipName = null; return false;
+                }
+            }
+
+            /// <summary>
+            /// 取该卡的**命中**音（被打中时播）。返回 false = 该卡目录没有命中音
+            /// （minions / cannon / zap）⇒ 调用方回落通用 <see cref="Hit"/>。
+            /// </summary>
+            public static bool TryGetHit(string cardKey, out string clipName)
+            {
+                switch (cardKey)
+                {
+                    case "knight": clipName = KnightHit; return true;
+                    case "archers": clipName = ArchersHit; return true;
+                    case "goblins": clipName = GoblinsHit; return true;
+                    case "spear-goblins": clipName = SpearGoblinsHit; return true;
+                    case "giant": clipName = GiantHit; return true;
+                    case "witch": clipName = WitchHit; return true;
+                    case "barbarians": clipName = BarbariansHit; return true;
+                    case "skeletons": clipName = SkeletonsHit; return true;
+                    case "valkyrie": clipName = ValkyrieHit; return true;
+                    case "bomber": clipName = BomberHit; return true;
+                    case "musketeer": clipName = MusketeerHit; return true;
+                    case "baby-dragon": clipName = BabyDragonHit; return true;
+                    case "wizard": clipName = WizardHit; return true;
+                    case "mini-pekka": clipName = MiniPekkaHit; return true;
+                    case "hog-rider": clipName = HogRiderHit; return true;
+                    case "fireball": clipName = FireballHit; return true;
+                    case "arrows": clipName = ArrowsHit; return true;
+                    default: clipName = null; return false;
+                }
+            }
+        }
+
         /// <summary>
         /// 把 clipName 拼成完整资源路径：<c>Sound/SFX/Hit/boulder_impact_01</c>。
         /// 用途：<c>Game.Res.Exists(AudioPaths.SfxPath(clip))</c> 探测与日志。

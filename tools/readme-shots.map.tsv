@@ -1,3 +1,6 @@
 from	to	what
-readme/readme-title.png	game-title.png	启动画面（Boot：Logo + by clover-engine）
-readme/readme-battle.png	game-first-stage.png	对局首场景（Battle01：竞技场 + HUD + 手牌）
+readme/readme-title.png	game-title.png	启动画面（Boot：官方 LOGO + by clover-engine）
+readme/readme-battle.png	game-battle.png	对局中（单位交战 + 弹道在飞 + 完整 HUD）
+readme/readme-deck.png	game-deck.png	卡组编辑（8 张卡 + 卡框 + 品质色）
+readme/readme-pause.png	game-pause.png	对局内暂停面板
+readme/readme-result.png	game-result.png	结算（失败 0:3，我方冠 0 : 对方冠 3）

@@ -185,7 +185,7 @@ func (l *gameLogic) checkDeck(ids []int32) error {
 	return nil
 }
 
-// onGetCardPool 拉 60 张卡池（客户端卡组编辑页用）。
+// onGetCardPool 拉 20 张卡池（客户端卡组编辑页用）。
 func (l *gameLogic) onGetCardPool(c event.Ctx) error {
 	var req def.GetCardPoolReq
 	if err := c.BindMsg(&req); err != nil {

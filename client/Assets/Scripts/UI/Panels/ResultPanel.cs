@@ -47,8 +47,8 @@ namespace CR.UI.Panels
         //   · 标题条高 = `CrUiStyle.TitleBarH` = 92、内缩 = `CrUiStyle.PanelPad` = 40
         // 只有**竖版重排本身**（上下排布、按钮由左右并排改上下两行）与 BoxH 是内容驱动。
 
-        /// <summary>面板高（内容驱动：标题条 92 + 徽记 90 + 结局 100 + 冠数 80 + **奖励条 230** + 两条数据条 188 + 两按钮 221 + 三行说明 224 + 间隔）。</summary>
-        private const float BoxH = 1330f;
+        /// <summary>面板高（内容驱动：标题条 92 + 徽记 90 + 结局 100 + 冠数 80 + 提示 36 + 原因 48 + 细节 36 + 两按钮 221 + 间隔与留白）。</summary>
+        private const float BoxH = 870f;
 
         /// <summary>全屏暗底色（结算页压住对局画面；原版结算页也是暗底 —— 具体色值本项目自定）。</summary>
         private static readonly Color DimColor = new Color(0f, 0f, 0f, 0.62f);
@@ -56,36 +56,11 @@ namespace CR.UI.Panels
         /// <summary>结局徽记显示宽（原版结算图元 `ui_battle_end_out/195` 原生 96×89）。</summary>
         private const float OutcomeIconW = 96f;
 
-        /// <summary>
-        /// **胜负字牌底板**（原版图元 `ui_battle_end_out/236`）的显示宽。
-        /// <para>
-        /// 口径：该帧在原版图集里的**画布是 342×230**（本图集 240 帧全部同画布），
-        /// 条本身 bbox 65×44；本工程设计画布宽 = `CrUiStyle.DesignW` = 1080 ⇒ 1:1 等比
-        /// 65 × 1080/342 ≈ **205**。高度由 <see cref="CrUiStyle.AspectImage"/> 按素材自身宽高比算
-        /// （⛔ 代码里不写高度魔法数）。
-        /// </para>
-        /// <para>
-        /// ⚠️ 这是**本项目自定口径**（原版结算界面基线未取到：`策划/参考图/清单.md` §2），与
-        /// <see cref="OutcomeIconW"/> 同一口径，⛔ 不许当成"原版量出来的尺寸"对外声称。
-        /// </para>
-        /// </summary>
-        private const float OutcomePlateW = 205f;
-
         /// <summary>冠数图标（原版结算王冠帧）显示宽 = 74。</summary>
         private const float CrownIconW = 74f;
 
         /// <summary>冠数上限（原版 3 冠制）。240 帧里没有 2 冠 / 3 冠的堆叠帧 ⇒ 同一张复制 N 次。</summary>
         private const int CrownMax = 3;
-
-        /// <summary>
-        /// 奖励条槽位宽（**本项目自定**）：原版 `ui_battle_end_out/212` 的 bbox 149×181 按上面的 1080/342
-        /// 等比为 ≈470 宽 ⇒ 5 格排不下（5×470 ≫ 面板内容宽 920）。本工程改为"5 格等距排满内容宽"：
-        /// 5×168 + 4×16 = 904 ≤ 920。
-        /// </summary>
-        private const float RewardSlotW = 168f;
-
-        /// <summary>奖励条槽位水平间距（本项目自定，见 <see cref="RewardSlotW"/>）。</summary>
-        private const float RewardSlotGap = 16f;
 
         /// <summary>内容框内缩（= `CrUiStyle.PanelPad`，A 侧实测口径）。</summary>
         private const float Pad = CrUiStyle.PanelPad;
@@ -196,6 +171,7 @@ namespace CR.UI.Panels
         /// </summary>
         public override void OnClose()
         {
+            CrUiFx.PanelOut(transform);
         }
 
         // ───────────────────────── 视觉树（D1：OnOpen 里用 UIFactory 自建） ─────────────────────────
@@ -226,17 +202,7 @@ namespace CR.UI.Panels
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -(CrUiStyle.TitleBarH + 18f)), CrUiStyle.Accent);
 
-            // 胜负字牌底板（原版 `ui_battle_end_out/236`）—— 垫在结局文字下面。
-            //   原版那行"胜 / 负"字就画在这块 65×44 的深色渐变圆角横条上：`.sc` 里它是**唯一**
-            //   同时被 `touchdown_txt_blue` / `touchdown_txt_red` 引用的帧。
-            //   ⚠️ 字本身是**文本字段**（`.sc` 头 TextFieldCount=40，原版字体 `Supercell-Magic`），
-            //   ⛔ 不是贴图 ⇒ 这里只落底板，文字仍走 Text（`_outcome`）。
-            //   ⚠️ 显示宽是**本项目自定等比口径**（见 OutcomePlateW），不是原版量到的屏幕尺寸。
-            CrUiStyle.AspectImage("OutcomePlate", c, ResPaths.BattleEndTextPlate, OutcomePlateW,
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -(CrUiStyle.TitleBarH + 180f)), CrUiStyle.FieldBg);
-
-            // 结局（胜 / 负 / 平）：面板里字号最大的一条。
+            // 结局（胜 / 负 / 平）：面板里字号最大的一条，单次绘制 + 2px 黑描边。
             // 用 `CrUiStyle.Outlined`（白/彩字 + 黑描边）—— 亮灰蓝面板上原版所有文字都是
             //   白字黑描边（基线 `24_设置` / `12_主菜单`）；不加描边的白字压在亮面上等于看不见。
             // ⚠️ 头像框（原版结算页的双方头像外框 / 等级徽记）**不画**：本图集 240 帧里**没有**
@@ -271,78 +237,42 @@ namespace CR.UI.Panels
             }
 
             // 亮灰蓝面板上的字一律用暗色（亮面上放近白字等于看不见）⇒ `TextOnLight`。
-            _crowns = UIFactory.CreateText("Crowns", crownRow, string.Empty, CrUiStyle.FontTitle,
-                TextAnchor.MiddleLeft, CrUiStyle.TextOnLight);
-            UIFactory.Place(_crowns.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
-                new Vector2(10f, 0f), new Vector2(420f, 70f));
+            _crowns = CrUiStyle.ValueText("Crowns", crownRow, string.Empty, CrUiStyle.FontTitle,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(10f, 0f), new Vector2(420f, 70f), TextAnchor.MiddleLeft);
 
-            // ── 奖励条（原版条位 + 原版奖励件）──────────────────────────────────
-            // 条位与图件的**权威出处 = 原版 `.sc` 的 export 名**：
-            //   格底 = `ui_battle_end_out/212`（7 个 `battleEnd_loot_item_*` export 共用同一张）；
-            //   槽内 = `gold_reward`(216 金币堆) / `..._gold_and_gem`(214 宝石) / `..._questpoint`(213 奖章)
-            //          / `..._challenge`(224 卷轴) / `..._chest`(223 城堡 + 218·219·220·221 白色高光)。
-            // ⚠️ 协议里**没有**奖励字段（`Def/ProtoDef.cs:118-125` 的 `BattleEndNotify` 只有
-            //    win / draw / crowns_a / crowns_b / reason / hp_rate_a / hp_rate_b）⇒ 这里**只落
-            //    原版条位与图件、不落任何数值**：不写"+N"、也不在界面上声称"你获得了 X"（那才是编造）。
-            //    消除条件 = 服务端在 `PushBattleEnd` 的 payload 里下发奖励条目
-            //    （届时槽内按条目填、并补数量文本）。
-            var strip = UIFactory.CreateNode("RewardStrip", c);
-            UIFactory.Place(strip, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -(CrUiStyle.TitleBarH + 330f)),
-                new Vector2(5f * RewardSlotW + 4f * RewardSlotGap, RewardSlotW * 181f / 149f));
+            // ── 奖励区：协议没有奖励字段（`Def/ProtoDef.cs:118-125` 的 `BattleEndNotify` 只有
+            //    win / draw / crowns_a / crowns_b / reason / hp_rate_a / hp_rate_b）⇒
+            //    ⛔ 不画假奖励图标块、也⛔ 不留"无奖励数据"这类说明文字（原版这一区是奖励条目，缺数据时该区整块不出现）。
+            //    出现条件 = 服务端在 `PushBattleEnd` 的 payload 里下发奖励条目。
 
-            RewardSlot(strip.transform, -2f * (RewardSlotW + RewardSlotGap), ResPaths.IconCoinPile);
-            RewardSlot(strip.transform, -1f * (RewardSlotW + RewardSlotGap), ResPaths.IconGemGreen);
-            RewardSlot(strip.transform, 0f, ResPaths.IconMedal);
-            RewardSlot(strip.transform, 1f * (RewardSlotW + RewardSlotGap), ResPaths.BattleEndRewardQuestScroll);
-            var chest = RewardSlot(strip.transform, 2f * (RewardSlotW + RewardSlotGap), ResPaths.IconCastle);
-            Glow(chest.transform, "ChestGlowArc", ResPaths.BattleEndChestGlowArc, 44f, new Vector2(-26f, 40f));
-            Glow(chest.transform, "ChestGlowBar", ResPaths.BattleEndChestGlowBar, 22f, new Vector2(0f, 34f));
-            Glow(chest.transform, "ChestGlowArcThin", ResPaths.BattleEndChestGlowArcThin, 40f, new Vector2(26f, 30f));
-            Glow(chest.transform, "ChestGlowArcAlt", ResPaths.BattleEndChestGlowArcAlt, 34f, new Vector2(0f, -34f));
-
-            // ── 两条结算数据条：原版深色圆角框（`ui_battle_end_out/108`）九宫格 + 居中文字 ──
+            // ── 结算原因：中文短句（去掉"结算原因："前缀）──
             var reasonBar = CrUiStyle.NineSlice("ReasonBar", c, ResPaths.PanelFrameDark, CrUiStyle.BorderButtonDark,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, -(CrUiStyle.TitleBarH + 566f)),
-                new Vector2(CrUiStyle.ContentW - 2f * Pad, 96f), CrUiStyle.FieldBg, false);
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, -(CrUiStyle.TitleBarH + 400f)),
+                new Vector2(CrUiStyle.ContentW - 2f * Pad, 80f), CrUiStyle.FieldBg, false);
             _reason = UIFactory.CreateText("Reason", reasonBar.rectTransform, string.Empty, CrUiStyle.FontBody,
-                TextAnchor.MiddleCenter, CrUiStyle.Accent);
+                TextAnchor.MiddleCenter, CrUiStyle.TextColor);
             UIFactory.Stretch(_reason.rectTransform);
 
-            var detailBar = CrUiStyle.NineSlice("DetailBar", c, ResPaths.PanelFrameDark, CrUiStyle.BorderButtonDark,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, -(CrUiStyle.TitleBarH + 678f)),
-                new Vector2(CrUiStyle.ContentW - 2f * Pad, 76f), CrUiStyle.FieldBg, false);
-            _detail = UIFactory.CreateText("Detail", detailBar.rectTransform, string.Empty, CrUiStyle.FontSmall,
-                TextAnchor.MiddleCenter, CrUiStyle.TextDim);
-            UIFactory.Stretch(_detail.rectTransform);
+            // ── 细节行：塔血 + 对局模式，居中灰字，不带房间号 ──
+            _detail = UIFactory.CreateLabel("Detail", c, string.Empty, CrUiStyle.FontSmall,
+                new Vector2(Pad, -(CrUiStyle.TitleBarH + 500f)), new Vector2(CrUiStyle.ContentW - 2f * Pad, 40f),
+                TextAnchor.MiddleCenter, CrUiStyle.TextOnLightDim);
 
-            // ── 两个动作：竖版 ⇒ **上下两行**（⛔ 不再是左右并排的一行）。
-            // 「再来一局」/「回主菜单」从 `ActionButton`（金 300 / 深蓝灰 014）换成
-            //   **`BlueButton`（`ui_out/165` 蓝底白字）** —— 看图依据（300 = 亮黄金立体块、
-            //   014 = 板岩块），原版**功能面板按钮**是蓝底白字（基线 `24_设置` 的蓝按钮 / `12_主菜单` 的 Clan 钮）。
-            //   ⚠️ 原版结算界面基线未取到（`策划/参考图/清单.md:40`）⇒ 本条是"对齐同类部件"的判定，已登记。
-            CrUiStyle.BlueButton("PlayAgainButton", c, "再来一局", new Vector2(Pad, -(CrUiStyle.TitleBarH + 778f)),
+            // ── 两个动作：竖版上下两行，原版蓝按钮 + 投影（`CrUiFx.ButtonFx`）──
+            CrUiStyle.BlueButton("PlayAgainButton", c, "再来一局", new Vector2(Pad, -(CrUiStyle.TitleBarH + 570f)),
                 new Vector2(CrUiStyle.ContentW - 2f * Pad, CrUiStyle.ButtonPrimaryH), OnPlayAgainClicked);
 
             CrUiStyle.BlueButton("MainMenuButton", c, "回主菜单",
-                new Vector2(Pad, -(CrUiStyle.TitleBarH + 778f + CrUiStyle.ButtonPrimaryH + 16f)),
+                new Vector2(Pad, -(CrUiStyle.TitleBarH + 570f + CrUiStyle.ButtonPrimaryH + 16f)),
                 new Vector2(CrUiStyle.ContentW - 2f * Pad, CrUiStyle.ButtonSecondaryH), OnMainMenuClicked);
 
-            // 说明行：把"再来一局"在两种模式下各做什么写清楚（⛔ 不做"点了才知道"）。
-            // 亮灰蓝面板上的说明字用暗色（`TextOnLight*`）——亮面上放 `TextDim` 看不出来。
-            UIFactory.CreateLabel("Rules", c,
-                "人机对局：「再来一局」立刻开一局新的人机对战。\n" +
-                "房间对局：服务端没有「重开原房 / 重连回原房」的协议 ⇒ 「再来一局」会回主菜单，请重新开房。",
-                CrUiStyle.FontSmall, new Vector2(Pad, -(CrUiStyle.TitleBarH + 1001f)),
-                new Vector2(CrUiStyle.ContentW - 2f * Pad, 88f), TextAnchor.UpperLeft, CrUiStyle.TextOnLightDim);
-
+            // 状态行：只在异常时出现（结算数据缺失等）。
             _status = UIFactory.CreateLabel("Status", c, string.Empty, CrUiStyle.FontSmall,
-                new Vector2(Pad, -(CrUiStyle.TitleBarH + 1105f)), new Vector2(CrUiStyle.ContentW - 2f * Pad, 64f),
+                new Vector2(Pad, -(CrUiStyle.TitleBarH + 810f)), new Vector2(CrUiStyle.ContentW - 2f * Pad, 40f),
                 TextAnchor.UpperLeft, CrUiStyle.TextOnLightDim);
 
-            UIFactory.CreateLabel("Hint", c, "本局已结束，回到主菜单不会再影响这一局的结果。", CrUiStyle.FontSmall,
-                new Vector2(Pad, -(CrUiStyle.TitleBarH + 1185f)), new Vector2(CrUiStyle.ContentW - 2f * Pad, 40f),
-                TextAnchor.MiddleCenter, CrUiStyle.TextOnLightDim);
+            CrUiFx.PanelIn(c);
         }
 
         // ───────────────────────── 两个动作 ─────────────────────────
@@ -401,11 +331,11 @@ namespace CR.UI.Panels
             if (_crowns != null) _crowns.text = "结算数据缺失";
             if (_reason != null)
             {
-                _reason.text = "没有收到服务端结算内容（PushBattleEnd 缺失或反序列化失败）";
+                _reason.text = "没有收到本局结算内容";
                 _reason.color = CrUiStyle.ErrorText;
             }
             if (_detail != null) _detail.text = "请回主菜单后重新开一局；本页无法给出胜负。";
-            SetStatus("已记录问题，请把这条信息反馈给开发者。", CrUiStyle.ErrorText);
+            SetStatus("结算内容缺失，请回主菜单后重试。", CrUiStyle.ErrorText);
         }
 
         /// <summary>
@@ -457,7 +387,7 @@ namespace CR.UI.Panels
             {
                 var mine = myTeam == TeamBlue ? r.crowns_a : r.crowns_b;
                 var theirs = myTeam == TeamBlue ? r.crowns_b : r.crowns_a;
-                _crowns.text = $"我方冠 {mine} : 对方冠 {theirs}";
+                SetCrownsText($"我方冠 {mine} : 对方冠 {theirs}");
                 // 图 = 原版结算王冠帧：本机是蓝方取蓝那张（`ui_battle_end_out/027`）、红方取红那张（115）；
                 // N 冠 = 同一张复制 N 次（原版没有 2/3 冠堆叠帧，见 CrownMax 的注释）。
                 ShowCrowns(mine, myTeam == TeamRed ? ResPaths.CrownRed : ResPaths.CrownBlue);
@@ -467,7 +397,7 @@ namespace CR.UI.Panels
             // 非预期分支：没收到 `Battle.Started`（my_team 未知）⇒ ⛔ 不许默认自己是 A 方。
             Game.Logger?.Warn(Tag,
                 "my_team 未知（没收到 Events.Battle.Started？）：冠数按 A/B 原样显示，不做我方/对方换算");
-            _crowns.text = $"A 方冠 {r.crowns_a} : B 方冠 {r.crowns_b}（本机队伍未知）";
+            SetCrownsText($"A 方冠 {r.crowns_a} : B 方冠 {r.crowns_b}（本机队伍未知）");
             // 队伍未知时**不猜我方**：按协议口径 A 方 = 蓝（`ProtoDef.BattleStartNotify.my_team` 0=BLUE），
             // 所以这里显示 A 方的冠数并用蓝王冠，与上面"按 A/B 原样显示"的文字同口径。
             ShowCrowns(r.crowns_a, ResPaths.CrownBlue);
@@ -534,33 +464,7 @@ namespace CR.UI.Panels
         }
 
         /// <summary>
-        /// 建一个奖励格：**原版格底**（`ui_battle_end_out/212` —— 原版 7 个 `battleEnd_loot_item_*`
-        /// export 共用的那一张）+ 槽内的**原版奖励件**（比例照素材自身，<see cref="CrUiStyle.AspectImage"/>）。
-        /// <para>返回格底节点，供宝箱槽再叠原版白色高光件（<see cref="Glow"/>）。</para>
-        /// <para>⚠️ 只画原版图件、**不写任何数量**：协议没有奖励字段（见 `Build` 里奖励条那段注释）。</para>
-        /// </summary>
-        private static Image RewardSlot(Transform parent, float x, string iconPath)
-        {
-            var plate = CrUiStyle.AspectImage("RewardSlotBg", parent, ResPaths.BattleEndRewardSlotBg, RewardSlotW,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, 0f), CrUiStyle.FieldBg);
-
-            CrUiStyle.AspectImage("RewardIcon", plate.rectTransform, iconPath, RewardSlotW * 0.62f,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, CrUiStyle.Accent);
-            return plate;
-        }
-
-        /// <summary>
-        /// 宝箱槽上的原版**白色高光**件（`battleEnd_loot_item_chest` 的那组导出帧 218/219/220/221）。
-        /// 兜底色用**全透明**：取不到图时宁可不画，⛔ 不拿纯色块顶替原版图元。
-        /// </summary>
-        private static void Glow(Transform parent, string name, string resPath, float width, Vector2 pos)
-        {
-            CrUiStyle.AspectImage(name, parent, resPath, width,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Color(1f, 1f, 1f, 0f));
-        }
-
-        /// <summary>
-        /// 结算原因 → 中文一句话。⛔ 未知取值**显示原始串**并留一条 Warn（⛔ 不许静默显示空白）。
+        /// 结算原因 → 中文短句（去掉"结算原因："前缀）。⛔ 未知取值**原文写日志**、界面显示「未知」。
         /// 取值表出处：`Def/ProtoDef.cs:104`（king_destroyed / time_up_crowns / time_up_hp / sudden_death /
         /// surrender / draw）+ `server/game/core/rules.go:16-23`。
         /// </summary>
@@ -572,51 +476,47 @@ namespace CR.UI.Panels
             switch (reason)
             {
                 case "king_destroyed":
-                    _reason.text = "结算原因：国王塔被摧毁";
+                    _reason.text = "国王塔被摧毁";
                     break;
                 case "time_up_crowns":
-                    _reason.text = "结算原因：加时结束，比冠数";
+                    _reason.text = "加时结束，比冠数";
                     break;
                 case "time_up_hp":
-                    _reason.text = "结算原因：加时结束，比总血量";
+                    _reason.text = "加时结束，比塔血";
                     break;
                 case "sudden_death":
-                    // 加时赛里先破塔的一方直接获胜（服务端 `server/game/core/rules.go:21-23`）。
-                    _reason.text = "结算原因：加时赛先破塔获胜";
+                    _reason.text = "加时赛先破塔获胜";
                     break;
                 case "surrender":
-                    // 谁投降了：`win` / `draw` 是逐接收者的（`draw` 为真时不猜）。
-                    _reason.text = "结算原因：" + (r.draw ? "有一方投降（判定为平局）"
-                        : (r.win ? "对方投降了" : "你投降了"));
+                    _reason.text = r.draw ? "有一方投降（判定为平局）"
+                        : (r.win ? "对方投降了" : "你投降了");
                     break;
                 case "draw":
-                    _reason.text = "结算原因：平局";
+                    _reason.text = "平局";
                     break;
                 case null:
                 case "":
-                    // 非预期分支：服务端没给原因串。留痕 + 给一句可读的兜底。
                     if (!_unknownReasonWarned)
                     {
                         _unknownReasonWarned = true;
                         Game.Logger?.Warn(Tag, "结算原因为空（服务端未下发 reason），界面用兜底文案显示");
                     }
-                    _reason.text = "结算原因：（服务端未给出原因）";
+                    _reason.text = "未收到原因";
                     break;
                 default:
-                    // 非预期分支：协议注释外的取值。**显示原始串**（⛔ 不静默留空），并留痕一次。
                     if (!_unknownReasonWarned)
                     {
                         _unknownReasonWarned = true;
                         Game.Logger?.Warn(Tag,
                             $"未知的结算原因 reason='{reason}'（协议只定义 king_destroyed / time_up_crowns / " +
-                            "time_up_hp / sudden_death / surrender / draw），界面按原始串显示");
+                            "time_up_hp / sudden_death / surrender / draw），界面显示「未知」");
                     }
-                    _reason.text = TextFit.Clamp(_reason, $"结算原因：{reason}（未识别的取值，已按原文显示）");
+                    _reason.text = "未知";
                     break;
             }
         }
 
-        /// <summary>细节行：终局塔血 + 房间号 + 对局模式。</summary>
+        /// <summary>细节行：终局塔血 + 对局模式（居中灰字，不带房间号）。</summary>
         private void RefreshDetail(BattleEndNotify r, int myTeam)
         {
             if (_detail == null) return;
@@ -627,16 +527,15 @@ namespace CR.UI.Panels
             {
                 var mine = myTeam == TeamBlue ? r.hp_rate_a : r.hp_rate_b;
                 var theirs = myTeam == TeamBlue ? r.hp_rate_b : r.hp_rate_a;
-                hp = $"我方塔血 {mine / 100f:0}% : 对方塔血 {theirs / 100f:0}%";
+                hp = $"我方塔血 {mine / 100f:0}% ｜ 对方塔血 {theirs / 100f:0}%";
             }
             else
             {
-                hp = $"塔血 A {r.hp_rate_a / 100f:0}% : B {r.hp_rate_b / 100f:0}%";
+                hp = $"塔血 A {r.hp_rate_a / 100f:0}% ｜ B {r.hp_rate_b / 100f:0}%";
             }
 
             var mode = _aiBattle ? "人机对局" : "房间对局";
-            var room = string.IsNullOrEmpty(_roomId) ? "房间号未知" : $"房间 {_roomId}";
-            _detail.text = TextFit.Clamp(_detail, $"{hp}    ·    {mode}    ·    {room}");
+            _detail.text = $"{hp} ｜ {mode}";
         }
 
         // ───────────────────────── 胜负判定（本机视角） ─────────────────────────
@@ -683,6 +582,27 @@ namespace CR.UI.Panels
             }
 
             return VerdictDraw;
+        }
+
+        /// <summary>
+        /// 冠数写进单行标签：从 <see cref="CrUiStyle.FontTitle"/> 起按**实测宽度**逐档缩字号，
+        /// 直到装进标签矩形（420 宽）—— ⛔ 不换行（换行后的第二行会压到奖励条）。
+        /// 缩到 <see cref="CrUiStyle.FontSmall"/> 仍装不下（只有"队伍未知"这类超长串）才按宽度截断。
+        /// </summary>
+        private void SetCrownsText(string text)
+        {
+            if (_crowns == null) return;
+
+            var width = _crowns.rectTransform.rect.width;
+            var size = CrUiStyle.FontTitle;
+            _crowns.fontSize = size;
+            _crowns.text = text;
+            while (size > CrUiStyle.FontSmall && TextFit.Measure(_crowns, text) > width)
+            {
+                size -= 2;
+                _crowns.fontSize = size;
+            }
+            if (TextFit.Measure(_crowns, text) > width) TextFit.ClampSelf(_crowns);
         }
 
         private void SetStatus(string text, Color color)

@@ -129,8 +129,8 @@ type UnitDef struct {
 	// **backward-compatible addition** (appending a column cannot break a
 	// named-field struct literal), and `isJumpingDef` falls back to the
 	// official jumper keys so the pool behaves correctly even with a 0.
-	JumpHeightMilli        int32
-	JumpSpeedTilesPerMin   int32
+	JumpHeightMilli      int32
+	JumpSpeedTilesPerMin int32
 
 	SpriteDir string
 
@@ -153,10 +153,10 @@ type UnitDef struct {
 // cards_stats_characters.json, rows Minion 1500 / BabyDragon
 // 3500 (plus rows outside the card pool).
 var officialFlyerKeys = map[string]bool{
-	"minion":         true,
-	"minions":        true,
-	"babydragon":     true,
-	"baby-dragon":    true,
+	"minion":      true,
+	"minions":     true,
+	"babydragon":  true,
+	"baby-dragon": true,
 }
 
 // isFlyingDef reports whether a unit flies.
@@ -219,8 +219,20 @@ type SpellDef struct {
 	NameCN string
 	Elixir int32
 
-	RadiusMilli      int32
-	InstantDamage    int32
+	RadiusMilli   int32
+	InstantDamage int32
+	// CrownDamage 是同一发法术打在**王冠塔**上的伤害（官方
+	// `crown_tower_damage_percent` 为负的百分比增量：火球 -70 ⇒ 30%），
+	// 出处 = 策划/数值文档/spell_cs.txt 的 `crown_damage` 列
+	// 「对王冠塔的实际伤害」（火球 689/207、火箭 1484/371、雷电 1056/317）。
+	// 0 = 该法术对该目标不区分塔（无伤害法术）。
+	//
+	// 为什么必须分开：法术对塔是**减伤**（少数是加成，毒药 92→110），
+	// 按 InstantDamage 直接打塔会让一发火球砸掉 689 而不是 207，
+	// 法术就成了拆塔手段。参考实现同一口径见
+	// `cr_sim/engine/specs.py::damage_to`（"getting the sign wrong here would
+	// make every spell a win condition"）。
+	CrownDamage      int32
 	DurationMs       int32
 	TickMs           int32
 	DamagePerTick    int32
@@ -229,6 +241,14 @@ type SpellDef struct {
 	SpawnN           int32
 	SpawnRadiusMilli int32
 	Pushback         int32
+	// FlightMs is how long the projectile takes to reach the landing point
+	// (spell.tsv `flight_ms`), 0 = the payload lands where it was cast, on the
+	// tick of the cast. A positive value defers the damage / knockback / cloud
+	// to the tick the projectile arrives: the client draws that flight for the
+	// same duration (`View/SpellFxTable.Entry.FlightSeconds`, fireball 91/60 s
+	// = 1517 ms), so resolving earlier is seen as a hit landing before the
+	// projectile gets there.
+	FlightMs int32
 	// Anywhere: may be cast on the enemy half (every spell may).
 	Anywhere bool
 	// OnWater: may be cast over the river.

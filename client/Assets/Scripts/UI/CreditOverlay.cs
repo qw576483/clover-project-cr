@@ -12,7 +12,8 @@ namespace CR.UI
     /// 开关面板 / 读条 / 进对局全都在，⛔ 不是"只在启动画面出现一次"。落地口径 = 启动链路里建
     /// **一个**跨场景常驻节点：独立小 Canvas（<c>DontDestroyOnLoad</c>、<c>sortingOrder</c> 高于
     /// 引擎 <c>[UI]</c> 根 Canvas 的 <c>0</c>）+ 引擎自带的 <c>UIFactory.CreateCreditLabel</c>。
-    /// ⛔ 不靠"每个页面各自添一行"（那必漏），⛔ 也不自写第二套贴底定位。
+    /// ⛔ 不靠"每个页面各自添一行"（那必漏）；落点在本类统一改到**屏底右下角小字**
+    /// （引擎默认是贴底居中，会压在通栏导航带的「战斗」按钮那一行上）。
     /// </para>
     /// <para>
     /// <b>常驻范围</b>：由 <c>App/Bootstrap.Start</c> 调起 —— 它在 <c>Boot</c> / <c>Main</c> 两个场景
@@ -32,14 +33,55 @@ namespace CR.UI
         /// <summary>常驻根节点名（只用于日志与场景排查；⛔ 不靠它查找 —— `GameObject.Find` 是禁用 API）。</summary>
         private const string RootName = "[CreditOverlay]";
 
-        /// <summary>署名行离画布底边的距离（画布单位）。与 `BootPanel` 的版权行口径一致，只为不贴边。</summary>
-        private const float BottomOffset = 28f;
+        /// <summary>
+        /// 署名行离画布底边的距离 = **182**。
+        /// <para>
+        /// 主菜单底栏是通栏导航带（高 172.8，右半格 = 「战斗」按钮的矩形），署名若落在带内必然
+        /// 与按钮矩形相交 ⇒ 抬到带顶上方 9px，仍是屏底右下角，但不压任何按钮。
+        /// </para>
+        /// </summary>
+        private const float BottomOffset = 182f;
+
+        /// <summary>署名行离画布右沿的距离 = **14**（贴在右下角，⛔ 不占导航带主区域）。</summary>
+        private const float CornerPadX = 14f;
+
+        /// <summary>署名行字高 = **20**（小字；原 28 号在底栏正中间会压住导航带）。</summary>
+        private const int CornerFontSize = 20;
+
+        /// <summary>署名行矩形宽 = **206**（右对齐，足够放 “by clover-engine”；左沿落在 x = 860）。</summary>
+        private const float CornerW = 206f;
+
+        /// <summary>对局内的署名行离画布底 = **34**（屏底右下角，在圣水条下沿之下，不压任何按钮）。</summary>
+        private const float BattleBottomOffset = 34f;
+
+        /// <summary>对局内署名的文字不透明度 = **0.55**（压在深蓝底板上仍读得出，但不抢 HUD）。</summary>
+        private const float BattleAlpha = 0.55f;
+
+        /// <summary>署名行矩形高 = **26**。</summary>
+        private const float CornerH = 26f;
 
         /// <summary>排序权重：必须高于引擎 `[UI]` 根 Canvas 的 `0`（`Runtime/Presentation/UI.cs:50`）。</summary>
         private const int SortingOrder = 100;
 
         /// <summary>常驻根节点。Unity 的 `!= null` 对已销毁对象返回 false ⇒ 停止 Play 后再进会重建。</summary>
         private static GameObject _root;
+
+        /// <summary>署名文本节点（对局内要改落点与不透明度，建好时留引用）。</summary>
+        private static Text _label;
+
+        /// <summary>
+        /// 对局内 / 对局外两种落点：对局外贴在主菜单导航带上方（<see cref="BottomOffset"/>），
+        /// 对局内在屏底右下角（<see cref="BattleBottomOffset"/>，α <see cref="BattleAlpha"/>）。
+        /// </summary>
+        public static void SetBattlePlacement(bool battle)
+        {
+            if (_label == null) return;
+            var rt = _label.rectTransform;
+            rt.anchoredPosition = new Vector2(-CornerPadX, battle ? BattleBottomOffset : BottomOffset);
+            _label.color = battle
+                ? new Color(CrUiStyle.TextDim.r, CrUiStyle.TextDim.g, CrUiStyle.TextDim.b, BattleAlpha)
+                : CrUiStyle.TextDim;
+        }
 
         /// <summary>建（一次）跨场景常驻署名单件。可重复调用：已建则直接返回。</summary>
         public static void EnsureCreated()
@@ -71,6 +113,20 @@ namespace CR.UI
                 return;
             }
 
+            // 引擎的 `CreateCreditLabel` 落点是“贴底居中”；本项目要的是**屏底右下角**小字：
+            // 底栏是通栏导航带，居中署名会压在「战斗」按钮那一行上 ⇒ 这里改锚点 / 字号 / 对齐。
+            _label = label;
+            var rt = label.rectTransform;
+            rt.anchorMin = new Vector2(1f, 0f);
+            rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(1f, 0f);
+            rt.sizeDelta = new Vector2(CornerW, CornerH);
+            rt.anchoredPosition = new Vector2(-CornerPadX, BottomOffset);
+            label.alignment = TextAnchor.LowerRight;
+            label.fontSize = CornerFontSize;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Overflow;
+
             // ⚠️ 必须显式写色：引擎默认是 (1,1,1,0.55)，与本项目口径不同；raycastTarget 见类注释。
             label.color = CrUiStyle.TextDim;
             label.raycastTarget = false;
@@ -79,7 +135,7 @@ namespace CR.UI
                 $"常驻署名单件已建立：文案逐字 by clover-engine / 画布 " +
                 $"{CloverPresentation.ReferenceResolution.x:0}×{CloverPresentation.ReferenceResolution.y:0}" +
                 $"（match={CloverPresentation.MatchWidthOrHeight:0.##}，同引擎 [UI] 根）/ " +
-                $"sortingOrder={SortingOrder}（引擎 [UI]=0）/ 底距 {BottomOffset:0} / 不吃点击");
+                $"sortingOrder={SortingOrder}（引擎 [UI]=0）/ 底距 {BottomOffset:0} / 右距 {CornerPadX:0} / 不吃点击");
         }
     }
 }

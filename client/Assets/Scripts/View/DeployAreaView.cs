@@ -9,7 +9,7 @@ namespace CR.View
     ///
     /// <para>
     /// <b>职责</b>：把「这一格的这副牌放不下去」的区域在地面上画出来 ——
-    /// 区域内铺一层原版的暗色底（<see cref="FrameFillBase"/>），沿区域边界描原版的红色边条
+    /// 区域内铺一层半透明暗红填充（1×1 白纹理 + <see cref="FillColor"/>），沿区域边界描原版的红色边条
     /// （<see cref="FrameSideLeft"/> 等）。合法性本身**不在这里判**：区域由
     /// <see cref="PlacementIndicator.IsLegalDeploy"/> 逐格取反得到（唯一判定处，见该类注释）。
     /// </para>
@@ -51,6 +51,27 @@ namespace CR.View
 
         /// <summary>`deployArea_base`：区域底色（1×1，RGBA(23,0,0,23)）。</summary>
         private const int FrameFillBase = 251;
+
+        /// <summary>
+        /// 区域填充色（半透明暗红）：<b>运行时生成的 1×1 白纹理 × 这个顶点色</b>。
+        /// <para>
+        /// 原版 `deployArea_base`（<see cref="FrameFillBase"/>）是 alpha=23/255≈9% 的 1×1 像素，
+        /// 平铺后几乎看不见（实测拖起帧上敌方半场只剩红框、草地全露）；
+        /// 而参考图 `策划/参考图/22_对局_720x1600.jpg` 里敌方半场是**整片均匀暗红**。
+        /// 这里按 22 图反解出的等效观感取 (0.45, 0.03, 0.05, 0.32)：暗红、32% 不透明度。
+        /// </para>
+        /// </summary>
+        private static readonly Color FillColor = new Color(0.45f, 0.03f, 0.05f, 0.32f);
+
+        /// <summary>
+        /// 显示遮罩的**最小连通块面积（格）**：小于它的块不画（4 邻接）。
+        /// <para>
+        /// 口径：原版拖卡时只在**敌方半场 / 车道口袋**这种大片区域上画；塔自身的占地（国王塔 3×3=9 格、
+        /// 公主塔半径 1 格≈5-9 格）是「这一格放不下」的细节，但不构成区域，画出来就是塔周围一圈红框。
+        /// ⛔ 只改**显示**：<see cref="PlacementIndicator.IsLegalDeploy"/> 与服务端规则都不受影响。
+        /// </para>
+        /// </summary>
+        private const int MinComponentArea = 10;
 
         /// <summary>`deployArea_side_top`：上边条（61×16）。</summary>
         private const int FrameSideTop = 241;
@@ -105,6 +126,10 @@ namespace CR.View
         private int _used;
 
         private readonly Dictionary<int, Sprite> _sprites = new Dictionary<int, Sprite>();
+
+        /// <summary>填充层用的 1×1 白纹理 Sprite（运行时生成；颜色由顶点色给，见 <see cref="FillColor"/>）。</summary>
+        private Sprite _fillSprite;
+
         private bool _artWarned;
         private bool _visible;
 
@@ -139,8 +164,35 @@ namespace CR.View
             var root = new GameObject("DeployAreaQuads");
             root.transform.SetParent(transform, false);
             _quadRoot = root.transform;
+            _fillSprite = CreateFillSprite();
             LoadSprites();
             SetVisible(false);
+        }
+
+        /// <summary>
+        /// 1×1 白精灵（PPU=1 ⇒ 世界尺寸 1×1，直接按格数缩放）。
+        /// 颜色在渲染器顶点色上给（见 <see cref="FillColor"/>）—— 原版 f251 太透明，不用它铺填充。
+        /// <para>
+        /// ⛔ 用共享白精灵（`SpriteBank.WhiteSprite`，与 `ArenaView` 的底衬同一张），**不要**现场
+        /// `Sprite.Create` 一个 1×1：默认 Tight 网格在 1×1 全不透明贴图上会生成空网格 ⇒ 渲染器一切正常
+        /// （enabled / order / bounds 都对）但画面上什么都没有。
+        /// 共享件不归本类销毁（见 <see cref="OnDestroy"/>）。
+        /// </para>
+        /// </summary>
+        private static Sprite CreateFillSprite()
+        {
+            var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+            {
+                name = "DeployAreaFill",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Point
+            };
+            tex.SetPixel(0, 0, Color.white);
+            tex.Apply(false, true);
+            // ⛔ 必须显式 FullRect：默认 Tight 网格在 1×1 全不透明贴图上会生成空网格
+            //    （渲染器 enabled / order / bounds 全部正常，画面上却什么都没有）。
+            return Sprite.Create(tex, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f, 0,
+                SpriteMeshType.FullRect);
         }
 
         /// <summary>异步取这一族原版图元（到货前不画；到货后若正处于拖动中则补画）。</summary>
@@ -243,6 +295,9 @@ namespace CR.View
                 }
             }
 
+            // 显示遮罩：只保留大片区域（塔自身占格是小连通块，画出来就是塔周围一圈红框）。
+            KeepLargeComponents(blocked, w, h);
+
             _used = 0;
             for (var y = 0; y < h; y++)
             {
@@ -257,6 +312,59 @@ namespace CR.View
             }
             EmitInnerCorners(blocked, w, h);
             for (var i = _used; i < _quads.Count; i++) _quads[i].gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// 显示遮罩的连通块过滤（4 邻接）：面积 &lt; <see cref="MinComponentArea"/> 的块从 <paramref name="blocked"/>
+        /// 里**只对显示**剔除（小塔脚印不画区域）；大的连通区域原样保留。
+        /// <para>⛔ 不改 <see cref="PlacementIndicator.IsLegalDeploy"/>，也不改任何服务端规则。</para>
+        /// </summary>
+        private void KeepLargeComponents(bool[] blocked, int w, int h)
+        {
+            var seen = new bool[blocked.Length];
+            var queue = new List<int>();
+            var removedCells = 0;
+            var keptComponents = 0;
+            for (var start = 0; start < blocked.Length; start++)
+            {
+                if (!blocked[start] || seen[start]) continue;
+                queue.Clear();
+                queue.Add(start);
+                seen[start] = true;
+                for (var qi = 0; qi < queue.Count; qi++)
+                {
+                    var idx = queue[qi];
+                    var x = idx % w;
+                    var y = idx / w;
+                    PushIfBlocked(x + 1, y);
+                    PushIfBlocked(x - 1, y);
+                    PushIfBlocked(x, y + 1);
+                    PushIfBlocked(x, y - 1);
+                }
+
+                if (queue.Count < MinComponentArea)
+                {
+                    for (var qi = 0; qi < queue.Count; qi++) blocked[queue[qi]] = false;
+                    removedCells += queue.Count;
+                }
+                else keptComponents++;
+            }
+
+            if (removedCells > 0 || keptComponents > 0)
+            {
+                Game.Logger?.Info(LogTag,
+                    $"显示遮罩：保留 {keptComponents} 块（≥{MinComponentArea} 格），剔除 {removedCells} 格小连通块（塔脚印）；" +
+                    "合法性判定未改");
+            }
+
+            void PushIfBlocked(int x, int y)
+            {
+                if (x < 0 || x >= w || y < 0 || y >= h) return;
+                var idx = y * w + x;
+                if (!blocked[idx] || seen[idx]) return;
+                seen[idx] = true;
+                queue.Add(idx);
+            }
         }
 
         /// <summary>
@@ -324,8 +432,8 @@ namespace CR.View
         /// </summary>
         private void EmitRun(bool[] blocked, int w, int h, int x0, int x1, int y)
         {
-            // 底色：整段铺一层（原版的底色是 1×1 纯色像素，拉伸 = 平铺）
-            PutEdge(FrameFillBase, (x0 + x1) * 0.5f, y + 0.5f, (float)(x1 - x0), 1f, FillOrderOffset);
+            // 底色：整段铺一层（1×1 白纹理 + 顶点色 = 原版 22 图那种均匀暗红，见 FillColor）
+            PutFill((x0 + x1) * 0.5f, y + 0.5f, x1 - x0, 1f);
 
             // 上下边条：只铺在「本格的上方/下方为空」的格上，连续暴露段合成一条（逐格拼会有接缝）
             EmitSideRun(blocked, w, h, x0, x1, y, true);
@@ -385,6 +493,18 @@ namespace CR.View
             return n;
         }
 
+        /// <summary>铺一层区域填充（1×1 白纹理 + <see cref="FillColor"/> 顶点色，按格数拉伸）。</summary>
+        private void PutFill(float tileX, float tileY, float tilesW, float tilesH)
+        {
+            if (_fillSprite == null) return;
+            var r = TakeQuadSprite(_fillSprite, FillOrderOffset);
+            if (r == null) return;
+            r.color = FillColor;
+            var native = r.sprite.bounds.size;
+            r.transform.position = GameConst.TileToWorld(tileX, tileY);
+            r.transform.localScale = new Vector3(tilesW / native.x, tilesH / native.y, 1f);
+        }
+
         /// <summary>把边条按「格」尺寸铺到某个格坐标上（拉伸到目标尺寸，⛔ 不写死像素）。</summary>
         private void PutEdge(int frame, float tileX, float tileY, float tilesW, float tilesH, int orderOffset)
         {
@@ -431,6 +551,13 @@ namespace CR.View
         {
             Sprite sprite;
             if (!_sprites.TryGetValue(frame, out sprite) || sprite == null) return null;
+            return TakeQuadSprite(sprite, orderOffset);
+        }
+
+        /// <summary>取一个空闲的 quad 并贴指定 Sprite（顶点色复位为白，由调用方按需再染）。</summary>
+        private SpriteRenderer TakeQuadSprite(Sprite sprite, int orderOffset)
+        {
+            if (sprite == null) return null;
 
             SpriteRenderer r;
             if (_used < _quads.Count)
@@ -447,6 +574,7 @@ namespace CR.View
             _used++;
 
             r.sprite = sprite;
+            r.color = Color.white;   // ⛔ 池子复用：上一次若是填充层会被染成 FillColor，这里必须复位
             r.sortingOrder = ArenaLayers.Instance.Indicator + orderOffset;
             r.enabled = true;
             r.gameObject.SetActive(true);
@@ -455,6 +583,14 @@ namespace CR.View
 
         private void OnDestroy()
         {
+            // 现场生成的填充 Sprite / 纹理不归 Resources 管，必须自己拆（否则逐面板重建会漏纹理）。
+            if (_fillSprite != null)
+            {
+                var tex = _fillSprite.texture;
+                Destroy(_fillSprite);
+                if (tex != null) Destroy(tex);
+                _fillSprite = null;
+            }
             _sprites.Clear();
             _quads.Clear();
         }

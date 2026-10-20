@@ -71,6 +71,9 @@ type Battle struct {
 
 	projectiles []*projectile
 	areas       []*areaFx
+	// pendingSpells holds spells whose projectile is still in flight; each one
+	// lands on its own dueTick (see pendingSpellImpact).
+	pendingSpells []*pendingSpellImpact
 
 	// pendingDeaths is this tick's casualties, resolved as a batch after every
 	// source of damage has landed.
@@ -124,6 +127,10 @@ func NewBattle(cfg Config) (*Battle, error) {
 		rng:   newRandSource(cfg.Seed),
 		byID:  make(map[int32]*entity, 16),
 		phase: PhaseNormal,
+		// 实体 id 从 1 起：0 是"没有实体"的哨兵值（`entityByID(0)` 返回 nil、
+		// `targetID == 0` 表示没有目标、法术事件的 EntityID 0 表示没有施法者），
+		// 国王塔占了 0 号位时它就永远没法被当成目标。
+		nextID: 1,
 	}
 	b.hands[TeamBlue] = newHand(cfg.DeckA, b.rng)
 	b.hands[TeamRed] = newHand(cfg.DeckB, b.rng)
@@ -175,6 +182,10 @@ func (b *Battle) Step() {
 	b.updateTargets()
 	b.stepAttacks()
 	b.stepProjectiles()
+	// Spell payloads land in the tick their projectile arrives, before the
+	// clouds tick, so a cloud created here takes its first tick on the next one
+	// (tickAreaFx already burned this tick's budget).
+	b.stepSpellImpacts()
 	b.stepAreas()
 	b.stepMovement()
 	b.stepAnimHold()
@@ -364,14 +375,12 @@ func (b *Battle) stepBuildings() {
 				continue
 			}
 		}
-		// ★ 2026-09-23 重写（差异登记 D142/D147）：三个字段的语义按官方数据 +
-		// 参考实现 `cr_sim/engine/battle.py::_phase_run_spawners` 的文档字符串逐字对齐 ——
+		// 三个字段的语义按官方数据 + 参考实现
+		// `cr_sim/engine/battle.py::_phase_run_spawners` 的文档字符串逐字对齐 ——
 		//   `SpawnPauseTime`（本表的 SpawnIntervalMs）= **波间隔**（哥布林小屋 10000 /
 		//        野蛮人小屋 14000 / 骷髅墓碑 3500 / 女巫 7000）；
 		//   `SpawnNumber`（SpawnN）                    = **每波个数**；
 		//   `SpawnInterval`（SpawnStaggerMs）          = **波内错开**的 ms（小屋 500）。
-		// 旧实现把 `SpawnInterval`（500 ms）当成波周期，于是哥布林小屋在 29 s 生命期里
-		// 吐了 **174 只**（原版约 6 只，29×）。
 		//
 		// 参考里还有两条硬规则，这里一并落地：
 		//   · 没落地（还在 deploy 中）的建筑不产兵；
@@ -531,7 +540,7 @@ func (b *Battle) stepAttacks() {
 		if h.attacker == nil || h.attacker.Def == nil {
 			continue
 		}
-		// ★ D145：塔开火 —— 发一条 EvTowerShoot（塔不在快照 entities 里，客户端
+		// 塔开火 —— 发一条 EvTowerShoot（塔不在快照 entities 里，客户端
 		// 除此之外没有"这一帧这座塔开火了"的信息源）。
 		// 近战塔（无投射物行）也发：客户端只播枪口闪光、不飞弹道（由 ProjSpeed==0 表达）。
 		if h.attacker.Kind == KindTower {
@@ -546,7 +555,7 @@ func (b *Battle) stepAttacks() {
 	}
 }
 
-// emitTowerShoot appends the EvTowerShoot event for one tower shot (D145).
+// emitTowerShoot appends the EvTowerShoot event for one tower shot.
 //
 // ProjSpeed 取该塔投射物行的 `SpeedTilesPerMinute`（格/分钟）；投射物行缺失 /
 // 该塔本来是近战（无投射物）时为 0，客户端据此只播枪口闪光、不飞弹道。
@@ -638,9 +647,14 @@ func (b *Battle) stepMovement() {
 		var goalX, goalY int32
 		have := false
 		if target != nil && target.acquirable() {
-			goalX, goalY, have = target.xMilli, target.yMilli, true
-		} else if gx, gy, ok := marchGoal(b.arena, b.towers, e.Team, e.xMilli, e.yMilli); ok {
-			goalX, goalY, have = gx, gy, true
+			goalX, goalY = standoffGoal(e, target)
+			have = true
+		} else if obj := marchObjective(b.roster, e.Team, e.xMilli); obj != nil {
+			// 行军目标就是索敌目标：只朝着一座塔走、却手上没有它，
+			// 这支单位永远不会出手（目标只在视野圈内拿得到）。
+			e.targetID = obj.ID
+			goalX, goalY = standoffGoal(e, obj)
+			have = true
 		}
 		if !have {
 			e.moving = false
@@ -656,7 +670,7 @@ func (b *Battle) stepMovement() {
 			continue
 		}
 		e.faceToward(goalX)
-		e.advanceAlongRoute(e.Def.SpeedMilliPerSec)
+		e.advanceAlongRoute(b.arena, e.Def.SpeedMilliPerSec)
 		e.moving = true
 		e.setMoveAnim(AnimWalk)
 	}
@@ -694,13 +708,12 @@ func (b *Battle) stepAnimHold() {
 // 每 tick 先把所有重叠对的分离位移按**向量**累加到各实体头上
 // （`accumulateSeparation`），再统一按"每 tick 位移上限"收缩后落地
 // （`applySeparation`，额度见 `separationStepLimitMilli`；落地前还会按
-// **同伴数取平均**做欠松弛，推导见 combat.go 头部 `collisionPasses` 注释）。
+// **同伴数取平均**做欠松弛，推导见 `accumulateSeparation` 的注释）。
 //
-// ⚠️ 为什么不再是"固定 N 轮、每轮逐对立即施加"（2026-09-24 改）：
 // 逐对立即施加时，被夹在两只同伴中间的单位会先被一侧推 +d、再被另一侧推 −d，
 // 两次位移不抵消（还被标量额度裁掉反向那份）⇒ 永久 limit cycle。
-// 改成"向量累加 + 取平均"后反向推力自然抵消、耦合增益恒为 0.5；
-// 剩余的收敛交给**逐 tick** 的松弛（每 tick 一轮），不再需要 tick 内多轮。
+// 按**向量累加 + 取平均**之后反向推力自然抵消、耦合增益恒为 0.5；
+// 剩余的收敛交给**逐 tick** 的松弛（每 tick 一轮），tick 内不再迭代。
 func (b *Battle) resolveCollisions() {
 	all := b.allEntities()
 	d := make([]sepDelta, len(all))

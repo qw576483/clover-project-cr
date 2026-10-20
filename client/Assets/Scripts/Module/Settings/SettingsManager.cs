@@ -70,6 +70,16 @@ namespace CR.Module.Settings
         /// </summary>
         private int _lastNotifiedTier = -1;
 
+        /// <summary>
+        /// 音量落盘的**静默窗口**：滑块拖动期间每次值变化都会走到 <see cref="SetBgmVolume"/> 一族，
+        /// 逐次 `Game.Setting.Save()` 就是逐次「序列化 + 原子写 + 读回校验」（引擎 `Setting.cs`），
+        /// 拖动时会卡主线程。改为「值稳定这么久之后才落盘」。
+        /// </summary>
+        private const float VolumeSaveQuietSeconds = 0.15f;
+
+        /// <summary>待落盘的静默窗口定时器 id（0 = 没有待落盘）。重排前先 <c>Stop</c> 掉旧的。</summary>
+        private long _volumeSaveTimer;
+
         // ⛔ 键名只在本文件出现（"配置键的唯一定义处"）。前缀按 `audio.` / `video.` 分段，
         //    便于将来在 Setting 文件里一眼看出归属。
         private const string KeyBgm = "audio.bgm";
@@ -313,30 +323,33 @@ namespace CR.Module.Settings
             Game.Logger?.Info(Tag, $"[Fullscreen] Screen.fullScreen {before} → {Screen.fullScreen}（请求 {fullscreen}）");
         }
 
-        /// <summary>设置 BGM 音量（0~1，越界会被夹到范围内，与引擎 `SetVolume` 的口径一致）。</summary>
+        /// <summary>
+        /// 设置 BGM 音量（0~1，越界会被夹到范围内，与引擎 `SetVolume` 的口径一致）。
+        /// 逐次生效（内存 + `Game.Sound` + `BgmVolumeChanged`），落盘走静默窗口，见 <see cref="PersistVolume"/>。
+        /// </summary>
         public void SetBgmVolume(float volume)
         {
             BgmVolume = Clamp01(volume);
             ApplyVolume(SoundGroup.BGM, BgmVolume);
-            Persist(KeyBgm, BgmVolume);
+            PersistVolume(KeyBgm, BgmVolume);
             Game.Event?.Emit(Events.Settings.BgmVolumeChanged, BgmVolume);
         }
 
-        /// <summary>设置音效音量。</summary>
+        /// <summary>设置音效音量（同 <see cref="SetBgmVolume"/>：逐次生效，落盘走静默窗口）。</summary>
         public void SetSfxVolume(float volume)
         {
             SfxVolume = Clamp01(volume);
             ApplyVolume(SoundGroup.SFX, SfxVolume);
-            Persist(KeySfx, SfxVolume);
+            PersistVolume(KeySfx, SfxVolume);
             Game.Event?.Emit(Events.Settings.SfxVolumeChanged, SfxVolume);
         }
 
-        /// <summary>设置人声音量。</summary>
+        /// <summary>设置人声音量（同 <see cref="SetBgmVolume"/>：逐次生效，落盘走静默窗口）。</summary>
         public void SetVoiceVolume(float volume)
         {
             VoiceVolume = Clamp01(volume);
             ApplyVolume(SoundGroup.Voice, VoiceVolume);
-            Persist(KeyVoice, VoiceVolume);
+            PersistVolume(KeyVoice, VoiceVolume);
             Game.Event?.Emit(Events.Settings.VoiceVolumeChanged, VoiceVolume);
         }
 
@@ -454,6 +467,44 @@ namespace CR.Module.Settings
             }
             Game.Setting.Set(key, value);
             Game.Setting.Save();
+        }
+
+        /// <summary>
+        /// 写进 `Game.Setting`（内存立即生效）并**等值稳定 <see cref="VolumeSaveQuietSeconds"/> 秒后**落盘。
+        /// 拖动滑块时本方法会被连续调用，只在松手 / 停手之后写一次文件。
+        /// <para>
+        /// 用 <c>AfterUnscaled</c>：设置面板可以从暂停菜单打开（`Time.timeScale = 0`），
+        /// 按缩放时间推进的定时器在那种状态下不会触发。
+        /// </para>
+        /// </summary>
+        private void PersistVolume<T>(string key, T value)
+        {
+            if (Game.Setting == null)
+            {
+                Game.Logger?.Error(Tag, $"Game.Setting 为空，{key} 未落盘");
+                return;
+            }
+            Game.Setting.Set(key, value);
+
+            var timer = Game.Timer;
+            if (timer == null)
+            {
+                // 定时器未就绪（引擎未 Launch）：没有静默窗口可等，直接落盘。
+                Game.Setting.Save();
+                return;
+            }
+            if (_volumeSaveTimer != 0) timer.Stop(_volumeSaveTimer);
+            _volumeSaveTimer = timer.AfterUnscaled(VolumeSaveQuietSeconds, FlushVolumeSave);
+        }
+
+        /// <summary>静默窗口到点：把内存里的音量改动落盘一次。</summary>
+        private void FlushVolumeSave()
+        {
+            _volumeSaveTimer = 0;
+            if (Game.Setting == null) return;
+            Game.Setting.Save();
+            Game.Logger?.Info(Tag,
+                $"音量已落盘：bgm={BgmVolume:0.##} sfx={SfxVolume:0.##} voice={VoiceVolume:0.##}");
         }
     }
 }

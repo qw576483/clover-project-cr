@@ -179,6 +179,41 @@ func TestLoadRejectsMissingColumn(t *testing.T) {
 	t.Logf("把表头的 hp 改名成 hitpoints 后加载被拒: %v", err)
 }
 
+// TestLoadRejectsNegativeInt 整型列出现负数必须报错（负数会被当成真实规则：
+// 例如 elixir 为负会让出牌反而加圣水）。
+func TestLoadRejectsNegativeInt(t *testing.T) {
+	content := readTSV(t, "card.tsv")
+	header, rest, ok := strings.Cut(strings.TrimRight(content, "\n"), "\n")
+	if !ok {
+		t.Fatalf("card.tsv 只有一行？")
+	}
+	lines := strings.Split(rest, "\n")
+	fields := strings.Split(lines[0], "\t")
+	col := -1
+	for i, h := range strings.Split(header, "\t") {
+		if h == "elixir" {
+			col = i
+			break
+		}
+	}
+	if col < 0 {
+		t.Fatalf("card.tsv 表头没有 elixir 列")
+	}
+	fields[col] = "-1"
+	lines[0] = strings.Join(fields, "\t")
+	mutated := header + "\n" + strings.Join(lines, "\n") + "\n"
+
+	var cards table.CardTable
+	err := cards.Load(mutated)
+	if err == nil {
+		t.Fatalf("elixir=-1 应被拒绝，实际加载成功（Len=%d）", cards.Len())
+	}
+	if !strings.Contains(err.Error(), "负数") {
+		t.Fatalf("报错信息没点明负数：%v", err)
+	}
+	t.Logf("elixir 改成 -1 后加载被拒: %v", err)
+}
+
 // readTSV 读一张生成物 tsv。
 func readTSV(t *testing.T, name string) string {
 	t.Helper()

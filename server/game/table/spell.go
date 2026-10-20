@@ -29,6 +29,11 @@ type SpellRow struct {
 	Anywhere      int    // 能否落敌方半场 0/1
 	OnWater       int    // 能否落河面 0/1
 	SpriteDir     string // 卡面素材目录名
+	// FlightMs 是弹体从施法者飞到落点的时长（ms），0 = 没有飞行段、落点即刻生效。
+	// 取值 = 客户端 `View/SpellFxTable` 同一行的 `FlightSeconds x 1000`（火球 91/60 s
+	// = 1517 ms），两边必须相等：伤害在弹体到达那一 tick 结算，早于它就成了
+	// "火球还没飞到，伤害已经打出去"。
+	FlightMs int
 }
 
 // SpellTable 表 "spell" 的只读容器（按主键 id + 按卡牌 key 双索引）。
@@ -77,7 +82,7 @@ func (t *SpellTable) Load(content string) error {
 	if err := c.require("id", "key", "name_cn", "elixir", "rarity", "radius_mt", "instant_damage",
 		"crown_damage", "duration_ms", "tick_ms", "damage_per_tick", "heal_per_second",
 		"spawn_key", "spawn_n", "spawn_radius_mt", "pushback", "anywhere", "on_water",
-		"sprite_dir"); err != nil {
+		"sprite_dir", "flight_ms"); err != nil {
 		return err
 	}
 
@@ -109,6 +114,7 @@ func (t *SpellTable) Load(content string) error {
 			Anywhere:      c.int(rec, "anywhere"),
 			OnWater:       c.int(rec, "on_water"),
 			SpriteDir:     c.str(rec, "sprite_dir"),
+			FlightMs:      c.int(rec, "flight_ms"),
 		}
 		if c.err != nil {
 			return c.err

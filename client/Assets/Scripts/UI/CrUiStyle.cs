@@ -41,7 +41,7 @@ namespace CR.UI
     /// 路径全部走 <see cref="ResPaths"/>）。"面板底 / 按钮 / 标题条 / 输入框底 / 进度条"这类**可拉伸**部件
     /// 必须走**九宫格**（`Image.type = Sliced` + `Sprite.border`），见 <see cref="NineSlice"/> 的注释；
     /// ⛔ 不许把原图直接拉成任意尺寸（圆角/描边会被拉变形）。
-    /// 缺素材时才允许纯色兜底，且必须打一条 Warn（只报一次）并登记进 `策划/差异登记.tsv` §3「允许的差异」`。
+    /// 缺素材时才允许纯色兜底，且必须打一条 Warn（只报一次）并登记进 `策划/对照表.md` §D.3。
     /// </para>
     ///
     /// <para>
@@ -619,22 +619,84 @@ namespace CR.UI
         /// 基线图 `24_设置` 上弹窗底实测是亮灰蓝 **(229,236,242)**，米色是**错的**。
         /// <para>锚点 = 画布正中（基线图弹窗水平居中：面板 x=33..464，屏宽 499 ⇒ 中心 248.5 ≈ 249.5）。</para>
         /// </summary>
-        public static Image SettingsPopup(string name, Transform parent, float height, float width = PopupW)
+        public static Image SettingsPopup(string name, Transform parent, float height, float width = PopupW,
+            float titleH = 0f)
         {
             const float c0 = 24f; // 014 的圆角边长（96×95 件，圆角约 24px —— 与 BorderButtonDark 同口径）
+            var bandH = titleH > 0f ? titleH : PopupTitleH;
+
+            CrUiFx.Install();
 
             var back = Skin(name, parent, PopupFrameSlate, Mathf.RoundToInt(c0), Vector4.zero,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(width, height), BandSlate, true);
+            AddPopupDepth(back);
 
-            var bodyH = height - PopupTitleH - PopupBorder;
+            var bodyH = height - bandH - PopupBorder;
             var body = Skin("Body", back.rectTransform, PopupSkinLight, 10, Vector4.zero,
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(PopupBorder, -(PopupTitleH)),
+                new Vector2(PopupBorder, -(bandH)),
                 new Vector2(width - 2f * PopupBorder, bodyH), PanelLight, true);
             body.name = name + "Body";
 
+            AddInnerRim(back.rectTransform, width, height);
             return back;
+        }
+
+        /// <summary>
+        /// 弹窗质感：外投影（黑 α0.35、偏移 (0,-8)）+ 1px 高光内边（贴着外框内缘的四条亮线）。
+        /// <para>
+        /// 投影用 uGUI 自带 <see cref="Shadow"/>（图元自己的网格复制一层，⛔ 不是自绘贴图）；
+        /// 内边是四条 1px 纯白线，压在亮面体之上 ⇒ 外框与亮面之间有一道"厚度"。
+        /// </para>
+        /// </summary>
+        private static void AddPopupDepth(Image back)
+        {
+            if (back == null) return;
+            var shadow = back.GetComponent<Shadow>();
+            if (shadow == null) shadow = back.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.35f);
+            shadow.effectDistance = new Vector2(0f, -8f);
+            shadow.useGraphicAlpha = true;
+        }
+
+        private static void AddInnerRim(RectTransform parent, float width, float height)
+        {
+            if (parent == null) return;
+            var inset = PopupBorder;
+            var c = new Color(1f, 1f, 1f, 0.35f);
+
+            var top = UIFactory.CreatePanel("RimTop", parent, c, false);
+            var topRt = top.rectTransform;
+            topRt.anchorMin = new Vector2(0f, 1f);
+            topRt.anchorMax = new Vector2(1f, 1f);
+            topRt.pivot = new Vector2(0.5f, 1f);
+            topRt.sizeDelta = new Vector2(-2f * inset, 1f);
+            topRt.anchoredPosition = new Vector2(0f, -inset);
+
+            var bottom = UIFactory.CreatePanel("RimBottom", parent, c, false);
+            var botRt = bottom.rectTransform;
+            botRt.anchorMin = new Vector2(0f, 0f);
+            botRt.anchorMax = new Vector2(1f, 0f);
+            botRt.pivot = new Vector2(0.5f, 0f);
+            botRt.sizeDelta = new Vector2(-2f * inset, 1f);
+            botRt.anchoredPosition = new Vector2(0f, inset);
+
+            var left = UIFactory.CreatePanel("RimLeft", parent, c, false);
+            var leftRt = left.rectTransform;
+            leftRt.anchorMin = new Vector2(0f, 0f);
+            leftRt.anchorMax = new Vector2(0f, 1f);
+            leftRt.pivot = new Vector2(0f, 0.5f);
+            leftRt.sizeDelta = new Vector2(1f, -2f * inset);
+            leftRt.anchoredPosition = new Vector2(inset, 0f);
+
+            var right = UIFactory.CreatePanel("RimRight", parent, c, false);
+            var rightRt = right.rectTransform;
+            rightRt.anchorMin = new Vector2(1f, 0f);
+            rightRt.anchorMax = new Vector2(1f, 1f);
+            rightRt.pivot = new Vector2(1f, 0.5f);
+            rightRt.sizeDelta = new Vector2(1f, -2f * inset);
+            rightRt.anchoredPosition = new Vector2(-inset, 0f);
         }
 
         // ⚠️ 弹窗**亮面体**宽 = 外框宽 − 2×`PopupBorder`，由调用方按常量算式自己写
@@ -681,7 +743,7 @@ namespace CR.UI
 
         /// <summary>
         /// 「已登记、但原版 `ui_spells` 的 95 条 export 里**没有**对应名」的哨兵值
-        /// （当前只有 `goblin-hut` ⇒ 该卡只画卡底 + 卡名，⛔ 不猜帧号；已登记进 `策划/差异登记.tsv`）。
+        /// （当前只有 `goblin-hut` ⇒ 该卡只画卡底 + 卡名，⛔ 不猜帧号；已登记进 `策划/对照表.md` §D.3）。
         /// </summary>
         public const int CardArtFrameMissing = -1;
 
@@ -786,7 +848,7 @@ namespace CR.UI
         /// <summary>
         /// 卡面帧的**透明包围盒**（`ui_spells_out` 每帧都是 403×377 画布，图的 alpha 包围盒在
         /// (98,0)-(295,251)）。出处 `策划/原版UI素材名称索引.md` §3.5 的「尺寸」列（197×251）
-        /// + AO1 落盘目录逐帧 `PIL.Image.getbbox()` 复核（60 张卡池帧里 43 张恰为 (98,0,295,251)，
+        /// + AO1 落盘目录逐帧 `PIL.Image.getbbox()` 复核（落盘卡面帧里 43 张恰为 (98,0,295,251)，
         /// 其余为 ±1px 抖动，见 <see cref="CardArtCropOffsetX"/> 的例外表说明）。
         /// </summary>
         public const float CardArtBboxX = 98f;
@@ -922,6 +984,44 @@ namespace CR.UI
         }
 
         /// <summary>
+        /// 标题层级：1.06× + 2px 深色描边。
+        /// <para>只缩**文字节点**（不改字号 / 不改父级布局矩形），所以面板几何与锚点一个像素都不动。</para>
+        /// </summary>
+        public static void StyleTitle(Text text)
+        {
+            if (text == null) return;
+            var outline = text.GetComponent<Outline>();
+            if (outline == null) outline = text.gameObject.AddComponent<Outline>();
+            outline.effectColor = OutlineDark;
+            outline.effectDistance = new Vector2(2f, -2f);
+            outline.useGraphicAlpha = true;
+            text.rectTransform.localScale = new Vector3(CrUiFx.TitleScale, CrUiFx.TitleScale, 1f);
+        }
+
+        /// <summary>把**已建好**的文本改成数值层级（金色 + 1px 深描边；引擎工厂建出的数字只能走这里）。</summary>
+        public static void StyleValue(Text text)
+        {
+            if (text == null) return;
+            text.color = CrUiFx.NumberGold;
+            var outline = text.GetComponent<Outline>();
+            if (outline == null) outline = text.gameObject.AddComponent<Outline>();
+            outline.effectColor = OutlineDark;
+            outline.effectDistance = new Vector2(1f, -1f);
+            outline.useGraphicAlpha = true;
+        }
+
+        /// <summary>数值层级：金色 <see cref="CrUiFx.NumberGold"/> + 1px 深描边（压在亮面 / 深底上都读得出）。</summary>
+        public static Text ValueText(string name, Transform parent, string content, int fontSize,
+            Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size, TextAnchor textAnchor)
+        {
+            var text = Outlined(name, parent, content, fontSize, CrUiFx.NumberGold, OutlineDark,
+                anchor, pivot, pos, size, textAnchor);
+            var outline = text.GetComponent<Outline>();
+            if (outline != null) outline.effectDistance = new Vector2(1f, -1f);
+            return text;
+        }
+
+        /// <summary>
         /// 铺满整屏的**原版素材**背景图。资源路径必须来自 <see cref="ResPaths"/>（⛔ 不许写字面量）。
         /// <para>
         /// **铺满**（`Image.preserveAspect` 保持 Unity 默认的 `false`，本方法刻意不再改它）：
@@ -991,7 +1091,7 @@ namespace CR.UI
         /// 所以把锚点交给调用方。<paramref name="size"/> 的宽高按调用方定；四角与四边由 border 保原样。
         /// </para>
         /// <para>⛔ 取不到图时退化为 <paramref name="fallback"/> 纯色**并打一条 Warn（只报一次）**；
-        /// 每个退化都必须登记进 `策划/差异登记.tsv` §3「允许的差异」`。</para>
+        /// 每个退化都必须登记进 `策划/对照表.md` §D.3。</para>
         /// </summary>
         public static Image NineSlice(string name, Transform parent, string resPath, Vector4 border,
             Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size, Color fallback, bool raycast = false)
@@ -1015,7 +1115,7 @@ namespace CR.UI
         /// <para>贴顶距离 = <see cref="PanelTopOffset"/>（A 的面板顶边实测比例）；宽 = <see cref="ContentW"/>。</para>
         /// <para>素材 = <see cref="ResPaths.PanelPaper"/>（A 的原版羊皮纸面板底）+ <see cref="BorderPaper"/>。
         /// 与 A 的浅灰蓝面板（12_主菜单）**不是同一张** —— A 图集里没有可九宫格拉伸的浅灰蓝**实心**面板帧
-        /// （最接近的 `ui_out` 592 是空心描边、014/015 是深蓝灰实心），该差异登记在 `策划/差异登记.tsv` §3「允许的差异」。</para>
+        /// （最接近的 `ui_out` 592 是空心描边、014/015 是深蓝灰实心），该差异登记在 `策划/对照表.md` §D.3。</para>
         /// </summary>
         public static Image ContentPanel(string name, Transform parent, float height)
         {
@@ -1038,6 +1138,7 @@ namespace CR.UI
             var text = UIFactory.CreateText("Title", bar.rectTransform, title, FontTitle,
                 TextAnchor.MiddleCenter, TextColor);
             UIFactory.Stretch(text.rectTransform);
+            StyleTitle(text);
             return text;
         }
 
@@ -1060,15 +1161,8 @@ namespace CR.UI
             // UI 点击音（D8）：**所有面板按钮的统一点就是这里**（与 CrUiStyle.Button 一起，全工程仅有这两处建按钮，
             // `UIFactory.CreateButton` 只被本文件调用）⇒ 音效只挂这两处，⛔ 不逐个面板复制粘贴。
             if (onClick != null) btn.onClick.AddListener(() => { PlayUiClick(name); onClick(); });
-            var colors = btn.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
-            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
-            colors.selectedColor = Color.white;
-            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 1f);
-            colors.colorMultiplier = 1f;
-            colors.fadeDuration = ButtonFade;
-            btn.colors = colors;
+            CrUiFx.ApplyButtonColors(btn);
+            CrUiFx.ButtonFx(img);
 
             var text = UIFactory.CreateText("Label", img.rectTransform, label, FontBody,
                 TextAnchor.MiddleCenter, TextColor);
@@ -1250,15 +1344,8 @@ namespace CR.UI
             btn.targetGraphic = img;
             // UI 点击音：与 ActionButton / Button 同一处口径（本类是全工程唯一的建按钮处）。
             if (onClick != null) btn.onClick.AddListener(() => { PlayUiClick(name); onClick(); });
-            var colors = btn.colors;
-            colors.normalColor = Color.white;   // 常态 = 白 = 原版图元原色（⛔ 不用底色当滤镜）
-            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
-            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
-            colors.selectedColor = Color.white;
-            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 1f);
-            colors.colorMultiplier = 1f;
-            colors.fadeDuration = ButtonFade;
-            btn.colors = colors;
+            CrUiFx.ApplyButtonColors(btn);
+            CrUiFx.ButtonFx(img);
 
             Outlined("Label", img.rectTransform, label, FontBody, labelColor, OutlineDark,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size, TextAnchor.MiddleCenter);
@@ -1294,15 +1381,8 @@ namespace CR.UI
             var btn = img.gameObject.AddComponent<Button>();
             btn.targetGraphic = img;
             if (onClick != null) btn.onClick.AddListener(() => { PlayUiClick(name); onClick(); });
-            var colors = btn.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
-            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
-            colors.selectedColor = Color.white;
-            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 1f);
-            colors.colorMultiplier = 1f;
-            colors.fadeDuration = ButtonFade;
-            btn.colors = colors;
+            CrUiFx.ApplyButtonColors(btn);
+            CrUiFx.ButtonFx(img);
 
             Outlined("Label", img.rectTransform, label, FontBody, labelColor, OutlineDark,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size, TextAnchor.MiddleCenter);
@@ -1367,15 +1447,96 @@ namespace CR.UI
         /// </para>
         /// <para><paramref name="back"/> = <see cref="SettingsPopup"/> 返回的那个外框节点。</para>
         /// </summary>
-        public static Text BandTitle(string name, Image back, string title, float width)
+        public static Text BandTitle(string name, Image back, string title, float width, float bandH = 0f)
         {
             var text = Outlined(name, back.rectTransform, title, FontTitle,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero,
-                new Vector2(width, PopupTitleH), TextAnchor.MiddleCenter);
+                new Vector2(width, bandH > 0f ? bandH : PopupTitleH), TextAnchor.MiddleCenter);
             // 标题带必须压在亮面体**之上**：亮面体是后建的兄弟节点（`Skin` 的 body 在 back 之后 AddChild）
             // ⇒ 不置顶的话标题会被亮面体盖住（实测：只看见带子、看不见字）。
             text.rectTransform.SetAsLastSibling();
+            // 标题层级：1.06× + 2px 深色描边（比正文高一级）。
+            StyleTitle(text);
             return text;
+        }
+
+        // ─────────── 区块标题缎带（原版 `ui_out` 372 / 373 / 374）───────────
+        //
+        // <b>素材链</b>：`ui.sc` export `profile_stats`(clip 4619) 的 `<shape 1446>` / `<shape 1447>` /
+        // `<shape 1448>` → 帧 372（左折尾 31×71）/ 373（条身 1×1，横向拉伸）/ 374（右折尾 31×71）。
+        // 三帧是**纯黑 alpha 模板**（RGB 全 0），原版靠颜色变换上色；本类保留 alpha、把 RGB 换成基线读数
+        //（颜色变换的等价实现，⛔ 不是自绘）。
+        //
+        // <b>基线读数</b>：`策划/参考图/12_主菜单_750x1334.png` 的 “Stats Royale” 带（x=200 竖剖
+        // y546..587）= 条身纯色 **(25,122,236)**、上缘暗边 (14,81,172)；几何 = x136..608（472@750）
+        // ⇒ 宽 680@1080、带高 42@750 ⇒ 60@1080；折尾按原比例 31×71 → **45×102**（比带身高，露出折角）。
+
+        /// <summary>缎带宽度 = **680**（基线 x136..608 = 472@750 ×1.44）。</summary>
+        public const float RibbonW = 680f;
+
+        /// <summary>缎带条身高 = **60**（基线 y546..587 = 42@750 ×1.44）。</summary>
+        public const float RibbonH = 60f;
+
+        /// <summary>
+        /// 缎带端帽宽 = **20**。帧 372/374 原生 31×71 是**圆角端帽**（左/右各一），
+        /// 按条身高 60 保原比例 60×31/71 = 26；取 20 是因为端帽只露出条身外侧的那一段圆弧
+        /// （原版两件与条身重叠半幅）。
+        /// </summary>
+        public const float RibbonEndW = 20f;
+
+        /// <summary>缎带端帽高 = 条身高 **60**（原生 71 压到条身高，只压 15%）。</summary>
+        public const float RibbonEndH = RibbonH;
+
+        /// <summary>缎带蓝 = 基线读数 **(25,122,236)**。</summary>
+        public static readonly Color32 RibbonReading = new Color32(25, 122, 236, 255);
+
+        /// <summary>
+        /// 区块标题缎带（左折尾 + 条身 + 右折尾 + 白字黑描边标题）。
+        /// <para>返回的根节点即整条带；要在带上挂点击（如“卡组编辑”），给根节点加 <see cref="Button"/>。</para>
+        /// </summary>
+        public static Image Ribbon(string name, Transform parent, string title,
+            Vector2 anchor, Vector2 pivot, Vector2 pos, float width, bool raycast = false)
+        {
+            var root = UIFactory.CreatePanel(name, parent, new Color(1f, 1f, 1f, 0f), raycast);
+            UIFactory.Place(root.rectTransform, anchor, pivot, pos, new Vector2(width, RibbonH));
+            var rt = root.rectTransform;
+
+            // 折尾先建（压在条身下面），上下各露出一截 = 原版“缎带折角”。
+            var tailY = -(RibbonEndH - RibbonH) * 0.5f;
+            var left = UIFactory.CreatePanel("TailL", rt, new Color(1f, 1f, 1f, 0f), false);
+            UIFactory.Place(left.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(0f, tailY), new Vector2(RibbonEndW, RibbonEndH));
+            DressRecolored(left, ResPaths.RibbonEndLeft, RibbonReading);
+
+            var right = UIFactory.CreatePanel("TailR", rt, new Color(1f, 1f, 1f, 0f), false);
+            UIFactory.Place(right.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-RibbonEndW, tailY), new Vector2(RibbonEndW, RibbonEndH));
+            DressRecolored(right, ResPaths.RibbonEndRight, RibbonReading);
+
+            // 条身压在折尾内侧半幅上（折尾宽的一半收在条身后面）。
+            var body = UIFactory.CreatePanel("Body", rt, new Color(1f, 1f, 1f, 0f), false);
+            UIFactory.Place(body.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(RibbonEndW * 0.5f, 0f), new Vector2(width - RibbonEndW, RibbonH));
+            DressRecolored(body, ResPaths.RibbonBody, RibbonReading);
+
+            Outlined("Title", rt, title, FontSmall, TextColor, OutlineDark,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(width, RibbonH), TextAnchor.MiddleCenter);
+            return root;
+        }
+
+        /// <summary>把原版**纯黑 alpha 模板**帧按 <paramref name="rgb"/> 上色后贴到节点上（保留原 alpha）。</summary>
+        public static void DressRecolored(Image img, string resPath, Color32 rgb)
+        {
+            if (img == null) return;
+            LoadSprite(resPath, s =>
+            {
+                var made = Recolor(s, rgb);
+                if (made == null) return;
+                img.sprite = made;
+                img.type = Image.Type.Simple;
+                img.color = Color.white;
+            });
         }
 
         /// <summary>
@@ -1404,6 +1565,7 @@ namespace CR.UI
                 colors.colorMultiplier = 1f;
                 colors.fadeDuration = ButtonFade;
                 btn.colors = colors;
+                CrUiFx.ButtonFx(img);
             }
 
             var labelText = img.GetComponentInChildren<Text>();
@@ -1739,7 +1901,7 @@ namespace CR.UI
         private static void WarnOnce(string message)
         {
             if (!WarnedMissing.Add(message)) return;
-            Game.Logger?.Warn("CrUiStyle", message + "（本条只报一次；兜底外观已登记进 策划/差异登记.tsv` §3「允许的差异」）");
+            Game.Logger?.Warn("CrUiStyle", message + "（本条只报一次；兜底外观已登记进 策划/对照表.md §D.3）");
         }
 
         /// <summary>
@@ -1766,6 +1928,247 @@ namespace CR.UI
             Game.Logger?.Info("CrUiStyle",
                 $"播放音效 {AudioPaths.UiClick}（按钮 {buttonName}，SoundGroup.SFX 音量 {sound.GetVolume(SoundGroup.SFX):F2}）");
             sound.PlaySFX(AudioPaths.UiClick);
+        }
+
+        // ═══════════════ 对局血条外观（圆角胶囊 + 1px 深色描边 + 顶部高光 + 队伍色填充） ═══════════════
+        //
+        // 引擎 `WorldHpBar` 的条体是两个直角 Quad（无圆角、无描边、无高光），而原版是圆角胶囊 +
+        // 深色描边 + 顶部高光 + 队伍色填充 ⇒ 外观层补在条体的附属版面上；条体比例仍读
+        // `WorldHpBar.Ratio`（掉血口径与数值一个都不改）。
+
+        /// <summary>BLUE 方血条填充色 (64,132,224)。</summary>
+        public static readonly Color HpFillBlue = new Color32(64, 132, 224, 255);
+
+        /// <summary>RED 方血条填充色 (206,64,64)。</summary>
+        public static readonly Color HpFillRed = new Color32(206, 64, 64, 255);
+
+        /// <summary>血条空槽色 (40,30,36,α0.85)。</summary>
+        public static readonly Color HpTrack = new Color(40f / 255f, 30f / 255f, 36f / 255f, 0.85f);
+
+        /// <summary>血条描边色 (20,16,22,α0.9)，宽 1 设计像素。</summary>
+        public static readonly Color HpOutline = new Color(20f / 255f, 16f / 255f, 22f / 255f, 1f);
+
+        /// <summary>血条顶部高光 (255,255,255,α0.25)，高 1 设计像素。</summary>
+        public static readonly Color HpHighlight = new Color(1f, 1f, 1f, 0.25f);
+
+        /// <summary>血条附属版面的节点名（`WorldHpBar.GetAttachment` 幂等键）。</summary>
+        public const string HpSkinSlot = "HpSkin";
+
+        /// <summary>圣水条外框金色 (255,214,120,α0.85)。</summary>
+        public static readonly Color ElixirFrameGold = new Color32(255, 214, 120, 217);
+
+        /// <summary>
+        /// 给一条世界空间血条套上圆角胶囊外观（幂等：同一条只建一层）。
+        /// <para>取不到附属版面（引擎建件失败）时返回 <c>null</c>，调用方保留条体原色作降级。</para>
+        /// </summary>
+        public static WorldHpBarSkin DressHpBar(WorldHpBar bar, Color fillColor)
+        {
+            if (bar == null) return null;
+            return DressHpBar(bar, bar.GetAttachment(HpSkinSlot), fillColor);
+        }
+
+        /// <summary>
+        /// <see cref="DressHpBar(WorldHpBar, Color)"/> 的**指定版面**重载：塔血条把外观与等级牌 / 血量数字
+        /// 建在同一块版面上（外观先建 ⇒ 压在最底层），所以版面由调用方取好再传进来。
+        /// </summary>
+        public static WorldHpBarSkin DressHpBar(WorldHpBar bar, RectTransform slot, Color fillColor)
+        {
+            if (bar == null || slot == null) return null;
+            var skin = slot.GetComponent<WorldHpBarSkin>();
+            if (skin == null) skin = slot.gameObject.AddComponent<WorldHpBarSkin>();
+            skin.Bind(bar, fillColor);
+            return skin;
+        }
+
+        /// <summary>(形状键) → 现造的圆角 Sprite；`Sprite.Create` 造的不归 Resources 管，必须复用。</summary>
+        private static readonly Dictionary<string, Sprite> PillCache = new Dictionary<string, Sprite>();
+
+        /// <summary>
+        /// 造一块**圆角矩形** Sprite：<paramref name="borderPx"/> = 描边宽（0 = 无描边），
+        /// 返回的 Sprite 带四边 border（= 圆角半径）⇒ 可作九宫格拉伸而圆角不变形。
+        /// <para>纹理坐标 1px = 1 版面单位（`pixelsPerUnit` 与画布 `referencePixelsPerUnit` 同为 100）。</para>
+        /// </summary>
+        public static Sprite RoundedRect(int w, int h, int radius, int borderPx, Color fill, Color edge)
+        {
+            w = Mathf.Max(4, w);
+            h = Mathf.Max(4, h);
+            var r = Mathf.Clamp(radius, 1, Mathf.Max(1, Mathf.Min(w, h) / 2));
+            var b = Mathf.Clamp(borderPx, 0, Mathf.Max(0, Mathf.Min(r, h / 2 - 1)));
+
+            var key = "rr:" + w + "x" + h + ":r" + r + ":b" + b + ":" + ColorKey(fill) + ":" + ColorKey(edge);
+            Sprite cached;
+            if (PillCache.TryGetValue(key, out cached) && cached != null) return cached;
+
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            {
+                name = "RoundedRectTex",
+                wrapMode = TextureWrapMode.Clamp,
+                // Point：贴图按 1 贴图 px = 1 屏幕 px 烘，双线性会把 1px 描边摊成两行半透明（边缘发灰）。
+                filterMode = FilterMode.Point,
+            };
+
+            for (var y = 0; y < h; y++)
+            {
+                for (var x = 0; x < w; x++)
+                {
+                    var d = RoundedDistance(x + 0.5f, y + 0.5f, w, h, r);
+                    if (d >= 0.5f)
+                    {
+                        tex.SetPixel(x, y, new Color(0f, 0f, 0f, 0f));
+                        continue;
+                    }
+                    var c = (b > 0 && d > -b) ? edge : fill;
+                    c.a *= Mathf.Clamp01(0.5f - d);
+                    tex.SetPixel(x, y, c);
+                }
+            }
+            tex.Apply(false, false);
+
+            var made = Sprite.Create(tex, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), 100f, 0,
+                SpriteMeshType.FullRect, new Vector4(r, r, r, r));
+            made.name = "RoundedRect";
+            PillCache[key] = made;
+            return made;
+        }
+
+        /// <summary>
+        /// 造一条**横向两段渐变**的圆角条：左端 <paramref name="left"/> → 右端 <paramref name="right"/>，
+        /// 两端各 <paramref name="capPx"/> 像素实色端头（九宫格拉伸时端头保持原样）。
+        /// </summary>
+        public static Sprite GradientBar(int h, int capPx, int radius, Color left, Color right)
+        {
+            h = Mathf.Max(8, h);
+            var cap = Mathf.Clamp(capPx, 2, h / 2);
+            var r = Mathf.Clamp(radius, 1, h / 2);
+            var w = cap * 2 + 16;
+            var key = "grad:" + h + ":" + cap + ":r" + r + ":" + ColorKey(left) + ":" + ColorKey(right);
+            Sprite cached;
+            if (PillCache.TryGetValue(key, out cached) && cached != null) return cached;
+
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            {
+                name = "GradientBarTex",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+            for (var y = 0; y < h; y++)
+            {
+                for (var x = 0; x < w; x++)
+                {
+                    var d = RoundedDistance(x + 0.5f, y + 0.5f, w, h, r);
+                    if (d >= 0.5f)
+                    {
+                        tex.SetPixel(x, y, new Color(0f, 0f, 0f, 0f));
+                        continue;
+                    }
+                    var t = Mathf.Clamp01((x + 0.5f - cap) / Mathf.Max(1f, w - 2f * cap));
+                    var c = Color.Lerp(left, right, t);
+                    c.a *= Mathf.Clamp01(0.5f - d);
+                    tex.SetPixel(x, y, c);
+                }
+            }
+            tex.Apply(false, false);
+
+            var made = Sprite.Create(tex, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), 100f, 0,
+                SpriteMeshType.FullRect, new Vector4(cap, r, cap, r));
+            made.name = "GradientBar";
+            PillCache[key] = made;
+            return made;
+        }
+
+        private static float RoundedDistance(float px, float py, float w, float h, float r)
+        {
+            var dx = Mathf.Max(r - px, px - (w - r), 0f);
+            var dy = Mathf.Max(r - py, py - (h - r), 0f);
+            return Mathf.Sqrt(dx * dx + dy * dy) - r;
+        }
+
+        private static string ColorKey(Color c)
+        {
+            var c32 = (Color32)c;
+            return c32.r + "," + c32.g + "," + c32.b + "," + c32.a;
+        }
+
+        /// <summary>
+        /// 设计像素（1080 宽画布上的 1px）在某个世界空间版面里等于多少版面单位。
+        /// <para>
+        /// 口径 = **直接量这块矩形自己的投影**（把上下边中点投到屏幕取像素差），⛔ 不用相机参数反推：
+        /// 世界空间 Canvas 的缩放、相机的正交/透视与轻微俯角都会让"世界单位 → 像素"偏离标称值。
+        /// </para>
+        /// </summary>
+        public static float UnitsPerDesignPixel(RectTransform rt)
+        {
+            var px = ScreenSizeOf(rt);
+            var h = rt != null ? rt.rect.height : 0f;
+            if (px.y < 0.5f || h < 1f) return 2f;
+            return h / px.y;
+        }
+
+        /// <summary>
+        /// 一块世界空间矩形**在屏幕上的像素尺寸**（设计像素，1080 宽口径）。用它的两个轴分别取：
+        /// 世界空间 Canvas 常带非等比缩放，横纵像素密度不一定相同（按一个轴烘贴图，另一个轴会被拉伸发虚）。
+        /// </summary>
+        public static Vector2 ScreenSizeOf(RectTransform rt)
+        {
+            if (rt == null) return Vector2.zero;
+            var cam = Camera.main;
+            var w = rt.rect.width;
+            var h = rt.rect.height;
+            if (cam == null || w < 1f || h < 1f) return Vector2.zero;
+
+            var bl = cam.WorldToScreenPoint(rt.TransformPoint(new Vector3(rt.rect.xMin, rt.rect.yMin, 0f)));
+            var br = cam.WorldToScreenPoint(rt.TransformPoint(new Vector3(rt.rect.xMax, rt.rect.yMin, 0f)));
+            var tl = cam.WorldToScreenPoint(rt.TransformPoint(new Vector3(rt.rect.xMin, rt.rect.yMax, 0f)));
+            var k = DesignW / Mathf.Max(1f, UnityEngine.Screen.width);
+            return new Vector2(Mathf.Abs(br.x - bl.x) * k, Mathf.Abs(tl.y - bl.y) * k);
+        }
+
+        /// <summary>(源图名, 目标 RGB) → 已上色的 Sprite（`Sprite.Create` 造的不归 Resources 管，必须复用）。</summary>
+        private static readonly Dictionary<string, Sprite> RecolorCache = new Dictionary<string, Sprite>();
+
+        /// <summary>
+        /// 把**纯黑 alpha 模板**帧按目标 RGB 上色（alpha 逐像素保留，RGB 全替换）。
+        /// <para>
+        /// 用途：原版 `.sc` 里这类帧的真实颜色来自**颜色变换**（帧本身 RGB 全 0，例如区块标题缎带
+        /// `ui_out` 372/373/374）。`Image.color` 是纯乘，乘在黑色上恒为黑 ⇒ 只能在这里做等价变换。
+        /// </para>
+        /// <para>与 <see cref="MakeRounded"/> 同一套 GPU 回读手法（图元 `.meta` 是 `isReadable: 0`）。</para>
+        /// </summary>
+        private static Sprite Recolor(Sprite source, Color32 rgb)
+        {
+            if (source == null || source.texture == null) return null;
+            var key = source.name + "#" + rgb.r + "," + rgb.g + "," + rgb.b;
+            Sprite cached;
+            if (RecolorCache.TryGetValue(key, out cached) && cached != null) return cached;
+
+            var tw = source.texture.width;
+            var th = source.texture.height;
+            var rt = RenderTexture.GetTemporary(tw, th, 0, RenderTextureFormat.ARGB32);
+            var prevActive = RenderTexture.active;
+            Graphics.Blit(source.texture, rt);
+            RenderTexture.active = rt;
+            var readable = new Texture2D(tw, th, TextureFormat.RGBA32, false);
+            readable.ReadPixels(new Rect(0f, 0f, tw, th), 0, 0);
+            readable.Apply();
+            RenderTexture.active = prevActive;
+            RenderTexture.ReleaseTemporary(rt);
+
+            var px = readable.GetPixels32();
+            for (var i = 0; i < px.Length; i++)
+            {
+                if (px[i].a == 0) continue;
+                px[i] = new Color32(rgb.r, rgb.g, rgb.b, px[i].a);
+            }
+
+            var tex = new Texture2D(tw, th, TextureFormat.RGBA32, false);
+            tex.SetPixels32(px);
+            tex.Apply();
+            UnityEngine.Object.Destroy(readable);
+            var made = Sprite.Create(tex, source.rect, new Vector2(0.5f, 0.5f),
+                source.pixelsPerUnit, 0, SpriteMeshType.FullRect);
+            made.name = "Recolor:" + source.name;
+            RecolorCache[key] = made;
+            return made;
         }
 
         /// <summary>
@@ -1797,6 +2200,176 @@ namespace CR.UI
             made.name = "Sliced:" + source.name;
             SliceCache[key] = made;
             return made;
+        }
+    }
+
+    /// <summary>
+    /// 世界空间血条的**外观层**（挂在 `WorldHpBar` 的附属版面上）：圆角胶囊底槽 + 1px 深色描边 +
+    /// 顶部 1px 高光 + 队伍色填充。
+    /// <para>
+    /// 比例唯一来源 = <see cref="WorldHpBar.Ratio"/>（每帧只在变化时重建填充宽度）；几何单位 =
+    /// 附属版面单位（版面高恒 100），所以条体尺寸变了外观会按同一比例跟着变。
+    /// </para>
+    /// </summary>
+    public sealed class WorldHpBarSkin : MonoBehaviour
+    {
+        /// <summary>胶囊圆角半径（设计像素）。</summary>
+        private const float RadiusPx = 3f;
+
+        /// <summary>
+        /// 描边宽（设计像素）= 1.5：条体在屏幕上是 7~18px 高，1px 的描边落在非整像素位置上会被
+        /// 抗锯齿摊成两行半透明（实测边缘亮度只降到填充的 ~50%）⇒ 取 1.5px 保证边缘真的读作深色线。
+        /// </summary>
+        private const float BorderPx = 1f;
+
+        private WorldHpBar _bar;
+        private RectTransform _fill;
+        private Color _fillColor = Color.clear;
+        private float _ratio = -1f;
+        private bool _built;
+
+        /// <summary>建外观层时"1 设计像素 = 多少版面单位"；相机缩放 / 宿主缩放晚几帧才定型时按它判断要不要重建。</summary>
+        private float _upx;
+
+        /// <summary>还剩几帧做"几何定型"检查（进对局时相机缩放会先动一段）。</summary>
+        private int _settleFrames;
+
+        /// <summary>已重建次数（上限 3：相机定型后不再重建）。</summary>
+        private int _rebuilds;
+
+        /// <summary>
+        /// 引擎条体的两个 Quad 渲染器（直角暗底 + 直角填充）。外观层的圆角是**透明的**
+        /// ⇒ 不关掉它们，方角的暗底会从圆角缺口里透出来，胶囊看着仍是直角。比例与显隐仍由引擎驱动。
+        /// </summary>
+        private MeshRenderer[] _quads;
+
+        internal void Bind(WorldHpBar bar, Color fillColor)
+        {
+            var recolor = !_built || _fillColor != fillColor;
+            _bar = bar;
+            _fillColor = fillColor;
+            if (!_built || recolor) Build();
+            Apply();
+        }
+
+        private void Build()
+        {
+            var rt = (RectTransform)transform;
+            // 只拆自己建的三层（版面上还可能挂着塔的等级徽章 / 血量数字，⛔ 不许一起拆掉）。
+            for (var i = rt.childCount - 1; i >= 0; i--)
+            {
+                var name = rt.GetChild(i).gameObject.name;
+                if (name == "SkinBg" || name == "SkinInner") Destroy(rt.GetChild(i).gameObject);
+            }
+            _fill = null;
+
+            var h = Mathf.Max(4f, rt.rect.height);
+            var w = Mathf.Max(8f, rt.rect.width);
+            var upx = CrUiStyle.UnitsPerDesignPixel(rt);
+            _upx = upx;
+            _settleFrames = 90;
+
+            // 底槽贴图按**条体在屏幕上的像素尺寸**烘：1px 描边/圆角是像素量，按版面单位烘再缩小
+            // 会被双线性过滤摊成半透明（实测边缘亮度只降到填充的 ~50%）。
+            var screen = CrUiStyle.ScreenSizeOf(rt);
+            var pxH = Mathf.Clamp(Mathf.RoundToInt(screen.y > 0.5f ? screen.y : h / upx), 4, 64);
+            var pxW = Mathf.Clamp(Mathf.RoundToInt(screen.x > 0.5f ? screen.x : w / upx), 8, 1024);
+            var radiusPx = Mathf.Clamp(Mathf.RoundToInt(RadiusPx), 1, Mathf.Max(1, pxH / 2 - 1));
+            var borderPx = Mathf.Clamp(Mathf.RoundToInt(BorderPx), 1, radiusPx);
+            var border = borderPx * upx;
+            var radius = radiusPx * upx;
+
+            var bg = UIFactory.CreatePanel("SkinBg", rt, Color.white, false);
+            UIFactory.Stretch(bg.rectTransform);
+            bg.sprite = CrUiStyle.RoundedRect(pxW, pxH, radiusPx, borderPx,
+                CrUiStyle.HpTrack, CrUiStyle.HpOutline);
+            bg.type = Image.Type.Simple;
+            bg.color = Color.white;
+
+            // 容器只要矩形（无图元）⇒ 用空节点，少一个 Graphic 批次。
+            var inner = UIFactory.CreateNode("SkinInner", rt);
+            inner.anchorMin = Vector2.zero;
+            inner.anchorMax = Vector2.one;
+            inner.offsetMin = new Vector2(border, border);
+            inner.offsetMax = new Vector2(-border, -border);
+            var innerH = Mathf.Max(2f, h - 2f * border);
+            var innerR = Mathf.Max(1, Mathf.RoundToInt(radius - border));
+
+            var fillImg = UIFactory.CreatePanel("SkinFill", inner, Color.white, false);
+            _fill = fillImg.rectTransform;
+            _fill.anchorMin = new Vector2(0f, 0f);
+            _fill.anchorMax = new Vector2(1f, 1f);
+            _fill.offsetMin = Vector2.zero;
+            _fill.offsetMax = Vector2.zero;
+            fillImg.sprite = CrUiStyle.RoundedRect(2 * innerR + 2, Mathf.RoundToInt(innerH), innerR, 0,
+                _fillColor, _fillColor);
+            fillImg.type = Image.Type.Sliced;
+            fillImg.color = Color.white;
+
+            var hl = UIFactory.CreatePanel("SkinHighlight", inner, CrUiStyle.HpHighlight, false);
+            var hlrt = hl.rectTransform;
+            hlrt.anchorMin = new Vector2(0f, 1f);
+            hlrt.anchorMax = new Vector2(1f, 1f);
+            hlrt.pivot = new Vector2(0.5f, 1f);
+            hlrt.sizeDelta = new Vector2(-2f * innerR, Mathf.Max(1f, upx));
+            hlrt.anchoredPosition = Vector2.zero;
+
+            // 外观层必须排在版面最底部（塔的等级徽章 / 血量数字是后建的兄弟节点）。
+            bg.rectTransform.SetAsFirstSibling();
+            inner.SetSiblingIndex(1);
+
+            _quads = _bar != null ? _bar.GetComponentsInChildren<MeshRenderer>(true) : null;
+            HideQuads();
+
+            _built = true;
+            _ratio = -1f;
+        }
+
+        /// <summary>把引擎条体的 Quad 关掉（`WorldHpBar.SetVisible` 显示时会重新打开 ⇒ 每帧收一次）。</summary>
+        private void HideQuads()
+        {
+            if (_quads == null) return;
+            for (var i = 0; i < _quads.Length; i++)
+                if (_quads[i] != null && _quads[i].enabled) _quads[i].enabled = false;
+        }
+
+        private void Apply()
+        {
+            if (_fill == null) return;
+            var target = _bar != null ? Mathf.Clamp01(_bar.Ratio) : 0f;
+            // 快照 10 Hz ⇒ 血条原本每 100 ms 跳一格；显示值按 120 ms 追平，观感是连续掉血（数值仍只读 Ratio）。
+            if (_ratio < 0f) _ratio = target;
+            _ratio = Mathf.MoveTowards(_ratio, target, Time.unscaledDeltaTime / 0.12f);
+            if (Mathf.Abs(_fill.anchorMax.x - _ratio) < 0.0005f) return;
+            _fill.anchorMin = new Vector2(0f, 0f);
+            _fill.anchorMax = new Vector2(_ratio, 1f);
+            _fill.offsetMin = Vector2.zero;
+            _fill.offsetMax = Vector2.zero;
+            _fill.gameObject.SetActive(_ratio > 0.001f);
+        }
+
+        private void LateUpdate()
+        {
+            HideQuads();
+            if (_settleFrames > 0)
+            {
+                _settleFrames--;
+                if ((_settleFrames & 15) == 0) Settle();
+            }
+            Apply();
+        }
+
+        /// <summary>
+        /// 相机缩放 / 宿主缩放定型后按新的"像素 → 版面单位"比例重建（圆角与描边是按屏幕像素给的）。
+        /// 只在比例变化超过 3% 时重建，且总重建次数有上限。
+        /// </summary>
+        private void Settle()
+        {
+            if (_rebuilds >= 3) { _settleFrames = 0; return; }
+            var upx = CrUiStyle.UnitsPerDesignPixel((RectTransform)transform);
+            if (upx < 1e-4f || Mathf.Abs(upx - _upx) <= _upx * 0.03f) return;
+            _rebuilds++;
+            Build();
         }
     }
 }

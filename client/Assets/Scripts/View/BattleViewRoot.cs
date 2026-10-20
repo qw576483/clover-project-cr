@@ -109,23 +109,16 @@ namespace CR.View
 
         // ── 出牌落地表现（`EvSpawn`）的原版素材 ──
         //
-        // 素材帧号出处（⛔ 不许挑帧）：
-        //   `策划/单位动画分组表.md:5021` —— export `deploy_arrows_effect` / clip 354 / 60 fps /
-        //   timeline 16 条**全部指向同一像素帧 f119**（原始 PNG = `原版资源/cr-assets-png/assets/sc/effects_out/effects_sprite_119.png`）；
-        //   同表 `:4725` 的 `deploy_arrows`（clip 354）与它同 clip ⇒ 二者是同一段动画的两种导出名。
-        //   档位列 = **spawn**（`策划/单位动画分组表.md:5021`、"spawn" 分类）。
+        // 素材帧号出处（⛔ 不许挑帧）与落位特效的用途目录 / 起始帧 / 帧数 = `ResPaths.EffectDeploy` /
+        // `ResPaths.EffectDeployFirst` / `ResPaths.EffectDeployCount`（唯一定义处 = `Core/ResPaths.cs`，
+        // 出处块见那里的 `策划/单位动画分组表.md:5021`：`deploy_arrows_effect` / clip 354 / 60 fps /
+        // timeline 16 条**全部指向同一像素帧 f119**；档位列 = spawn）。
         // 为什么不用另一个 spawn 候选 `filter_deploy_unit_*`（同表 `:5149-5153`，唯一像素帧 f258）：
         //   f258 的像素内容 = **一个具体单位的彩色形象**（描出的是哥布林本体，非通用剪影/掩膜），
         //   而 `filter_deploy_unit_default` / `filter_cold` / `filter_damage_*` / `filter_hologram` /
         //   `filter_poison` … **十几个不同滤镜共用同一个 f258**（`策划/单位动画分组表.md:5143-5167`）
         //   ⇒ f258 是"被叠加到单位身上的滤镜底图"，把它当**独立落地特效**播会在任意卡落点上画出一个哥布林。
         //   故取 f119（真正的独立 spawn 特效：绿色上箭头）。
-
-        /// <summary>落地特效用途目录名（`ResPaths.EffectDir` 拼 `Sprites/Effects/Deploy`）。</summary>
-        private const string DeployFxDir = "Deploy";
-
-        /// <summary>落地特效起始帧（原版 f119；见上方出处块）。</summary>
-        private const int DeployFxFirst = 119;
 
         /// <summary>
         /// 落地绿箭头（f119）的**定格时长**（秒）= 该 export 自己的时间轴长度
@@ -173,15 +166,6 @@ namespace CR.View
         /// </summary>
         private const float DeployDedupeSeconds = 0.5f;
 
-        /// <summary>
-        /// 溅射范围环的**显示时长**（秒）。<b>本项目自定</b>：原版没有"溅射攻击画范围圈"这回事
-        /// （`策划/单位动画分组表.md` 的 effects 小节里没有该族的 export —— hit 档只有一条通用
-        /// `effect_Hit1`，那是一次命中闪光、不是范围展示）⇒ 没有帧列可换算时长。
-        /// 取 0.9 s：长到一眼能读出圈多大，短到不会与下一次挥砍叠在一起
-        /// （溅射卡里最快的一档 hit_speed 是炸弹兵 1800 ms）。差异登记见 `策划/对照表.md`。
-        /// </summary>
-        private const float SplashRingSeconds = 0.9f;
-
         /// <summary>部署期（`deploy_ms &gt; 0`）的透明度 —— 原版未激活单位是半透明的。</summary>
         public const float DeployAlpha = 0.55f;
 
@@ -208,8 +192,9 @@ namespace CR.View
         ///
         /// <para>
         /// <b>口径</b>：初值 <c>true</c> = "还没被告知离开对局" ⇒ 首次进图的兜底重建照旧生效
-        ///（`StationChanged` 没到时仍能出画面）；一旦收到**非 Battle** 的站点切换就置 false，
-        /// 此后的尾随推送一律**忽略**（只 Warn 一次）。再收到 Battle ⇒ 重新置 true。
+        ///（`StationChanged` 没到时仍能出画面）；一旦收到**非 Battle 且非 Pause** 的站点切换就置 false，
+        /// 此后的尾随推送一律**忽略**（只 Warn 一次）。再收到 Battle / Pause ⇒ 重新置 true
+        ///（Pause 是对局内的覆盖层，画面不拆，见 <see cref="OnStationChanged"/>）。
         /// </para>
         /// </summary>
         private bool _inBattle = true;
@@ -238,7 +223,7 @@ namespace CR.View
         /// 实战最多两三块。取 **4** 留一倍余量；真超了由 <see cref="AcquireDeployRing"/> 复用最先到期的那块。
         /// </summary>
         private const int DeployRingPoolSize = 4;
-        private PlacementIndicator _splashRing;  // 溅射范围环专用实例（见 ShowSplashRing）
+
         private DeployAreaView _deployArea;   // 拖放时的不可放置区域显示（见 DeployAreaView）
         private EffectsView _effects;
         private BattleAudioView _audio;   // 对局音效（唯一挂点：见 Build；订阅 Core/Events.cs 的战斗事件）
@@ -246,8 +231,8 @@ namespace CR.View
 
         /// <summary>
         /// 卡池索引（`card_id → CardInfo`，来自 `Events.Deck.PoolLoaded`）。
-        /// 判「这张卡是否远程」（`CardInfo.projectile_key`）与取弹道速度（`proj_speed`）都靠它 ——
-        /// 客户端不落地卡 / 单位配表，这两个字段只在卡池协议里（`Def/ProtoDef.cs` 的 `CardInfo`）。
+        /// 精灵目录（`sprite_dir`）、远程判定（`projectile_key`）、弹道速度（`proj_speed`）、
+        /// 落位期（`deploy_ms`）都从这里取 —— 客户端不落地卡 / 单位配表。
         /// </summary>
         private readonly Dictionary<int, CardInfo> _cards = new Dictionary<int, CardInfo>();
 
@@ -260,34 +245,6 @@ namespace CR.View
         /// <summary>卡池里查不到 `deploy_ms`（落位期）⇒ 落位计时件退回兜底秒数：只 Warn 一次。</summary>
         private bool _deployMsMissingWarned;
 
-        /// <summary>溅射范围环实例缺失（进对局第一帧就命中 / 画面未建）：只 Warn 一次。</summary>
-        private bool _splashRingMissingWarned;
-
-        /// <summary>本局真的播出的溅射范围环次数（远程命中 + 近战溅射）。</summary>
-        private int _splashRingsShown;
-
-        /// <summary>本局其中属于**近战溅射**（瓦基丽武神 / 黑暗王子 / 超级骑士，无弹道）的次数。</summary>
-        private int _meleeSplashRings;
-
-        /// <summary>
-        /// 等待落点的溅射范围环（远程卡要等弹道飞完才到达 ⇒ 必须延迟）。
-        /// <para>
-        /// 为什么不在 <c>EffectsView</c> 上挂回调：那个类的对外契约是"播一段帧序列"，
-        /// 没有"播完通知"（改它的签名 = 改引擎侧公共件，不归本片）。这里按帧推进即可。
-        /// </para>
-        /// </summary>
-        private readonly List<PendingSplashRing> _pendingSplashRings = new List<PendingSplashRing>();
-
-        /// <summary>一条待落点的溅射范围环（见 <see cref="_pendingSplashRings"/>）。</summary>
-        private struct PendingSplashRing
-        {
-            public Vector2 Tile;
-            public float RadiusTiles;
-            public string CardKey;
-            public int SourceId;
-            public float LeftMs;   // 还要等多少毫秒才到落点
-        }
-
         /// <summary>
         /// 渲染时钟上的**待办队列**（每帧推一次，见 <see cref="ProcessPendingSpellImpacts"/>）——
         /// 全类只有这一套"还要等多少毫秒"的计时，⛔ 不起第二套。三类条目共用它：
@@ -299,6 +256,8 @@ namespace CR.View
         ///   （见 <see cref="FireBattleShotNow"/>）。</item>
         /// <item><b>出牌落地标记</b>（<see cref="ImpactModeDeploy"/>）：网络事件到达后延迟到**渲染时钟**
         ///   追平该事件的时刻再播，使标记与单位的显示同帧（见 <see cref="ScheduleDeploy"/>）。</item>
+        /// <item><b>出牌落位表盘</b>（<see cref="ImpactModeDeployRing"/>）：同一条延迟口径，使表盘与单位出现同帧
+        ///   （见 <see cref="ScheduleDeployRing"/>）。</item>
         /// </list>
         /// </summary>
         private readonly List<PendingImpact> _pendingImpacts = new List<PendingImpact>();
@@ -311,6 +270,12 @@ namespace CR.View
 
         /// <summary>到点播一次出牌落地标记（见 <see cref="PlayDeployAt"/>）。</summary>
         private const int ImpactModeDeploy = 2;
+
+        /// <summary>到点开一块落位表盘（见 <see cref="PlayDeployRingAt"/>）。</summary>
+        private const int ImpactModeDeployRing = 3;
+
+        /// <summary>到点在落点画一次溅射命中的红色描边圆（见 <see cref="PlayAoeRingNow"/>）。</summary>
+        private const int ImpactModeAoeRing = 4;
 
         /// <summary>一条待办（见 <see cref="_pendingImpacts"/>）。</summary>
         private struct PendingImpact
@@ -347,6 +312,8 @@ namespace CR.View
             public int Team;
             /// <summary>出牌落地条目的实体 id（日志用）。</summary>
             public int EntityId;
+            /// <summary>溅射红圈条目的可见圆半径（格，= 攻击者卡池行的 `aoe_radius_milli / 1000`）。</summary>
+            public float AoeRadiusTiles;
         }
 
         /// <summary>本局已播的弹道条数（自检 / 验收用的日志计数）。</summary>
@@ -494,7 +461,7 @@ namespace CR.View
         public int TowerShotSkipped { get { return _towerShotSkipped; } }
 
         /// <summary>
-        /// 本局收到的**法术卡出牌**事件（`EvPlayCard` 且 `CardInfo.type == 1`）条数 —— 差异登记见 `策划/差异登记.tsv`。
+        /// 本局收到的**法术卡出牌**事件（`EvPlayCard` 且 `CardInfo.type == 1`）条数 —— 差异登记见 `策划/对照表.md` §D.3。
         /// <para><b>自检断言</b>：<c>SpellCasts == SpellFxPlayed + SpellFxSkipped</c>
         /// （不成立 = 有法术出牌没走到播放入口 = 判红）。</para>
         /// </summary>
@@ -518,18 +485,6 @@ namespace CR.View
         /// <para>两者之差 = 同帧超过 <see cref="MaxHitFxPerSnapshot"/> 的溢出（见该常量的注释）+ 特效层同屏上限 / 素材目录为空。</para>
         /// </summary>
         public int HitFxPlayed { get { return _hitFxPlayed; } }
-
-        /// <summary>
-        /// 本局真的播出的**溅射范围环**次数（远程弹道到达 + 近战溅射，两条触发路径合计）。
-        /// <para>取值条件 = 该卡的 `CardInfo.aoe_radius_milli &gt; 0`（无溅射的卡一次都不该有）。</para>
-        /// </summary>
-        public int SplashRingsShown { get { return _splashRingsShown; } }
-
-        /// <summary>本局其中属于**近战溅射**（无弹道，在攻击者位置画）的次数。</summary>
-        public int MeleeSplashRings { get { return _meleeSplashRings; } }
-
-        /// <summary>当前还在等落点（弹道未飞完）的溅射范围环条数。</summary>
-        public int SplashRingsPending { get { return _pendingSplashRings.Count; } }
 
         /// <summary>
         /// 本局**带飞行段**的法术里真的播出飞行段的条数（飞行段来源见 <see cref="SpellFxTable.Entry.FlightUse"/>）。
@@ -557,11 +512,28 @@ namespace CR.View
         /// <summary>本局塔开火里**定格播枪口闪光**的次数（无速度 / 无目标的降级路径，见 <see cref="PlayTowerShot"/>）。</summary>
         public int TowerShotMuzzles { get { return _towerShotMuzzles; } }
 
+        /// <summary>本局因塔开火真的触发了一遍**乘员攻击动画**的次数（见 <see cref="PlayTowerShot"/>）。</summary>
+        public int TowerAttackAnims { get { return _towerAttackAnims; } }
+
+        /// <summary>本局**国王塔**开火事件数（对上的塔是王塔的次数）。</summary>
+        public int KingTowerShots { get { return _kingTowerShots; } }
+
+        /// <summary>本局国王塔**炮塔后坐**实际起的次数（自检：应等于 <see cref="KingTowerShots"/>）。</summary>
+        public int KingTowerRecoils { get { return _kingTowerRecoils; } }
+
+        /// <summary>本局国王塔开火的**炮口闪光**播出次数（自检：应等于 <see cref="KingTowerShots"/>）。</summary>
+        public int KingTowerMuzzleFlashes { get { return _kingMuzzleFlashes; } }
+
         private int _deployFxPlayed;
 
         /// <summary>
-        /// 本场画面（`Build()` 之后）已开始过的那一局的 `room_id` / `seed`（`BattleStartNotify` 自带）。
-        /// `null` = 本场画面还没开过局；判"是不是新的一局"的键，见 <see cref="OnBattleStarted"/>。
+        /// 已开始过的那一局的 `room_id` / `seed`（`BattleStartNotify` 自带）。
+        /// `null` = 本进程还没开过局；判"是不是新的一局"的键，见 <see cref="OnBattleStarted"/>。
+        /// <para>
+        /// 生命周期 = **跨画面重建保留**（`Build` / `Teardown` 都不清）：首次进图时
+        /// `Events.Battle.Started` 早于 `Scene.Load`，建场发生在 `OnBattleStarted` **内部** ——
+        /// 若建场把这份基线清掉，同一场景的下一局就判不出"新的一局"（塔的阵亡终态与快照时钟都不会重置）。
+        /// </para>
         /// </summary>
         private string _matchRoomId;
 
@@ -597,6 +569,18 @@ namespace CR.View
         /// <summary>被"同一次出牌"去重掉的落位标记条数（自检用，见 <see cref="DeployDupeSkipped"/>）。</summary>
         private int _deployDupeSkipped;
 
+        /// <summary>最近一次开出落位表盘的卡 id（与 <see cref="_lastDeployRingTeam"/> 配对，用于报"出牌→落地"间隔）。</summary>
+        private int _lastDeployRingCardId;
+
+        /// <summary>最近一次开出落位表盘的阵营（初值 = 与任何真实阵营都不等的哨兵）。</summary>
+        private int _lastDeployRingTeam = int.MinValue;
+
+        /// <summary>
+        /// 最近一次开出落位表盘的时刻（`Time.unscaledTime`）。
+        /// 与 <see cref="PlayDeployAt"/> 里单位出现时刻的差 = "表盘在走、场上还没东西"的时长。
+        /// </summary>
+        private float _lastDeployRingTime = -999f;
+
         private int _battleShots;
         private int _towerShots;
         private int _towerActivations;
@@ -613,6 +597,10 @@ namespace CR.View
         private int _projHitFxPlayed;
         private int _projHitFxSkipped;
         private int _towerShotMuzzles;
+        private int _towerAttackAnims;
+        private int _kingTowerShots;
+        private int _kingTowerRecoils;
+        private int _kingMuzzleFlashes;
 
         /// <summary>落地段 / 命中段播不出去（素材目录空 / 同屏上限）只 Warn 一次（⛔ 不刷屏）。</summary>
         private bool _impactMissingWarned;
@@ -637,8 +625,10 @@ namespace CR.View
         private Dictionary<int, int> _curHp = new Dictionary<int, int>();
 
         // ── 塔的命中（塔不在 `entities` 里，由 `towers_a` / `towers_b` 报告 ⇒ 单独一套 hp 双缓冲）──
-        //    键 = `TowerHpKey(team, towerId)`：**必须带队伍** —— 每队的塔 id 各自从 0 起，
-        //    只用 id 会把两队的同号塔串成一条。
+        //    键 = `TowerHpKey(team, towerId)` = 队伍 × 100000 + 塔 id。
+        //    塔 id 来自服务端**全局一把实体计数器**（`server/game/core/battle.go:133` `nextID: 1`；
+        //    塔的创建顺序见同文件 `:140-141` = 蓝国王 / 蓝左 / 蓝右 / 红国王 / 红左 / 红右 ⇒ id 1..6），
+        //    即蓝 1/2/3、红 4/5/6 —— 两队**不重号**；键里带上队伍 = 显式标出「这是哪队的塔」。
         /// <summary>上一帧快照里每座塔的 `hp`（`(team,id) → hp`）。</summary>
         private Dictionary<int, int> _prevTowerHp = new Dictionary<int, int>();
 
@@ -670,7 +660,7 @@ namespace CR.View
         /// <summary>本局保持当前方向不动的次数（公主塔没炮塔层 / 素材缺失 / 取不到目标）。</summary>
         private int _towerAimKept;
 
-        /// <summary>塔 hp 双缓冲的键：队伍 × 塔 id（两队 id 各自从 0 起 ⇒ 必须带队伍）。</summary>
+        /// <summary>塔 hp 双缓冲的键：队伍 × 100000 + 塔 id（塔 id = 服务端全局实体 id，蓝 1/2/3、红 4/5/6）。</summary>
         private static int TowerHpKey(int team, int id)
         {
             return team * 100000 + id;
@@ -935,9 +925,7 @@ namespace CR.View
             if (!_built || Interp.SnapshotCount == 0) return;
             TickRender();
 
-            // 远程卡的溅射范围环要等弹道飞完才到落点 ⇒ 每帧推一下待落点队列（见 ShowSplashRing）。
-            ProcessPendingSplashRings();
-            // 法术落地段 / 投射物命中段同样要等飞行段走完 ⇒ 与上面同一处推（同一套时钟）。
+            // 法术落地段 / 投射物命中段要等飞行段走完才到落点 ⇒ 每帧推一下待落点队列。
             ProcessPendingSpellImpacts();
         }
 
@@ -995,7 +983,6 @@ namespace CR.View
                 _arena = null;
                 _indicator = null;
                 for (var i = 0; i < _deployRings.Length; i++) _deployRings[i] = null;
-                _splashRing = null;
                 _deployArea = null;
                 _unitRoot = null;
                 _cam = null;
@@ -1019,9 +1006,6 @@ namespace CR.View
             // 而**池化**还多解一层：多个出牌批次同时落位时各占一块、互不抢（见 AcquireDeployRing 的注释）。
             for (var i = 0; i < _deployRings.Length; i++)
                 _deployRings[i] = PlacementIndicator.Create(_content.transform);
-            // 溅射范围环也单独一个实例：它是"事后回放一次命中范围"，与拖动环、落位计时件
-            // 三条链的触发源与生命周期都不同（见 ShowSplashRing）。
-            _splashRing = PlacementIndicator.Create(_content.transform);
             _deployArea = DeployAreaView.Create(_content.transform);
             _effects = EffectsView.Create(_content.transform); // 特效层（原版帧序列，见 ResPaths 特效区段）
             // 音效层（⛔ **唯一挂点**）：挂在 BattleContent 下 ⇒ 生命周期跟着对局画面走
@@ -1056,6 +1040,9 @@ namespace CR.View
             _lastDeployTeam = int.MinValue;
             _lastDeployTime = -999f;
             _deployDupeSkipped = 0;
+            _lastDeployRingCardId = 0;
+            _lastDeployRingTeam = int.MinValue;
+            _lastDeployRingTime = -999f;
             _battleShots = 0;
             _towerShots = 0;
             _towerActivations = 0;
@@ -1073,8 +1060,11 @@ namespace CR.View
             _projHitFxPlayed = 0;
             _projHitFxSkipped = 0;
             _towerShotMuzzles = 0;
+            _towerAttackAnims = 0;
+            _kingTowerShots = 0;
+            _kingTowerRecoils = 0;
+            _kingMuzzleFlashes = 0;
             _impactMissingWarned = false;
-            _pendingImpacts.Clear();
             _towerMuzzleMissingWarned = false;
             _towerActivateMissingWarned = false;
             _towerActivateUnmatchedWarned = false;
@@ -1105,15 +1095,24 @@ namespace CR.View
             _towerAimTotal = 0;
             _towerAimed = 0;
             _towerAimKept = 0;
+            // 单位命中的计数与塔命中计数同一生命周期（都是"本局"读数，见各自属性的注释）。
+            _hitsObserved = 0;
+            _hitFxPlayed = 0;
+            // 部署合法性的塔存活输入回到"全部存活"（从严：不给口袋区、塔周围 1 格仍不可放）；
+            // 首个快照到达后由 `ApplyTowers` 按服务端覆盖。
+            _enemyLeftAlive = true;
+            _enemyRightAlive = true;
+            _ownLeftAlive = true;
+            _ownRightAlive = true;
+            // 延迟队列归零：跨局残留的条目会在新场地上凭空播一次落地段。
+            _pendingImpacts.Clear();
             // 时间轴归零：插值器复位 ⇒ 新的一局在首个快照上重新对齐一次服务端时间戳；
             // 载荷槽一并回收（`resetWarnOnce` ⇒ 每局都能重新留一次非预期分支的痕）。
             Interp.Reset(resetWarnOnce: true);
             _freeSlots.Clear();
             _liveSlots.Clear();
-            // 「本场画面还没开过局」：⛔ 不清 ⇒ 同一场景连开下一局时被判成"同一局"，塔的阵亡态与快照时钟
-            // 都不会重置（见 `OnBattleStarted`）。上面那组时间轴字段同时归零 ⇒ 新局 `server_ms` 从 0 重走。
-            _matchRoomId = null;
-            _matchSeed = long.MinValue;
+            // 本局身份（`_matchRoomId/_matchSeed`）由 `OnBattleStarted` 维护，⛔ 建场不清它 ——
+            // 判"新的一局"（塔阵亡终态 / 快照时钟是否重置）依赖跨画面重建保留的这份基线。
             _built = true;
             Game.Logger?.Info(LogTag,
                 $"对局表现层已建：塔={_arena.TowerCount} 相机={_cam.name} 正交半高={_cam.orthographicSize:F2}（18×32 格竖屏）");
@@ -1122,14 +1121,21 @@ namespace CR.View
         }
 
         /// <summary>拆掉画面（幂等）。</summary>
-        public void Teardown()
+        /// <param name="clearCaches">
+        /// true = 连 SpriteBank / UnitView 池一起清（出图、销毁时用）；
+        /// false = 同场景「再来一局」重建 —— 静态贴图缓存与单位池保留，避免整目录重载卡顿。
+        /// </param>
+        public void Teardown(bool clearCaches = true)
         {
             foreach (var kv in _units)
                 if (kv.Value != null) kv.Value.Release();
             _units.Clear();
             _recycle.Clear();
-            UnitView.ClearPools();
-            SpriteBank.ClearCache();
+            if (clearCaches)
+            {
+                UnitView.ClearPools();
+                SpriteBank.ClearCache();
+            }
 
             if (_content != null)
             {
@@ -1140,13 +1146,11 @@ namespace CR.View
             _arena = null;
             _indicator = null;
             for (var i = 0; i < _deployRings.Length; i++) _deployRings[i] = null;
-            _splashRing = null;
             _deployArea = null;
             _effects = null;
             _audio = null;
             _unitRoot = null;
             _cam = null;
-            _pendingSplashRings.Clear();
             Interp.Reset();
             _freeSlots.Clear();
             _liveSlots.Clear();
@@ -1163,6 +1167,16 @@ namespace CR.View
             {
                 _inBattle = true;
                 Build();
+                return;
+            }
+
+            // 暂停是**对局内的覆盖层**（`Core/Stations.cs` 的 `Pause`：Battle01 场景、Popup 层、
+            // 对战不真暂停；`AppFlow.EnterPause` 也不动 timeScale）⇒ 画面必须原样保留。
+            // ⛔ 走下面的拆解分支会把竞技场 / 单位 / 特效整片拆掉（暂停时屏后只剩相机底色），
+            // 恢复时再整场重建（插值时钟与"本局"计数一并归零、在飞的特效与计时件全丢）。
+            if (station == Stations.Pause)
+            {
+                _inBattle = true;
                 return;
             }
 
@@ -1212,7 +1226,7 @@ namespace CR.View
         {
             if (n == null) return;
             _myTeam = n.my_team;
-            // ── 同一场景里的**新一局**必须整场重建（见 `策划/差异登记.tsv`）──
+            // ── 同一场景里的**新一局**必须整场重建（见 `策划/对照表.md` §D.3）──
             // 「再来一局」时 `AppFlow.RequestEnterBattle` 只切站点、不重载场景（`CurrentScene == Battle01`）
             // ⇒ 本组件不重建，而这两样东西都是**每局唯一**的、必须归零的：
             //   ① `ArenaView.TowerView` 的阵亡终态锁（`ArenaView._destroyed` 置位后不清零）会把新局
@@ -1220,9 +1234,9 @@ namespace CR.View
             //   ② 快照时钟（引擎插值器里的历史 / 最新时间戳 / 对齐点）还停在上局末尾，
             //      而新局 `server_ms` 从 0 起 ⇒ `Interp.Push` 的"时间戳没有前进 ⇒ 整帧丢弃"会把新局快照
             //      一直丢到时间追上上一局（画面停在上局末帧）。
-            // 判"新的一局"= `room_id` + `seed` 变化（服务端每局新建房间）；`_matchRoomId == null` = 本场画面
-            // 还没开过局（`Build()` 里清），此时画面本来就是新建的，⛔ 不重建（否则每次进图白重建一次）。
-            // `Teardown()` 之后由下方的 `RebuildIfWanted` 重建；`Build()` 里把上面两组一起归零
+            // 判"新的一局"= `room_id` + `seed` 变化（服务端每局新建房间）；`_matchRoomId == null` =
+            // 还没开过局（本进程第一局），此时画面本来就是新建的，⛔ 不重建（否则每次进图白重建一次）。
+            // `Teardown()` 之后由下方的 `RebuildIfWanted` 重建，`Build()` 把上面两组一起归零
             // ⇒ ⛔ 只清 `_destroyed` 不够（时钟那组不清仍会停帧）。
             var newMatch = _matchRoomId != null && (n.room_id != _matchRoomId || n.seed != _matchSeed);
             if (newMatch)
@@ -1230,14 +1244,7 @@ namespace CR.View
                 Game.Logger?.Info(LogTag,
                     $"新的一局：room_id={n.room_id} seed={n.seed}（上一局 room_id={_matchRoomId} seed={_matchSeed}）" +
                     $"⇒ 对局表现层整场重建（已建={_built}）");
-                _matchRoomId = n.room_id;
-                _matchSeed = n.seed;
-                if (_built) Teardown();
-            }
-            else if (_matchRoomId == null)
-            {
-                _matchRoomId = n.room_id;
-                _matchSeed = n.seed;
+                if (_built) Teardown(false);
             }
             // anim 比对表必须清零：⛔ 不清会让上一局的 `anim==2` 与开局第一帧比出一个假"开火"
             // （同 BattleAudioView.OnBattleStarted 的处置）。
@@ -1271,6 +1278,10 @@ namespace CR.View
             // 上一局没等到施法者的出牌弹道：同一场景连开新局时清掉（那些实体 id 属于上一局）。
             _pendingCasterShots.Clear();
             if (!_built) RebuildIfWanted("Events.Battle.Started"); // 兜底：万一 StationChanged 没到（例如直接由服务端推送进对局）
+            // 「本局身份」必须在**建场之后**写：`Build()` 只负责画面、不清这两个字段，
+            // 而首次进图时建场就发生在上面这一句里（`Started` 早于 `Scene.Load`）。
+            _matchRoomId = n.room_id;
+            _matchSeed = n.seed;
             // 精灵预热：画面已建 ⇒ 当场做；画面待建（首次进图，本事件早于 `Scene.Load`）⇒ 记下通知，由 `Build()` 补做。
             _warmNotify = n;
             if (_built) WarmBattleSprites();
@@ -1319,12 +1330,13 @@ namespace CR.View
             //    投射物清单与 `EffectsView.TryGetProjectileFx` 同源（见 `EffectsView.ProjectileUses`）。
             var fixedUses = new[]
             {
-                DeployFxDir,
+                ResPaths.EffectDeploy,
                 ResPaths.EffectDeathBlue, ResPaths.EffectDeathPurple, ResPaths.EffectDeathGround,
                 ResPaths.EffectDeathParticle,
                 ResPaths.EffectBlast, ResPaths.EffectArrow,
                 ResPaths.EffectHit,
                 ResPaths.EffectSpell, ResPaths.EffectSpellFlight, ResPaths.EffectSpellBarrel,
+                ResPaths.EffectRangeRing,
             };
             var uses = new string[fixedUses.Length + EffectsView.ProjectileUses.Length
                                                       + EffectsView.ProjectileHitUses.Length];
@@ -1347,14 +1359,26 @@ namespace CR.View
                 $"战斗期不再首触 LoadDir / 不再首建帧号映射");
         }
 
-        /// <summary>预热一批卡 id 的精灵目录（见 <see cref="WarmBattleSprites"/>）。⛔ 表外的卡跳过（法术卡走特效目录）。</summary>
-        private static void WarmCardList(int[] cardIds, ref int dirs, ref int hits, ref int frames, ref int maps)
+        /// <summary>
+        /// 预热一批卡 id 的精灵目录（见 <see cref="WarmBattleSprites"/>）。目录口径与 <see cref="ResolveVisual"/>
+        /// 同一条（服务端下发优先、兜底表接着）⇒ 预热的就是真正会加载的那个目录。
+        /// 既没有下发也没有兜底项的卡跳过（法术卡走特效目录）。
+        /// </summary>
+        private void WarmCardList(int[] cardIds, ref int dirs, ref int hits, ref int frames, ref int maps)
         {
             if (cardIds == null) return;
             for (var i = 0; i < cardIds.Length; i++)
             {
+                // 法术卡没有单位视图：它的 `sprite_dir` 是卡面目录（`Sprites/Cards/ui_spells_out`），
+                // 按单位目录预热会取不到任何帧（Warn「取不到任何帧」）⇒ 这里直接跳过。
+                CardInfo info;
+                if (_cards.TryGetValue(cardIds[i], out info) && info != null && info.type == 1) continue;
                 CardVisual v;
-                if (!CardVisuals.TryGetValue(cardIds[i], out v) || string.IsNullOrEmpty(v.Dir)) continue;
+                if (!TryGetCardVisual(cardIds[i], out v) || string.IsNullOrEmpty(v.Dir)) continue;
+                // 卡池可能晚于本方法到达（那时 `TryGetCardVisual` 走兜底表），所以除按 type 判外
+                // 再按目录兜底判一次：法术卡的 `sprite_dir` 恒为卡面目录 `SpellArtSpriteDir`
+                //（`Sprites/Cards/ui_spells_out`），它不是单位目录。
+                if (v.Dir == ResPaths.SpellArtSpriteDir) continue;
                 var path = v.IsBuilding ? ResPaths.BuildingDir(v.Dir) : ResPaths.UnitDir(v.Dir);
                 // ★ 用**预载口径**（帧数组 +「帧号 → 数组下标」映射表一次建好，见引擎 `FrameBank.Preload`）：
                 //   映射表是**按目录首次**建的（逐帧解析每个 `frame_NNN` 的名字），658 帧的目录上一次约 6.6 ms、
@@ -1505,6 +1529,9 @@ namespace CR.View
                     case EventKindPlayCard:
                         // 出牌：**法术走法术特效、远程卡走弹道**（分流见 PlayCardFx）。
                         PlayCardFx(e);
+                        // 落位表盘按**出牌**驱动（一次出牌只有一条事件），⛔ 不再由逐单位的 EvSpawn 开
+                        //（群体卡会开多块 / 重开 ⇒ 看起来转好几圈），见 PlayDeployRingAt。
+                        ScheduleDeployRing(e);
                         break;
 
                     case EventKindTowerShoot:
@@ -1547,6 +1574,7 @@ namespace CR.View
         private void OnCardPool(CardInfo[] cards)
         {
             if (cards == null) return;
+            OnPreviewCardPool(cards);   // 静态索引（预览查询用）与实例索引同一份来源
             for (var i = 0; i < cards.Length; i++)
             {
                 var c = cards[i];
@@ -1559,7 +1587,11 @@ namespace CR.View
         /// <summary>
         /// 出牌落地表现（`EvSpawn`）：**按渲染时钟**排一次落地标记（见 <see cref="ScheduleDeploy"/>），
         /// 到点由 <see cref="PlayDeployAt"/> 在**事件自带落点**定格播原版 `deploy_arrows_effect`
-        /// （f119，见上方出处块）。
+        /// （f119，见上方出处块）与落地扬尘。
+        /// <para>
+        /// ⛔ 落位表盘**不在这里**开（那由一次出牌的 <see cref="PlayDeployRingAt"/> 负责），
+        /// 本方法只管"单位出现的那一下"。
+        /// </para>
         /// <para>
         /// ⛔ 单位本身不在这里生成 —— 单位的真假一律以快照的 `entities` 为准（同 <see cref="OnBattleEventNotify"/>
         /// 的注释）；本方法只负责"特效层的那一下"。
@@ -1593,11 +1625,13 @@ namespace CR.View
         /// <summary>
         /// 到点播一次出牌落地标记（落点经 <see cref="WorldToTile"/> 换算）。
         /// <para>
-        /// ① 落位计时件 + ② 绿色落地标记**共用同一把"一次出牌"去重钥匙**：`EvSpawn` 是逐单位发的
+        /// 落地扬尘 + 绿色落地标记**共用同一把"一次出牌"去重钥匙**：`EvSpawn` 是逐单位发的
         /// （一张 3 单位的卡 = 3 条事件；召唤物也是同父卡 id 的一条条 spawn），而原版玩家看到的是
-        /// "这张卡在就位"的**一枚**标记 + **一个**只转一圈的计时件。
-        /// 钥匙里含**阵营**：敌我同卡在 <see cref="DeployDedupeSeconds"/> 内先后落下时，敌方的那个仍要画
-        /// 自己的环（红了半边）。计时件则各占一块表盘（池，见 <see cref="AcquireDeployRing"/>）。
+        /// "这张卡在就位"的**一枚**标记。钥匙里含**阵营**：敌我同卡在 <see cref="DeployDedupeSeconds"/>
+        /// 内先后落下时，敌方的那个仍要画自己的一枚。
+        /// </para>
+        /// <para>
+        /// 落位表盘不在这里 —— 它由 <see cref="PlayDeployRingAt"/> 在出牌时开一块，走一圈就结束。
         /// </para>
         /// </summary>
         private void PlayDeployAt(int team, int cardId, int entityId, Vector2 world)
@@ -1619,18 +1653,74 @@ namespace CR.View
             _lastDeployTeam = team;
             _lastDeployTime = Time.unscaledTime;
 
-            // ① 落位计时件：落点处摆原版 `troopDeployTimer`，扫过片走完一圈 = 该卡**真实**的落位期
-            //    （`EvSpawn` 就是单位出现的时刻，服务端此刻把 `deploy_ms` 记在实体上）。
-            ShowDeployRing(WorldToTile(world), 1f, DeploySecondsOf(cardId), team != _myTeam);
+            // 出牌 → 单位出现之间的间隔：表盘与本条都由出牌事件排到同一段渲染滞后上，
+            // 正常应同帧开始（间隔 0）。> 0.3 s 即"表盘在走、场上还没东西"的空窗（见 _lastDeployRingTime）。
+            var ringStarted = _lastDeployRingCardId == cardId && _lastDeployRingTeam == team;
+            var ringGap = ringStarted ? Mathf.Max(0f, Time.unscaledTime - _lastDeployRingTime) : 0f;
+            Game.Logger?.Info(LogTag,
+                $"出牌→落地：ent={entityId} card={cardId} 间隔={ringGap:F3}s" +
+                (ringStarted ? "（表盘已先开）" : "（表盘与本条同帧开始）"));
 
-            // ② 绿色落地标记：一枚（理由见上）。⛔ 只影响标记的重复绘制，不影响任何实体生成（单位一律以快照为准）。
+            // 绿色落地标记：一枚（理由见上）。⛔ 只影响标记的重复绘制，不影响任何实体生成（单位一律以快照为准）。
+            // ⛔ 原版的落位表现 = 这一枚绿色上箭头（`deploy_arrows_effect` f119）+ 落位表盘，没有别的落地元素
+            //    ⇒ 这里不再叠别的段（原版那张 21 张卡共用的落地表见 `策划/卡牌表现对照表.md`）。
             var before = _effects.SpawnedTotal;
-            _effects.PlayHold(world, DeployFxDir, DeployFxFirst, EffectsView.WorldSize, DeployArrowSeconds);
+            _effects.PlayHold(world, ResPaths.EffectDeploy, ResPaths.EffectDeployFirst,
+                EffectsView.WorldSize, DeployArrowSeconds);
             if (_effects.SpawnedTotal > before) _deployFxPlayed++;
             Game.Logger?.Info(LogTag,
                 $"出牌落地特效：ent={entityId} team={team} card={cardId} " +
-                $"落点=({world.x:F2},{world.y:F2}) 帧=f{DeployFxFirst}（{DeployFxDir}）定格={DeployArrowSeconds:F3}s " +
+                $"落点=({world.x:F2},{world.y:F2}) 帧=f{ResPaths.EffectDeployFirst}" +
+                $"（{ResPaths.EffectDeploy}，{ResPaths.EffectDeployCount} 帧）定格={DeployArrowSeconds:F3}s " +
                 $"本局累计：落位={_deployFxPlayed} 去重={_deployDupeSkipped}");
+        }
+
+        /// <summary>
+        /// 把**一次出牌**的落位表盘排到渲染时钟上（`EvPlayCard` 每条出牌只有一条事件）。
+        /// <para>
+        /// 延迟口径与 <see cref="ScheduleDeploy"/> 相同：表盘要在**单位出现的同一帧**开始走，
+        /// 否则会出现"表盘已经转了一半、场上还没有东西"的空窗。
+        /// </para>
+        /// </summary>
+        private void ScheduleDeployRing(BattleEvent e)
+        {
+            _pendingImpacts.Add(new PendingImpact
+            {
+                Mode = ImpactModeDeployRing,
+                World = GameConst.MilliToWorld(e.x_milli, e.y_milli),
+                CardId = e.card_id,
+                Team = e.team,
+                LeftMs = Mathf.Max(0f, Interp.NewestSnapshotMs - Interp.RenderClockMs),
+                Label = "deployRing:card=" + e.card_id,
+            });
+        }
+
+        /// <summary>
+        /// 在落点开**一块**落位表盘，扫过片严格 0 → 360 转一圈（时长 = 该卡落位期，见 <see cref="DeploySecondsOf"/>）。
+        /// <para>
+        /// 法术卡不生成单位、没有落位期 ⇒ 不开表盘（原版也没有那颗钟）。
+        /// 群体卡只开这一块：`EvSpawn` 逐单位到齐时 ⛔ 不再重开（见 <see cref="PlayDeployAt"/>）。
+        /// </para>
+        /// </summary>
+        private void PlayDeployRingAt(int team, int cardId, Vector2 world)
+        {
+            CardInfo card;
+            if (_cards.TryGetValue(cardId, out card) && card != null && card.type == CardTypeSpell)
+            {
+                Game.Logger?.Info(LogTag,
+                    $"出牌落位表盘跳过：card={cardId} 是法术卡（不生成单位，没有落位期）");
+                return;
+            }
+
+            var tile = WorldToTile(world);
+            var seconds = DeploySecondsOf(cardId);
+            ShowDeployRing(tile, 1f, seconds, team != _myTeam, cardId);
+            _lastDeployRingCardId = cardId;
+            _lastDeployRingTeam = team;
+            _lastDeployRingTime = Time.unscaledTime;
+            Game.Logger?.Info(LogTag,
+                $"出牌落位表盘：card={cardId} team={team} 格=({tile.x:F2},{tile.y:F2}) 时长={seconds:F2}s" +
+                $"（同屏表盘数={PlacementIndicator.ActiveDeployTimerCount}）");
         }
 
         /// <summary>
@@ -1658,98 +1748,8 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 溅射范围展示 —— 在落点画一个半径圈，半径 = 该卡下发的作用半径
-        /// （`CardInfo.aoe_radius_milli / 1000` 格）。只对 `aoe_radius_milli &gt; 0` 的卡生效。
-        /// <para>
-        /// <b>为什么要有它</b>：服务端对溅射卡在**命中点**按 `Def.AoeRadiusMilli` 结算溅射
-        /// （近战 `server/game/core/combat.go:184`、投射物落点 `core/battle.go:568-574`），
-        /// 而客户端此前只有"被打者身上一下命中闪光"（<see cref="PlayHitFx"/>）⇒ 玩家看不出这一击的范围。
-        /// </para>
-        /// <para>
-        /// <b>两条触发路径</b>（与服务端那两条一一对应）：
-        /// ① 远程弹道**到达**落点 —— 弹道要先飞完，所以按飞行时长延迟（见 <see cref="ScheduleSplashRing"/>）；
-        /// ② 近战溅射 —— 没有弹道可挂，就在攻击者自己的位置画（见 <see cref="PlayBattleShot"/>）。
-        /// </para>
-        /// <para>
-        /// <b>半径的权威在服务端</b>：法师 / 飞龙宝宝 / 女巫 / 炸弹兵 的溅射半径只写在**投射物行**上
-        /// （`unit.tsv` 的 `aoe_radius_mt`），卡行是 0 ⇒ 服务端 `logic.cardAoeRadius` 按
-        /// "卡行 &gt; 0 取卡行，否则取投射物行"算好下发，⛔ 客户端不自造也不拿常量兜底。
-        /// </para>
-        /// <para>
-        /// <b>已知近似</b>：实体的 `card_id` 是**卡**的 id，被召唤出来的子单位（女巫的骷髅、小屋的哥布林）
-        /// 沿用父卡的 id（服务端 `spawnGroup(… e.CardID …)`），而协议没有"这是哪个召唤物"的字段
-        /// ⇒ 这些子单位会按父卡的半径画圈。差异登记见 `策划/对照表.md`。
-        /// </para>
-        /// </summary>
-        private void ShowSplashRingAt(Vector2 tile, float radiusTiles, string cardKey, int sourceId, bool melee)
-        {
-            if (_splashRing == null)
-            {
-                if (!_splashRingMissingWarned)
-                {
-                    _splashRingMissingWarned = true;
-                    Game.Logger?.Warn(LogTag,
-                        "溅射范围环的渲染实例不存在（对局画面未建 / 进对局第一帧就命中）⇒ 本次不画（只报一次）");
-                }
-                return;
-            }
-            _splashRing.ShowTimed(tile, radiusTiles, SplashRingSeconds);
-            _splashRingsShown++;
-            if (melee) _meleeSplashRings++;
-            // 数值类证据 = 运行时日志行（圆心格坐标 / 半径格数 / 时长 / 层级 / 哪条触发路径）。
-            Game.Logger?.Info(LogTag,
-                $"溅射范围环：card={cardKey} 来源 ent={sourceId} 触发={(melee ? "近战溅射" : "远程弹道到达")} " +
-                $"落点=({tile.x:F2},{tile.y:F2})格 半径={radiusTiles:F2}格 显示={SplashRingSeconds:F2}s " +
-                $"层级={PlacementIndicator.SplashRingOrder}(单位层上界={ArenaLayers.Instance.ActorOrderMax} 血条层={ArenaLayers.Instance.Overlay}) " +
-                $"本局累计：溅射环={_splashRingsShown}（近战={_meleeSplashRings}）");
-        }
-
-        /// <summary>
-        /// 近战溅射：在**攻击者自己的位置**画半径圈（服务端没有弹道，命中点就是攻击者面前，
-        /// 客户端拿不到精确命中点 ⇒ 取攻击者位置，差异同 <see cref="ShowSplashRingAt"/> 的"已知近似"）。
-        /// </summary>
-        private void ShowMeleeSplashRing(Vector2 attackerWorld, CardInfo card, int sourceId)
-        {
-            if (card == null || card.aoe_radius_milli <= 0) return;   // 无溅射的卡：一次都不画
-            ShowSplashRingAt(WorldToTile(attackerWorld), card.aoe_radius_milli / 1000f, card.key, sourceId, true);
-        }
-
-        /// <summary>
-        /// 排一次**延迟**的溅射范围环：远程卡的弹道要走完飞行段才到落点，所以到点才画。
-        /// 半径 &lt;= 0 的卡（无溅射）直接不排。
-        /// </summary>
-        private void ScheduleSplashRing(Vector2 landingWorld, CardInfo card, int sourceId, float flightSeconds)
-        {
-            if (card == null || card.aoe_radius_milli <= 0) return;
-            _pendingSplashRings.Add(new PendingSplashRing
-            {
-                Tile = WorldToTile(landingWorld),
-                RadiusTiles = card.aoe_radius_milli / 1000f,
-                CardKey = card.key,
-                SourceId = sourceId,
-                LeftMs = Mathf.Max(0f, flightSeconds) * 1000f,
-            });
-        }
-
-        /// <summary>推待落点的溅射范围环队列（每帧一次，见 <see cref="ScheduleSplashRing"/>）。</summary>
-        private void ProcessPendingSplashRings()
-        {
-            if (_pendingSplashRings.Count == 0) return;
-            var dtMs = Time.unscaledDeltaTime * 1000f;
-            for (var i = _pendingSplashRings.Count - 1; i >= 0; i--)
-            {
-                var p = _pendingSplashRings[i];
-                p.LeftMs -= dtMs;
-                if (p.LeftMs > 0f) { _pendingSplashRings[i] = p; continue; }
-                _pendingSplashRings.RemoveAt(i);
-                ShowSplashRingAt(p.Tile, p.RadiusTiles, p.CardKey, p.SourceId, false);
-            }
-        }
-
-        /// <summary>
         /// 排一条**到达落点**才播的特效（法术落地段 / 投射物命中段），延迟 = 该段的飞行时长。
-        /// 与 <see cref="ScheduleSplashRing"/> 共用同一条队列与同一套时钟
-        ///（见 <see cref="ProcessPendingSpellImpacts"/>），⛔ 不另起第二套计时。
+        /// 到达后由 <see cref="ProcessPendingSpellImpacts"/> 每帧推出，⛔ 不另起第二套计时。
         /// </summary>
         private void ScheduleImpact(Vector2 world, string use, int first, int count, float seconds, float hold,
             float flightSeconds, string label, bool spell)
@@ -1793,8 +1793,68 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 推 <see cref="_pendingImpacts"/> 队列（每帧一次，与 <see cref="ProcessPendingSplashRings"/> 在同一处
-        /// 调用）：到点就按该条自己的 <see cref="PendingImpact.Mode"/> 执行 ——
+        /// 溅射命中的红色描边圆的**显示时长**（秒）。规格给定区间 0.12~0.25s，取 0.2。
+        /// </summary>
+        private const float AoeRingHoldSeconds = 0.2f;
+
+        /// <summary>本局画出的溅射命中红圈数。</summary>
+        private int _aoeRingsPlayed;
+
+        /// <summary>本局溅射命中红圈播不出去的次数（特效层没有 / 素材取不到）。</summary>
+        private int _aoeRingsSkipped;
+
+        /// <summary>本局画出的溅射命中红圈数（自检 / 验收读数）。</summary>
+        public int AoeRingsPlayed { get { return _aoeRingsPlayed; } }
+
+        /// <summary>本局溅射命中红圈播不出去的次数。</summary>
+        public int AoeRingsSkipped { get { return _aoeRingsSkipped; } }
+
+        /// <summary>
+        /// 排一条**溅射命中红圈**：命中点画红色描边圆，半径 = 攻击者卡池行的 `aoe_radius_milli / 1000`
+        /// （格；女巫走投射物行 `WitchProjectile` 的 `aoe_radius_mt`，出处 `server/game/table/tsv/unit.tsv`，
+        /// 下发见 `server/game/logic/cardtable.go` 的 `cardAoeRadius`）；`0` = 单体伤害（火枪手等）⇒ 不画。
+        /// <para>
+        /// 出现时刻 = 该弹道**到达落点**那一刻（<paramref name="flightSeconds"/> 之后；近战无飞行段传 `0`
+        /// = 到点即画），复用 <see cref="_pendingImpacts"/> 队列（⛔ 不另起第二套计时）。
+        /// 协议不改：攻击者只有在开火链路里才拿得到（`PlayBattleShot` 的 attacker.card_id），
+        /// 命中判定（比 hp）拿不到攻击者 ⇒ 红圈只挂在开火链路上。
+        /// </para>
+        /// </summary>
+        private void ScheduleAoeRing(Vector2 world, CardInfo card, int attackerId, float flightSeconds)
+        {
+            if (_effects == null || card == null || card.aoe_radius_milli <= 0) return;
+            _pendingImpacts.Add(new PendingImpact
+            {
+                Mode = ImpactModeAoeRing,
+                World = world,
+                AoeRadiusTiles = card.aoe_radius_milli / 1000f,
+                LeftMs = Mathf.Max(0f, flightSeconds) * 1000f,
+                Label = "aoe:ent=" + attackerId + " card=" + card.key,
+                CardId = card.id,
+            });
+        }
+
+        /// <summary>到点画一次溅射命中红圈（见 <see cref="ScheduleAoeRing"/>）。</summary>
+        private void PlayAoeRingNow(PendingImpact p)
+        {
+            if (_effects == null) { _aoeRingsSkipped++; return; }
+            var before = _effects.SpawnedTotal;
+            _effects.PlayRingHold(p.World, p.AoeRadiusTiles, AoeRingHoldSeconds);
+            if (_effects.SpawnedTotal > before) _aoeRingsPlayed++;
+            else _aoeRingsSkipped++;
+
+            // 数值类证据 = 运行时日志行：半径读数 = 卡池 aoe_radius_milli / 1000。
+            Game.Logger?.Info(LogTag,
+                $"溅射命中红圈：{p.Label} 位置=({p.World.x:F2},{p.World.y:F2}) " +
+                $"半径={p.AoeRadiusTiles:F2}格（aoe_radius_milli={Mathf.RoundToInt(p.AoeRadiusTiles * 1000f)}）" +
+                $" 描边=f{ResPaths.EffectRangeRingFriendly}（{ResPaths.EffectRangeRing} 染红）" +
+                $" 显示={AoeRingHoldSeconds:F3}s" +
+                $" 本局累计：红圈={_aoeRingsPlayed} 跳过={_aoeRingsSkipped}");
+        }
+
+        /// <summary>
+        /// 推 <see cref="_pendingImpacts"/> 队列（每帧一次，在 `Update` 里调用）：
+        /// 到点就按该条自己的 <see cref="PendingImpact.Mode"/> 执行 ——
         /// 特效条目里 <see cref="PendingImpact.Hold"/> &gt; 0 走 <see cref="EffectsView.PlayHold"/>
         /// （单像素帧 export 必须定格播），否则走 <see cref="EffectsView.PlayTimed"/>
         /// （整段时长 = 原版该 export 的时间轴）；开火 / 出牌落地条目见 <see cref="PlayImpact"/>。
@@ -1821,6 +1881,8 @@ namespace CR.View
         {
             if (p.Mode == ImpactModeFire) { FireBattleShotNow(p); return; }
             if (p.Mode == ImpactModeDeploy) { PlayDeployAt(p.Team, p.CardId, p.EntityId, p.World); return; }
+            if (p.Mode == ImpactModeDeployRing) { PlayDeployRingAt(p.Team, p.CardId, p.World); return; }
+            if (p.Mode == ImpactModeAoeRing) { PlayAoeRingNow(p); return; }
             if (_effects == null) return;
 
             var before = _effects.SpawnedTotal;
@@ -2077,14 +2139,13 @@ namespace CR.View
         /// 本项目口径，登记在报告里）。
         /// </para>
         /// <para>
-        /// ⚠️ **契约缺口（登记见 `策划/差异登记.tsv`）**：协议里没有"开火"事件 ⇒ 客户端拿不到
+        /// ⚠️ **契约缺口（登记见 `策划/对照表.md` §D.3）**：协议里没有"开火"事件 ⇒ 客户端拿不到
         /// "这一帧哪个单位开了火"、也拿不到**真实目标**，只能这样反推（`EvPlayCard` 的施法者 id 只覆盖
         /// "出牌"那一条路，不覆盖单次挥砍）。正解 = 服务端为每次开火发一条带 `caster_entity_id` +
         /// `target_entity_id` 的事件（⛔ 客户端不改服务端协议）。
         /// </para>
         /// </summary>
-        /// <returns>真的播出去了才返回 true（用于记录该实体的下一次开火时刻）——
-        /// 远程卡=播出了弹道，近战溅射卡=画出了范围环；普通近战恒为 false。</returns>
+        /// <returns>真的播出去了才返回 true（用于记录该实体的下一次开火时刻）—— 远程卡 = 播出了弹道；近战恒为 false。</returns>
         private bool PlayBattleShot(EntitySnapshot attacker, EntitySnapshot target, Vector2 from, Vector2 to)
         {
             if (_effects == null) return false;
@@ -2100,16 +2161,11 @@ namespace CR.View
                 }
                 return false;
             }
-            // 近战溅射（瓦基丽武神 / 黑暗王子 / 超级骑士）：服务端在挥砍命中后按 `Def.AoeRadiusMilli`
-            // 溅射（`server/game/core/combat.go:184`），这一步**没有弹道**可挂 ⇒ 直接在攻击者位置画圈。
-            // ⚠️ 触发用调用方算好的 `due` 而不是 `anim == 2` 的上升沿：`anim` 是**状态**不是边沿
-            // （服务端每次挥砍都置 2、站桩时不动它，见 TrackCombatAtRender 的注释）⇒ 只看上升沿
-            // 会漏掉后续每一次挥砍。返回 true 是为了让调用方记下这次开火时刻，否则还会重进这里。
+            // 近战卡（无弹道）：没有可播的弹道表现；溅射近战（瓦基丽武神等）仍有命中红圈。
             if (string.IsNullOrEmpty(card.projectile_key))
             {
-                if (card.aoe_radius_milli <= 0) return false;   // 普通近战：无溅射，没有可播的东西
-                ShowMeleeSplashRing(from, card, attacker.id);
-                return true;
+                ScheduleAoeRing(to, card, attacker.id, 0f);
+                return false;
             }
             if (card.proj_speed <= 0) return false;                     // 无速度 ⇒ 算不出飞行时长
 
@@ -2120,28 +2176,34 @@ namespace CR.View
             var fx = ResolveProjectileFx(card.projectile_key);
 
             var before = _effects.SpawnedTotal;
-            _effects.PlayFlight(from, to, fx.Use, fx.First, fx.Count, EffectsView.WorldSize, seconds);
+            // ⛔ 必须走**带 `ProjectileFx` 的重载**：那一个才读 `fx.Scale`（尺寸系数）与 `fx.Tint`（染色）；
+            // 不带 fx 的重载 ⇒ 战斗中的弹体是「原版尺寸 + 无染色」，与出牌那一发不是同一颗球。
+            _effects.PlayFlight(from, to, fx, seconds);
             if (_effects.SpawnedTotal <= before) return false;
 
             _battleShots++;
+            // 弹体段的**尺寸系数**与**染色**（战斗路径与出牌路径同源 ⇒ 同一颗球、同一套变换）。
+            var scaleTxt = fx.Scale > 0f ? $" 缩放=×{fx.Scale:F2}" : string.Empty;
+            var tintTxt = fx.Tint
+                ? $" 色调=mul({fx.MulR},{fx.MulG},{fx.MulB})+add({fx.AddR},{fx.AddG},{fx.AddB})"
+                : string.Empty;
             Game.Logger?.Info(LogTag,
                 $"战斗中开火弹道：ent={attacker.id}（card={attacker.card_id} key={card.projectile_key}）" +
                 $"从攻击者位置=({from.x:F2},{from.y:F2}) 飞向起手锁定的目标 ent={target.id} =({to.x:F2},{to.y:F2}) " +
                 $"距离={dist:F2}格 飞行={seconds:F3}s 图元={fx.Use} f{fx.First}..f{fx.First + fx.Count - 1}（{fx.Count} 帧）" +
+                scaleTxt + tintTxt +
                 // 弹道出现 / **到达**两个时钟都打出来：服务端在**到达那一 tick** 才落伤害
                 // （`server/game/core/combat.go` 的 `advanceProjectile` + `battle.go` 的 `stepProjectiles`），
                 // 所以复核"到达 vs 伤害落点"不用再手算 `渲染时钟 + 飞行`。
                 $" 出现时钟={Interp.RenderClockMs:F0}ms 到达时钟={Interp.RenderClockMs + seconds * 1000f:F0}ms " +
                 $"本局累计={_battleShots}");
 
-            // 溅射范围展示：这条弹道**到达**落点（= 目标位置）时，在落点画该卡的作用半径圈
-            //（延迟 = 这段飞行时长；无溅射的卡在 ScheduleSplashRing 里被拦掉）。
-            ScheduleSplashRing(to, card, attacker.id, seconds);
-
             // 命中段：这条弹道**到达**落点那一刻，在落点播该投射物的原版命中段
             //（只有原版图集里有专属命中段的投射物才有，见 EffectsView.TryGetProjectileHitFx；
             //  没有专属段的（箭矢 / 长矛 / 飞斧 / 炸弹 …）保持既有 `Hit` 闪光表现不动）。
             ScheduleProjectileHit(to, card.projectile_key, attacker.id, seconds);
+            // 溅射命中红圈：弹道到达落点那一刻画（半径 = 攻击者卡池 `aoe_radius_milli`）。
+            ScheduleAoeRing(to, card, attacker.id, seconds);
             return true;
         }
 
@@ -2245,16 +2307,23 @@ namespace CR.View
                 return;
             }
 
+            // 这一条已经由 `ProcessPendingSpellImpacts` 从队列里取出 ⇒ ⛔ 不能再走 `CancelPendingFire`：
+            // 它按 attacker 在队列里删条目，此刻删不到任何东西、取消计数也不会增（这一发就成了无记账的静默丢弃）。
             if (p.TargetId == 0)
             {
-                CancelPendingFire(p.AttackerId, "起手时就没有合法敌方");
+                _fireShotsCancelled++;
+                Game.Logger?.Info(LogTag,
+                    $"开火排期到点但没有合法敌方（起手时就没锁到目标）⇒ 这一发不发 " +
+                    $"本局累计：排期={_fireShotsScheduled} 未发={_fireShotsLost} 取消={_fireShotsCancelled}");
                 return;
             }
             EntitySnapshot target;
             if (!cur.TryGetValue(p.TargetId, out target) || target == null || target.hp <= 0)
             {
-                CancelPendingFire(p.AttackerId,
-                    (target == null ? "目标已出图" : "目标已死") + " ent=" + p.TargetId);
+                _fireShotsCancelled++;
+                Game.Logger?.Info(LogTag,
+                    $"开火排期到点但目标已{(target == null ? "出图" : "死")}：ent={p.TargetId} ⇒ 这一发不发 " +
+                    $"本局累计：排期={_fireShotsScheduled} 未发={_fireShotsLost} 取消={_fireShotsCancelled}");
                 return;
             }
             PlayBattleShot(attacker, target, RenderWorldOf(attacker),
@@ -2342,22 +2411,41 @@ namespace CR.View
         /// <b>计数自检</b>：<c>TowerShots == TowerShotFlights + TowerShotSkipped</c>
         /// —— 不成立 = 有开火事件没被任何一条路径处理（判红）。
         /// </para>
+        ///
+        /// <para>
+        /// <b>国王塔开火表现</b>：炮塔层后坐（2.5 px / 60 ms，见 `ArenaView.TowerView.PlayKingRecoil`）
+        /// + 炮口闪一帧原版 <c>effect_Hit1</c>；公主塔走乘员攻击档（<see cref="ArenaView.TryPlayTowerAttack"/>），
+        /// 两者互不替代。计数自检：<c>KingTowerShots == KingTowerRecoils == KingTowerMuzzleFlashes</c>。
+        /// </para>
         /// </summary>
         private void PlayTowerShot(BattleEvent e)
         {
             _towerShots++;
 
             // ① 炮口位置：塔视图的炮口层 → 事件自带的塔根坐标（兜底 + 留痕）。
-            //    先填塔根坐标再让 TryTowerMuzzle 覆写：`out` 形参一定被方法赋值，这样即使
-            //    `_arena != null` 为假（短路、不调用方法）也不会留下"可能未赋值"的变量
-            //    —— 若先声明 `Vector2 muzzle;` 再用 `&&` 短路调用，编辑器会报
-            //    `CS0165 Use of unassigned local variable 'muzzle'`。
-            Vector2 muzzle = GameConst.MilliToWorld(e.x_milli, e.y_milli);
-            // 先按**队伍 + 事件坐标**对号（塔实体 id 实测恒为 0 ⇒ 按 id 永远匹配不上，见
-            // ArenaView.TryTowerMuzzle 的注释），再退回按 id。
-            var fromMuzzleLayer = _arena != null
-                && (_arena.TryTowerMuzzle(e.x_milli, e.y_milli, e.team, out muzzle)
-                    || _arena.TryTowerMuzzle(e.entity_id, out muzzle));
+            //    ⛔ 兜底值必须先单独存一份：`TryTowerMuzzle` 在"没找到"时会把 `out` 形参写成
+            //    `default(Vector2)`（见该方法的实现）⇒ 把塔根坐标直接当 in/out 传进去，
+            //    两次失败查找之后兜底值就成了世界原点，弹道 / 枪口闪光会画到场地正中。
+            var towerRoot = GameConst.MilliToWorld(e.x_milli, e.y_milli);
+            var muzzle = towerRoot;
+            // 先按**队伍 + 事件坐标**对号（塔位是固定几何 ⇒ 同一队伍里离事件坐标最近的那座塔唯一），
+            // 再退回按塔实体 id 对号。
+            var fromMuzzleLayer = false;
+            if (_arena != null)
+            {
+                Vector2 byPos;
+                Vector2 byId;
+                if (_arena.TryTowerMuzzle(e.x_milli, e.y_milli, e.team, out byPos))
+                {
+                    muzzle = byPos;
+                    fromMuzzleLayer = true;
+                }
+                else if (_arena.TryTowerMuzzle(e.entity_id, out byId))
+                {
+                    muzzle = byId;
+                    fromMuzzleLayer = true;
+                }
+            }
             if (!fromMuzzleLayer && !_towerMuzzleMissingWarned)
             {
                 _towerMuzzleMissingWarned = true;
@@ -2378,7 +2466,10 @@ namespace CR.View
                     $"本局累计：激活事件={_towerActivations} 已亮塔数={_towerActivatedShown}");
             }
 
-            if (_effects == null) { _towerShotSkipped++; return; }
+            // ★ 乘员攻击动画：开火事件一到就让该塔的乘员播一遍攻击档（播完自动回 idle）。
+            //   与弹道 / 枪口闪光**互不依赖** —— 特效层缺失时动画照样播（反之亦然）。
+            if (_arena != null && _arena.TryPlayTowerAttack(e.x_milli, e.y_milli, e.team))
+                _towerAttackAnims++;
 
             // ② 目标：事件不带 ⇒ 用最近一帧快照近似（同 `NearestEnemy` 口径）。取不到就不编方向。
             var target = _lastEntities == null
@@ -2390,9 +2481,10 @@ namespace CR.View
             //    （逐次一行日志由 `ArenaView.TryAimTowerTurret` 打 —— 它才是拿得到 roster / 角度 / 帧号 / flipX
             //      的那一层，见那里的 "塔瞄准：" 行；这里只留计数。）
             _towerAimTotal++;
+            Vector2 aimTo = muzzle;
             if (target != null && _arena != null)
             {
-                var aimTo = GameConst.MilliToWorld(target.x_milli, target.y_milli);
+                aimTo = GameConst.MilliToWorld(target.x_milli, target.y_milli);
                 int aimFrame;
                 float aimAngle;
                 bool aimFlip;
@@ -2405,6 +2497,41 @@ namespace CR.View
                 _towerAimKept++;
             }
 
+            // ★ 国王塔开火表现：**炮塔后坐 + 炮口闪一帧原版火光**。
+            //   国王塔在原版 `building_tower_v215.sc` 里只有 idle、没有攻击帧 ⇒ 开火的"动"由炮塔层后坐表达；
+            //   公主塔已有乘员攻击档（上一段），⛔ 不叠第二套动作。
+            //   ⚠️ 与弹道 / 特效层**互不依赖**：特效层缺失时后坐照样播（下面才做 `_effects` 的空检查）。
+            var isKingShot = false;
+            if (_arena != null)
+            {
+                int recoilRoster;
+                bool recoilStarted;
+                if (_arena.TryPlayKingRecoil(e.x_milli, e.y_milli, e.team, aimTo, out recoilRoster, out recoilStarted))
+                {
+                    isKingShot = true;
+                    _kingTowerShots++;
+                    if (recoilStarted) _kingTowerRecoils++;
+                    var flashPlayed = false;
+                    if (_effects != null)
+                    {
+                        var beforeFlash = _effects.SpawnedTotal;
+                        // 炮口火光 = 原版 `effect_Hit1` 的暖色星芒（f295-298），按它自己的时间轴 5/60 s 播；
+                        // 与降级分支的枪口闪光同一段素材、同一时长口径。
+                        _effects.PlayTimed(muzzle, ResPaths.EffectHit, ResPaths.EffectHitFirst,
+                            ResPaths.EffectHitCount, EffectsView.WorldSize, ResPaths.EffectHitSeconds);
+                        flashPlayed = _effects.SpawnedTotal > beforeFlash;
+                        if (flashPlayed) _kingMuzzleFlashes++;
+                    }
+                    Game.Logger?.Info(LogTag,
+                        $"王塔开火：塔 id={e.entity_id} team={e.team} roster={recoilRoster} " +
+                        $"炮口=({muzzle.x:F2},{muzzle.y:F2}) 后坐={(recoilStarted ? "已触发" : "未触发（无目标方向 / 炮塔层缺失）")} " +
+                        $"闪光={( _effects == null ? "特效层缺失" : (flashPlayed ? "EffectHit f" + ResPaths.EffectHitFirst + "..f" + (ResPaths.EffectHitFirst + ResPaths.EffectHitCount - 1) : "未播（素材空）"))} " +
+                        $"本局累计：王塔开火={_kingTowerShots} 后坐={_kingTowerRecoils} 闪光={_kingMuzzleFlashes}（总开火={_towerShots}）");
+                }
+            }
+
+            if (_effects == null) { _towerShotSkipped++; return; }
+
             // ③ 飞行段：只有"有速度 且 有目标 且 距离>0"三个条件齐了才飞。
             if (e.proj_speed > 0 && target != null)
             {
@@ -2414,8 +2541,16 @@ namespace CR.View
                 {
                     var seconds = dist * 60f / e.proj_speed;
                     var beforeFlight = _effects.SpawnedTotal;
-                    _effects.PlayFlight(muzzle, to, ResPaths.EffectArrow, ResPaths.EffectArrowFirst,
-                        ResPaths.EffectArrowCount, EffectsView.WorldSize, seconds);
+                    // 国王塔打的是**大炮弹**（`projectile_cannonball_large` f481）；公主塔仍是箭。
+                    var fx = isKingShot
+                        ? EffectsView.KingCannonballFx
+                        : new EffectsView.ProjectileFx
+                        {
+                            Use = ResPaths.EffectArrow,
+                            First = ResPaths.EffectArrowFirst,
+                            Count = ResPaths.EffectArrowCount,
+                        };
+                    _effects.PlayFlight(muzzle, to, fx, seconds);
                     if (_effects.SpawnedTotal > beforeFlight)
                     {
                         _towerShotFlights++;
@@ -2434,7 +2569,8 @@ namespace CR.View
             //    定格时长取 `EffectHitSeconds`：原版 `effect_Hit1` 自己的时间轴 = 5 帧 ÷ 60 fps，同属瞬时一帧档）。
             //    仍计入跳过（跳过的语义 = "这一发没有飞出去的弹道"，计数自检不变）。
             var beforeMuzzle = _effects.SpawnedTotal;
-            _effects.PlayHold(muzzle, ResPaths.EffectArrow, ResPaths.EffectArrowFirst,
+            var fallbackFx = isKingShot ? EffectsView.KingCannonballFx : EffectsView.ArrowFx;
+            _effects.PlayHold(muzzle, fallbackFx.Use, fallbackFx.First,
                 EffectsView.WorldSize, ResPaths.EffectHitSeconds);
             if (_effects.SpawnedTotal > beforeMuzzle) _towerShotMuzzles++;
 
@@ -2484,7 +2620,7 @@ namespace CR.View
         /// 其余（远程卡）→ <see cref="PlayProjectileFlight"/>。
         ///
         /// <para>
-        /// <b>为什么必须分流</b>（差异登记见 `策划/差异登记.tsv`）：这两条路的判据是**反的** ——
+        /// <b>为什么必须分流</b>（差异登记见 `策划/对照表.md` §D.3）：这两条路的判据是**反的** ——
         /// <see cref="PlayProjectileFlight"/> 只认"`projectile_key` 非空的远程卡"，
         /// 而法术卡的 `projectile_key` **必然为空**（法术没有弹体）⇒ 一张法术打下去会
         /// **在 `PlayProjectileFlight` 第一行就被 return 掉，画面上什么都没有**。
@@ -2531,10 +2667,11 @@ namespace CR.View
         /// </para>
         ///
         /// <para>
-        /// <b>尺寸取原版 1:1</b>：传 <see cref="EffectsView.WorldSize"/> ⇒ `EffectsView` 里
-        /// `scale = size / WorldSize` × 该段的 `.sc` 换算系数（见 `EffectsView.SegmentScale`）。
-        /// 这与既有 `Hit` / `Blast` / `Arrow` 三个用途目录同一口径，⛔ 不按"法术半径"另算一个缩放
+        /// <b>尺寸</b>：落地段传 <see cref="EffectsView.WorldSize"/> ⇒ `EffectsView` 里
+        /// `scale = size / WorldSize` × 该段的 `.sc` 换算系数（见 `EffectsView.SegmentScale`），
+        /// 与既有 `Hit` / `Blast` / `Arrow` 三个用途目录同一口径，⛔ 不按"法术半径"另算一个缩放
         /// （客户端没有半径数据；要按半径缩放得先让服务端随卡池下发，那是另一片）。
+        /// 飞行段再乘 <see cref="SpellFxTable.Entry.FlightScale"/>（弹体只占整帧画布的一小块）。
         /// </para>
         ///
         /// <para>
@@ -2574,8 +2711,17 @@ namespace CR.View
             {
                 var origin = SpellOrigin(e.team, world);
                 var beforeFlight = _effects.SpawnedTotal;
-                _effects.PlayFlight(origin, world, fx.FlightUse, fx.FlightFirst, fx.FlightCount,
-                    EffectsView.WorldSize, fx.FlightSeconds);
+                // 弹体段是整帧画布里的一小块 ⇒ 尺寸系数取 `FlightScale`（见
+                // SpellFxTable.Entry.FlightScale）；`ProjectileFx.Scale <= 0` 按 1 处理。
+                var flightFx = new EffectsView.ProjectileFx
+                {
+                    Use = fx.FlightUse,
+                    First = fx.FlightFirst,
+                    Count = fx.FlightCount,
+                    Scale = fx.FlightScale,
+                    ArcHeight = fx.FlightArcHeight,
+                };
+                _effects.PlayFlight(origin, world, flightFx, fx.FlightSeconds);
                 if (_effects.SpawnedTotal > beforeFlight)
                 {
                     _spellFxPlayed++;
@@ -2584,8 +2730,9 @@ namespace CR.View
                     Game.Logger?.Info(LogTag,
                         $"法术飞行段：card={e.card_id} key={card.key} team={e.team} " +
                         $"起点（本方国王塔）=({origin.x:F2},{origin.y:F2}) 落点=({world.x:F2},{world.y:F2}) " +
-                        $"距离={Vector2.Distance(origin, world):F2}格 飞行={fx.FlightSeconds:F3}s " +
+                        $"距离={Vector2.Distance(origin, world):F2}格 飞行={fx.FlightSeconds:F3}s 弧高={flightFx.ArcHeight:F2}格 " +
                         $"帧=f{fx.FlightFirst}..f{fx.FlightFirst + fx.FlightCount - 1}（{fx.FlightUse}，{fx.FlightCount} 帧）" +
+                        $" 尺寸={fx.FlightScale:F2}x " +
                         $" 落地段已挂起：{fx.Use} f{fx.First}..f{fx.First + fx.Count - 1}（{fx.Seconds:F3}s）" +
                         $" 本局累计：出牌={_spellCasts} 飞行={_spellFlights} 待落地={_pendingImpacts.Count}");
                     return;
@@ -2621,7 +2768,7 @@ namespace CR.View
         /// 为什么是国王塔：法术卡的 `EvPlayCard` 事件里 `entity_id` 恒为 0 —— 服务端
         /// `server/game/core/snapshot.go` 的 `Event` 只有卡 id / 队伍 / 落点，法术不生成施法者实体
         ///（`server/game/core/battle.go:220-226`）⇒ 事件里**拿不到起点**。我方施法者只可能在自家半场，
-        /// 取本方国王塔为起点是**本项目自定**的口径（差异登记见 `策划/差异登记.tsv`）。
+        /// 取本方国王塔为起点是**本项目自定**的口径（差异登记见 `策划/对照表.md` §D.3）。
         /// </para>
         /// <para>坐标一律走 <see cref="GameConst"/> 的场地常量 + <see cref="GameConst.MirrorTileYForTeam"/>，
         /// ⛔ 不硬编码坐标数字。</para>
@@ -2755,13 +2902,16 @@ namespace CR.View
 
             var fx = ResolveProjectileFx(projectileKey);
 
-            _effects.PlayFlight(from, landing, fx.Use, fx.First, fx.Count, EffectsView.WorldSize, seconds);
+            _effects.PlayFlight(from, landing, fx, seconds);
             _projectileShots++;
             Game.Logger?.Info(LogTag,
                 $"弹道 card={cardId} key={projectileKey} proj_speed={projSpeed}格/分钟 {origin} " +
                 $"落点=({landing.x:F2},{landing.y:F2}) " +
                 $"距离={dist:F2}格 飞行={seconds:F3}s（={dist:F2}×60/{projSpeed}） " +
-                $"图元={fx.Use} f{fx.First}..f{fx.First + fx.Count - 1}（{fx.Count} 帧） 本局累计={_projectileShots}");
+                $"图元={fx.Use} f{fx.First}..f{fx.First + fx.Count - 1}（{fx.Count} 帧）" +
+                $"{(fx.Scale > 0f ? " 缩放=×" + fx.Scale.ToString("F2") : "")}" +
+                $"{(fx.Tint ? " 色调=mul(" + fx.MulR + "," + fx.MulG + "," + fx.MulB + ")+add(" + fx.AddR + "," + fx.AddG + "," + fx.AddB + ")" : "")}" +
+                $" 本局累计={_projectileShots}");
         }
 
         /// <summary>按实体 id 在**最近一帧快照**里扫出该实体的世界坐标；它还没进快照 ⇒ false。</summary>
@@ -2976,9 +3126,9 @@ namespace CR.View
                 //（`def.EntitySnapshot.TargetID`），目标同帧在场 ⇒ 用「目标 − 自身」当朝向向量，
                 // 覆盖下面按位移选出来的方向。
                 // ⛔ 为什么必须覆盖：位移方向只在**行进**时有意义 —— 一个"往北走 → 停下开打"的单位，
-                // 位移方向仍是北 ⇒ 视角永远是背身档 `_1`，而原版是转向目标。实测（2026-09-29，
-                // `verify4-facing*.tsv`）：`chr_wizard_out` 整段攻击 100 帧恒为背身、其最近敌 30 帧全在身后 1.6~3.0 格。
-                // 目标不在 `Entities` 里（打塔）或旧服务端没下发（`target_id == 0`）⇒ 保持原位移口径。
+                // 位移方向仍是北 ⇒ 视角永远是背身档 `_1`，而原版是转向目标。典型表现：
+                // `chr_wizard_out` 整段攻击 100 帧恒为背身、其最近敌 30 帧全在身后 1.6~3.0 格。
+                // 目标不在 `Entities` 里（打塔）或未下发（`target_id == 0`）⇒ 保持原位移口径。
                 if (e.anim == UnitAnimTable.Attack && e.target_id != 0 && e.target_id != e.id)
                 {
                     EntitySnapshot tgt;
@@ -3093,11 +3243,12 @@ namespace CR.View
         /// 由 <see cref="PlayDeploy"/> 调用 —— 它只表示"这张卡在就位"，⛔ 不表示落点是否合法。
         /// </summary>
         /// <param name="hostile">落位的是不是敌方单位（决定扫过片用我方蓝还是敌方红，见 PlacementIndicator）。</param>
-        public void ShowDeployRing(Vector2 tileXY, float radiusTiles, float seconds, bool hostile = false)
+        /// <param name="cardId">这块表盘属于哪张卡（同一次出牌的去重钥匙之一，见 PlacementIndicator.ShowDeployRing）。</param>
+        public void ShowDeployRing(Vector2 tileXY, float radiusTiles, float seconds, bool hostile = false, int cardId = 0)
         {
             var ring = AcquireDeployRing();
             if (ring == null) return;
-            ring.ShowDeployRing(tileXY, radiusTiles, seconds, hostile);
+            ring.ShowDeployRing(tileXY, radiusTiles, seconds, hostile, cardId);
         }
 
         /// <summary>
@@ -3179,36 +3330,16 @@ namespace CR.View
         }
 
         /// <summary>
-        /// 卡 id → 精灵目录。**来源 = `server/game/table/tsv/card.tsv` 的 `id` 与 `sprite_dir` 两列机械转写**，
-        /// 50 张部队/建筑卡（type 0/2）全命中、**0 条目录不存在**（生成时逐条核对了
-        /// `Assets/Resources/Sprites/{Units,Buildings}` 下的目录名）。
+        /// 卡 id → 精灵目录的**兜底表**。目录的权威来源是服务端随卡池下发的 `CardInfo.sprite_dir`
+        /// （见 <see cref="TryGetCardVisual"/>）；本表只在该字段为空时生效（旧服务端 / 卡池尚未到达），
+        /// 保证"旧服务端 + 新客户端"也有图。
         /// <para>
-        /// <b>⛔ 为什么客户端必须自带这张表</b>：协议里的 `CardInfo`（`Def/ProtoDef.cs:206-217`）**只有 `icon`**
-        /// （值是 `card_knight` 这类**卡面**名，工程里并没有对应的卡面素材目录），
-        /// **没有 `sprite_dir`**；服务端 `cardPool()`（`server/game/logic/cardtable.go:248-262`）
-        /// 也确认只下发 id/key/name/…/icon。而单位渲染必须要 `chr_*_out` 这类的目录名 ⇒ 只能客户端补映射。
-        /// 这是**已知契约缺口**（正解 = 服务端把 `sprite_dir` 一并下发）。
-        /// </para>
-        /// <para>
-        /// <b>为什么用 id 而不是 key</b>：key 要等 `Deck.PoolLoaded`（卡池到达）才能从 `CardInfo` 查到，
-        /// 而快照可能先到（时序竞争）；id 直接就在 `EntitySnapshot.card_id` 里，**无时序依赖**。
-        /// </para>
-        /// <para>
-        /// 表里多个 key 指向同一目录是**正常的**（骷髅兵/骷髅军团共用 `chr_skeleton_out`、
+        /// 表值 = `server/game/table/tsv/card.tsv` 的 `id` 与 `sprite_dir` 两列。
+        /// 多个卡指向同一目录是正常的（骷髅兵 / 骷髅军团共用 `chr_skeleton_out`、
         /// 黑暗王子与王子共用 `chr_prince_out`）。
         /// </para>
         /// <para>
-        /// ⚠️ 修正（投矛手画错单位）：`26010004 spear-goblins` 的目录曾错写 `chr_goblin_out`
-        /// ⇒ 玩家看到的"哥布林投矛手"是**近战哥布林的外观**（动画在放，放的是别的单位）。
-        /// 依据：原版内部名就是 `goblin_archer`（`CrUiStyle.cs:698` 已写明），专用素材
-        /// `chr_goblin_archer_out`（342 帧、idle/walk/attack 三档齐全、`UnitAnimTable` 有表项、
-        /// `HitSpeedMs=1700` 与 unit 行 `hit_speed_ms` 一致）却**0 张卡引用** ⇒ 现指向它，
-        /// 并与 `card.tsv:26010004` / `unit.tsv:26020006` 的 `sprite_dir` 列保持一致。
-        /// </para>
-        /// <para>
-        /// ⚠️ 已知不精确处：熔岩猎犬分裂出的"小猎犬"（`chr_lava_pups_out`）与法术召唤物若沿用原卡的 id，
-        /// 会画成原卡精灵 —— 素材里有 `chr_lava_pups_out` 但**协议没有"这是哪个召唤物"的字段**，
-        /// 属于同一类缺口，已登记。
+        /// 判目录走 id 而不是 key：id 直接来自 `EntitySnapshot.card_id`，快照先于卡池到达时也无时序依赖。
         /// </para>
         /// </summary>
         private static readonly Dictionary<int, CardVisual> CardVisuals = new Dictionary<int, CardVisual>
@@ -3216,7 +3347,7 @@ namespace CR.View
             { 26010001, new CardVisual("chr_knight_out", false) },  // knight
             { 26010002, new CardVisual("chr_archer_out", false) },  // archers
             { 26010003, new CardVisual("chr_goblin_out", false) },  // goblins
-            { 26010004, new CardVisual("chr_goblin_archer_out", false) },  // spear-goblins（原为 chr_goblin_out = 画错单位，见上方修正块）
+            { 26010004, new CardVisual("chr_goblin_archer_out", false) },  // spear-goblins
             { 26010005, new CardVisual("chr_giant_out", false) },  // giant
             { 26010006, new CardVisual("chr_pekka_out", false) },  // pekka
             { 26010007, new CardVisual("chr_minion_out", false) },  // minions
@@ -3265,19 +3396,298 @@ namespace CR.View
             { 26010050, new CardVisual("building_tombstone_out", true) },  // tombstone
         };
 
-        private static CardVisual ResolveVisual(EntitySnapshot e)
+        /// <summary>
+        /// 静态卡池索引（`card_id → CardInfo`）：供不依赖对局实例的预览查询使用
+        /// （见 <see cref="TryGetDeployPreview"/>）。由卡池事件与 <see cref="OnCardPool"/> 共同填充。
+        /// </summary>
+        private static readonly Dictionary<int, CardInfo> PreviewCards = new Dictionary<int, CardInfo>();
+
+        /// <summary>静态卡池索引是否已订阅卡池事件（只订阅一次）。</summary>
+        private static bool _previewPoolSubscribed;
+
+        /// <summary>卡池事件 → 静态索引（见 <see cref="PreviewCards"/>）。</summary>
+        private static void OnPreviewCardPool(CardInfo[] cards)
+        {
+            if (cards == null) return;
+            for (var i = 0; i < cards.Length; i++)
+            {
+                var c = cards[i];
+                if (c != null) PreviewCards[c.id] = c;
+            }
+        }
+
+        /// <summary>首次查询时把静态索引接到卡池事件上（事件可能在面板打开前就发过，见调用方）。</summary>
+        private static void EnsurePreviewPoolSubscribed()
+        {
+            if (_previewPoolSubscribed) return;
+            var bus = Game.Event;
+            if (bus == null) return;
+            bus.On<CardInfo[]>(Events.Deck.PoolLoaded, OnPreviewCardPool);
+            _previewPoolSubscribed = true;
+        }
+
+        /// <summary>
+        /// 部署预览用的**一张卡的 idle 首帧**（卡池 `sprite_dir` + 已预热的 <see cref="SpriteBank"/> 帧表）
+        /// 与**逐只落点布局**（一张卡出几个就摆几个，偏移与服务端 `spawnGroup` 同一套）。
+        /// <para>
+        /// 精灵目录优先取卡池下发的 `CardInfo.sprite_dir`（type=2 走建筑目录）；卡池还没到时回落
+        /// <see cref="CardVisuals"/> 兜底表。法术卡（<c>type == 1</c> / `ui_spells_*` 目录）返回 false。
+        /// </para>
+        /// <para>
+        /// <paramref name="scale"/> = 该目录在战场上实际生效的逐单位缩放（<see cref="UnitView.PreviewScaleFor"/>），
+        /// 预览按它摆即可与实战同尺寸。
+        /// </para>
+        /// <para>
+        /// <paramref name="offsetsTiles"/> = 逐只模型相对落点的偏移（**格**，长度 = 只数）：
+        /// 群体卡按 <see cref="DeployGroups"/> 的 (n, 环半径, 身体半径) 过 <see cref="DeployLayoutTiles"/>
+        /// （= 服务端 `core.SummonLayout` 同一三分支），单体 = 1 只 (0,0)。法术卡 0 只（不显示）。
+        /// </para>
+        /// </summary>
+        public static bool TryGetDeployPreview(int cardId, out Sprite sprite, out float scale, out bool isSpell,
+            out Vector2[] offsetsTiles)
+        {
+            sprite = null;
+            scale = 1f;
+            isSpell = false;
+            offsetsTiles = null;
+            EnsurePreviewPoolSubscribed();
+
+            string dir;
+            var isBuilding = false;
+            CardInfo card;
+            if (PreviewCards.TryGetValue(cardId, out card) && card != null)
+            {
+                isSpell = card.type == CardTypeSpell;
+                if (isSpell) return false;
+                dir = card.sprite_dir;
+                isBuilding = card.type == 2;
+            }
+            else
+            {
+                CardVisual v;
+                if (!CardVisuals.TryGetValue(cardId, out v)) return false;
+                dir = v.Dir;
+                isBuilding = v.IsBuilding;
+                isSpell = !string.IsNullOrEmpty(dir) && dir.StartsWith("ui_spells", System.StringComparison.Ordinal);
+                if (isSpell) return false;
+            }
+            if (string.IsNullOrEmpty(dir)) return false;
+
+            var path = isBuilding ? ResPaths.BuildingDir(dir) : ResPaths.UnitDir(dir);
+            var frames = SpriteBank.Preload(path, SpriteBank.SpritePivotMode.UnifiedCanvasAnchor).Frames;
+            if (frames == null || frames.Length == 0) return false;
+
+            var frameNo = IdleFirstFrameNo(dir);
+            sprite = FindFrameByNo(frames, frameNo) ?? frames[0];
+            scale = UnitView.PreviewScaleFor(dir);
+            var group = DeployGroupOf(cardId);
+            offsetsTiles = DeployLayoutTiles(group.Count, group.RadiusMt, group.BodyRadiusMt);
+            return true;
+        }
+
+        /// <summary>
+        /// 一张卡的**落点召唤**口径：只数 / 环形铺设半径 / 单位身体半径（后两者单位 = milli-tile）。
+        /// </summary>
+        private struct DeployGroup
+        {
+            /// <summary>落点一次铺出几只（单体 / 建筑 = 1）。</summary>
+            public readonly int Count;
+
+            /// <summary>环形铺设半径（milli-tile；0 = 无环，走包圆布局）。</summary>
+            public readonly int RadiusMt;
+
+            /// <summary>召唤出的单位身体半径（milli-tile，包圆布局的间距依据）。</summary>
+            public readonly int BodyRadiusMt;
+
+            public DeployGroup(int count, int radiusMt, int bodyRadiusMt)
+            {
+                Count = count;
+                RadiusMt = radiusMt;
+                BodyRadiusMt = bodyRadiusMt;
+            }
+        }
+
+        /// <summary>
+        /// 群体卡（落点召唤）的 (只数, 环半径, 身体半径) 表。表值 = `server/game/table/tsv/unit.tsv`
+        /// 的 `summon_n` / `summon_radius_mt` / 召唤行 `radius_mt` 三列（卡 id 与
+        /// <see cref="CardVisuals"/> 同源 `card.tsv` 的 `id` 列）：archers 2/0、goblins 4/700、
+        /// spear-goblins 3/0、minions 3/0、minion-horde 6/600、barbarians 5/700、skeletons 3/700、
+        /// skeleton-army 15/0、bats 5/750；其余卡单体 = 1。
+        /// <para>
+        /// 协议 `CardInfo` 不带召唤数量/半径字段 ⇒ 按本表回落（口径即 `unit.tsv`）。
+        /// </para>
+        /// </summary>
+        private static readonly Dictionary<int, DeployGroup> DeployGroups = new Dictionary<int, DeployGroup>
+        {
+            { 26010002, new DeployGroup(2, 0, 500) },     // archers（Archer）
+            { 26010003, new DeployGroup(4, 700, 500) },   // goblins（Goblin）
+            { 26010004, new DeployGroup(3, 0, 500) },     // spear-goblins（SpearGoblin）
+            { 26010007, new DeployGroup(3, 0, 500) },     // minions（Minion）
+            { 26010008, new DeployGroup(6, 600, 500) },   // minion-horde（Minion）
+            { 26010011, new DeployGroup(5, 700, 500) },   // barbarians（Barbarian）
+            { 26010012, new DeployGroup(3, 700, 500) },   // skeletons（Skeleton）
+            { 26010013, new DeployGroup(15, 0, 500) },    // skeleton-army（Skeleton）
+            { 26010038, new DeployGroup(5, 750, 500) },   // bats（Bat）
+        };
+
+        /// <summary>
+        /// milli-tile 取整到整数（.5 远离零，与服务端 `math.Round` 同款 —— ⛔ `Mathf.Round` 是银行家舍入，
+        /// 边界值会与服务端的落点错开半格）。
+        /// </summary>
+        private static float RoundMt(float v)
+        {
+            return Mathf.Sign(v) * Mathf.Floor(Mathf.Abs(v) + 0.5f);
+        }
+
+        /// <summary>这张卡的落点召唤口径（不在表里 = 单体 1 只）。</summary>
+        private static DeployGroup DeployGroupOf(int cardId)
+        {
+            DeployGroup g;
+            if (DeployGroups.TryGetValue(cardId, out g)) return g;
+            return new DeployGroup(1, 0, 500);
+        }
+
+        /// <summary>
+        /// 一张卡的逐只落点偏移（**格**）—— 与服务端 `core.SummonLayout`（`server/game/core/units.go:381`）
+        /// 同一三分支：① 1 只 = 原点；② 环半径 ≤ 0 ⇒ 包圆（<see cref="PackOffsetsTiles"/>）；
+        /// ③ 环周长装不下整组（2πr &lt; n·2R）⇒ 仍包圆；否则等分角的环（<see cref="RingOffsetsTiles"/>）。
+        /// ⛔ 不随机 —— 与服务端落点逐只对齐。
+        /// </summary>
+        private static Vector2[] DeployLayoutTiles(int count, int radiusMt, int bodyRadiusMt)
+        {
+            if (count < 1) count = 1;
+            if (count == 1) return new[] { Vector2.zero };
+            if (radiusMt <= 0) return PackOffsetsTiles(count, bodyRadiusMt);
+            if (bodyRadiusMt > 0)
+            {
+                var circumference = 2f * Mathf.PI * radiusMt;
+                var need = (float)count * 2f * bodyRadiusMt;
+                if (circumference < need) return PackOffsetsTiles(count, bodyRadiusMt);
+            }
+            return RingOffsetsTiles(count, radiusMt, 0);
+        }
+
+        /// <summary>
+        /// 等分角的环形布局（milli-tile → 格）：`units.go:346 RingOffsets` 同款
+        /// （步长 2π/n、起始角 = startEighth·π/4）。
+        /// </summary>
+        private static Vector2[] RingOffsetsTiles(int count, int radiusMt, int startEighth)
+        {
+            if (count < 1) count = 1;
+            if (count == 1 || radiusMt <= 0) return new[] { Vector2.zero };
+            var step = 2f * Mathf.PI / count;
+            var phase = startEighth * Mathf.PI / 4f;
+            var outv = new Vector2[count];
+            for (var i = 0; i < count; i++)
+            {
+                var a = phase + step * i;
+                outv[i] = new Vector2(
+                    RoundMt(radiusMt * Mathf.Cos(a)) / 1000f,
+                    RoundMt(radiusMt * Mathf.Sin(a)) / 1000f);
+            }
+            return outv;
+        }
+
+        /// <summary>
+        /// 包圆布局（milli-tile → 格）：`units.go:283 PackOffsets` 同款 ——
+        /// ≤ 8 只一圈（半径 = max(间距, 间距/(2·sin(π/n)))，相邻相切）；更多只自内向外同心环。
+        /// </summary>
+        private static Vector2[] PackOffsetsTiles(int count, int bodyRadiusMt)
+        {
+            if (count < 1) count = 1;
+            if (count == 1 || bodyRadiusMt <= 0) return new[] { Vector2.zero };
+            var spacing = 2f * bodyRadiusMt;
+            if (count <= 8)
+            {
+                var radius = spacing;
+                var r = spacing / (2f * Mathf.Sin(Mathf.PI / count));
+                if (r > radius) radius = r;
+                var step = 2f * Mathf.PI / count;
+                var outv = new Vector2[count];
+                for (var i = 0; i < count; i++)
+                {
+                    outv[i] = new Vector2(
+                        RoundMt(radius * Mathf.Cos(step * i)) / 1000f,
+                        RoundMt(radius * Mathf.Sin(step * i)) / 1000f);
+                }
+                return outv;
+            }
+            var list = new List<Vector2>(count) { Vector2.zero };
+            for (var ring = 1; list.Count < count; ring++)
+            {
+                var radius = ring * spacing;
+                var capacity = (int)(2f * Mathf.PI * radius / spacing);
+                if (capacity < 1) capacity = 1;
+                var take = capacity;
+                var rest = count - list.Count;
+                if (rest < take) take = rest;
+                var step = 2f * Mathf.PI / take;
+                var phase = ring % 2 == 1 ? step / 2f : 0f;
+                for (var i = 0; i < take; i++)
+                {
+                    var a = phase + step * i;
+                    list.Add(new Vector2(
+                        RoundMt(radius * Mathf.Cos(a)) / 1000f,
+                        RoundMt(radius * Mathf.Sin(a)) / 1000f));
+                }
+            }
+            return list.ToArray();
+        }
+
+        /// <summary>该目录 idle 档的首帧号；表里没有该目录 / 该档不可用 ⇒ -1（调用方取帧表首帧）。</summary>
+        private static int IdleFirstFrameNo(string dir)
+        {
+            UnitAnimTable.Entry entry;
+            if (!UnitAnimTable.TryGet(dir, out entry) || entry.Tiers == null || entry.Tiers.Length == 0) return -1;
+            var idle = entry.Tiers[0];
+            if (!idle.Known || idle.Runs == null || idle.Runs.Length < 2) return -1;
+            return idle.Runs[0];
+        }
+
+        /// <summary>按原版帧号在帧表里找精灵（帧名规则见 <see cref="SpriteBank.ParseFrameIndex"/>）。</summary>
+        private static Sprite FindFrameByNo(Sprite[] frames, int frameNo)
+        {
+            if (frames == null || frameNo < 0) return null;
+            for (var i = 0; i < frames.Length; i++)
+            {
+                if (frames[i] != null && SpriteBank.ParseFrameIndex(frames[i].name) == frameNo) return frames[i];
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 一张卡的绘制信息：**优先用服务端随卡池下发的 `CardInfo.sprite_dir`**（type=2 走建筑目录，
+        /// 其余走单位目录）；该字段为空（旧服务端 / 卡池还没到）时回落到 <see cref="CardVisuals"/> 兜底表。
+        /// </summary>
+        private bool TryGetCardVisual(int cardId, out CardVisual v)
+        {
+            CardInfo card;
+            if (_cards.TryGetValue(cardId, out card) && card != null && !string.IsNullOrEmpty(card.sprite_dir))
+            {
+                v = new CardVisual(card.sprite_dir, card.type == 2);
+                return true;
+            }
+            return CardVisuals.TryGetValue(cardId, out v);
+        }
+
+        private CardVisual ResolveVisual(EntitySnapshot e)
         {
             if (e.kind == 2)
                 // kind=2 是塔，⛔ 不该出现在 entities 里（塔由 towers_a/b 报告）——
                 // 真出现就当"没有单位精灵"，不编一个 chr_* 出来。
                 return default(CardVisual);
 
+            // 召唤物按**自身目录**画（服务端逐实体下发）：女巫召唤的骷髅 card_id 仍是女巫，
+            // 只按 card_id 会画成女巫。旧服务端没有该字段时回落 card_id 那一套。
+            if (!string.IsNullOrEmpty(e.sprite_dir))
+                return new CardVisual(e.sprite_dir, e.kind == 1);
+
             CardVisual v;
-            if (CardVisuals.TryGetValue(e.card_id, out v)) return v;
+            if (TryGetCardVisual(e.card_id, out v)) return v;
 
             if (UnknownCards.Add(e.card_id))
                 Game.Logger?.Warn(LogTag,
-                    $"卡 {e.card_id}（kind={e.kind}）不在「卡→精灵目录」表里 ⇒ 用占位色（表来源见 CardVisuals 注释）");
+                    $"卡 {e.card_id}（kind={e.kind}）既没有下发的 sprite_dir 也不在兜底表里 ⇒ 用占位色");
             return default(CardVisual);
         }
     }

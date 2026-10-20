@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using CloverEngine;
 using CR.Def;
+using CR.UI;
 using UnityEngine;
 
 namespace CR.View
@@ -176,6 +177,15 @@ namespace CR.View
         }
 
         /// <summary>
+        /// 该精灵目录的**逐单位缩放**（= 对本目录建出的单位实际生效的那个值）。
+        /// 供预览类界面按"与战场上同一尺寸"摆一张 idle 首帧。
+        /// </summary>
+        public static float PreviewScaleFor(string dir)
+        {
+            return SpriteScaleFor(dir);
+        }
+
+        /// <summary>
         /// 把逐单位缩放写到单位根，并**抵消它对血条的影响**。
         /// <para>
         /// 血条挂在单位根下（`WorldHpBar.Create` 用 `localPosition = (0, yOffset, 0)`、两个 Quad 的尺寸
@@ -195,6 +205,208 @@ namespace CR.View
             bar.localPosition = new Vector3(p.x, HpBarYOffset / s, p.z);
         }
 
+        /// <summary>铺 / 收本单位的贴地阴影（判据与出处见文件上方「贴地阴影」一节）。</summary>
+        private void ApplyShadow(bool isBuilding)
+        {
+            var show = !isBuilding && !FlyingDirs.Contains(_spriteDir ?? string.Empty)
+                && _frames != null && _frames.Length > 0;
+            if (!show)
+            {
+                if (_shadow != null) _shadow.enabled = false;
+                return;
+            }
+            if (_shadow == null) CreateShadow();
+            Vector2 m;
+            if (!ShadowMetricsFor(_spriteDir, _frames, out m) || m.x <= 0f || m.y <= 0f)
+            {
+                _shadow.enabled = false;
+                return;
+            }
+            _shadow.enabled = true;
+            // 单位根 pivot = 全目录 rect 并集的中心（见 `FrameBank.PivotMode.UnifiedCanvasAnchor`）
+            // ⇒ 脚底（并集下沿）在局部 y = -高/2。子节点继承单位根的逐单位缩放，故这里写"缩放前"的格数。
+            var w = m.x * ShadowWidthRatio;
+            var h = w * ShadowAspect;
+            _shadow.transform.localPosition = new Vector3(
+                w * ShadowOffsetRatioX,
+                -m.y * 0.5f - h * ShadowOffsetRatioY,
+                0f);
+            _shadow.transform.localScale = new Vector3(w, h, 1f);
+        }
+
+        private void CreateShadow()
+        {
+            var go = new GameObject("Shadow");
+            go.transform.SetParent(transform, false);
+            _shadow = go.AddComponent<SpriteRenderer>();
+            _shadow.sprite = SharedShadowSprite();
+            _shadow.color = new Color(0f, 0f, 0f, ShadowAlpha);
+            // 材质必须用项目自己的 `CR/SpriteBlend`（无光照）：URP 的 `Sprite-Lit-Default` 在没有 2D 光源时
+            // 输出透明（实测阴影整枚不显示）。恒等变换 + 顶点色 (黑, 0.22) ⇒ 预乘后只剩 α 遮罩。
+            _shadow.sharedMaterial = SpriteColorTransformMaterial.ForSprite(255, 255, 255, 255, 0, 0, 0);
+            _shadow.enabled = false;
+        }
+
+        /// <summary>
+        /// 建效果件层渲染器（单位根的子节点 ⇒ 与本体同一个单位根、同一世界缩放、同一画布坐标）。
+        /// </summary>
+        private void EnsureFxLayer()
+        {
+            if (_fxRenderer != null) return;
+            var go = new GameObject("FxLayer");
+            go.transform.SetParent(transform, false);
+            _fxRenderer = go.AddComponent<SpriteRenderer>();
+            _fxRenderer.sortingOrder = ArenaLayers.Instance.Actor;
+            _fxRenderer.enabled = false;
+            _fxFrameNo = 0;
+        }
+
+        /// <summary>
+        /// 效果件层：本体播到第 <c>i</c> 帧位时，若该位有效果件，就在**同一画布坐标**上再画一层。
+        /// <para>
+        /// 映射来源 = <see cref="UnitAnimTable.Clip.FxByPos"/> / <see cref="UnitAnimTable.Clip.FxByPosRed"/>
+        /// （生成物：逐视角的「每个本体帧位对应的效果帧号」，`0` = 该位没有效果件）。
+        /// ⛔ 效果件**不进本体帧段**（进则本体消失一帧）—— 它只在这一层出现。
+        /// </para>
+        /// </summary>
+        private void SyncFxLayer()
+        {
+            var frameNo = FxFrameNoForCurrentPos();
+            if (frameNo == _fxFrameNo) return;      // 只在真的变了才写（⛔ 不每帧写渲染器）
+            _fxFrameNo = frameNo;
+            if (frameNo <= 0 || !HasFrames)
+            {
+                if (_fxRenderer != null)
+                {
+                    _fxRenderer.sprite = null;
+                    _fxRenderer.enabled = false;
+                }
+                return;
+            }
+            EnsureFxLayer();                     // 只有真的用到效果件时才建这一层（⛔ 不给每个单位都加节点）
+            if (_fxRenderer == null) return;
+            var map = SpriteBank.FrameNumberMap(_spritePath, _pivotMode);
+            var idx = ResolveFrame(map, frameNo);
+            if (idx < 0 || idx >= _frames.Length)
+            {
+                // 非预期分支必须留痕：效果件帧号在本目录解析不到 ⇒ 这一层不画。
+                LogThrottle.WarnOnce(LogTag, "fx:" + _spriteDir + ":" + frameNo,
+                    $"效果件帧号在本目录解析不到 ⇒ 效果件层不画：dir={_spriteDir} frame={frameNo}");
+                _fxRenderer.sprite = null;
+                _fxRenderer.enabled = false;
+                return;
+            }
+            _fxRenderer.sprite = _frames[idx];
+            _fxRenderer.enabled = true;
+            ApplyFxMaterial();
+            // 效果件层生效的留痕（每个目录只报一次；数值类证据 = 运行时日志行）。
+            if (FxLogged.Add(_spriteDir + ":" + frameNo))
+                Game.Logger?.Info(LogTag,
+                    $"效果件层叠画：dir={_spriteDir} frame={frameNo} 视角={_viewNo} 帧位={_animator.FrameIndex}（不进本体 Runs）");
+        }
+
+        /// <summary>当前本体帧位对应的效果帧号（`0` = 这一帧位没有效果件）。</summary>
+        private int FxFrameNoForCurrentPos()
+        {
+            if (_animator == null || !HasFrames) return 0;
+            UnitAnimTable.Entry entry;
+            if (!UnitAnimTable.TryGet(_spriteDir, out entry) || entry.Tiers == null) return 0;
+            var anim = Mathf.Clamp(_anim, AnimIdle, AnimDie);
+            if (anim >= entry.Tiers.Length) return 0;
+            var clip = entry.Tiers[anim];
+            if (!clip.Known) return 0;
+            var slots = _team == UnitAnimTable.TeamRed ? clip.FxByPosRed : clip.FxByPos;
+            if (slots == null || slots.Length == 0) return 0;
+            var clipLength = _animator.ClipLength;
+            var arr = (_viewNo >= 1 && _viewNo <= slots.Length) ? slots[_viewNo - 1] : null;
+            if (arr == null || arr.Length != clipLength)
+            {
+                // 该视角没有素材 ⇒ 运行时回落到默认视角的帧段（见 <see cref="ClipIndices"/>）；
+                // 效果件序列也跟着回落（长度必须与当前片段一致）。
+                arr = null;
+                for (var i = 0; i < slots.Length; i++)
+                {
+                    var a = slots[i];
+                    if (a != null && a.Length == clipLength) { arr = a; break; }
+                }
+            }
+            if (arr == null || arr.Length == 0) return 0;
+            var pos = _animator.FrameIndex;
+            if (pos < 0 || pos >= arr.Length) return 0;
+            return arr[pos];
+        }
+
+        /// <summary>效果件层的材质：受击闪白期间与本体同材质，否则按该帧的原版混合模式。</summary>
+        private void ApplyFxMaterial()
+        {
+            if (_fxRenderer == null || _fxFrameNo <= 0) return;
+            Material mat = null;
+            if (_hitFlashOn)
+            {
+                mat = LogMissingFlashMaterial();
+            }
+            else
+            {
+                mat = SpriteBlendMaterial.For(_spritePath, _fxFrameNo, _rendererDefault);
+            }
+            if (mat == null) return;         // ⛔ 绝不写 null（那会让渲染器落到错误材质上）
+            SpriteBlendMaterial.Set(_fxRenderer, mat);
+        }
+
+        /// <summary>柔边圆盘（径向 `a = (1 - r²)²`）：一次生成、全类共用，⛔ 不新增图片资源。</summary>
+        private static Sprite SharedShadowSprite()
+        {
+            if (_shadowSprite != null) return _shadowSprite;
+            const int size = 64;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.name = "UnitShadow";
+            tex.wrapMode = TextureWrapMode.Clamp;
+            tex.filterMode = FilterMode.Bilinear;
+            var px = new Color32[size * size];
+            for (var y = 0; y < size; y++)
+            {
+                var dy = (y + 0.5f) / size * 2f - 1f;
+                for (var x = 0; x < size; x++)
+                {
+                    var dx = (x + 0.5f) / size * 2f - 1f;
+                    var r2 = dx * dx + dy * dy;
+                    var a = r2 >= 1f ? 0f : (1f - r2) * (1f - r2);
+                    px[y * size + x] = new Color32(0, 0, 0, (byte)Mathf.RoundToInt(a * 255f));
+                }
+            }
+            tex.SetPixels32(px);
+            tex.Apply(false, true);
+            _shadowSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
+            _shadowSprite.name = "gen_unit_shadow";
+            return _shadowSprite;
+        }
+
+        /// <summary>逐帧 `rect` 并集的尺寸（格）；同一 `sprite_dir` 只算一次。</summary>
+        private static bool ShadowMetricsFor(string dir, Sprite[] frames, out Vector2 size)
+        {
+            size = Vector2.zero;
+            if (frames == null || frames.Length == 0) return false;
+            if (ShadowMetrics.TryGetValue(dir ?? string.Empty, out size)) return true;
+            var ppu = frames[0] != null && frames[0].pixelsPerUnit > 0.01f ? frames[0].pixelsPerUnit : 100f;
+            var minX = float.MaxValue; var maxX = float.MinValue;
+            var minY = float.MaxValue; var maxY = float.MinValue;
+            for (var i = 0; i < frames.Length; i++)
+            {
+                var s = frames[i];
+                if (s == null) continue;
+                var r = s.rect;
+                if (r.width <= 0.01f || r.height <= 0.01f) continue;
+                if (r.xMin < minX) minX = r.xMin;
+                if (r.xMax > maxX) maxX = r.xMax;
+                if (r.yMin < minY) minY = r.yMin;
+                if (r.yMax > maxY) maxY = r.yMax;
+            }
+            if (minX > maxX || minY > maxY) return false;
+            size = new Vector2((maxX - minX) / ppu, (maxY - minY) / ppu);
+            ShadowMetrics[dir ?? string.Empty] = size;
+            return true;
+        }
+
         private SpriteRenderer _renderer;
 
         /// <summary>
@@ -202,6 +414,64 @@ namespace CR.View
         /// ⛔ 不许往 `sharedMaterial` 写 null（那会让渲染器落到 Unity 的错误材质上，整块画成洋红）。
         /// </summary>
         private Material _rendererDefault;
+
+        // ───────────────────────────── 贴地阴影（程序化） ─────────────────────────────
+        //
+        // 原版单位帧**自带不带烘焙阴影**：chr_knight_out 全 486 帧的 alpha 里，
+        // 低 alpha（4..60）像素只是实体轮廓外 1 px 的抗锯齿晕（帧 000：238 px，软过渡包围盒 = 实体包围盒 ±1 px），
+        // 没有"脚下低 alpha 椭圆"。⇒ 地面单位需要一枚程序化软阴影，否则整队人像浮在草地上。
+        // 飞行单位不做（判据 = server/game/table/tsv/unit.tsv 的 `flying=1` 行的 `sprite_dir`）。
+
+        /// <summary>阴影的不透明度（黑，alpha 0.30 —— 与基线图 `策划/参考图/20_对局_1080x1920.jpg` 脚下一片明显暗影同量级）。</summary>
+        private const float ShadowAlpha = 0.30f;
+
+        /// <summary>阴影宽度 ÷ 单位内容宽度（基线图里影子比脚宽，取 1.05）。</summary>
+        private const float ShadowWidthRatio = 1.05f;
+
+        /// <summary>阴影高宽比（椭圆，压扁 ⇒ 俯视角下的落地投影）。</summary>
+        private const float ShadowAspect = 0.42f;
+
+        /// <summary>
+        /// 阴影相对脚底的偏移（占阴影宽/高的比例）：光从左上方来 ⇒ 影子落向右下。
+        /// 基线图 `20_对局_1080x1920.jpg` 的单位影子明显偏在身体下方一侧，不是正下方一个圆。
+        /// </summary>
+        private const float ShadowOffsetRatioX = 0.10f;
+        private const float ShadowOffsetRatioY = 0.10f;
+
+        /// <summary>
+        /// 飞行单位的 `sprite_dir`（出处 = `server/game/table/tsv/unit.tsv` 里 `flying=1` 的行；
+        /// `Bat` 行没有 sprite_dir ⇒ 不在表里，其素材与 `bats` 共用 `chr_bats_out`）。
+        /// 这些目录不铺阴影 —— 它们是离地的。
+        /// </summary>
+        private static readonly HashSet<string> FlyingDirs = new HashSet<string>
+        {
+            "chr_baby_dragon_out", "chr_balloon_out", "chr_bats_out",
+            "chr_lava_hound_out", "chr_lava_pups_out", "chr_mega_minion_out", "chr_minion_out",
+        };
+
+        /// <summary>本视图的贴地阴影（单位根的子节点；⛔ 不参与受击闪白 —— 闪白只写 `_renderer` / `_layers`）。</summary>
+        private SpriteRenderer _shadow;
+
+        /// <summary>
+        /// 效果件层渲染器（单位根的子节点）：原版把**本体层**与**效果层**叠画在同一条时间轴上，
+        /// 本工程一帧一图元 ⇒ 效果件单独一层画。
+        /// <para>
+        /// 与本体同目录、同锚点口径、同世界缩放 ⇒ 效果件与本体**严丝合缝**（同一画布坐标）。
+        /// </para>
+        /// </summary>
+        private SpriteRenderer _fxRenderer;
+
+        /// <summary>效果件层当前显示的帧号（`0` = 这一帧位没有效果件）。</summary>
+        private int _fxFrameNo;
+
+        /// <summary>「效果件层生效」只报一次的集合（键 = 目录 + 效果帧号）。</summary>
+        private static readonly HashSet<string> FxLogged = new HashSet<string>();
+
+        /// <summary>全类共享的 1×1 世界单位柔边圆盘（运行时生成一次；⛔ 不是美术资源）。</summary>
+        private static Sprite _shadowSprite;
+
+        /// <summary>`sprite_dir → (内容宽格, 内容高格)`：逐帧 `rect` 并集的尺寸，阴影尺寸/落点由它换算。</summary>
+        private static readonly Dictionary<string, Vector2> ShadowMetrics = new Dictionary<string, Vector2>();
 
         private WorldHpBar _hpBar;
         private string _spriteDir = string.Empty;
@@ -236,6 +506,18 @@ namespace CR.View
             BuildingLayerTable.Layer[] tmp;
             return BuildingLayerTable.TryGet(_spriteDir, BuildingLayerTable.TeamBlue, out tmp)
                 || BuildingLayerTable.TryGet(_spriteDir, BuildingLayerTable.TeamRed, out tmp);
+        }
+
+        /// <summary>
+        /// 已建的建筑层里是否**至少有一块**（`BuildLayers` 对"配方帧一个都解析不出来"也返回 true，
+        /// 那种情形下列表里全是 null —— 调用方据此决定要不要保住单帧渲染器）。
+        /// </summary>
+        private bool HasAnyLayer()
+        {
+            if (_layers == null) return false;
+            for (var i = 0; i < _layers.Length; i++)
+                if (_layers[i] != null) return true;
+            return false;
         }
 
         /// <summary>销毁已有的层节点（池复用 / 换目录 / 换队时调）。</summary>
@@ -339,6 +621,12 @@ namespace CR.View
         private int _anim = AnimIdle;
 
         /// <summary>
+        /// 本视图当前使用的配色侧（<see cref="UnitAnimTable.TeamBlue"/> / <see cref="UnitAnimTable.TeamRed"/>）。
+        /// 由 <see cref="Apply"/> 按快照 `team` 跟进：敌方取红侧帧段（<see cref="UnitAnimTable.Clip.RunsRed"/>）。
+        /// </summary>
+        private int _team = UnitAnimTable.TeamBlue;
+
+        /// <summary>
         /// 本次攻击档播放期间，服务端是否已经请求过非攻击档（= 攻击窗口的**释放**）。
         /// <para>
         /// 服务端把一次挥砍编码成一段 `AnimAttack` 窗口，窗口之间必然夹着 walk/idle
@@ -396,6 +684,20 @@ namespace CR.View
 
         /// <summary>本视图累计触发过几次受击闪白（读数用）。</summary>
         private int _hitFlashCount;
+
+        /// <summary>本次攻击档起播时刻（`Time.time`，秒）—— 与 <see cref="_attackInterval"/> 一起决定重播时刻。</summary>
+        private float _attackClipStart;
+
+        /// <summary>
+        /// 攻击档的重播间隔（秒）= 该目录的 `hit_speed_ms / 1000`；`0` = 表里没有攻击节拍 ⇒ 不重播。
+        /// <para>服务端把连续挥砍编码成一段**持续为 2** 的 `anim`，两次挥砍之间没有 idle/walk 让位 ⇒
+        /// 只靠 `_attackReleased` 判不出后续每一刀（见 <see cref="Apply"/> 的滞回规则），
+        /// 需要按该卡的攻击节拍在**攻击档内**重播，否则单位会停在收招帧上直到服务端释放。</para>
+        /// </summary>
+        private float _attackInterval;
+
+        /// <summary>本视图累计在攻击档内按节拍重播过几次（读数用）。</summary>
+        private int _attackClipReplays;
 
         /// <summary>
         /// 建筑各层**各自的**基础材质（<see cref="BuildLayers"/> 建层时记下：本帧有原版混合就是那份
@@ -586,6 +888,19 @@ namespace CR.View
             // ★ 逐单位缩放（出处见 `UnitSpriteScale`）：必须在血条创建**之后** —— 它同时按 `1 / scale`
             //   抵消父缩放对血条世界尺寸 / 离地高度的影响（见 `ApplySpriteScale`）。
             ApplySpriteScale(_spriteDir);
+            // 外观层要在血条世界尺寸定型**之后**建：圆角半径按"这块版面在屏幕上有多少像素"换算，
+            // 早于缩放补偿建会把半径算偏（条体越小偏得越多）。
+            ApplyHpBarSkin();
+            // 贴地阴影要在帧表与缩放都就位之后铺（尺寸/落点都从 `_frames` 与单位根缩放换算）。
+            ApplyShadow(isBuilding);
+            // 效果件层：与本体同一画布坐标的第二层（只在本体帧位有效果件时才画）。
+            // 池复用：效果件层的「当前帧号」必须复位，否则换宿主后会以为「没变」而不重贴。
+            _fxFrameNo = 0;
+            if (_fxRenderer != null)
+            {
+                _fxRenderer.sprite = null;
+                _fxRenderer.enabled = false;
+            }
 
             // ★ 建筑层配方（见 `BuildingLayerTable`）：有配方的目录**不用**单帧渲染器 —— 它一次只画一帧，
             //   而目录里混着部件帧与敌队配色帧（真正的层序由 `Apply` 按队叠出）。
@@ -605,6 +920,7 @@ namespace CR.View
             _viewStepSet = false;
             _hasMoveDir = false;
             _viewNo = UnitAnimTable.StepToView[_viewStep];
+            _team = UnitAnimTable.TeamBlue;
             // 上一宿主的档位推进不许再写这个渲染器（帧表可能已经被换掉）。
             _animator?.Stop();
             // 复用时必须重新贴帧：`Release()` 会松开 sprite 引用（避免池长期持有），
@@ -657,7 +973,29 @@ namespace CR.View
             //（`UnitAnimTable.StepToView`，权威 = 引擎 `UnitFacingMap.Standard16StepToView`，由
             // 逐视角剪影反解的断言 A1–A6 + 负控保证）。
             // 契约 `facing` ∈ {-1, 1} 只作为"一次都还没动过"时的左右兜底（不翻）。
-            if (UpdateFacing(moveDir, e.facing))
+            // 攻击档播放期间**锁视角**：一档帧序列来自某个视角，换视角 = 换成另一套帧号区间。
+            // 挥砍中途换视角会把这一刀换成另一个朝向的动作（画面上是"挥到一半整个人转过去／换了个姿势"），
+            // 本刀播完再换（`_viewStep` 回退到本帧之前的值，`_moveDir` 仍照常更新）。
+            // 配色侧：`team` 0 = 蓝队（我方）、1 = 红队（敌方）。换侧要重算该档帧序列
+            // （红侧是同目录另一套帧），与换视角走同一段"保持档位内位置"的换序列逻辑。
+            var teamNow = e.team == UnitAnimTable.TeamRed ? UnitAnimTable.TeamRed : UnitAnimTable.TeamBlue;
+            var teamChanged = teamNow != _team;
+            if (teamChanged)
+            {
+                _team = teamNow;
+                ApplyHpBarSkin();
+            }
+
+            var holdView = _anim == AnimAttack && !AnimDone;
+            var prevStep = _viewStep;
+            var viewChanged = UpdateFacing(moveDir, e.facing);
+            if (viewChanged && holdView)
+            {
+                _viewStep = prevStep;
+                _viewNo = UnitAnimTable.StepToView[prevStep];
+                viewChanged = false;
+            }
+            if (viewChanged || teamChanged)
             {
                 // 无帧时动画器里可能还留着上一个宿主的帧表（池复用）⇒ 整段跳过，只让 SyncSprite 贴占位块。
                 if (HasFrames)
@@ -698,7 +1036,10 @@ namespace CR.View
                 // AnimAttack = **新的一刀**。⛔ 不能只看 `anim != _anim`：同一档的两次挥砍之间
                 // `_anim` 一直是 `AnimAttack`，攻击段一旦比攻击间隔长（如弓箭手 1000ms 段 /
                 // 900ms 间隔），只看值变化会把每一刀都吞掉，单位看起来"不打"。
-                if (anim == AnimAttack && _attackReleased)
+                // 只在**这一刀已经播完**时重播：`_attackReleased` 只证明服务端中途请求过别的档位，
+                // 当前这一刀可能还在挥砍中（实测同一 clip 内 fi 12/15 → 0）。此时重播会把收招帧截掉，
+                // 画面是"挥到一半突然重新起手"。没播完就继续播，播完后本分支下一次会接住新的一刀。
+                if (anim == AnimAttack && _attackReleased && AnimDone)
                 {
                     _attackReleased = false;
                     PlayTier();     // 从该档首帧重播
@@ -729,6 +1070,12 @@ namespace CR.View
                 c.a = alpha;
                 _renderer.color = c;
             }
+            if (_fxRenderer != null)
+            {
+                var fc = _fxRenderer.color;
+                fc.a = alpha;
+                _fxRenderer.color = fc;
+            }
 
             // 深度排序：俯视视角下"越靠近屏幕下方（y 越小）越靠前"。
             // 粒度 = **16 级/格**（= `SortingLayers.DefaultDepthLevelsPerTile`）。上限推导（⛔ 不许超出层级预算）：
@@ -740,14 +1087,31 @@ namespace CR.View
             //   谁盖谁又回到"渲染器枚举顺序"。第二键由 `ArenaLayers.Instance.TiebreakOffset`（微小的 z）给出。
             if (_renderer != null)
                 _renderer.sortingOrder = ArenaLayers.Instance.DepthOrder(worldPos.y);
+            // 效果件层比本体高 1 级（同一格深度内，效果件画在本体之上；仍低于血条层）。
+            if (_fxRenderer != null)
+                _fxRenderer.sortingOrder = _renderer != null
+                    ? _renderer.sortingOrder + 1
+                    : ArenaLayers.Instance.Actor + 1;
+            // 阴影恒比本单位低 1 级（单位层内），⛔ 不跨到地面层 / 血条层。
+            // 同时按整条实体的透明度（部署期 0.55 / 其它 1.0）换算阴影的 alpha：
+            // 阴影是不受单位渲染器材质影响的独立 SpriteRenderer，不在这里同步就会在落位期
+            // 出现"半透明的单位 + 实心的黑椭圆"（影子比人还实）。
+            if (_shadow != null && _shadow.enabled)
+            {
+                _shadow.sortingOrder = _renderer != null ? _renderer.sortingOrder - 1 : ArenaLayers.Instance.Actor - 1;
+                var sc = _shadow.color;
+                sc.a = ShadowAlpha * Mathf.Clamp01(alpha);
+                _shadow.color = sc;
+            }
 
             // ★ 建筑：按层配方叠帧（出处见 `BuildingLayerTable`）。有配方 ⇒ 关掉单帧渲染器，
             //   否则它会把目录里的部件帧 / 敌队配色帧也逐帧播出来。
-            if (_isBuilding && BuildLayers(e.team))
-            {
-                if (_renderer != null) _renderer.enabled = false;
-                ApplyLayers(worldPos, alpha);
-            }
+            //   ⛔ 层**一块都没建出来**（帧取不到 / 配方帧号在本目录解析不到 / 该队无配方）时
+            //   必须把单帧渲染器保住：`Bind` 是按"该目录有配方"关掉它的，而那时并不知道层能不能
+            //   建 —— 不在这里补回，整座建筑会一块都画不出来（连占位块都没有）。
+            var drawLayers = _isBuilding && BuildLayers(e.team) && HasAnyLayer();
+            if (_renderer != null && _renderer.enabled == drawLayers) _renderer.enabled = !drawLayers;
+            if (drawLayers) ApplyLayers(worldPos, alpha);
 
             UpdateHitFlash(e);
 
@@ -781,7 +1145,8 @@ namespace CR.View
         private void StartHitFlash(EntitySnapshot e, int prevHp)
         {
             _hitFlashOn = true;
-            _hitFlashUntil = Time.time + HitFlashSeconds;
+            // 至少亮到下一帧画完：低帧率（编辑器 10~15 fps）下 83 ms 会落在同一帧内 ⇒ 玩家看不到闪白。
+            _hitFlashUntil = Time.time + Mathf.Max(HitFlashSeconds, 2f * Time.deltaTime);
             _hitFlashCount++;
             ApplyHitFlashMaterial(LogMissingFlashMaterial());
             // 数值类证据 = 运行时日志行（闪白只有几十~一百毫秒，截图抓不到 ⇒ 读数靠这条）。
@@ -810,6 +1175,9 @@ namespace CR.View
         /// <summary>此刻是否正在闪白（实机读数用）。</summary>
         public bool HitFlashOn { get { return _hitFlashOn; } }
 
+        /// <summary>本视图累计在攻击档内按节拍重播过几次（实机读数用）。</summary>
+        public int AttackClipReplays { get { return _attackClipReplays; } }
+
         /// <summary>
         /// 提亮材质的共享实例；取不到（着色器缺失）时留一条 Warn 并返回 <c>null</c> —— 调用方拿到 null
         /// 就什么都不写（渲染器保持当前材质），⛔ 不静默、⛔ 绝不写 <c>null</c> 到渲染器上（洋红）。
@@ -836,6 +1204,8 @@ namespace CR.View
                 return;
             }
             if (_renderer != null) SpriteBlendMaterial.Set(_renderer, mat);
+            // 效果件层是本体的一部分 ⇒ 受击闪白同样作用在它上面。
+            if (_fxRenderer != null && _fxFrameNo > 0) SpriteBlendMaterial.Set(_fxRenderer, mat);
         }
 
         /// <summary>
@@ -871,6 +1241,8 @@ namespace CR.View
                 }
                 return;
             }
+            // 效果件层同样还原成它自己那一帧的混合材质（⛔ 不写 null）。
+            ApplyFxMaterial();
             if (_renderer == null) return;
             var idx = DisplayedFrameIndex();
             if (idx >= 0) { ApplyBlendMaterial(idx); return; }   // 表内帧会写回该帧的混合材质，表外写回默认
@@ -888,6 +1260,18 @@ namespace CR.View
             _hitFlashUntil = 0f;
             _hitFlashCount = 0;
             _hitPrevHp = NoHitHp;
+        }
+
+        /// <summary>
+        /// 按当前队伍色给血条套外观层（圆角胶囊 + 描边 + 高光），并关掉引擎那条直角填充。
+        /// <para>外观层建不出来时退化为"引擎填充 = 队伍色"（⛔ 不留一条看不见的条）。</para>
+        /// </summary>
+        private void ApplyHpBarSkin()
+        {
+            if (_hpBar == null) return;
+            var fill = _team == UnitAnimTable.TeamRed ? CrUiStyle.HpFillRed : CrUiStyle.HpFillBlue;
+            var skin = CrUiStyle.DressHpBar(_hpBar, fill);
+            _hpBar.SetFillColor(skin != null ? new Color(0f, 0f, 0f, 0f) : fill);
         }
 
         /// <summary>只更新血条（塔这类没有 `EntitySnapshot` 的实体由 `ArenaView` 直接调它）。</summary>
@@ -919,10 +1303,14 @@ namespace CR.View
             // 按层配方渲染的建筑不逐帧换图（见 `BuildLayers`）：换图会把部件帧也播出来。
             if (_layers != null) return;
             if (_animator == null || !HasFrames) return;   // 无帧：渲染器停在占位白块（见 `SyncSprite`）
+            // 攻击档播完后服务端仍在请求攻击档 ⇒ 按节拍重播下一刀（见 TickAttackReplay）。
+            TickAttackReplay();
             // 帧计时 / 帧下标推进 / 播完停末帧全在引擎动画器里；`sprite` 也由它写
             //（⛔ 只在帧真的变了时写，不是每帧无条件写）。
             _animator.Advance(Time.deltaTime);
             SyncSprite();
+            // 效果件层与本体同一条时间轴（本体播到第 i 帧位 ⇒ 该位若有效果件就叠画一层）。
+            SyncFxLayer();
         }
 
         /// <summary>
@@ -979,7 +1367,7 @@ namespace CR.View
         private void PlayTier()
         {
             if (_animator == null || !HasFrames) return;
-            var clip = ClipIndices(_spriteDir, _anim, _viewNo);
+            var clip = ClipIndices(_spriteDir, _anim, _viewNo, _team);
             // die 档没有帧段 ⇒ **保持当前画面不动**，⛔ 不回落整目录。整目录不是死亡动画：`_frames` 是那个
             // 目录的**全部**帧（如 `chr_knight_out` 486 张，含 9 个视角与 idle/walk/attack 各档），
             // 从它的第 0 帧起播会把单位当场换成一张无关姿势。原版单位没有死亡动画
@@ -992,7 +1380,42 @@ namespace CR.View
                 _animator.Stop();
                 return;
             }
-            _animator.Play(_frames, clip, FpsFor(_spriteDir, _anim, _viewNo), IsLoopTier(_anim));
+            _animator.Play(_frames, clip, FpsFor(_spriteDir, _anim, _viewNo, _team), IsLoopTier(_anim));
+            if (_anim == AnimAttack)
+            {
+                // 攻击档的节拍从**本拍起播**算起：下一次重播落在 `hit_speed_ms` 之后（见 TickAttackReplay）。
+                _attackClipStart = Time.time;
+                _attackInterval = AttackIntervalSeconds(_spriteDir);
+            }
+            else
+            {
+                _attackInterval = 0f;
+            }
+        }
+
+        /// <summary>该目录两次挥砍的间隔（秒）= `hit_speed_ms / 1000`；表里没有该目录 / 节拍为 0 ⇒ `0`。</summary>
+        private static float AttackIntervalSeconds(string dir)
+        {
+            UnitAnimTable.Entry entry;
+            return UnitAnimTable.TryGet(dir ?? string.Empty, out entry) && entry.HitSpeedMs > 0
+                ? entry.HitSpeedMs / 1000f
+                : 0f;
+        }
+
+        /// <summary>
+        /// 攻击档已播完、但服务端仍在请求攻击档（`anim == 2` 持续）⇒ 按该卡的攻击节拍从头重播。
+        /// <para>服务端的 `anim` 是**状态**：连续挥砍期间一直是 2，两次挥砍之间不夹 idle/walk ⇒
+        /// `Apply` 的 `_attackReleased` 分支等不到让位信号，攻击段会停在末帧、连续挥砍只看得见第一刀。
+        /// 节拍来源 = 同一份 `UnitAnimTable` 的 `HitSpeedMs`（与服务端两次挥砍间隔同值），⛔ 不自定节奏。</para>
+        /// </summary>
+        private void TickAttackReplay()
+        {
+            if (_anim != AnimAttack || _animator == null || !HasFrames) return;
+            if (_attackInterval <= 0f || !AnimDone) return;
+            if (Time.time - _attackClipStart < _attackInterval) return;
+            PlayTier();       // 从该档首帧重播，并刷新 _attackClipStart
+            SyncSprite();
+            _attackClipReplays++;
         }
 
         /// <summary>
@@ -1008,8 +1431,12 @@ namespace CR.View
             _spriteIndex = idx;
             if (idx < 0)
             {
-                // 无帧：引擎动画器对空帧表不写渲染器（见其 `Begin` 的空表分支）⇒ 这里贴占位白块，
-                // 免得留着上一个宿主的残留帧。
+                // 无帧：引擎动画器对空帧表不写渲染器（见其 `Begin` 的空表分支）。
+                // 本视图**已经显示过有效帧**时保持那一帧（不换画面 = 不丢模型）；一帧都没有才贴占位白块。
+                var shown = _renderer.sprite;
+                if (shown != null && shown != _fallbackSprite) return;
+                LogThrottle.WarnOnce(LogTag, "sprite:none:" + _spriteDir,
+                    $"无可用帧 ⇒ 贴占位色块：dir={_spriteDir} anim={TierName(_anim)} view={_viewNo}");
                 _renderer.sprite = FallbackSprite();
                 SpriteBlendMaterial.Set(_renderer, _rendererDefault);
                 return;
@@ -1118,12 +1545,13 @@ namespace CR.View
         /// 返回 `null` = 该档没有可用帧段（目录未收录 / 该档 `Known==false` / 帧号一帧都解析不出）
         /// ⇒ 调用方回落「整目录」。
         /// </summary>
-        private int[] ClipIndices(string dir, int anim, int view)
+        private int[] ClipIndices(string dir, int anim, int view, int team)
         {
             if (_frames == null || _frames.Length == 0 || _spritePath.Length == 0) return null;
             if (anim < 0 || anim > AnimDie) return null;
 
-            var key = (int)_pivotMode + "|" + _spritePath + "|" + anim + "|" + view;
+            // 键含配色侧：同一目录的蓝侧 / 红侧是同目录里两套帧号区间，不能共用一条缓存。
+            var key = (int)_pivotMode + "|" + _spritePath + "|" + anim + "|" + team + "|" + view;
             int[] cached;
             if (ClipIndexCache.TryGetValue(key, out cached)) return cached.Length == 0 ? null : cached;
 
@@ -1134,26 +1562,29 @@ namespace CR.View
             {
                 var clip = entry.Tiers[anim];
                 // 优先取**当前朝向对应视角**的帧段（`ViewRuns[view-1]`，出处 = `UnitAnimTable` 的逐视角帧段表）；
-                // 该视角无素材 ⇒ 回落 `clip.Runs`（默认视角）。
-                var runs = UnitAnimTable.RunsForView(clip, view) ?? clip.Runs;
-                var want = UnitAnimTable.CountOfRuns(runs);
+                // 敌方（`team=1`）取红侧 `ViewRunsRed`；该视角无素材 ⇒ 回落该配色的默认视角。
+                var runs = UnitAnimTable.RunsForView(clip, view, team) ?? UnitAnimTable.RunsForTeam(clip, team);
                 var map = SpriteBank.FrameNumberMap(_spritePath, _pivotMode);
-                var list = new List<int>(want);
-                if (runs != null)
+                var list = ExpandRuns(runs, map);
+                if (list.Count == 0)
                 {
-                    for (var r = 0; r + 1 < runs.Length; r += 2)
-                        for (var i = 0; i < runs[r + 1]; i++)
-                        {
-                            var idx = ResolveFrame(map, runs[r] + i);
-                            if (idx >= 0 && idx < _frames.Length) list.Add(idx);
-                        }
+                    // 该视角的帧段一帧都解析不出 ⇒ 依次试同档其它视角（同一动作的不同角度），
+                    // 命中即用；全部落空才回落整目录。只留一条 Warn（每目录 × 档位）。
+                    for (var v = 1; v <= 9 && list.Count == 0; v++)
+                    {
+                        if (v == view) continue;
+                        list = ExpandRuns(UnitAnimTable.RunsForView(clip, v, team), map);
+                    }
+                    if (list.Count > 0)
+                        LogThrottle.WarnOnce(LogTag, "tierview:" + dir + ":" + anim,
+                            $"该视角帧段 0 帧 ⇒ 回落同档其它视角：dir={dir} anim={TierName(anim)} view={view}");
                 }
                 if (list.Count >= 1) result = list.ToArray();
                 else
                     // 非预期分支必须留痕：段表有帧、但帧号→下标**一帧都解析不出**（非恒等目录的缺项）⇒
                     // 静默变"木头人"是最难查的。去重走引擎的**进程级**闸门（键 = 目录）。
                     LogThrottle.WarnOnce(LogTag, "tier:" + dir,
-                        $"帧段解析出的可用帧 0 帧（该目录帧号→下标全部缺项）⇒ 该档回落整目录：dir={dir} anim={TierName(anim)} view={view} 段表帧数={want} frames.Length={_frames.Length}");
+                        $"帧段解析出的可用帧 0 帧（该目录帧号→下标全部缺项）⇒ 该档回落整目录：dir={dir} anim={TierName(anim)} view={view} 段表帧数={UnitAnimTable.CountOfRuns(runs)} frames.Length={_frames.Length}");
             }
             else if (!HasBuildingRecipe())
                 // 目录在表里但该档不可用（素材无此动画 / `.sc` 引用越界 shapeID）⇒ 整目录（已登记差异，每目录一次）。
@@ -1180,6 +1611,20 @@ namespace CR.View
             if (map != null && map.Length > 0)
                 return (frameNo >= 0 && frameNo < map.Length) ? map[frameNo] : -1;
             return frameNo;   // 没有映射表（理论上不会发生：调用前必已取过）⇒ 退化为恒等
+        }
+
+        /// <summary>把帧段表（帧号）展开成帧数组下标；跳过本目录不存在的帧号。</summary>
+        private List<int> ExpandRuns(int[] runs, int[] map)
+        {
+            if (runs == null) return new List<int>(0);
+            var list = new List<int>(UnitAnimTable.CountOfRuns(runs));
+            for (var r = 0; r + 1 < runs.Length; r += 2)
+                for (var i = 0; i < runs[r + 1]; i++)
+                {
+                    var idx = ResolveFrame(map, runs[r] + i);
+                    if (idx >= 0 && idx < _frames.Length) list.Add(idx);
+                }
+            return list;
         }
 
         /// <summary>档位名（日志/断言用）。</summary>
@@ -1214,14 +1659,14 @@ namespace CR.View
         /// attack = 帧数 ÷ `hit_speed_ms`、walk/die = `.sc` 自带 FPS；再兜底 = <see cref="AnimFps"/>。
         /// 单帧档无论时长多大都不会动（帧序列只有一帧，换帧无处可去）。</para>
         /// </summary>
-        private static float FpsFor(string dir, int anim, int view)
+        private static float FpsFor(string dir, int anim, int view, int team)
         {
             UnitAnimTable.Entry entry;
             if (UnitAnimTable.TryGet(dir ?? string.Empty, out entry) && entry.Tiers != null
                 && anim >= 0 && anim < entry.Tiers.Length && entry.Tiers[anim].Known)
             {
                 var clip = entry.Tiers[anim];
-                var runs = UnitAnimTable.RunsForView(clip, view) ?? clip.Runs;
+                var runs = UnitAnimTable.RunsForView(clip, view, team) ?? UnitAnimTable.RunsForTeam(clip, team);
                 var frames = UnitAnimTable.CountOfRuns(runs);
                 int[] durations;
                 var hasDur = UnitAnimDurations.TryGet(dir ?? string.Empty, out durations)

@@ -75,6 +75,8 @@ type EntitySnap struct {
 	ID       int32
 	Kind     int32
 	CardID   int32
+	// SpriteDir = 该实体自身素材目录；召唤物（女巫→骷髅）的 CardID 是父卡，客户端只按 CardID 会画错。
+	SpriteDir string
 	Team     int32
 	XMilli   int32
 	YMilli   int32
@@ -152,13 +154,23 @@ func (b *Battle) Snapshot() Snapshot {
 	return s
 }
 
+// spriteDirOf = 该实体自身的素材目录（塔/投射物可能没有 Def，返回空串由客户端回落）。
+func spriteDirOf(e *entity) string {
+	if e == nil || e.Def == nil {
+		return ""
+	}
+	return e.Def.SpriteDir
+}
+
 // entitySnapOf renders one entity.
 func entitySnapOf(e *entity) EntitySnap {
 	return EntitySnap{
-		ID:       e.ID,
-		Kind:     int32(e.Kind),
-		CardID:   e.CardID,
-		Team:     int32(e.Team),
+		ID:     e.ID,
+		Kind:   int32(e.Kind),
+		CardID: e.CardID,
+		// 召唤物必须按**自身**目录画：CardID 是父卡（女巫的骷髅 CardID=女巫卡）。
+		SpriteDir: spriteDirOf(e),
+		Team:      int32(e.Team),
 		XMilli:   e.xMilli,
 		YMilli:   e.yMilli,
 		HP:       e.hp,

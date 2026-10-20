@@ -179,10 +179,14 @@ func TestKingTowerInertUntilProvoked(t *testing.T) {
 	// A Giant is the intruder because it survives the princess towers' fire
 	// (every point inside the blue king's 7000 sight is also inside a blue
 	// princess tower's 7500 sight, so the intruder *will* be shot at).
+	//
+	// 入侵者站在**左车道**（蓝方左公主塔正南方 2.5 格）：巨人的目标是视野内最近的
+	// 建筑，站在正中时最近的那座是国王塔，巨人会先打国王塔 —— 那会把国王塔"自身被
+	// 攻击"这条唤醒路径也点亮，本条要测的"公主塔被摧毁才唤醒"就被盖掉了。
 	knight, _ := b.cfg.Table.Unit("Giant")
 	king := b.kings[TeamBlue]
 	princess := towerOf(t, b, TeamBlue, TowerKindPrincess, BluePrincessLeftPos[0])
-	intruder := b.spawnUnit(TeamRed, knight, cardKnight, 9000, 9000, 0)
+	intruder := b.spawnUnit(TeamRed, knight, cardKnight, BluePrincessLeftPos[0], 9000, 0)
 
 	runSteps(b, 100)
 	if king.active {

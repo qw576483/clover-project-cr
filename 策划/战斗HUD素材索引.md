@@ -1,10 +1,10 @@
 # 战斗 HUD 素材索引（圣水条 / 手牌槽 / 冠数 / 倒计时 / 暂停按钮）
 
-> 本片（AA2）**只出索引 + 落素材**，⛔ 未改任何代码（`client/Assets/Scripts/**` 一个字未动，含 `Core/ResPaths.cs`）。
+> 本文（AA2）**只出索引 + 落素材**，⛔ 未改任何代码（`client/Assets/Scripts/**` 一个字未动，含 `Core/ResPaths.cs`）。
 > 权威来源 = **Clash Royale 2.1.5 APK 的 `.sc`**（`assets/sc/ui`，QuickBMS 解密后的明文）；
 > 与上一片 W1 的版本指纹一致（本地 `原版资源/cr-assets-png/assets/sc/*_out` = 2.1.5 解包产物）。
 > 抓取入口（GitHub REST，实测 200）：`https://api.github.com/repos/smlbiobot/cr/contents/apk/2.1.5/com.supercell.clashroyale-2.1.5/assets/sc`
-> 持久副本 = `原版资源/sc/ui_v215.sc`（本片**未新增**任何 `.sc` 文件，见 §5.1）。
+> 持久副本 = `原版资源/sc/ui_v215.sc`（**未新增**任何 `.sc` 文件，见 §5.1）。
 
 ---
 
@@ -39,9 +39,9 @@
   `print_endTimer`(1068) 内的 `TID_*` **全是文本域（无 shape）**；阶段切换靠同一容器换贴图 + 文本。
   图形部分只有 `Clock_middle`(frame_042) 与底板 `frame_193`。
 
-### 1.1 与现工程 `ResPaths.cs` 的关系（**建议列，本片不改**）
+### 1.1 与现工程 `ResPaths.cs` 的关系（**建议列，本文不改**）
 
-| 现键 | 现用帧 | 实际是什么（本片证据） | 建议（下一片） |
+| 现键 | 现用帧 | 实际是什么（证据） | 建议（后续） |
 |---|---|---|---|
 | `ElixirBarTrack` | `ui_out 516` | 135×28 深色圆角条；**不在** `HUD_player`/`elixir_bar` 引用闭包内，且**不被任何 `0c` 动画引用** | 换成 **`Bars/ui_out/frame_155`**（原版 `bar_bg`） |
 | `ElixirBarFrame` | `ui_out 517` | 212×54 深色圆角框；被 `spell_card_full` / `win_reward_bar` / `UI_menu_arena` 等引用 ⇒ 是**卡牌/奖励条**件 | 换成 **`Bars/ui_out/frame_158`**（原版 `bar_end`） |
@@ -59,7 +59,7 @@
 frame_NNN.png == <dir>_sprite_NNN.png == .sc 里第 NNN 条 `12`(shape) 记录       ← 上一片已证（12/12 个 UI .sc 成立）
 `0c`(animation) 记录 = ClipID + FPS + timeline帧数 + **子元件表**：
       · cnt1 条 (u16,u16,u16) 三元组    （语义未解出，见 §2.1）
-      · cnt2 条 { sids[i] , opacity , **name[i]** }   ← ★ 本片的关键：**子元件名就在 name[i] 里**
+      · cnt2 条 { sids[i] , opacity , **name[i]** }   ← ★ 关键：**子元件名就在 name[i] 里**
 Export 表 = 显式 (名字, ClipID) 数组
 ⇒  `HUD_player` → clip 1091 → 子元件表 =
       [(899,'darken'), (1076,'panel'), (1070,'slots'), (1080,'elixir_bar'), (920,'elixir_warning'),
@@ -71,18 +71,16 @@ Export 表 = 显式 (名字, ClipID) 数组
 ⇒  clip → 子 shape id → `12` 记录序号 → `frame_NNN.png`
 ```
 
-**复现命令**：`python .ai-tmp/test/aa2-resolve.py ui:1091 ui:1080 ui:1070 ui:1003 ui:1017 ui:1026 ui:1031 ui:948 ui:1100`
-（解析器复用 `tools/probes/sc-anim-index.py`；探针为 `.ai-tmp/test/` 下的一次性脚本。）
 
 ### 2.1 已知局限（**如实登记，不许当成已解出**）
 
 1. `0c` 的 **cnt1 三元组**语义**未解出**（沿用 W1 §1.1 的结论，无参考实现可依）。
-   本片结论**基于 cnt2 子元件表**。当 `cnt1 ≠ cnt2` 时（例：`HUD_topRight` cnt1=59、cnt2=4），
+   结论**基于 cnt2 子元件表**。当 `cnt1 ≠ cnt2` 时（例：`HUD_topRight` cnt1=59、cnt2=4），
    **不保证**该容器内的全部子元件都被列出 ⇒ 冠数/计时的**完整子图元清单可能有遗漏**；
    但**已列出的每一条都是原版显式数据**，不是推测。
 2. **坐标 / 缩放未解出**（同 W1）：所以「`frame_155` 是 1×74 的 1 像素宽竖条」是**原版画法**（靠放置矩阵拉伸），
    不是裁错。落地的是**原版像素**；摆放尺寸要等坐标解出或按原版截图量。
-3. 落地帧的裁剪矩形取自 `.ai-tmp/screenshots/ui-index-manifest.tsv`（alpha>8 扫描，**与上一片同一份**），非本片自创。
+3. 落地帧的裁剪矩形由 alpha>8 扫描得出（非自创）。
 
 ---
 
@@ -127,7 +125,7 @@ Export 表 = 显式 (名字, ClipID) 数组
 | `playerName` / `enemyName` | 1025 / 1030 | — | — | 文本域 |
 
 > ⇒ 与上一片已落地的 `Icons/ui_out/frame_187.png`、`frame_188.png` **完全一致**；
-> 本片的新信息 = **原版命名**（`starPlayer`/`starEnemy`/`star1..3`）以及 `197 / 198 / 196` 这三个同族帧。
+> 新信息 = **原版命名**（`starPlayer`/`starEnemy`/`star1..3`）以及 `197 / 198 / 196` 这三个同族帧。
 
 ### 3.4 倒计时 / 阶段
 
@@ -153,12 +151,12 @@ Export 表 = 显式 (名字, ClipID) 数组
 
 ---
 
-## 4. 落地（本片实际复制进工程的帧）
+## 4. 落地（实际复制进工程的帧）
 
 规则：**只复制确认要用的那几个**（⛔ 不整目录搬）；源 = `原版资源/cr-assets-png/assets/sc/ui_out/ui_sprite_NNN.png`；
 裁剪矩形 = `ui-index-manifest.tsv` 的 bbox；目标 = `client/Assets/Resources/Sprites/Ui/<用途>/ui_out/frame_NNN.png`；
 `.meta` **照抄同目录既有 `.meta`**（只改 `guid` / sprite 名 / `rect` 宽高 / `spriteID` / `internalID` / `nameFileIdTable`），
-使导入设置与既有落地帧一致、且 rect 与新尺寸匹配（旧口径「删 meta 让 Unity 重切」会让设置与既有帧不一致，故本轮照抄）。
+使导入设置与既有落地帧一致、且 rect 与新尺寸匹配（旧口径「删 meta 让 Unity 重切」会让设置与既有帧不一致，故照抄）。
 
 | 用途目录 | 帧 | 原版元件名 | 尺寸(px) |
 |---|---|---|---|
@@ -182,9 +180,9 @@ Export 表 = 显式 (名字, ClipID) 数组
 
 **共 17 个新帧**（`Test-Path` 全 True，见 §6）。冠数用途**不需要**新帧（187/188 上一片已落地）。
 
-> ⚠️ **登记（不是失败）**：本轮**不改** `Core/ResPaths.cs`，所以这 17 帧暂时**没有任何键引用**，
+> ⚠️ **登记（不是失败）**：**不改** `Core/ResPaths.cs`，所以这 17 帧暂时**没有任何键引用**，
 > `tools/probes/check-ui-keys.ps1` 的 B 项（landed but unreferenced）计数会 **67 → 84**。
-> 该脚本在本片**开始前就已经是 `FAIL=2`**（基线见 `.ai-tmp/test/AA2-check-ui-keys-before.txt`：
+> 该脚本的既有失败项为 `FAIL=2`：
 > 既有 `Bars/loading_out/frame_015.png`、`Icons/loading_out/frame_028.png` 两个未登记文件 + C 项键名与更正表不一致）。
 > ⇒ 下一片把 §1.1 的建议列落进 `ResPaths.cs`（并把新帧登记进 `tools/probes/copy-ui-assets.py`）后，B/C 才会真正转绿。
 
@@ -203,14 +201,14 @@ Export 表 = 显式 (名字, ClipID) 数组
   `debug(+_tex)`、`effects(+_tex)`、`level(+_tex)`、`level_{barbarian,bone,dark,goblin,royal,spell}_arena(+_tex)`、
   `loading(+_tex)`、`spell_goblin_barrel(+_tex)`、`tutorial(+_tex)`、`ui(+_tex)`、`ui_arena(+_tex)`、`ui_chest(+_tex)`、
   **`ui_panels(+_tex)`**、`ui_spells(+_tex)`、`ui_stickers(+_tex)`
-  —— **无 hud / ingame / battle / card / elixir 文件**（清单另存 `.ai-tmp/test/aa2-sc-dirs.txt`）。
+ —— **无 hud / ingame / battle / card / elixir 文件**。
 - **`apk/2.1.5/com.supercell.clashroyale-2.1.5/assets/sc`** = 唯一有权威版本指纹的目录（与本地 `*_out` 100% 吻合，
   见 W1 §0）；完整 28 个 `.sc` 名：`ui, ui_arena, ui_battle_end, ui_chest, ui_chest_3d, ui_spells, ui_spell_ghost,
   ui_spell_hunter, ui_spell_zappies, loading, debug, tutorial, arena_training, spell_goblin_barrel, effects,
   level_decos, level_*_arena, building_*, chr_*` —— **无 HUD 独立文件**。
 - 其余版本（1.7.0 / 1.8.0 / 1.8.1 / 1.8.2 / 1.8.2-20170504 / 1.9.0 / 2.0.1 / 2.2.1）的 `assets/sc` **文件集合与 2.1.5 同构**
   （差异只在角色 / 建筑 / 竞技场数量），**同样没有 HUD 独立文件**。
-- **全仓 45549 条路径按 `hud|ingame|gameplay` 正则扫**（`.ai-tmp/test/aa2-tree-scan.py`）：**0 命中**
+- **全仓 45549 条路径按 `hud|ingame|gameplay` 正则扫**：**0 命中**
   （`git/trees?recursive=1` 返回 `truncated=true`，1.8.2 之后的目录不在该树里，已用逐版本 contents API 补齐）。
 
 ### 5.2 关键词轮次（≥4 组，中英各半）
@@ -221,14 +219,14 @@ Export 表 = 显式 (名字, ClipID) 数组
 | 2 | GitHub REST `git/trees/master?recursive=1`（EN） | GitHub REST API | ✔ 200，全仓 45549 条路径；抽出**所有** `res/sc`、`assets/sc` 目录（8 个版本） |
 | 3 | GitHub 网页目录树 `github.com/smlbiobot/cr/tree/master/apk/2.1.5/.../assets/sc`（EN） | GitHub 仓库树页（HTML） | ✘ `000`（20s 超时）⇒ 改用 REST（第 1 条）；**是换了入口，不是没找** |
 | 4 | 全仓路径正则 `hud|ingame|gameplay`（中英混） | 本地树扫描 | ✔ 0 命中 ⇒ HUD 无独立文件；`ui_battle_end` 是**结算**界面不是战斗 HUD |
-| 5 | 12 个 `.sc` 内 `shape_names` 扫描：`crown｜pause｜timer｜elixir｜slot｜clock｜score｜star｜settings｜surrender`（EN） | `.sc` 二进制解析（本项目解析器） | ✔✔ **命中**：`elixir_bar` / `slots` / `starPlayer` / `play_pause_button` / `Clock_middle` … ⇒ **本片全部结论出自这一轮** |
+| 5 | 12 个 `.sc` 内 `shape_names` 扫描：`crown｜pause｜timer｜elixir｜slot｜clock｜score｜star｜settings｜surrender`（EN） | `.sc` 二进制解析（本项目解析器） | ✔✔ **命中**：`elixir_bar` / `slots` / `starPlayer` / `play_pause_button` / `Clock_middle` … ⇒ **全部结论出自该次检索** |
 | 6 | `皇室战争 圣水条 手牌 素材`（CN）、`clash royale ui hud atlas plist`（EN） | 通用搜索引擎 / 素材站 | ⚠️ 本机**无 web 搜索工具**（宿主只给本地检索 + curl）；`duckduckgo.com/html` 返回 `000` ⇒ **如实登记为「未执行」**（不是「搜过无结果」） |
 
 ### 5.3 站点类别（≥3 类）
 
 | 类别 | 具体入口 | 结果 |
 |---|---|---|
-| GitHub REST API | `api.github.com/repos/smlbiobot/cr/...`（contents / git-trees） | ✔ 200（本轮**未**遇到限流） |
+| GitHub REST API | `api.github.com/repos/smlbiobot/cr/...`（contents / git-trees） | ✔ 200（**未**遇到限流） |
 | GitHub 网页（仓库树 / code search） | `github.com/smlbiobot/cr/tree/...`、`github.com/search?...&type=code` | ✘ 树页 `000`（20s 超时）；code search `200` 但**要求登录**（页面含 "Sign in to search"）⇒ 无结果 |
 | APK 站 #1 | `apkpure.net/clash-royale/com.supercell.clashroyale` | ✘ **403**（试一次即换站点，与预期一致） |
 | APK 站 #2 | `apkmirror.com/?s=clash+royale` | ✘ `000`（连接被阻断） |
@@ -240,7 +238,7 @@ Export 表 = 显式 (名字, ClipID) 数组
 
 | 格式 | 结果 |
 |---|---|
-| `.sc`（Android，QuickBMS 解密后的裸文件，**无扩展名**） | ✔✔ **本片权威来源**（2.1.5） |
+| `.sc`（Android，QuickBMS 解密后的裸文件，**无扩展名**） | ✔✔ **权威来源**（2.1.5） |
 | `.sc`（iOS ipa 内 `res/sc/*.sc`，`SC`+LZMA 壳） | ✔ 能解（1.0.0）；**版本对不上**，只作格式/清单参照 |
 | `_tex.sc` / `*_tex.png` 图集 | ✔ 用作**版本指纹**（`.sc` 声明尺寸 vs PNG 尺寸） |
 | PNG dump（`*_out/*_sprite_NNN.png`，1663×2810 画布 + 小图元） | ✔ 帧像素来源；**无任何语义命名**（这就是"猜"的根源） |
@@ -253,11 +251,11 @@ Export 表 = 显式 (名字, ClipID) 数组
 - **游戏内 HUD 图元：没有。** `.sc` 的 Export 表 + `0c` 子元件名**就是原版自己的命名**，已是天花板。
 -有语义命名的第三方素材只覆盖少数题材（`fan_kit/ui/` 的 13 个统计图标 +、`ui/ui/chest-*.png`
   `ui/leagues/league-*.png`，见上一片 §4.4），**替代不了** HUD 的条 / 槽 / 按钮 / 计时板。
-- ⇒ 本片结论：**针对战斗 HUD，已穷尽，无更优来源**；且**不必再用兜底素材**（原版素材已拿到）。
+- ⇒ 结论：**针对战斗 HUD，已穷尽，无更优来源**；且**不必再用兜底素材**（原版素材已拿到）。
 
 ---
 
-## 6. 机械自检（本片跑过的命令与结果）
+## 6. 机械自检（跑过的命令与结果）
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
@@ -265,14 +263,14 @@ Export 表 = 显式 (名字, ClipID) 数组
 | 落地像素 = 原版像素 | 写盘后回读比对 `crop.tobytes` + `size` | **mismatch = 0** |
 | 落地键账（b） | `powershell -NoProfile -ExecutionPolicy Bypass -File tools/probes/check-ui-keys.ps1` | `FAIL=2 keys=65 landed=84`（**基线 67 → 84**，FAIL 数与片前相同；原因见 §4 登记） |
 | 索引文档存在 | `Test-Path 策划/战斗HUD素材索引.md` | True |
-| 临时产物位置 | `Get-ChildItem client/_dev, tools, Assets -Filter *AA2*` | 0 命中（全部在 `.ai-tmp/test/`、`.ai-tmp/screenshots/`） |
+| 临时产物位置 | `Get-ChildItem client/_dev, tools, Assets -Filter *AA2*` | 0 命中 |
 | 代码未改动 | `git status --porcelain client/Assets/Scripts` | 空 |
 
 ---
 
-## 7. 本片**没有**做的事（不要当成已完成）
+## 7. **没有**做的事（不要当成已完成）
 
 1. **没有改** `client/**` 任何代码（含 `Core/ResPaths.cs`）——键的改动 / 新键登记留给下一片。
 2. **没有解出坐标 / 缩放**（`0c` 的 cnt1 三元组语义未解出）⇒ HUD 各元件的**摆放位置与尺寸**仍无权威依据。
 3. **没有做「表现类」对照**（不调 unity、不进 Play）⇒ 索引里的尺寸都是 bbox，不是"在屏幕上多大"。
-4. **没有登记新键**到 `tools/probes/copy-ui-assets.py` ⇒ 该脚本与本片新增的 17 帧尚未对齐（下一片一并做）。
+4. **没有登记新键**到 `tools/probes/copy-ui-assets.py` ⇒ 该脚本与新增的 17 帧尚未对齐（后续一并做）。

@@ -6,7 +6,7 @@
 
 ## 0. 结论先行
 
-**坐标解出来了**（上一片登记为"未解出"的那一环，本片补上）。
+**坐标解出来了**（原先登记为"未解出"的那一环，已补上）。
 
 | 问题 | 结论 |
 |---|---|
@@ -19,16 +19,16 @@
 
 ## 1. 出处（格式依据，三条独立来源）
 
-| # | 来源 | 给出什么 | 与本片的对应 |
+| # | 来源 | 给出什么 | 与本文的对应 |
 |---|---|---|---|
-| 1 | `Galaxy1036/sc_decode`（本地副本 `.ai-tmp/test/scdfull/sc_decode.py`，上游 github.com/GaLaXy1036/sc_decode）`process()` 第 359-393 行 | tag `08`=读 6×int32；tag `0c`= id/fps/frames/cnt1/**三元组(saTag12Nr,saTag08Nr,saTag09Nr)**/cnt2/sids/opacity/names | `0c` 逐字节结构（本片实测 12/12 clip `consumed` 与 payload 自洽） |
-| 2 | `mirsella/clash-royale` `scripts/modern_sc2.py`（本地副本 `.ai-tmp/web/modern_sc2_saved.txt`）`precision_multiplier()` + `parse_matrix_banks()` | `precision==2 → 20.0`、`precision==3 → 1024.0`；**scale 与 translation 用两套精度** | a,b,c,d ÷1024；tx,ty ÷20 |
+| 1 | `Galaxy1036/sc_decode`（上游 github.com/GaLaXy1036/sc_decode）`process()` 第 359-393 行 | tag `08`=读 6×int32；tag `0c`= id/fps/frames/cnt1/**三元组(saTag12Nr,saTag08Nr,saTag09Nr)**/cnt2/sids/opacity/names | `0c` 逐字节结构（实测 12/12 clip `consumed` 与 payload 自洽） |
+| 2 | `mirsella/clash-royale` `scripts/modern_sc2.py` 的 `precision_multiplier()` + `parse_matrix_banks()` | `precision==2 → 20.0`、`precision==3 → 1024.0`；**scale 与 translation 用两套精度** | a,b,c,d ÷1024；tx,ty ÷20 |
 | 3 | `sc-workshop/SupercellSWF-Animate` | 确认 SC2 体系里 MovieClip 有 **matrix bank + frame elements(instance,matrix,color)** 三元组 | 与 #1 互证三元组语义 |
 
-> 出处受限说明：本机 `api.github.com` 返回 **403（限流）**，未能在本轮现拉新源码；
+> 出处受限说明：本机 `api.github.com` 返回 **403（限流）**，未能现拉新源码；
 > 上表 3 份均为**上一片已下载到本工程的本地副本**（路径已给）。**未在联网新源上复核**，如实登记。
 
-## 2. 本片解析的两个 `.sc` 总览
+## 2. 解析的两个 `.sc` 总览
 
 | 源 `.sc` | ShapeCount | MatrixCount(=tag08 条数) | ColorTrans | shape 记录 | clip(0c) | export 名 |
 |---|---|---|---|---|---|---|
@@ -192,11 +192,11 @@
 | 16 | `—（无名）` | clip | — | -135.9 | 2.95 | 1 | 1 | 16/18 | — | `ui_battle_end_v215.sc` tag08 #1825 |
 | 17 | `—（无名）` | clip | — | 429.1 | -166.25 | 1 | 1 | 17/18 | — | `ui_battle_end_v215.sc` tag08 #1826 |
 
-## 4. 与截图量取值的交叉验证（本片最硬的证据）
+## 4. 与截图量取值的交叉验证（最硬的证据）
 
 基准：`策划/参考图/几何量取.md` §1.1（`07_卡组编辑_1242x2208.jpg`，已折算 @1080）。
 
-| 项 | `.sc` 解出（本片） | 截图量取 @1080（几何量取.md） | 判定 | 误差 |
+| 项 | `.sc` 解出 | 截图量取 @1080（几何量取.md） | 判定 | 误差 |
 |---|---|---|---|---|
 | 卡格**列步进** | `card_page_deck_special` 三条同族元件 x = **-256.5 / 0 / +256.5** ⇒ 步进 **256.5** | A3 列步进 = **254.5** | **一致** | **0.8%** |
 | 卡格横向对称 | 三元件 x 关于 **0 对称**（±256.5） | 4 列阵列关于画面中线对称 | **一致**（互证"原点在中心"） | — |
@@ -211,7 +211,7 @@
 |---|---|---|---|---|
 | F1 | 元件在 1080×1920 屏上的**绝对像素** | ① 对 `HUD_player`（root，无父）按"屏幕中心原点/y 向下"换算；② 对 `card_page_deck_special` 同法 | 与 `几何量取.md` §1.3 的 HUD 量取值**对不上**（例：`HUD_player.elixir_bar` ty=-27.45 ⇒ 中心上方 27px，而截图圣水条在 y≈1819）。⇒ `.sc` 的 root 局部系**不是**手机屏系 | 需要引擎侧把命名元件摆到屏上的**布局代码/配置**（原版运行时文件，本工程未取得）；或用户给"某界面某个元件的绝对 x/y"作锚 |
 | F2 | 逐级复合后的**全局坐标** | 递归父链 | 子元件指向 clip 时坐标是**父的局部系**；`ui.sc` 里 root clip（如 `HUD_player`）**无父**（全表扫过，无任何 clip 的 children 引用它）⇒ 复合链在 `.sc` 内就到顶 | 同 F1 |
-| F3 | `0c` payload 尾部的**嵌套子块**（`0b`+u32 长度+…，内含帧标签如 `Idle`） | dump 了 `button_timeline` 尾巴 | 结构可见但**上层无参考实现**（`sc_decode` 也未解）⇒ 本片只用它不涉及的部分 | 同 #1 的上游更完整实现 |
+| F3 | `0c` payload 尾部的**嵌套子块**（`0b`+u32 长度+…，内含帧标签如 `Idle`） | dump 了 `button_timeline` 尾巴 | 结构可见但**上层无参考实现**（`sc_decode` 也未解）⇒ 只用它不涉及的部分 | 同 #1 的上游更完整实现 |
 
 ## 6. 穷尽记录（找参考实现）
 
@@ -221,10 +221,10 @@
 | 2 | `SupercellSC2 precision scale translation 20 1024`（EN） | GitHub raw（`mirsella/clash-royale`） | ✔ 命中：`precision_multiplier` 2→20、3→1024；矩阵两套精度 |
 | 3 | `SupercellSWF Animate Clash Royale MovieClip frame elements`（EN） | GitHub raw（`sc-workshop/SupercellSWF-Animate`） | ✔ 佐证 SC2 的 matrix bank + (instance,matrix,color) 三元组 |
 | 4 | `clash royale sc 放置矩阵 坐标 解析`（CN） | 中文搜索引擎 | ⚠️ 本机无 web 搜索工具（宿主只有本地检索 + `Invoke-WebRequest`）⇒ **未执行**，如实登记 |
-| 5 | `.sc` 明文（QuickBMS 产物） | 本机 `原版资源/sc/*_v215.sc` | ✔ 本片解析对象（12 个 UI `.sc` 的权威版） |
+| 5 | `.sc` 明文（QuickBMS 产物） | 本机 `原版资源/sc/*_v215.sc` | ✔ 解析对象（12 个 UI `.sc` 的权威版） |
 | 6 | `_tex.sc` / `*_tex.png` 图集 | 本机 `cr-assets-png/assets/sc/*_out` | ✔ 帧像素（只作版本指纹，不含坐标） |
 | 7 | PNG dump（`*_sprite_NNN.png`） | 本机 | ✘ 只有编号，无坐标/命名 |
-| 8 | `api.github.com/repos/GlixeDen/supercell-swf/...`（EN） | GitHub REST API | ✘ 本 IP **403 限流** ⇒ 本轮无法现拉新源码 |
+| 8 | `api.github.com/repos/GlixeDen/supercell-swf/...`（EN） | GitHub REST API | ✘ 本 IP **403 限流** ⇒ 无法现拉新源码 |
 
 **格式覆盖**：`.sc`（明文）✔ ｜ `_tex.sc`/图集 ✔ ｜ PNG dump ✔ ｜ 开源解析器（2 个 Python + 1 个 C#/Blender）✔ ｜ 站点 3 类（GitHub 仓/raw/API + 本机素材树）✔
 

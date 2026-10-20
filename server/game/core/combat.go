@@ -22,21 +22,8 @@ const (
 	// buildings and towers are static, and the reference treats a unit flagged
 	// ignore-pushback the same way.
 	immovableMass = 1 << 20
-	// ⚠️ 旧常量 `collisionPasses = 3`（tick 内逐对立即施加、固定 N 轮）已于
-	// 2026-09-24 移除：逐对立即施加 + 标量额度会产生永久 limit cycle
-	// （见 `accumulateSeparation` 的复现记录）。现在是"每 tick 一轮向量累加 +
-	// **取同伴平均** + 统一落地"，收敛交给逐 tick 的松弛，tick 内不再迭代。
-	//
-	// 为什么取**平均**而不是求和（欠松弛，2026-09-24，用户第 8 条「苍蝇海打人时
-	// 抽搐」的第二个面）：设一只单位有 n 个"贴住"的同伴、沿某轴位置为 x，它这一
-	// tick 拿到的分离位移 ≈ Σ(overlap_i/2)，而 overlap_i = limit − |x − x_i|
-	// ⇒ ∂(位移)/∂x = −n/2。离散迭代的误差增益 = 1 − n/2 ⇒ n ≥ 4 时 |增益| ≥ 1，
-	// 不是收敛而是**等幅/发散振荡**（实机与离线复现都命中）。
-	// 除以 n（取**平均**）后增益恒为 1 − 1/2 = 0.5，与 n 无关 ⇒ 恒收敛；
-	// 且 n=1（最常见的轻微重叠）时仍是**完整修正、一个 tick 解决**，不为阻尼付代价。
-	// 深重叠时这一项不起作用（原始修正量很大，真正生效的是
-	// `separationStepLimitMilli` 的额度），所以它只压"接近平衡时的抖动"，
-	// 不拖慢"炸开后的散开"。
+	// maxProjectileFlightMs is how long a projectile may stay in the air
+	// before it is treated as lost.
 	maxProjectileFlightMs = 30000
 )
 
@@ -333,14 +320,17 @@ func (b *Battle) advanceProjectile(p *projectile) bool {
 // areaFx is a spell cloud that keeps touching whatever is inside it
 // (参考规格 §5 法术: duration / damage per tick / heal per second).
 type areaFx struct {
-	team          Team
-	casterID      int32
-	x, y          int32
-	radiusMilli   int32
-	remainingMs   int32
-	tickMs        int32
-	accMs         int32
-	damagePerTick int32
+	team        Team
+	casterID    int32
+	x, y        int32
+	radiusMilli int32
+	remainingMs int32
+	tickMs      int32
+	accMs       int32
+	// damagePerTick 是每跳伤害；crownDamagePerTick 是同一跳打在王冠塔上的伤害
+	// （见 SpellDef.CrownDamage）。0 = 该法术不区分塔。
+	damagePerTick      int32
+	crownDamagePerTick int32
 	// healPerSecond is accumulated exactly in healAccNum (milli-HP per 1000 ms)
 	// so no fraction is lost to integer division.
 	healPerSecond int32
@@ -363,7 +353,7 @@ func (b *Battle) tickAreaFx(fx *areaFx) {
 		if !e.alive || e.deploying() {
 			continue
 		}
-		if DistanceSq(fx.x, fx.y, e.xMilli, e.yMilli) > int64(fx.radiusMilli)*int64(fx.radiusMilli) {
+		if !areaCovers(fx.x, fx.y, fx.radiusMilli, e) {
 			continue
 		}
 		if e.Team == fx.team {
@@ -376,7 +366,7 @@ func (b *Battle) tickAreaFx(fx *areaFx) {
 			continue
 		}
 		if fx.damagePerTick > 0 {
-			b.damageEntity(e, fx.damagePerTick, nil)
+			b.damageEntity(e, spellDamageOn(fx.damagePerTick, fx.crownDamagePerTick, e), nil)
 		}
 	}
 }
@@ -385,9 +375,97 @@ func (b *Battle) tickAreaFx(fx *areaFx) {
 // Spells
 // ---------------------------------------------------------------------------
 
-// castSpell applies a spell card at a point.
+// areaCovers reports whether an area of `radiusMilli` centred on (cx, cy)
+// touches e.
+//
+// 口径是**命中盒到命中盒**：目标自己的碰撞半径要算进去，和攻击距离
+// （inAttackRange）以及溅射（splashDamage）同一套。只比中心点会让每个法术的
+// 实际作用圈比官方小一个目标半径（部队 0.5 格 / 公主塔 1 格），站在圈边上的
+// 单位白白免伤。参考实现同口径：`cr_sim/engine/battle.py:1862`
+// `distance(...) > aspec.radius + victim.collision_radius`。
+func areaCovers(cx, cy, radiusMilli int32, e *entity) bool {
+	if e == nil {
+		return false
+	}
+	reach := int64(radiusMilli) + int64(e.radiusMilli())
+	return DistanceSq(cx, cy, e.xMilli, e.yMilli) <= reach*reach
+}
+
+// spellDamageOn 是一发法术打在 e 上的伤害：王冠塔吃 CrownDamage（官方减伤，
+// 火球 207 而不是 689），其余吃 base。
+//
+// crown <= 0 时退回 base —— 表里没有对塔伤害的法术（无伤害的法术）本来就不会
+// 走到这里，而"有伤害但没填对塔伤害"的旧表也不该把塔打成绝对免疫。
+func spellDamageOn(base, crown int32, e *entity) int32 {
+	if base <= 0 {
+		return 0
+	}
+	if e != nil && e.Kind == KindTower && crown > 0 {
+		return crown
+	}
+	return base
+}
+
+// pendingSpellImpact is one spell whose payload has not landed yet.
+//
+// A spell with `flight_ms` resolves when its projectile arrives, not when the
+// card is played: the client draws the projectile flying for that same duration
+// (`View/SpellFxTable.Entry.FlightSeconds`), so applying the damage on the cast
+// tick is seen as a hit that lands before the projectile gets there.
+//
+// The landing point and radius are frozen at cast time: a spell locks onto the
+// point it was aimed at (no spell homes on a unit), so whoever stands inside
+// the circle when the projectile arrives is hit -- walking out dodges it,
+// walking in eats it.
+type pendingSpellImpact struct {
+	team  Team
+	sp    *SpellDef
+	x, y  int32
+	// dueTick is the first tick on which the projectile has arrived; set from
+	// `FlightMs` at cast time, so it never depends on how many ticks pass.
+	dueTick int32
+}
+
+// castSpell puts a spell card on the board at a point.
+//
+// `flight_ms = 0` (no projectile segment) applies the payload immediately, in
+// the same tick as the cast. A positive `flight_ms` queues the payload for the
+// tick the projectile arrives (see pendingSpellImpact).
+//
+// 伤害按目标分两档：王冠塔吃 `CrownDamage`（官方减伤，火球 207 而不是 689），
+// 其余单位/建筑吃 `InstantDamage`。参考实现同一口径：
+// `cr_sim/engine/specs.py::damage_to` 与 `cr_sim/engine/battle.py:1893-1894`
+// （area effect 逐目标取 `aspec.damage_to(victim.kind is EntityKind.TOWER)`）。
 func (b *Battle) castSpell(team Team, card *CardDef, x, y int32) {
 	sp := card.Spell
+	if sp == nil {
+		return
+	}
+	if sp.FlightMs > 0 {
+		b.pendingSpells = append(b.pendingSpells, &pendingSpellImpact{
+			team:    team,
+			sp:      sp,
+			x:       x,
+			y:       y,
+			dueTick: b.tick + TicksForMs(sp.FlightMs),
+		})
+	} else {
+		b.applySpellImpact(team, sp, x, y)
+	}
+	// 4) deploy whatever the spell delivers (a summoned group, per the spell row).
+	// Not part of the deferred payload: the group is placed by the spell card
+	// itself (哥布林飞桶), which has no projectile segment.
+	if sp.SpawnKey != "" {
+		if def, ok := b.cfg.Table.Unit(sp.SpawnKey); ok && def != nil {
+			b.spawnGroup(team, def, card.ID, x, y, sp.SpawnN, sp.SpawnRadiusMilli, def.DeployMs, 0)
+		}
+	}
+}
+
+// applySpellImpact lands one spell's payload at (x, y): area damage, knockback
+// and the lingering cloud. Called on the cast tick for a spell with no
+// projectile, or on the arrival tick for one with `flight_ms`.
+func (b *Battle) applySpellImpact(team Team, sp *SpellDef, x, y int32) {
 	if sp == nil {
 		return
 	}
@@ -397,10 +475,10 @@ func (b *Battle) castSpell(team Team, card *CardDef, x, y int32) {
 			if !e.alive || e.Team == team || e.deploying() {
 				continue
 			}
-			if DistanceSq(x, y, e.xMilli, e.yMilli) > int64(sp.RadiusMilli)*int64(sp.RadiusMilli) {
+			if !areaCovers(x, y, sp.RadiusMilli, e) {
 				continue
 			}
-			b.damageEntity(e, sp.InstantDamage, nil)
+			b.damageEntity(e, spellDamageOn(sp.InstantDamage, sp.CrownDamage, e), nil)
 		}
 	}
 	// 2) knockback: away from the cast point (参考规格 §5 击退)
@@ -409,7 +487,7 @@ func (b *Battle) castSpell(team Team, card *CardDef, x, y int32) {
 			if !e.alive || e.Team == team || e.deploying() || e.immovable() {
 				continue
 			}
-			if DistanceSq(x, y, e.xMilli, e.yMilli) > int64(sp.RadiusMilli)*int64(sp.RadiusMilli) {
+			if !areaCovers(x, y, sp.RadiusMilli, e) {
 				continue
 			}
 			nx, ny := PushAway(x, y, e.xMilli, e.yMilli, sp.Pushback)
@@ -423,22 +501,33 @@ func (b *Battle) castSpell(team Team, card *CardDef, x, y int32) {
 			tickMs = MSecPerTick
 		}
 		b.areas = append(b.areas, &areaFx{
-			team:          team,
-			x:             x,
-			y:             y,
-			radiusMilli:   sp.RadiusMilli,
-			remainingMs:   sp.DurationMs,
-			tickMs:        tickMs,
-			damagePerTick: sp.DamagePerTick,
-			healPerSecond: sp.HealPerSecond,
+			team:               team,
+			x:                  x,
+			y:                  y,
+			radiusMilli:        sp.RadiusMilli,
+			remainingMs:        sp.DurationMs,
+			tickMs:             tickMs,
+			damagePerTick:      sp.DamagePerTick,
+			crownDamagePerTick: sp.CrownDamage,
+			healPerSecond:      sp.HealPerSecond,
 		})
 	}
-	// 4) deploy whatever the spell delivers (a summoned group, per the spell row)
-	if sp.SpawnKey != "" {
-		if def, ok := b.cfg.Table.Unit(sp.SpawnKey); ok && def != nil {
-			b.spawnGroup(team, def, card.ID, x, y, sp.SpawnN, sp.SpawnRadiusMilli, def.DeployMs, 0)
-		}
+}
+
+// stepSpellImpacts lands every queued spell whose projectile has arrived.
+func (b *Battle) stepSpellImpacts() {
+	if len(b.pendingSpells) == 0 {
+		return
 	}
+	kept := b.pendingSpells[:0]
+	for _, p := range b.pendingSpells {
+		if b.tick < p.dueTick {
+			kept = append(kept, p)
+			continue
+		}
+		b.applySpellImpact(p.team, p.sp, p.x, p.y)
+	}
+	b.pendingSpells = kept
 }
 
 // ---------------------------------------------------------------------------
@@ -578,7 +667,6 @@ func (b *Battle) resolveDeath(e *entity) {
 		if def, ok := b.cfg.Table.Unit(e.Def.DeathSpawnKey); ok && def != nil {
 			// 半径传 0 ⇒ SummonLayout 走 PackOffsets（参考实现 `_spawn_units` 的
 			// `radius` 默认值就是 0 ⇒ `pack_offsets(count, collision_radius)`）。
-			// 旧实现传 `def.RadiusMilli*2` 是**自造**的半径。
 			b.spawnGroup(e.Team, def, e.CardID, e.xMilli, e.yMilli, e.Def.DeathSpawnN, 0, def.DeployMs, 0)
 		}
 	}
@@ -588,7 +676,7 @@ func (b *Battle) resolveDeath(e *entity) {
 // `radiusMilli` of (cx, cy), skipping `skip` (the hit's primary target, which
 // has already been damaged).
 //
-// 出处（用户第 3 条「法师不是 aoe 攻击吗？」）：
+// 出处（官方数据 + 参考实现）：
 //   - 官方把溅射半径放在两个不同的字段里：角色表 `area_damage_radius`
 //     （女武神 2000）与**投射物表 `radius`**
 //     （法师 `chr_wizardProjectile` 1500 / 炸弹兵 `BombSkeletonProjectile` 1500 /
@@ -633,8 +721,7 @@ func (b *Battle) splashDamage(attacker *entity, cx, cy int32, radiusMilli int32,
 //     check rather than a formality: a unit whose table row said e.g. 1000
 //     would still be stopped by the water.
 //
-// ⚠ 差异登记 D142：旧实现**根本没有**这条路 —— `IsWalkable` 只看 `flying`，
-// 官方 `jump_enabled` 的野猪骑士在河边被水域挡停（用户第 3 条"野猪骑士为什么不能穿河？"）。
+// 跳河单位仍是地面目标：水域不再挡它，但国王塔的阻塞格照样挡它。
 func (e *entity) canCrossWater() bool {
 	if e == nil {
 		return false
@@ -702,18 +789,24 @@ type sepDelta struct {
 // into d1 / d2. It never moves anything: `resolveCollisions` applies the
 // accumulated vectors once per tick, after clamping their magnitude.
 //
-// ⚠️ 为什么要"先累加、后落地"（2026-09-24 修，用户第 8 条「苍蝇海打人时抽搐」
-// 的**第二个面**）：旧写法在**每个重叠对上立即**调用 `shiftEntity`。当一只单位被
-// 夹在两只同伴中间时，它会先被一侧推 +d、再被另一侧推 −d —— 逐次施加时这两次
-// 位移**不会互相抵消**，只会把位置来回挪；再叠加"每 tick 位移上限"（旧写法按
-// **标量**消耗额度，第二次反向推力被裁成 0）后，净位移永远偏向先施加的那一侧
-// ⇒ 一个真正的 **limit cycle**。
+// 分离解算是"每 tick 一轮**向量累加** + **取同伴平均** + 统一落地"，收敛交给
+// 逐 tick 的松弛，tick 内不再迭代。
 //
-// 离线受控复现（`tmp_seponly_test.go`，与实机同源）：3 只半径 500 milli 的单位
-// 放在间距仅 5~15 milli 的同一格，**不施加任何行走**、只跑 `resolveCollisions`，
-// 旧写法下 id=7 在 y=1130↔1145 每 tick 来回 15 milli、**永久振荡**；
-// 实机同形态见 `.ai-tmp/test/D134-units.tsv` id=46/47/48（fr 2957..2978，
-// wx 恒为 −5.5 的一条竖直车道，前排 id=45 wy=−8.0550 恒定不动、anim=2→3 交火）。
+// 为什么取**平均**而不是求和（欠松弛）：设一只单位有 n 个"贴住"的同伴、沿某轴
+// 位置为 x，它这一 tick 拿到的分离位移 ≈ Σ(overlap_i/2)，而
+// overlap_i = limit − |x − x_i| ⇒ ∂(位移)/∂x = −n/2。离散迭代的误差增益
+// = 1 − n/2 ⇒ n ≥ 4 时 |增益| ≥ 1，不是收敛而是**等幅/发散振荡**。
+// 除以 n（取**平均**）后增益恒为 1 − 1/2 = 0.5，与 n 无关 ⇒ 恒收敛；
+// 且 n=1（最常见的轻微重叠）时仍是**完整修正、一个 tick 解决**，不为阻尼付代价。
+// 深重叠时这一项不起作用（原始修正量很大，真正生效的是
+// `separationStepLimitMilli` 的额度），所以它只压"接近平衡时的抖动"，
+// 不拖慢"炸开后的散开"。
+//
+// 逐对立即施加时，被夹在两只同伴中间的单位会先被一侧推 +d、再被另一侧推 −d ——
+// 逐次施加时这两次位移**不会互相抵消**，只会把位置来回挪；再叠加"每 tick 位移
+// 上限"（按**标量**消耗额度时，第二次反向推力被裁成 0）后，净位移永远偏向先施加
+// 的那一侧 ⇒ 一个真正的 **limit cycle**。按向量累加再取平均之后，反向推力自然
+// 抵消、耦合增益恒为 0.5。
 func accumulateSeparation(e1, e2 *entity, d1, d2 *sepDelta) bool {
 	limit := e1.radiusMilli() + e2.radiusMilli()
 	if limit <= 0 {
@@ -802,7 +895,7 @@ func applySeparation(a *Arena, e *entity, d sepDelta, neighbours int) bool {
 // `advanceAlongRoute(e.Def.SpeedMilliPerSec)`，而 fine 单位 = milli × TicksPerSecond）。
 // 物理上自洽：被推开的速率不超过主动移动的速率。
 // ⚠️ 这是**本项目新增**的约束（参考实现 `cr-sim engine/movement.py:68` 只规定"最终要分开"，
-// 不含任何速率约束）⇒ 已登记在 `策划/差异登记.tsv` 的「允许的差异」。
+// 不含任何速率约束）⇒ 已登记在 `策划/对照表.md` §D.3。
 //
 // ⚠️ 额度按**整个 tick 的位移向量模长**计（`applySeparation` 对累加后的
 // `sepDelta` 收缩一次），⛔ 不是"每对推力各裁一次"：后者在"被夹在两只同伴中间"
@@ -836,6 +929,39 @@ func shiftEntity(a *Arena, e *entity, dx, dy int32) bool {
 	}
 	if a.IsWalkable(e.xMilli, e.yMilli+dy, cross) {
 		e.setPos(e.xMilli, e.yMilli+dy)
+		return true
+	}
+	return escapeBlocked(a, e)
+}
+
+// escapeBlocked walks an entity out of the king towers' blocked squares.
+//
+// The three candidates of shiftEntity all stay inside the square when the
+// entity already stands in it, so a unit that ended up there could never be
+// pushed off again -- it stayed welded to the tower for the rest of the match.
+// The eight directions are tried in a fixed order and the first walkable step
+// that brings the entity closer to the edge of the square is taken.
+//
+// The step is the whole distance to the nearest edge of the square: every
+// position in between is inside the square and therefore unstandable, so the
+// only way out is one step across the edge.
+func escapeBlocked(a *Arena, e *entity) bool {
+	if !a.IsBlocked(e.xMilli, e.yMilli) {
+		return false
+	}
+	before := a.BlockedExitDistance(e.xMilli, e.yMilli)
+	step := before + 1
+	for _, d := range [8][2]int32{
+		{0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1},
+	} {
+		nx, ny := e.xMilli+d[0]*step, e.yMilli+d[1]*step
+		if !a.IsWalkable(nx, ny, e.canCrossWater()) {
+			continue
+		}
+		if a.BlockedExitDistance(nx, ny) >= before {
+			continue
+		}
+		e.setPos(nx, ny)
 		return true
 	}
 	return false

@@ -112,7 +112,7 @@ namespace CR.UI.Panels
         /// <para>
         /// <b>为什么不用「140 / 3」</b>：`策划/参考图/几何量取.md` 的「单卡宽 / 卡间距」行出处列写的是
         /// 「**由整排左/右端算得**」⇒ 它不是量取值，而且与自己的输入不自洽（144 / 704 ⇒ 整排 560，
-        /// 而 4×140+3×3 = 569）—— 该不一致 = 手牌整排右端 +9px（登记在 `策划/差异登记.tsv`）。
+        /// 而 4×140+3×3 = 569）—— 该不一致 = 手牌整排右端 +9px（登记在 `策划/对照表.md` §D.3）。
         /// </para>
         /// </summary>
         private const float CardW = 136f;
@@ -145,8 +145,8 @@ namespace CR.UI.Panels
         //
         // 原版「下一张」在**底排左端**（左下角那张更小的卡），⛔ 不在右侧。
 
-        /// <summary>「下一张」卡左边 x = <b>33</b>。出处：`几何量取.md` §1.3（18 图放大裁切：x 33..97）。</summary>
-        private const float NextLeft = 33f;
+        /// <summary>「下一张」卡左边 x = <b>28</b>：卡片整卡在屏内（左沿 ≥ 20），与首张手牌（x=144）不重叠。</summary>
+        private const float NextLeft = 28f;
 
         /// <summary>「下一张」卡宽 <b>64</b>。出处：`几何量取.md` §1.3（x 33..97 ⇒ 64）。</summary>
         private const float NextW = 64f;
@@ -154,14 +154,17 @@ namespace CR.UI.Panels
         /// <summary>「下一张」卡高 <b>83</b>。出处：`几何量取.md` §1.3（@1080 列标注 64×83；端点 y 1634..1716 = 82，取表内标注值）。</summary>
         private const float NextH = 83f;
 
-        /// <summary>「下一张」卡底边距画布底 = DesignH − y(1716) = <b>204</b>。出处：`几何量取.md` §1.3 的 y 端点。</summary>
-        private const float NextBottomOffset = 204f;
+        /// <summary>「下一张」卡底边距画布底 = <b>135</b>：与手牌整排底边（<see cref="HandBottomOffset"/>）同一条线。</summary>
+        private const float NextBottomOffset = HandBottomOffset;
 
-        /// <summary>「下一张」标签左边 x = <b>10</b>。出处：`几何量取.md` §1.3（x 10..115 / y 1718..1755）。</summary>
-        private const float NextLabelLeft = 10f;
+        /// <summary>「下一张」标签左边 x = <b>28</b>（与卡片左沿同一条线，整块矩形都在屏内）。</summary>
+        private const float NextLabelLeft = NextLeft;
 
-        /// <summary>「下一张」标签底边距画布底 = DesignH − y(1755) = <b>165</b>。出处：`几何量取.md` §1.3 的 y 端点。</summary>
-        private const float NextLabelBottom = 165f;
+        /// <summary>
+        /// 「下一张」标签底边距画布底 = <b>226</b>：卡片底边对齐手牌后，标签排在卡片**上方**
+        /// （卡 135..218 + 8px 缝），底边 226 让标签下沿离卡片顶边 8px；右沿 133 &lt; 手牌左沿 144。
+        /// </summary>
+        private const float NextLabelBottom = NextBottomOffset + NextH + 8f;
 
         /// <summary>「下一张」标签宽 <b>105</b>。出处：`几何量取.md` §1.3（x 10..115）。</summary>
         private const float NextLabelW = 105f;
@@ -232,12 +235,10 @@ namespace CR.UI.Panels
         private const float ElixirFillInsetLeft = ElixirTickGridLeft - ElixirBarLeft;
 
         /// <summary>
-        /// 刻度分隔线宽 <b>4</b>。出处：18 图 9 条刻度在**半深**处的横向宽度实测 3~5px
-        /// （k=8 那条半深覆盖 x944..948 = 5px；k=3 那条 x383..385 = 3px）⇒ 取 4。
-        /// 原版图元本身是 1×1（<see cref="ResPaths.ElixirBarTick"/>）⇒ 宽高由放置矩阵给，
-        /// 而索引 §2.1 明说矩阵未解出 ⇒ 按基线量取，⛔ 不猜。
+        /// 刻度分隔线宽 <b>2</b>（设计像素）：细暗线，压在填充上时数得出 10 段而不抢填充的主色。
+        /// 原版图元本身是 1×1（<see cref="ResPaths.ElixirBarTick"/>）⇒ 宽高由放置矩阵给。
         /// </summary>
-        private const float ElixirTickW = 4f;
+        private const float ElixirTickW = 2f;
 
         /// <summary>
         /// 刻度分隔线高 = 条高 − 上下各 6px = 44 − 12 = <b>32</b>。出处：18 图列剖面（x=947 对邻列 x=941）
@@ -246,24 +247,13 @@ namespace CR.UI.Panels
         private const float ElixirTickH = ElixirBarH - 12f;
 
         /// <summary>
-        /// 刻度分隔线的**不透明度** = <b>77/255</b>（原版放
-        /// 置项的颜色变换值，不是调出来的）。
-        /// <para>
-        /// 出处：`原版资源/sc/ui_v215.sc` 的 `HUD_player`(clip 1091) → `elixir_bar`(clip 1080) → `d1`(clip 909)
-        /// 的放置三元组颜色索引 = 37，其 `09` 记录 = `000000 4d ffffff`
-        /// （`r_add,g_add,b_add=0,0,0`｜`alpha=77`｜`r_mul,g_mul,b_mul=255,255,255`）
-        /// ⇒ 原版是"用刻度件**自身**的 (35,35,35) 以 77/255 覆盖条面"。uGUI 顶点色只有乘算，
-        /// 表达同一层覆盖 = 白 tint 乘上刻度件的自身 α。
-        /// </para>
-        /// <para>
-        /// 18 图实测刻度列 = 底色 ×≈0.85（空槽 (32,48,82)→(28,41,73)、品红填充 (207,39,212)→(169,27,175)）；
-        /// 本值下实机合成 ≈ (33,44,68) / (155,34,159)，两处每通道差 ≤ 14/255。
-        /// </para>
+        /// 刻度分隔线的**不透明度** = <b>α0.25</b>（暗线压在填充上；uGUI 顶点色只有乘算，
+        /// 表达"暗线覆盖条面" = 白 tint 乘上刻度件的自身 α）。
         /// </summary>
-        private static readonly Color ElixirTickTint = new Color(1f, 1f, 1f, 77f / 255f);
+        private static readonly Color ElixirTickTint = new Color(1f, 1f, 1f, 0.25f);
 
         /// <summary>刻度线取不到图时的兜底色 = 原版刻度件的自色 (35,35,35)（`ui_out/frame_160` 唯一不透明像素）配同一 α。</summary>
-        private static readonly Color ElixirTickFallback = new Color(35f / 255f, 35f / 255f, 35f / 255f, 77f / 255f);
+        private static readonly Color ElixirTickFallback = new Color(35f / 255f, 35f / 255f, 35f / 255f, 0.25f);
 
         /// <summary>圣水徽章（水滴底 + 数字）直径 <b>60</b>。出处：D7（18 图 bb mag：心 (63,1815)、径 60）。</summary>
         private const float ElixirBadgeD = 60f;
@@ -271,14 +261,81 @@ namespace CR.UI.Panels
         /// <summary>圣水徽章中心距画布左 = <b>63</b>。出处：D7（心 x=63）。</summary>
         private const float ElixirBadgeCx = 63f;
 
-        /// <summary>圣水徽章中心距画布底 = DesignH − y(1815) = <b>105</b>。出处：D7（心 y=1815）。</summary>
-        private const float ElixirBadgeCy = 105f;
+        /// <summary>
+        /// 圣水徽章中心距画布底 = <b>97</b>（D7 的 105 下移 8px）：徽章按素材宽高比是 60×73，
+        /// 中心 105 时上沿到 142，会压住「下一张」卡的左下角（卡底 = 手牌底 135）⇒ 下移让开。
+        /// </summary>
+        private const float ElixirBadgeCy = 97f;
+
+        /// <summary>圣水条外框圆角半径 = 10（设计像素）。本项目自定值。</summary>
+        private const float ElixirFrameRadius = 10f;
+
+        /// <summary>圣水条外框描边宽 = 1（设计像素），色 = `CrUiStyle.ElixirFrameGold`。</summary>
+        private const float ElixirFrameBorder = 1f;
+
+        /// <summary>圣水条空槽底色 (40,30,36,α0.92)：与血条空槽同族。</summary>
+        private static readonly Color ElixirTrackFill = new Color(40f / 255f, 30f / 255f, 36f / 255f, 0.92f);
+
+        /// <summary>圣水填充左端「亮紫」(170,48,224)。</summary>
+        private static readonly Color ElixirFillLeft = new Color32(170, 48, 224, 255);
+
+        /// <summary>圣水填充右端「品红」(236,28,214)。</summary>
+        private static readonly Color ElixirFillRight = new Color32(236, 28, 214, 255);
+
+        /// <summary>圣水填充的端头宽（设计像素）：九宫格端头，拉伸时圆角不变形。</summary>
+        private const int ElixirFillCapPx = 10;
+
+        /// <summary>圣水填充圆角半径（设计像素）。</summary>
+        private const int ElixirFillRadiusPx = 8;
+
+        /// <summary>圣水填充相对外框的上下内缩（设计像素）⇒ 填充高 = 44 − 2×3 = 38。</summary>
+        private const float ElixirFillInsetY = 3f;
+
+        /// <summary>圣水徽章内数字字号 = 48（正文档 32 的 1.5 倍），白字 + 深描边。</summary>
+        private const int ElixirBadgeFontSize = 48;
+
+        // ── 底部 HUD 底板（出处：`策划/参考图/18_对局HUD_1080x1920.jpg` 右缘 x=1070 逐行采样） ──
+        //
+        // 原版底部是一整块深蓝板：上沿 y=1624（该行有一道 4px 亮蓝高光边）、下沿到屏底 1919，
+        // 板内自顶 (60,92,151) 渐深到底 (30,45,128)；手牌与圣水条都压在这块板上（背景不再露草地）。
+        // 原版素材包里没有这块「整幅底板」的具名帧（`策划/战斗HUD素材索引.md` §1 结论表只到
+        // 圣水条 / 手牌槽 / 冠数 / 倒计时 / 暂停五组）⇒ 用采样色做竖向渐变，差异登记见 `策划/对照表.md` §D.3。
+
+        /// <summary>底板高 = 屏底 1920 − 板顶 1624 = <b>296</b>。出处：18 图 x=1070 列采样（y1624 亮边起）。</summary>
+        private const float HudPlateH = 296f;
+
+        /// <summary>板顶高光边高 = <b>4</b>。出处：18 图 x=1070 列 y1624..1627 的亮蓝 (139,203,239)。</summary>
+        private const float HudPlateEdgeH = 4f;
+
+        /// <summary>底板顶部渐变色 (60,92,151)。出处：18 图 x=1058..1072 在 y1660..1680 的均值 (60,92,151)。</summary>
+        private static readonly Color HudPlateTop = new Color(60f / 255f, 92f / 255f, 151f / 255f, 1f);
+
+        /// <summary>底板底部渐变色 (30,45,128)。出处：18 图同一列在 y1900..1915 的均值 (30,45,128)。</summary>
+        private static readonly Color HudPlateBottom = new Color(30f / 255f, 45f / 255f, 128f / 255f, 1f);
+
+        /// <summary>板顶高光边色 (139,203,239)。出处：18 图 x=1070 y1624 的实测像素。</summary>
+        private static readonly Color HudPlateEdge = new Color(139f / 255f, 203f / 255f, 239f / 255f, 1f);
+
+        /// <summary>竖向渐变 Sprite（1×64 纹理，`Sprite.Create` 造的不归 Resources 管 ⇒ 全局面板复用）。</summary>
+        private static Sprite _hudPlateSprite;
 
         /// <summary>
-        /// 条端图元 `bar_end`（`ui_out/158`，原生 10×59，出处 `策划/战斗HUD素材索引.md` §3.1）的显示宽
-        /// = 条高 44 × 10/59 ≈ <b>7.5</b>（等比缩放 ⇒ 端头不被拉扁，⛔ 不横向拉成 956 宽）。
+        /// 手牌右侧玩家块的右内缩 = <b>24</b>。出处：18 图玩家名 near-white bbox 右缘 x=1053 ⇒ 1080−1053 = 27，
+        /// 取 24 让描边不被屏边裁掉。
         /// </summary>
-        private const float ElixirEndW = ElixirBarH * 10f / 59f;
+        private const float PlayerBlockRightInset = 24f;
+
+        /// <summary>玩家块文字宽 = <b>340</b>（右对齐，最长可容纳 ~8 个中文字）。</summary>
+        private const float PlayerBlockW = 340f;
+
+        /// <summary>玩家名字号 = <b>40</b>。出处：18 图「彩虹城堡」字面高 ≈30px ÷ 0.78（字面高/字号比）= 38 ⇒ 取 40。</summary>
+        private const int PlayerNameFontSize = 40;
+
+        /// <summary>
+        /// 玩家名中心距画布底 = <b>254</b>：整行落在底部 HUD 底板内（名字上缘距板顶 12px），
+        /// 不压草地、也不与手牌矩形相交（名字在 x ≥ 716，手牌右沿 709）。
+        /// </summary>
+        private const float PlayerNameCenterBottom = 254f;
 
         /// <summary>
         /// 卡内文字（**费用数字**）字号 <b>32</b>。
@@ -352,28 +409,52 @@ namespace CR.UI.Panels
         /// </summary>
         private const float CostIconBottom = 25f;
 
-        /// <summary>拖动幽灵卡的宽 = **单卡宽**（跟着指针走的就是那张卡本身）。</summary>
-        private const float GhostW = CardW;
+        /// <summary>
+        /// 拖动幽灵卡相对手牌卡的放大倍率 = <b>1.15</b>。
+        /// 口径：拖起的那张卡是"从手牌被拎出来"的状态，整体放大 1.15 倍；手牌自身尺寸不变。
+        /// </summary>
+        private const float GhostScale = 1.15f;
 
-        /// <summary>拖动幽灵卡的高 = **单卡高**（⛔ 不是 `CardH * 0.5`：那会把卡片压成一条"小图标"）。</summary>
-        private const float GhostH = CardH;
+        /// <summary>拖动幽灵卡的宽 = 单卡宽 × <see cref="GhostScale"/>（≈156）。</summary>
+        private const float GhostW = CardW * GhostScale;
+
+        /// <summary>拖动幽灵卡的高 = 单卡高 × <see cref="GhostScale"/>（≈197；⛔ 不是 `CardH * 0.5`：那会被压成一条"小图标"）。</summary>
+        private const float GhostH = CardH * GhostScale;
+
+        /// <summary>
+        /// 幽灵卡**底边**与指针之间的缝隙（画布 px）。卡底边不能贴着手指出牌点，否则手指又挡住落点环。
+        /// </summary>
+        private const float GhostFingerGapPx = 8f;
+
+        /// <summary>
+        /// **落点（落点环心）**相对指针的上移量（画布 px）= 卡高/2 + 缝隙 ≈ 106。
+        /// <para>
+        /// 落点环画在这个点上（`DropPointOf`），幽灵卡画在更上面 —— 卡底边 = 落点点 + 环半径，
+        /// 即卡与环**仅相切、不重叠**，环完整露在卡下面（见 `MoveGhost` 的 ghostPoint）。
+        /// 落点指示 / 合法性判定 / 抬手请求三处共用 `DropPointOf` ⇒ 看到环在哪就落在哪。
+        /// </para>
+        /// </summary>
+        private const float GhostDropPointOffsetPx = GhostH * 0.5f + GhostFingerGapPx;
 
         // ── 顶部右：倒计时（出处：`几何量取.md` §1.3，18 图放大读数） ──
 
-        /// <summary>计时板宽 <b>198</b>。出处：`几何量取.md` §1.3（x 882..1080）。
-        /// 板素材 = `HudTopRightPlate`（`ui_out/193`，原版 `HUD_topRight` 的底板，原生 212×124，
-        /// 出处 `策划/战斗HUD素材索引.md` §3.4）⇒ 按量取值 198×100 铺（0.93×/0.81× 轻微缩放；
-        /// 该帧切边按整幅处理（border = 0 拉伸））。</summary>
-        private const float TimerBoxW = 198f;
+        /// <summary>计时板宽 <b>212</b> = 原版帧 `ui_out/193` 的原生宽（出处
+        /// `策划/战斗HUD素材索引.md` §3.4「`193`(212×124)」）⇒ 1:1 铺，不做非等比缩放。</summary>
+        private const float TimerBoxW = 212f;
 
-        /// <summary>计时板高 <b>100</b>。出处：`几何量取.md` §1.3（y 0..100）。</summary>
-        private const float TimerBoxH = 100f;
+        /// <summary>计时板高 <b>124</b> = 原版帧 `ui_out/193` 的原生高（同上一行的出处）⇒ 1:1 铺。</summary>
+        private const float TimerBoxH = 124f;
 
-        /// <summary>计时板离画布顶 = <b>0</b>（贴顶）。出处：`几何量取.md` §1.3（y 起点 = 0）。</summary>
-        private const float TimerBoxTop = 0f;
+        /// <summary>计时板离画布顶 = <b>6</b>：与冠数徽章同一条上留白线，板面与板内文字都不再贴屏顶。</summary>
+        private const float TimerBoxTop = 6f;
 
-        /// <summary>计时数字字号 = <b>48</b>（09 图「2:32」字形高 40px × 0.8696 ÷ 0.72 ≈ 48）。</summary>
-        private const int TimerFontSize = 48;
+        /// <summary>计时板圆角半径 = <b>10</b> px（18 图板角实测半径 8~10）。</summary>
+        private const float TimerPlateRadius = 10f;
+
+        /// <summary>计时数字字号 = <b>56</b>。
+        /// <para>量法：18 图「1:51」白字实测 ink 高 43px（含描边 47），字号 ÷ ink ≈ 0.93 ⇒ 56 号在 212×124 板上
+        /// 的 ink 高 ≈ 60px，占板高 48%，与基线的「数字几乎占满板下半」观感一致。</para></summary>
+        private const int TimerFontSize = 56;
 
         /// <summary>计时板内时钟图标宽 = 板高 × 0.30 = <b>30</b>（本项目自定：原版 `Clock_middle`
         /// （`ui_out/042`，原生 15×15，出处 索引 §3.4）的**摆放尺寸未解出** —— 索引 §2.1 第 2 条明说
@@ -381,26 +462,17 @@ namespace CR.UI.Panels
         private const float ClockIconW = TimerBoxH * 0.30f;
 
         /// <summary>
-        /// 计时板**板面**底色（半透明冷灰紫）。
-        /// <para>
-        /// <b>⛔ 不能用 `ui_out/177`（1×1 **不透明黑**）+ `NineSlice` 铺</b>：那样板面是"近黑"，
-        /// 与原版"透出场景的半透明板"不同。原版同窗口板面在 y=50 的逐点采样是
-        /// (63,61,75)/(81,77,91)/(40,38,43)/(49,46,65)/(46,37,54) ⇒ 均值 ≈ <b>(56,52,66)</b>，
-        /// 而我方同一行是 (21,33,16)/(20,32,16) ⇒ 板面明显更黑（18 图量取）。
-        /// </para>
-        /// <para>
-        /// <b>取值口径</b>：板面件换成**原版浅色实心件** <see cref="ResPaths.SlotCardPlain"/>（`ui_out/531`）
-        /// + tint（`CrUiStyle.Skin` 的 `tint` 参数，既有的 tint 机制）。反解 tint 使实机合成值 ≈ 原版 (56,52,66)：
-        /// tint × 531 的中心色 (216,228,255) ≈ (35,34,77)，在 α=0.80 下压在本机背景上
-        /// ⇒ 0.80×(35,34,77) + 0.20×背景 ≈ (56,52,66)。⛔ 不改任何几何（`TimerBoxW/H/Top` 仍按 18 图量取值冻结）。
-        /// </para>
-        /// <para>
-        /// ⚠️ **归因分离**：18 图右上板底是**石塔**、本项目该处是**草地/金路**
-        /// （8 图实测：我方 (900,50) = (251,199,64) 金光路面）⇒ 板面合成色**不可能**逐像素相等，
-        /// 本项只负责"板自身的色/透明度"，残余差归**竞技场美术**（竞技场底图域）。
-        /// </para>
+        /// 计时板底色 = <b>(56,52,66)</b>。
+        /// <para>出处：18 图板面同一窗口逐点采样 (63,61,75)/(81,77,91)/(40,38,43)/(49,46,65)/(46,37,54)
+        /// ⇒ 均值 (56,52,66)；原版是半透明板，这里直接画这个**合成值**（不透明），观感一致且不依赖背景。</para>
         /// </summary>
-        private static readonly Color TimerPlateTint = new Color(0.16f, 0.15f, 0.30f, 0.80f);
+        private static readonly Color TimerPlateFill = new Color(56f / 255f, 52f / 255f, 66f / 255f, 1f);
+
+        /// <summary>计时板细边色 = <b>(205,230,255)</b>（浅蓝白），线宽 1px。</summary>
+        private static readonly Color TimerPlateEdge = new Color(205f / 255f, 230f / 255f, 255f / 255f, 1f);
+
+        /// <summary>计时板贴图（自绘圆角板 + 1px 细边，造一次全局复用）。</summary>
+        private static Sprite _timerPlateSprite;
 
         /// <summary>计时板标题「剩余时间」字号 = <b>20</b>。
         /// 出处：18 图板内标题的 near_white 命中仅 15px、bbox (925,10)-(990,28) ⇒ **字面高 ≈ 18**；
@@ -441,9 +513,12 @@ namespace CR.UI.Panels
         /// 取 6 使两枚 (36+6+36=78) 仍落在原版量到的 94px 窗口内）。</summary>
         private const float CrownMedalGap = 6f;
 
-        /// <summary>徽章上沿相对屏顶 = <b>-4</b>。出处：18 图紫徽的**可见** bbox y 起点 = 0、
-        /// 但圆径量到 40 而可见高只有 36 ⇒ 上沿在 y = -4（徽章有一小截被屏顶裁掉，原版就是这样）。</summary>
-        private const float CrownMedalTop = -4f;
+        /// <summary>徽章上沿距屏顶 = <b>6</b>（与计时板同一条上留白线）。
+        /// <para>
+        /// 徽章圆径 40（18 图量取）；上沿必须 ≥ 0，否则屏顶会把整枚徽章连同冠数数字一起裁掉。
+        /// </para>
+        /// </summary>
+        private const float CrownMedalTop = 6f;
 
         /// <summary>徽章内金色冠徽宽 = 徽章径 × 0.62 ≈ <b>22</b>（本项目自定：18 图紫徽内的金冠被白数字压住、
         /// 逐像素分不出边界；按"金冠占徽章内约六成宽"给，且金冠件取原版 <see cref="ResPaths.IconCrownGold"/>）。
@@ -469,37 +544,6 @@ namespace CR.UI.Panels
 
         /// <summary>整幅拉伸（⛔ 不是九宫格）：给细长条图元，以及无切边定义的整幅面板用。</summary>
         private static readonly Vector4 BorderNone = Vector4.zero;
-
-        /// <summary>
-        /// 轨道**右端圆头件** = 原版 `ui_out/156`（`elixir_bar` 的**同容器裸子件**，原生 15×75）。
-        /// <para>
-        /// <b>为什么需要它</b>：原版 18 图轨道右端是**深色圆头**（右下角实测 (1,11,38)，
-        /// ），而 `bar_bg`(155) 是 **1 像素宽**竖条 ⇒ 横向铺开后左右两端必然是**直角**
-        /// （1px 宽的图没有圆头），且 原本摆在轨道右端的 `bar_end`(158) 是**品红**件 ⇒
-        /// 实机在轨道右端露出一截**孤立的品红**（实机截图），与原版该处的深色圆头不符。
-        /// 156 的剖面（剖面实测）：内部 (32,32,32,**255**) 不透明、**右端带圆角**
-        /// （col13/14 只覆盖 y10..63）⇒ 正是"深色 + 圆头"的端件，且不透明 ⇒ 实机必然渲染。
-        /// </para>
-        /// <para>出处：`策划/战斗HUD素材索引.md` §3.1「`elixir_bar` 同族件 = frame 156 / 15×75」。⛔ 帧号非推断。</para>
-        /// </summary>
-        private static readonly string ElixirTrackEnd = ResPaths.UiFrame(ResPaths.UiBarsDir, ResPaths.UiSrcUi, 156);
-
-        /// <summary>
-        /// 计时板**实心底** = 原版 `ui_out/177`（`HUD_topRight` 的**无名子件**，原生 1×1）。
-        /// <para>
-        /// <b>为什么必须有</b>：`HUD_topRight` 的底板 `193` 经逐列/逐行剖面实测是**空心圆角框**
-        /// （只有 1~2px 的边是不透明的，内部全透明）⇒ 单用它画出来的"计时板"
-        /// 内部是**透出竞技场**的。
-        /// 原版把**实心**交给同容器的 1×1 子件 177（索引 §3.4 原文：「`HUD_topRight`(15 帧) 的无名子件 | 1005 | 177(1×1) / 193(212×124)」）
-        /// ⇒ 按原版结构：先铺 177（实心）、再压 193（外框）。
-        /// </para>
-        /// <para>本帧由 `tools/probes/copy-ui-assets.py` 落地（`("ui_out", 177, "HudTimerPlateFill")` 一行），
-        /// 与相邻帧同导入口径；`LoadAll&lt;Sprite&gt;` 有断言把关。</para>
-        /// </summary>
-        private static readonly string TimerPlateFill = ResPaths.UiFrame(ResPaths.UiPanelsDir, ResPaths.UiSrcUi, 177);
-
-        /// <summary>轨道端件 `156`（15×75）的显示宽 = 条高 44 × 15/75 ≈ <b>8.8</b>（⛔ 不横向拉成 956 宽）。</summary>
-        private const float ElixirTrackEndW = ElixirBarH * 15f / 75f;
 
         /// <summary>
         /// 手牌卡槽底 `200`（96×137）的**切边** = (左 10, 下 8, 右 10, 上 8)。
@@ -597,7 +641,7 @@ namespace CR.UI.Panels
         private int _myTeam;                                       // 0=BLUE 1=RED（Battle.Started 给出）
         private int _maxElixirMilli = GameConst.MaxElixirMilli;     // 圣水上限（1/1000）
 
-        private int _regulationMs;                                  // 常规时间（0 = 还没拿到时间线）
+        private int _regulationMs;                                  // 常规阶段时长（0 = 还没拿到时间线）
         private int _overtimeMs;                                    // 加时
 
         private readonly Dictionary<int, CardInfo> _cards = new Dictionary<int, CardInfo>();
@@ -605,7 +649,6 @@ namespace CR.UI.Panels
         private int _nextId;
 
         private int _lastUnknownType = int.MinValue;
-        private int _lastUnknownPhase = int.MinValue;
         private bool _handTooLongWarned;
 
         /// <summary>上一次打印「本局手牌帧号表」时的手牌组成（`_handIds` 拼串）—— 只在真的变了时才打印。</summary>
@@ -656,13 +699,24 @@ namespace CR.UI.Panels
 
         private RectTransform _root;                                // 面板根（屏幕 → 世界 换算要用它）
 
+        /// <summary>底部 HUD 底板（屏底 296 px 高；拖放落回这里 = 取消出牌，见 `EndDrag`）。</summary>
+        private RectTransform _bottomPlate;
+
+        /// <summary>
+        /// 暂停按钮底板 —— 顶部 HUD 里**最低**的那一件（计时板 + 间隔 + 按钮高度）。
+        /// 拖放时用它和 <see cref="_bottomPlate"/> 的边沿划出"竞技场可见区"，见 <see cref="IsPointerInArenaBand"/>。
+        /// </summary>
+        private RectTransform _pausePlate;
+
         // ── 顶部信息 ──
         // 冠数从"左上角一块 0 : 0 名条"改成**顶部中央两枚徽章**（原版位置，见常量段）
         //   ⇒ 一个 Text 拆成两枚徽章各自的数字（⛔ 不是把 "0 : 0" 塞进 36px 的徽章里）。
         private Text _crownsMineText;
         private Text _crownsEnemyText;
         private Text _timerText;
-        private Text _phaseText;
+
+        /// <summary>玩家名文本（手牌右侧的玩家信息块；昵称来自 `PlayerSession.Nickname`）。</summary>
+        private Text _playerNameText;
 
         // ── 圣水 ──
         private RectTransform _elixirFill;
@@ -696,6 +750,7 @@ namespace CR.UI.Panels
         private readonly Image[] _handArts = new Image[HandSlots];    // 真卡面（原版 `ui_spells_out` 帧）
         private readonly Text[] _handCosts = new Text[HandSlots];     // 圣水费用（压在原版圣水水滴上）
         private readonly Image[] _handCostIcons = new Image[HandSlots]; // 费用水滴本身（圣水不足时要连同它一起去色）
+        private readonly UiCardHoverFx[] _handHover = new UiCardHoverFx[HandSlots]; // 手牌悬停抬起（可用卡才响应）
         // 灰化前的原精灵（恢复用）：槽底 / 卡面 / 费用水滴各一份。
         private readonly Sprite[] _handRawSlot = new Sprite[HandSlots];
         private readonly Sprite[] _handRawArt = new Sprite[HandSlots];
@@ -712,6 +767,24 @@ namespace CR.UI.Panels
         // ── 拖放 ──
         private bool _dragging;
         private int _dragCardId;
+
+        /// <summary>
+        /// 当前是否有手牌正被拖动。ESC 路由（<see cref="CR.UI.BackKeyRouter"/>）据此让位：
+        /// 拖放中的 ESC 是"取消本次拖放"，不是"打开暂停菜单"。
+        /// </summary>
+        public static bool DraggingCard { get; private set; }
+
+        /// <summary>
+        /// 本帧是否已用 ESC 取消了拖放。ESC 路由与本面板的逐帧轮询谁先执行不确定：
+        /// 路由读到"正在拖"会跳过，读到"本帧已消费"也会跳过 ⇒ 两种次序都只取消拖放、不弹暂停。
+        /// </summary>
+        public static int EscapeConsumedFrame { get; private set; } = -1;
+
+        /// <summary>
+        /// 正在拖的那张卡来自哪个手牌槽（-1 = 没有拖动）。该槽在拖动期间**只留卡槽底**：
+        /// 卡面 / 费用水滴 / 费用数字都隐藏，抬手或取消后立即恢复（见 <see cref="SetSourceSlotFaceVisible"/>）。
+        /// </summary>
+        private int _dragSlot = -1;
 
         /// <summary>
         /// 跟着指针走的幽灵卡**容器根**（面板根下的一张 <see cref="Image"/>，轴心居中于指针）。
@@ -766,12 +839,15 @@ namespace CR.UI.Panels
 
             Subscribe();
             RefreshAll();
+            // 对局内署名贴屏底右下角（不在底板上沿那一条，见 `CreditOverlay.SetBattlePlacement`）。
+            CreditOverlay.SetBattlePlacement(true);
         }
 
         public override void OnClose()
         {
             Unsubscribe();
             CancelDrag("面板关闭");
+            CreditOverlay.SetBattlePlacement(false);
         }
 
         // ───────────────────────── 视觉树（D1：OnOpen 里用 UIFactory 自建） ─────────────────────────
@@ -784,12 +860,153 @@ namespace CR.UI.Panels
             // HUD **不铺全屏底、不挡射线**：对局画面要能看见（与站点面板不同）。
             // 也⛔不铺全屏 Image：那会挡住操作（本面板的输入是自己轮询的，但挡射线仍会干扰其它 UI）。
 
+            // 底板最先建 ⇒ 排在 HUD 最底层（手牌 / 圣水条 / 玩家块都压在它上面）。
+            BuildBottomPlate();
+
             BuildTopLabels();
             BuildElixir();
             BuildHand();
             BuildNextPreview();
+            BuildPlayerBlock();
             BuildGhost();
             BuildPauseButton();
+        }
+
+        /// <summary>
+        /// 底部 HUD 底板：铺满屏宽、从板顶 1624 到屏底的一整块深蓝板（几何与配色见 `HudPlate*` 常量）。
+        /// <para>
+        /// 原版底板上沿是一道 <see cref="HudPlateEdgeH"/> 像素的亮蓝高光边，板身向下渐深
+        /// ⇒ 用一块 1×64 的竖向渐变 Sprite 拉伸铺满，再叠一条纯色高光边；两块都不吃射线。
+        /// </para>
+        /// </summary>
+        private void BuildBottomPlate()
+        {
+            var plate = UIFactory.CreatePanel("BottomPlate", _root, Color.white, false);
+            var rt = plate.rectTransform;
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.offsetMin = new Vector2(0f, 0f);
+            rt.offsetMax = new Vector2(0f, HudPlateH);
+            plate.sprite = HudPlateSprite();
+            plate.type = Image.Type.Simple;
+            plate.color = Color.white;
+            plate.raycastTarget = false;
+            _bottomPlate = rt;
+
+            var edge = UIFactory.CreatePanel("BottomPlateEdge", _root, HudPlateEdge, false);
+            var ert = edge.rectTransform;
+            ert.anchorMin = new Vector2(0f, 0f);
+            ert.anchorMax = new Vector2(1f, 0f);
+            ert.pivot = new Vector2(0.5f, 0f);
+            ert.offsetMin = new Vector2(0f, HudPlateH - HudPlateEdgeH);
+            ert.offsetMax = new Vector2(0f, HudPlateH);
+            edge.raycastTarget = false;
+        }
+
+        /// <summary>
+        /// 底板用的竖向渐变 Sprite（1×64，底行 = <see cref="HudPlateBottom"/>、顶行 = <see cref="HudPlateTop"/>）。
+        /// <para>造一次就缓存：`Sprite.Create` 造出来的 Sprite 不归 Resources 管，逐面板重建会漏纹理。</para>
+        /// </summary>
+        private static Sprite HudPlateSprite()
+        {
+            if (_hudPlateSprite != null) return _hudPlateSprite;
+
+            const int rows = 64;
+            var tex = new Texture2D(1, rows, TextureFormat.RGBA32, false)
+            {
+                name = "HudBottomPlateTex",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+            for (var i = 0; i < rows; i++)
+            {
+                // 纹理 y=0 = 底行 ⇒ t=0 用底部色、t=1 用顶部色。
+                tex.SetPixel(0, i, Color.Lerp(HudPlateBottom, HudPlateTop, i / (float)(rows - 1)));
+            }
+            tex.Apply(false, false);
+
+            _hudPlateSprite = Sprite.Create(tex, new Rect(0f, 0f, 1f, rows), new Vector2(0.5f, 0.5f), 100f);
+            _hudPlateSprite.name = "HudBottomPlate";
+            return _hudPlateSprite;
+        }
+
+        /// <summary>
+        /// 计时板贴图：212×124 圆角矩形（半径 10），板内 <see cref="TimerPlateFill"/>、
+        /// 最外 1px 为 <see cref="TimerPlateEdge"/>（圆角处按距离做 1px 透明度过渡）。
+        /// <para>一张贴图同时给出板面与细边 ⇒ 不存在"两个节点各自取整"的错位。</para>
+        /// </summary>
+        private static Sprite TimerPlateSprite()
+        {
+            if (_timerPlateSprite != null) return _timerPlateSprite;
+
+            var w = Mathf.RoundToInt(TimerBoxW);
+            var h = Mathf.RoundToInt(TimerBoxH);
+            var r = TimerPlateRadius;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            {
+                name = "TimerPlateTex",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+
+            for (var y = 0; y < h; y++)
+            {
+                for (var x = 0; x < w; x++)
+                {
+                    var px = x + 0.5f;
+                    var py = y + 0.5f;
+                    var dx = Mathf.Max(r - px, px - (w - r), 0f);
+                    var dy = Mathf.Max(r - py, py - (h - r), 0f);
+                    var d = Mathf.Sqrt(dx * dx + dy * dy) - r;   // < 0 = 板内
+
+                    Color c;
+                    if (d > 0f)
+                    {
+                        // 圆角外侧 0.5px 的抗锯齿过渡（不改变边的粗细）。
+                        c = TimerPlateEdge;
+                        c.a = Mathf.Clamp01(1f - d * 2f);
+                    }
+                    else if (d > -1f)
+                    {
+                        c = TimerPlateEdge;                      // 最外 1px = 细边
+                    }
+                    else
+                    {
+                        c = TimerPlateFill;
+                    }
+                    tex.SetPixel(x, y, c);
+                }
+            }
+            tex.Apply(false, false);
+
+            _timerPlateSprite = Sprite.Create(tex, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), 100f);
+            _timerPlateSprite.name = "TimerPlate";
+            return _timerPlateSprite;
+        }
+
+        /// <summary>
+        /// 手牌右侧的玩家信息块：玩家昵称一行（`PlayerSession.Nickname`）。
+        /// <para>
+        /// 几何：右对齐、右缘内缩 24、整行落在底板内（中心距底 254，见 <see cref="PlayerNameCenterBottom"/>）。
+        /// 原版第二行是「部落名」，本项目协议里没有部落字段 ⇒ **不建第二行节点**（没有数据就只一行，⛔ 不留空框）。
+        /// </para>
+        /// </summary>
+        private void BuildPlayerBlock()
+        {
+            _playerNameText = CrUiStyle.Outlined("PlayerName", _root, string.Empty, PlayerNameFontSize,
+                new Vector2(1f, 0f), new Vector2(1f, 0.5f),
+                new Vector2(-PlayerBlockRightInset, PlayerNameCenterBottom),
+                new Vector2(PlayerBlockW, PlayerNameFontSize + 20f), TextAnchor.MiddleRight);
+            RefreshPlayerName();
+        }
+
+        /// <summary>把 `PlayerSession.Nickname` 写进玩家块；没登录 / 昵称为空时留空（⛔ 不写占位文字）。</summary>
+        private void RefreshPlayerName()
+        {
+            if (_playerNameText == null) return;
+            var nick = PlayerSession.Nickname;
+            _playerNameText.text = string.IsNullOrEmpty(nick) ? string.Empty : nick;
         }
 
         private void BuildTopLabels()
@@ -798,22 +1015,22 @@ namespace CR.UI.Panels
             // 位置出处：18 图 purple 命中 bbox = (477,0,571,36)（窗口 455..585 × 0..46），
             //   即紫徽中心 x≈495 / y 起点 0；原版**左上**窗口 (10,10)-(300,92) 的 near_white 是场景石塔，
             //   ⇒ 冠数控件在顶部中央，不在左上。量法：逐像素量取 §5/§6。
-            // 结构：左 = 我方（原版 `SlotCorner`(11) 染成 18 量取的紫 + 原版金冠 `IconCrownGold`(50) + 白数字）
-            //       右 = 对方（原版 `HudStarEnemy`(188) 原色 + 白数字）
+            // 结构：左 = 我方 = 原版 `HudStarPlayer`(`ui_out/187`，与敌方 188 同一套原件)
+            //       右 = 对方 = 原版 `HudStarEnemy`(`ui_out/188`)
+            // 两枚都是 187/188 的**原图原色**（金冠 + 品红底），⛔ 不再用 `SlotCorner` 染色块拼我方徽章。
             // 左右 = 我方/对方 的固定口径（HUD 是玩家视角，`printScore_player/_enemy` 同理），
             //   ⛔ 不随 `_myTeam` 翻转。
-            var mineMedal = CrUiStyle.Skin("CrownMedalMine", _root, ResPaths.SlotCorner, 0, BorderNone,
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(CrownMedalMineDx, -CrownMedalTop), new Vector2(CrownMedalD, CrownMedalD),
-                CrownMineTint, false, CrownMineTint);
+            var mineBox = UIFactory.CreatePanel("CrownMedalMine", _root, Color.clear, false);
+            UIFactory.Place(mineBox.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(CrownMedalMineDx, -CrownMedalTop), new Vector2(CrownMedalD, CrownMedalD));
 
-            // 徽章内的原版金冠（`ui_out/50`，106×85，原版 `IconCrownGold`）：按素材比例缩到 22 宽、居中。
-            CrUiStyle.AspectImage("CrownIconMine", mineMedal.rectTransform, ResPaths.IconCrownGold, CrownInnerCrownW,
+            CrUiStyle.AspectImage("StarMine", mineBox.rectTransform, ResPaths.HudStarPlayer, CrownMedalD,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, CrUiStyle.Accent);
 
-            _crownsMineText = UIFactory.CreateText("CrownsMine", mineMedal.rectTransform, "0", CrownFontSize,
+            _crownsMineText = UIFactory.CreateText("CrownsMine", mineBox.rectTransform, "0", CrownFontSize,
                 TextAnchor.MiddleCenter, CrUiStyle.TextColor);
             UIFactory.Stretch(_crownsMineText.rectTransform);
+            CrUiStyle.StyleValue(_crownsMineText);
 
             var enemyBox = UIFactory.CreatePanel("CrownMedalEnemy", _root, Color.clear, false);
             UIFactory.Place(enemyBox.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
@@ -826,43 +1043,24 @@ namespace CR.UI.Panels
             _crownsEnemyText = UIFactory.CreateText("CrownsEnemy", enemyBox.rectTransform, "0", CrownFontSize,
                 TextAnchor.MiddleCenter, CrUiStyle.TextColor);
             UIFactory.Stretch(_crownsEnemyText.rectTransform);
+            CrUiStyle.StyleValue(_crownsEnemyText);
 
-            // ── 右上：倒计时（原版位置就是右上角，且**贴顶贴右**：出处 `策划/参考图/几何量取.md` §1.3  x 882..1080 / y 0..100）──
-            // 板素材 = `HudTopRightPlate`（原版 `HUD_topRight` 的底板 `ui_out/193`，原生 212×124，索引 §3.4）；
-            // 193 实测是**空心圆角框**（内部全透明）⇒ 先用实心件铺底，再压 193 外框。
-            //   ① 板面件 = **原版浅色实心件 531 + 量取 tint**（反解使实机板面 ≈ 原版 18 图同一处的
-            //      采样值，推导见 `TimerPlateTint` 注释）；⛔ 不用 `ui_out/177`（不透明黑）。
-            //   ② `193` 的环是**纯黑 (0,0,0,255)**（逐点实测 row/col/mid）—— 直接铺原色就是一圈粗黑框，
-            //      而该件的放置项是 `add=(255,255,255) / mul=(0,0,0) / alpha=255` ⇒ **结果色 = 不透明纯白**
-            //      ⇒ 环走共享材质换成白（见下），⛔ 不改几何、⛔ 不换素材。
-            CrUiStyle.Skin("TimerPlateFill", _root, ResPaths.SlotCardPlain, 0, BorderNone,
-                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -TimerBoxTop),
-                new Vector2(TimerBoxW, TimerBoxH), TimerPlateTint, false, TimerPlateTint);
-
-            // tint 交回中性白（= 不加滤镜），颜色由下面的 `.sc` 变换材质给出。
-            var timerBox = CrUiStyle.Skin("TimerBox", _root, ResPaths.HudTopRightPlate, 0, BorderNone,
-                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -TimerBoxTop),
-                new Vector2(TimerBoxW, TimerBoxH), Color.white, false, Color.white);
-
-            // 顶点色只能乘 ⇒ 表达不了「mul=0 + add=白」（`ColorTransform::operator*` 口径：
-            // `out = clamp(src*mul/255 + add)`），改用 `SpriteColorTransformMaterial.ForUi` 的共享材质；
-            // ⛔ 着色器取不到时退化为「原图原色」（Skin tint = 白），不静默换表现。
-            var timerFrameXform = SpriteColorTransformMaterial.ForUi(0, 0, 0, 255, 255, 255, 255);
-            if (timerFrameXform != null)
-            {
-                var timerFrameImage = timerBox.rectTransform.GetComponent<UnityEngine.UI.Image>();
-                if (timerFrameImage != null)
-                {
-                    timerFrameImage.material = timerFrameXform;
-                    timerFrameImage.color = Color.white;   // 顶点色交回中性：颜色由 `.sc` 变换给出
-                }
-            }
+            // ── 右上：倒计时（原版位置就是右上角：出处 `策划/参考图/几何量取.md` §1.3  x 882..1080 / y 0..100）──
+            // 整块**一张自绘贴图**：212×124 深色圆角板（底色 = 18 图板面均值 (56,52,66)）+ 1px 浅蓝白细边。
+            // ⛔ 不再用 `ui_out/193` 染色外环 + 另一个实心板面节点：那是两张图叠出来的板，
+            //   环被 `.sc` 的 add=白 染成 3px 粗白线，与板面各自取整 ⇒ 一旦差 1px 就是"错位白框"。
+            var timerBox = UIFactory.CreatePanel("TimerBox", _root, Color.white, false);
+            UIFactory.Place(timerBox.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(0f, -TimerBoxTop), new Vector2(TimerBoxW, TimerBoxH));
+            timerBox.sprite = TimerPlateSprite();
+            timerBox.type = Image.Type.Simple;
+            timerBox.color = Color.white;
+            timerBox.raycastTarget = false;
 
             // `ClockIcon`（原版 `Clock_middle`/`ui_out/042`）**不在** 18 图的计时板里
             //   （18 图板内只有「剩余时间:」+ 大字，）；
-            //   ⛔ 原版没有的东西不加 ⇒ 整条节点删除，文字区改为**整板居中**（旧代码为避开图标把文字右移了
-            //   `ClockIconW*0.5`，实测把标题中心推到 x≈995，而原版是 957）。
-            //   ⛔ 不动 `TimerBoxW/H/Top`（18 图量取值冻结）。
+            //   ⛔ 原版没有的东西不加 ⇒ 整条节点删除，文字区改为**整板居中**。
+            //   文字两行的位置按板高 124 分布：标题中心距板顶 26、计时数字中心 82（板内自顶向下 21% / 66%）。
             var textW = TimerBoxW - 12f;
             const float textX = 0f;
 
@@ -873,23 +1071,13 @@ namespace CR.UI.Panels
             var timerLabel = CrUiStyle.Outlined("TimerLabel", timerBox.rectTransform, "剩余时间",
                 TimerLabelFontSize,
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(textX, -6f), new Vector2(textW, 30f), TextAnchor.MiddleCenter);
+                new Vector2(textX, -10f), new Vector2(textW, 32f), TextAnchor.MiddleCenter);
             if (timerLabel != null) timerLabel.color = CrUiStyle.TextColor;
 
             _timerText = CrUiStyle.Outlined("Timer", timerBox.rectTransform, "--:--", TimerFontSize,
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(textX, -36f), new Vector2(textW, 62f), TextAnchor.MiddleCenter);
+                new Vector2(textX, -36f), new Vector2(textW, 76f), TextAnchor.MiddleCenter);
 
-            // 阶段（常规 / 加时 / 已结束）：顶部居中、**冠数徽章之下**（原版该处是场景区，本项目自定：原版无此文字条）。
-            // ⛔ 这一行必须落在徽章**下方**：冠数徽章在**顶部正中**，实占 px x 476..516 / y −4..36
-            //    （出处 18 图 purple bbox；另有实机 dump 与节点树读数交叉验证）。
-            //    若取原 `-10` ⇒ px y 10..40 ⇒ **与徽章重叠 26px**（「常规时间」四字压到紫徽 + 金星上）。
-            //    徽章坐标是**量取来的**、⛔ 不让位 ⇒ 让这一行让位：px y **44..74**（徽章底边 y=36 之下留 8px 缝）。
-            //    阶段行是本项目自定件，⛔ 不动任何量取来的几何（TimerBox 冻结几何、徽章位、手牌、圣水条）。
-            _phaseText = UIFactory.CreateText("Phase", _root, string.Empty, CrUiStyle.FontSmall,
-                TextAnchor.MiddleCenter, CrUiStyle.TextDim);
-            UIFactory.Place(_phaseText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -44f), new Vector2(420f, 30f));
         }
 
         private void BuildElixir()
@@ -899,10 +1087,16 @@ namespace CR.UI.Panels
             // 三件套 = A 的原版 `elixir_bar` 子元件（出处 `策划/战斗HUD素材索引.md` §1 第 1 行 + §3.1）：
             //   槽底 `bar_bg`(`ui_out/155`, 1×74) + 填充 `bar_body`(`ui_out/157`, 59×1) + 条端 `bar_end`(`ui_out/158`, 10×59)。
             // ⛔ 155/157 是 1 像素宽/高的细线（原版靠矩阵拉伸铺）⇒ 切边无定义，用 `BorderNone` 整幅拉伸，不编切边。
-            var track = CrUiStyle.NineSlice("ElixirTrack", _root, ResPaths.ElixirBarTrack, BorderNone,
-                new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(ElixirBarLeft, ElixirBarBottom), new Vector2(ElixirBarW, ElixirBarH),
-                CrUiStyle.FieldBg, false);
+            // 外框 = 圆角 10 的深色槽 + 1px 金色描边（整块一张自绘贴图：圆角与描边不会因两个节点取整而错位）。
+            var track = UIFactory.CreatePanel("ElixirTrack", _root, Color.white, false);
+            UIFactory.Place(track.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(ElixirBarLeft, ElixirBarBottom), new Vector2(ElixirBarW, ElixirBarH));
+            track.sprite = CrUiStyle.RoundedRect(Mathf.RoundToInt(ElixirBarW), Mathf.RoundToInt(ElixirBarH),
+                Mathf.RoundToInt(ElixirFrameRadius), Mathf.RoundToInt(ElixirFrameBorder),
+                ElixirTrackFill, CrUiStyle.ElixirFrameGold);
+            track.type = Image.Type.Simple;
+            track.color = Color.white;
+            track.raycastTarget = false;
 
             // **填充区**（正好占刻度栅格那一块，见 `ElixirTickGridLeft`）。
             //   为什么必须有这一层：`UIFactory.SetBarWidth` 是按**父节点宽度**的比例摆填充的
@@ -912,30 +1106,20 @@ namespace CR.UI.Panels
             //   ⇒ 每 1.0 圣水 = 正好 1 格。
             var fillArea = UIFactory.CreateNode("ElixirFillArea", track.rectTransform);
             UIFactory.Place(fillArea, new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(ElixirFillInsetLeft, 0f), new Vector2(ElixirTickGridW, ElixirBarH));
+                new Vector2(ElixirFillInsetLeft, ElixirFillInsetY),
+                new Vector2(ElixirTickGridW, ElixirBarH - 2f * ElixirFillInsetY));
 
             // ⛔ 不用无 sprite 的 `Image.fillAmount` 画进度（sprite 空时它走实心四边形分支、静默失效，
             //    见 `UIWidgetControls.cs:232-238`）；用引擎给的 `SetBarWidth`。
-            // 锚点/轴心 (0,0) + 尺寸零 = 与 `LoadingPanel` 完全相同的口径（那是已验证可跑的条目填充写法）。
-            var fill = CrUiStyle.NineSlice("ElixirFill", fillArea, ResPaths.ElixirBarFill, BorderNone,
-                new Vector2(0f, 0f), new Vector2(0f, 0f), Vector2.zero, Vector2.zero,
-                CrUiStyle.Accent, false);
+            // 填充 = 两段渐变（亮紫 → 品红）的圆角条：整条一条贴图，上下沿是直的像素行，没有边缘锯齿。
+            var fill = UIFactory.CreatePanel("ElixirFill", fillArea, Color.white, false);
+            fill.sprite = CrUiStyle.GradientBar(Mathf.RoundToInt(ElixirBarH - 2f * ElixirFillInsetY),
+                ElixirFillCapPx, ElixirFillRadiusPx, ElixirFillLeft, ElixirFillRight);
+            fill.type = Image.Type.Sliced;
+            fill.color = Color.white;
+            fill.raycastTarget = false;
             _elixirFill = fill.rectTransform;
             UIFactory.SetBarWidth(_elixirFill, 0f);
-
-            // 条端（两个用途分开、⛔ 不混用一个件）：
-            //   ① 轨道右端 = `156`（原版 `elixir_bar` 同族裸子件，**深色 + 右端圆头 + 内部不透明**）。
-            //      出处：索引 §3.1；原版 18 图轨道右端实测 (1,11,38) 就是深色圆头。
-            //      实机判据：剖面实测其内部 (32,32,32,255)，而 155 的中间是 (0,0,0,94)。
-            //   ② 填充右端 = `158`（原版 `bar_end`，10×59，**品红圆头**）—— 挂到 **fill** 的右端：
-            //      158 是品红件，语义就是"填充条的圆头端"；原来挂在轨道右端时填充没铺满就会在轨道尽头
-            //      露出一截**孤立品红**（实机截图），与原名/原版都不符。
-            //   两件都等比缩到条高（⛔ 不横向拉成 956 宽 —— 端件拉出去会被抹成一条线，就不是原版图元了）。
-            CrUiStyle.AspectImage("ElixirTrackEnd", track.rectTransform, ElixirTrackEnd, ElixirTrackEndW,
-                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, CrUiStyle.Accent);
-
-            CrUiStyle.AspectImage("ElixirFillEnd", fill.rectTransform, ResPaths.ElixirBarFrame, ElixirEndW,
-                new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, CrUiStyle.Accent);
 
             // **10 格刻度分隔**（每格一条刻度线）。
             //   原版结构 = `elixir_bar`(clip 1080) 的子元件 **`d1`…`d9` 共 9 个**（同属 clip 909、
@@ -971,7 +1155,7 @@ namespace CR.UI.Panels
             //   我方原来是「159 水滴 + 条中央文字『圣水 8.2 / 10』」⇒ 数字位置/字形都不是原版。
             //   ⇒ 数字移进徽章（白字黑描边，走全项目唯一的 `CrUiStyle.Outlined`），条上文字按原版**移除**。
             _elixirBadgeText = CrUiStyle.Outlined("ElixirBadgeText", badge.rectTransform, string.Empty,
-                CrUiStyle.FontBody,
+                ElixirBadgeFontSize,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(ElixirBadgeD, ElixirBadgeD), TextAnchor.MiddleCenter);
 
@@ -1006,6 +1190,7 @@ namespace CR.UI.Panels
                     new Vector2(index * (CardW + CardGap), 0f), new Vector2(CardW, CardH));
                 DressCardBody(card);
                 _handCards[index] = card;
+                _handHover[index] = card.gameObject.AddComponent<UiCardHoverFx>();
 
                 // 卡面：原版 `ui_spells_out` 帧（透明包围盒裁掉），画在卡框**内部**（后建 ⇒ 画在卡框之上）。
                 // 位置/尺寸按量取的 4 边内缩 = 5px（见 `ArtInset*Frac` 上方那段）。
@@ -1140,12 +1325,13 @@ namespace CR.UI.Panels
                 new Vector2(0f, GhostH * ArtOffsetYFrac), new Vector2(GhostW * ArtFillX, GhostH * ArtFillY));
             _ghostArt.gameObject.SetActive(false);
 
-            // ③ 费用泡 + ④ 费用数字：挂在容器底中央（与手牌同一常量）；数字在 `BeginDrag` 里填该卡当前费用。
+            // ③ 费用泡 + ④ 费用数字：挂在容器底中央（与手牌同一常量，随幽灵卡一同放大 1.15 倍）；
+            //   数字在 `BeginDrag` 里填该卡当前费用。
             var costIcon = CrUiStyle.AspectImage("DragGhostCostIcon", _ghost.rectTransform,
-                ResPaths.IconElixirDrop, CostIconW, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
-                new Vector2(0f, CostIconBottom), CrUiStyle.Accent);
+                ResPaths.IconElixirDrop, CostIconW * GhostScale, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, CostIconBottom * GhostScale), CrUiStyle.Accent);
             _ghostCost = UIFactory.CreateText("DragGhostCostText", costIcon.rectTransform, string.Empty,
-                CardFontSize, TextAnchor.MiddleCenter, CrUiStyle.TextColor);
+                Mathf.RoundToInt(CardFontSize * GhostScale), TextAnchor.MiddleCenter, CrUiStyle.TextColor);
             UIFactory.Stretch(_ghostCost.rectTransform);
 
             // **幽灵卡上不画卡名** —— 原版拖放时跟着手指的就是那张卡本身，没有文字带
@@ -1165,15 +1351,16 @@ namespace CR.UI.Panels
         //（`AnchoredBottom`），右上角是唯一不与它们重叠的空区。锚点/轴心用 (1,1)（右上），
         // ⛔ 不用"左上角 + 大负 y"—— 见类注释里 CanvasScaler 的实测记录。
 
-        /// <summary>暂停按钮边长 = <b>48</b>（本项目自定；`几何量取.md` §2 C4c：18/20/21/23 四图未见暂停/齿轮按钮）。
-        /// 「宽」等于「高」：素材底板 `ui_out/163` 原生 219×219 是**正方形**，拉成 132×48 会把圆角压扁。</summary>
+        /// <summary>暂停按钮边长 = <b>80</b>（本项目自定；`几何量取.md` §2 C4c：18/20/21/23 四图未见暂停/齿轮按钮）。
+        /// 「宽」等于「高」：素材底板 `ui_out/163` 原生 219×219 是**正方形**，拉成非等比会把圆角压扁。
+        /// 边长取 80：163 的亮蓝环只有 3px，按钮越小环占比越看不出（48/64 都读成一块深色方块）。</summary>
         private const float PauseButtonW = PauseButtonH;
 
-        /// <summary>暂停按钮高度 = <b>48</b>（本项目自定，见几何量取.md §2 C4c）。</summary>
-        private const float PauseButtonH = 48f;
+        /// <summary>暂停按钮高度 = <b>80</b>（本项目自定，见几何量取.md §2 C4c）。</summary>
+        private const float PauseButtonH = 80f;
 
-        /// <summary>暂停图标宽 = 按钮边长 × 0.5 = <b>24</b>（本项目自定：原版 `play_pause_button`
-        /// 底板/图标 = 219 / 79（比例 0.36），本项目按钮只有 48 边长 ⇒ 取 0.5 保证辨识度；见几何量取.md §2 C4c）。</summary>
+        /// <summary>暂停图标宽 = 按钮边长 × 0.5 = <b>40</b>（本项目自定：原版 `play_pause_button`
+        /// 底板/图标 = 219 / 79（比例 0.36），按钮缩到 80 边长后取 0.5 保证辨识度；见几何量取.md §2 C4c）。</summary>
         private const float PauseIconW = PauseButtonH * 0.5f;
 
         /// <summary>暂停按钮右缘内缩 = <b>12</b>（本项目自定，见几何量取.md §2 C4c）。</summary>
@@ -1181,6 +1368,9 @@ namespace CR.UI.Panels
 
         /// <summary>暂停按钮与计时板下缘的间隔 = <b>8</b>（本项目自定，见几何量取.md §2 C4c）。</summary>
         private const float PauseTopGap = 8f;
+
+        /// <summary>暂停底板九宫格切边 = 四边各 <b>16</b> px（> 163 的 3 px 环 + 圆角半径，切边内不缩放）。</summary>
+        private static readonly Vector4 PausePlateBorder = new Vector4(16f, 16f, 16f, 16f);
 
         private void BuildPauseButton()
         {
@@ -1191,10 +1381,13 @@ namespace CR.UI.Panels
             //   ⛔ 不是原版的战斗内暂停按钮（索引 §1 第 5 行已把这个推断写明，此处照抄，不升级成"原版命名"）。
             //   同族的播放态 `HudPauseIconPlay`(170, ▶) **不使用**：这颗按钮恒定请求进暂停菜单，没有"播放态"要显示。
             // 位置：右上角被计时板占住（贴顶贴右，§1.3）⇒ 按钮放在**计时板正下方**、右缘对齐。
-            var plate = CrUiStyle.NineSlice("PauseButton", _root, ResPaths.HudPauseButtonPlate, BorderNone,
+            // 底板走**九宫格**（`PausePlateBorder`）：163 的环只有 3 px，整幅缩到 64 会把它压成一条发丝线、
+            // 整颗按钮读成"一块深色方块" ⇒ 切 16 px 边框后环按原像素厚度绘制，缩到 64 仍看得出按钮轮廓。
+            var plate = CrUiStyle.NineSlice("PauseButton", _root, ResPaths.HudPauseButtonPlate, PausePlateBorder,
                 new Vector2(1f, 1f), new Vector2(1f, 1f),
                 new Vector2(-PauseRightInset, -(TimerBoxTop + TimerBoxH + PauseTopGap)),
-                new Vector2(PauseButtonW, PauseButtonH), CrUiStyle.ButtonBg, true);
+                new Vector2(PauseButtonW, PauseButtonH), Color.white, true);
+            _pausePlate = plate.rectTransform;
 
             // 点击照旧只发一条事件（见 `OnPauseClicked`）；四态用 tint 倍乘表达
             //（与 `CrUiStyle.ActionButton` 同口径：常态 tint = 白 = 原图原色，⛔ 不是给素材加滤镜）。
@@ -1243,12 +1436,40 @@ namespace CR.UI.Panels
         /// </summary>
         public override void OnUpdate(float dt)
         {
+            UpdateHandHover();
             PollDrag();
 
             // 圣水条是连续量：每帧按渲染时钟重算一次（见 `RefreshElixir`）。
             // ⛔ 不用 `dt` 推进 —— 它是 `Time.deltaTime`（随 `Time.timeScale` 缩放），
             //   而条要跟的是服务端时间轴（渲染时钟），不是本地帧步长。
             RefreshElixir();
+        }
+
+        /// <summary>手牌悬停：可用卡上抬 6px + 1.03；不可用卡由 <see cref="UiCardHoverFx.SetAvailable"/> 挡掉。</summary>
+        private void UpdateHandHover()
+        {
+            var input = Game.Input;
+            if (input == null || _root == null || _dragging)
+            {
+                SetHoverSlot(-1);
+                return;
+            }
+
+            var station = Game.Fsm != null ? Game.Fsm.Current : null;
+            var popupOpen = Game.UI != null &&
+                (Game.UI.IsOpen<PausePanel>() || Game.UI.IsOpen<ResultPanel>() || Game.UI.IsOpen<SettingsPanel>());
+            SetHoverSlot(station == Stations.Battle && !popupOpen ? HitTestHand(input.MousePosition) : -1);
+        }
+
+        private void SetHoverSlot(int slot)
+        {
+            for (var i = 0; i < HandSlots; i++)
+            {
+                var fx = _handHover[i];
+                if (fx == null) continue;
+                var card = _handCards[i];
+                fx.SetHover(i == slot && card != null && card.gameObject.activeSelf);
+            }
         }
 
         private void PollDrag()
@@ -1312,6 +1533,15 @@ namespace CR.UI.Panels
                 return;
             }
 
+            // 拖放中：ESC / 右键 = 取消本次拖放（不发请求、幽灵与落点环一起收掉、源槽卡面恢复）。
+            if (input.GetKeyDown(GameKey.Escape) || input.GetKeyDown(GameKey.MouseRight))
+            {
+                var byEscape = input.GetKeyDown(GameKey.Escape);
+                if (byEscape) EscapeConsumedFrame = Time.frameCount;
+                CancelDrag(byEscape ? "ESC 取消拖放" : "右键取消拖放");
+                return;
+            }
+
             // 拖放中：幽灵跟手；抬起 ⇒ 发 C2S。
             MoveGhost(screen);
 
@@ -1364,10 +1594,28 @@ namespace CR.UI.Panels
 
         private void BeginDrag(int cardId, int slot, Vector3 screen)
         {
-            _dragging = true;
-            _dragCardId = cardId;
-
             var card = FindCard(cardId);
+
+            // 圣水不足：**按下就拒绝进入拖放**（幽灵卡不出现、源槽不动、不发请求）。
+            // 判定口径与手牌灰化同一处（`IsUnaffordable`：费用严格大于当前圣水才算不足），⛔ 不写第二套规则。
+            var elixirMilli = CurrentElixirMilli();
+            if (IsUnaffordable(card, elixirMilli))
+            {
+                PlaySfx(AudioPaths.BadDrop);
+                Game.Logger?.Info(Tag,
+                    $"圣水不足，拒绝进入拖放：「{card.name_cn}」需要 {card.elixir}，" +
+                    $"当前 {elixirMilli / (float)ElixirMilliPerUnit:0.0}" +
+                    "（幽灵卡不出现、源槽不隐藏、不发出 PlayCardRequest）");
+                return;
+            }
+
+            _dragging = true;
+            DraggingCard = true;
+            _dragCardId = cardId;
+            _dragSlot = slot;
+
+            // 卡已经被"拎起来"：源槽只留卡槽底，否则屏幕上同一张卡出现两次（槽里一张、手下这张）。
+            SetSourceSlotFaceVisible(slot, false);
             // 幽灵卡不写卡名（见 `BuildGhost` 的注释）
             if (_ghost != null)
             {
@@ -1409,37 +1657,126 @@ namespace CR.UI.Panels
             // 源 = `Game/grabcard_01.ogg`（原版「抓牌」）⇒ 见 Core/AudioPaths.cs 的 GrabCard。
             PlaySfx(AudioPaths.GrabCard);
 
-            // 圣水不足时**本地就播无效投放音**（但**仍然发送**：服务端才是裁决者）：费用来自卡池数据，
-            // 这不是几何判定、也不是第二套玩法规则。
-            var elixir = CurrentElixirMilli();
-            var costMilli = card != null ? card.elixir * ElixirMilliPerUnit : 0;
-            if (card != null && elixir >= 0 && costMilli > elixir)
-            {
-                // 原版无效投放音 `bad_drop_03`（整包唯一的"拒绝/无效投放"音）。
-                PlaySfx(AudioPaths.BadDrop);
-                Game.Logger?.Info(Tag,
-                    $"圣水不足：「{card.name_cn}」需要 {card.elixir}，" +
-                    $"当前 {elixir / (float)ElixirMilliPerUnit:0.0}（请求照发，由服务端裁决）");
-            }
-
-            Game.Logger?.Info(Tag, $"开始拖放：槽位 {slot} card={cardId} 屏幕=({screen.x:0},{screen.y:0})");
+            Game.Logger?.Info(Tag,
+                $"开始拖放：槽位 {slot} card={cardId} 屏幕=({screen.x:0},{screen.y:0})；" +
+                $"源槽已隐藏卡面与费用，幽灵卡 {GhostW:0}×{GhostH:0}；" +
+                $"落点在指针上方 {GhostDropPointOffsetPx:0} 画布px，幽灵卡再上移一个环半径（卡与环仅相切）");
         }
 
         private void MoveGhost(Vector3 screen)
         {
             if (_ghost == null || _root == null) return;
 
+            // 指针进入竞技场可见区 ⇒ 收起跟手的卡面，只留落点模型与落点环；
+            // 回到 HUD 区 / 场地外 ⇒ 卡面恢复（见 IsPointerInArenaBand）。
+            var inArena = IsPointerInArenaBand(screen);
+            if (_ghost.gameObject.activeSelf == inArena) _ghost.gameObject.SetActive(!inArena);
+
+            // 落点（环心）在指针上方 `GhostDropPointOffsetPx`；幽灵卡再往上让出环半径
+            // ⇒ 卡底边 = 环顶边（仅相切），环完整露在卡下面，玩家能看见自己会放在哪。
+            // 落点上的半透明单位模型会占住环心上方约 1 格 ⇒ 幽灵卡再多让 `PreviewModelLiftTiles`，
+            // 避免卡面把模型挡掉（法术卡没有模型，不用让）。
+            var dragCard = FindCard(_dragCardId);
+            var draggingSpell = dragCard != null && dragCard.type == CardTypeSpell;
+            var modelLiftPx = draggingSpell ? 0f : PreviewModelLiftTiles * CanvasPxPerTile();
+            var dropPoint = DropPointOf(screen);
+            var scale = _root.lossyScale.y;
+            if (scale <= 0f) scale = 1f;
+            var ringPx = PlacementRingRadiusTiles() * CanvasPxPerTile();
+            var ghostScreenY = dropPoint.y + (GhostH * 0.5f + ringPx + modelLiftPx) * scale;
+
             // 屏幕坐标 → **世界**坐标后直接写 `position`：对 Overlay / Screen Space - Camera 两种画布都成立；
             // ⛔ 不自己拿 `anchoredPosition` 去凑（锚点/轴心口径不同会整体偏一次，且画布模式不同偏的量不一样）。
             // 换算式（含"按画布模式取相机"这条口径）的唯一实现在
             // `ScreenPointUtil.TryScreenToWorldInRect`（`Runtime/Core/ScreenPointUtil.cs`）。
-            if (ScreenPointUtil.TryScreenToWorldInRect(_root, new Vector2(screen.x, screen.y), this, out var world))
+            if (ScreenPointUtil.TryScreenToWorldInRect(_root, new Vector2(dropPoint.x, ghostScreenY), this, out var world))
             {
                 _ghost.rectTransform.position = world;
             }
 
-            // 落点指示必须在**每次指针移动**时刷新（D9：合法绿 / 非法红）。
-            UpdatePlacementPreview(screen);
+            // 落点指示与幽灵卡用**同一个落点点** ⇒ 看到环在哪就落在哪（D9：合法绿 / 非法红）。
+            UpdatePlacementPreview(dropPoint);
+        }
+
+        /// <summary>
+        /// 落点采样点 = 指针上方 <see cref="GhostDropPointOffsetPx"/> 画布像素（= 落点环心）。
+        /// <para>
+        /// 幽灵卡 / 落点指示 / 抬手落点**全部**经过这里，三者因此永远同一个点。
+        /// 画布单位 → 屏幕像素用根节点的 `lossyScale` 换算（CanvasScaler 的缩放就体现在它上面）。
+        /// </para>
+        /// </summary>
+        private Vector3 DropPointOf(Vector3 screen)
+        {
+            var scale = _root != null ? _root.lossyScale.y : 1f;
+            if (scale <= 0f) scale = 1f;
+            return new Vector3(screen.x, screen.y + GhostDropPointOffsetPx * scale, screen.z);
+        }
+
+        /// <summary>
+        /// 当前拖动卡的落点环半径（格）：部队 = <see cref="PlacementRadiusTilesDrop"/>；
+        /// 法术 = 服务端下发的 `aoe_radius_milli`（缺值才退到 <see cref="PlacementRadiusTilesSpell"/>）。
+        /// 与 `UpdatePlacementPreview` 共用，⛔ 不写第二套半径口径。
+        /// </summary>
+        private float PlacementRingRadiusTiles()
+        {
+            var card = FindCard(_dragCardId);
+            if (card == null || card.type != CardTypeSpell) return PlacementRadiusTilesDrop;
+            return card.aoe_radius_milli > 0 ? card.aoe_radius_milli / 1000f : PlacementRadiusTilesSpell;
+        }
+
+        /// <summary>画布 px / 格：竞技场宽 <see cref="GameConst.ArenaTilesW"/> 格铺满画布宽度（1080 基准 ⇒ 60）。</summary>
+        private float CanvasPxPerTile()
+        {
+            var w = _root != null && _root.rect.width > 1f ? _root.rect.width : 1080f;
+            return w / GameConst.ArenaTilesW;
+        }
+
+        /// <summary>
+        /// 这个屏幕点是不是落在**底部 HUD 带**（底板 / 手牌）上 —— 玩家把卡拖回手牌区松手 = 收回，不是出牌。
+        /// <para>
+        /// 只判底部带：顶部 HUD（计时 / 冠数 / 暂停）盖在**敌方半场**上，而法术本来就要能落在那边，
+        /// 在那里松手不能算取消。
+        /// </para>
+        /// </summary>
+        private bool IsOverBottomHud(Vector3 screen)
+        {
+            var point = new Vector2(screen.x, screen.y);
+            if (_bottomPlate != null && ScreenPointUtil.ContainsScreenPoint(_bottomPlate, point, this)) return true;
+            for (var i = 0; i < HandSlots; i++)
+            {
+                var card = _handCards[i];
+                if (card == null) continue;
+                if (ScreenPointUtil.ContainsScreenPoint(card.rectTransform, point, this)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 指针是否落在**竞技场可见区**：上界 = 顶部 HUD 的最低边（暂停按钮底板下沿），
+        /// 下界 = 底部底板顶边。两者都用各自矩形在屏幕上的真实边沿换算（不写死像素常量）。
+        /// </summary>
+        private bool IsPointerInArenaBand(Vector3 screen)
+        {
+            float topHudBottomY, bottomPlateTopY;
+            if (!TryRectEdgeScreenY(_pausePlate, false, out topHudBottomY)) return false;
+            if (!TryRectEdgeScreenY(_bottomPlate, true, out bottomPlateTopY)) return false;
+            // 屏幕 y 向上 ⇒ 顶部 HUD 的下沿是上界、底部底板的顶边是下界。
+            return screen.y < topHudBottomY && screen.y > bottomPlateTopY;
+        }
+
+        /// <summary>
+        /// 取矩形某一条横边的**屏幕 y**（左下角原点，与 `Game.Input.MousePosition` 同口径）。
+        /// <paramref name="topEdge"/> = true 取上沿，false 取下沿。
+        /// </summary>
+        private bool TryRectEdgeScreenY(RectTransform rt, bool topEdge, out float y)
+        {
+            y = 0f;
+            if (rt == null) return false;
+            var local = new Vector3(rt.rect.xMin, topEdge ? rt.rect.yMax : rt.rect.yMin, 0f);
+            var world = rt.TransformPoint(local);
+            var point = RectTransformUtility.WorldToScreenPoint(ScreenPointUtil.CameraForUi(this), world);
+            y = point.y;
+            return true;
         }
 
         private void EndDrag(Vector3 screen)
@@ -1447,7 +1784,21 @@ namespace CR.UI.Panels
             var cardId = _dragCardId;
             CancelDrag(null);
 
-            var world = TryScreenToWorld(screen, out var ok);
+            // 抬手落点 = 幽灵卡所在的点（见 `DropPointOf`），⛔ 不是指针那一点。
+            var dropPoint = DropPointOf(screen);
+
+            // 拖回底部 HUD 带 / 手牌上松手 = 收回这张卡（原版手感），⛔ 不能当成"放到场地最下方"发出去。
+            // 指针点与幽灵卡落点任一落在底部带里都算 —— 手指已经回到手牌上时，幽灵卡还在场地上方。
+            if (IsOverBottomHud(screen) || IsOverBottomHud(dropPoint))
+            {
+                PlaySfx(AudioPaths.BadDrop);
+                Game.Logger?.Info(Tag,
+                    $"落回 HUD 区，取消 card={cardId} 指针=({screen.x:0},{screen.y:0}) " +
+                    $"落点=({dropPoint.x:0},{dropPoint.y:0}) ⇒ 不发出 PlayCardRequest");
+                return;
+            }
+
+            var world = TryScreenToWorld(dropPoint, out var ok);
             if (!ok)
             {
                 // 非预期分支：主相机拿不到 ⇒ 落点换算不出场内坐标，本次出牌不发出。
@@ -1455,24 +1806,30 @@ namespace CR.UI.Panels
                 return;
             }
 
-            // 卡牌放下音（D8 补）：**落点非法**时播原版"无效投放"音（`bad_drop_03`）；
-            // 合法时不额外播 —— 那次出牌的声音由 `PlayCardRequest` 的己方召唤音（`summon_own_07`）负责，
-            // 两个一起播会是"放下 + 召唤"双响（原版只有一声）。
+            var tile = CR.View.BattleViewRoot.WorldToTile(world);
+            var dragCard = FindCard(cardId);
+            var dropIsSpell = dragCard != null && dragCard.type == CardTypeSpell;
+
+            // 落点非法：本地拦截，⚠️ 不发请求 —— 否则服务端必拒、多一次往返，还会弹一条原版没有的提示条。
             // 判定复用 `BattleViewRoot.IsDeployLegal`（与落点指示器**同一套几何**，⛔ 不在这里另写一份）。
+            // ⛔ 这一点不能删：服务端仍是权威（合法请求照发，服务端拒绝路径保留），但"看得见不能放还发"是本地缺陷。
             var view = CR.View.BattleViewRoot.Instance;
-            if (view != null)
+            if (view != null && !view.IsDeployLegal(tile, dropIsSpell))
             {
-                var dragCard = FindCard(cardId);
-                var dropIsSpell = dragCard != null && dragCard.type == CardTypeSpell;
-                if (!view.IsDeployLegal(CR.View.BattleViewRoot.WorldToTile(world), dropIsSpell))
-                {
-                    PlaySfx(AudioPaths.BadDrop);
-                    Game.Logger?.Info(Tag, $"放下落点非法 ⇒ 播无效投放音（{AudioPaths.BadDrop}）");
-                }
+                PlaySfx(AudioPaths.BadDrop);
+                Game.Logger?.Info(Tag,
+                    $"落点非法，本地拦截 card={cardId} 指针=({screen.x:0},{screen.y:0}) " +
+                    $"落点=({dropPoint.x:0},{dropPoint.y:0}) 世界=({world.x:0.00},{world.y:0.00}) " +
+                    $"格=({tile.x:0.00},{tile.y:0.00}) ⇒ 不发出 PlayCardRequest");
+                return;
             }
 
+            // 合法时不播放下音 —— 那次出牌的声音由 `PlayCardRequest` 的己方召唤音（`summon_own_07`）负责，
+            // 两个一起播会是"放下 + 召唤"双响（原版只有一声）。
             Game.Logger?.Info(Tag,
-                $"拖放抬起 → 请求出牌 card={cardId} 屏幕=({screen.x:0},{screen.y:0}) 世界=({world.x:0.00},{world.y:0.00})");
+                $"拖放抬起 → 请求出牌 card={cardId} 指针=({screen.x:0},{screen.y:0}) " +
+                $"落点=({dropPoint.x:0},{dropPoint.y:0}) 世界=({world.x:0.00},{world.y:0.00}) " +
+                $"格=({tile.x:0.00},{tile.y:0.00})");
             Game.Event?.Emit(Events.Battle.PlayCardRequest, cardId, world);
         }
 
@@ -1483,13 +1840,52 @@ namespace CR.UI.Panels
                 Game.Logger?.Info(Tag, $"取消拖放（{why}）card={_dragCardId}");
             }
             _dragging = false;
+            DraggingCard = false;
             _dragCardId = 0;
             _dragArt = null;
             if (_ghost != null) _ghost.gameObject.SetActive(false);
 
+            // 源槽恢复：卡面 / 费用回到手牌上（正常抬手、取消、面板关闭都走这里）。
+            SetSourceSlotFaceVisible(_dragSlot, true);
+            _dragSlot = -1;
+
             // 拖放结束（正常抬手 / 取消 / 面板关闭）都要收掉落点指示，
             // 否则场上会留一个红/绿圈，看起来像"还能继续放"。
             CR.View.BattleViewRoot.Instance?.HidePlacement();
+        }
+
+        /// <summary>
+        /// 手牌槽的**卡体 + 卡面 + 费用**显隐：拖起源槽时整格隐藏（露出底板的暗色空槽），抬手 / 取消后恢复。
+        /// <para>
+        /// 卡体（`_handCards`）是白色圆角矩形，留着就会在槽位上露出一块白 —— 看起来像丢图。
+        /// 10 Hz 的快照刷新也会按 <see cref="_dragSlot"/> 保持隐藏（见 `RefreshHand` / `ApplyArt`）。
+        /// </para>
+        /// </summary>
+        private void SetSourceSlotFaceVisible(int slot, bool visible)
+        {
+            if (slot < 0 || slot >= HandSlots) return;
+            if (_handCards[slot] != null) _handCards[slot].gameObject.SetActive(visible);
+            if (_handArts[slot] != null) _handArts[slot].gameObject.SetActive(visible);
+            if (_handCostIcons[slot] != null) _handCostIcons[slot].gameObject.SetActive(visible);
+            if (_handCosts[slot] != null) _handCosts[slot].gameObject.SetActive(visible);
+        }
+
+        /// <summary>该卡面节点属于哪个手牌槽（-1 = 不是手牌卡面，例如"下一张"）。</summary>
+        private int IndexOfHandArt(Image target)
+        {
+            if (target == null) return -1;
+            for (var i = 0; i < HandSlots; i++)
+            {
+                if (ReferenceEquals(_handArts[i], target)) return i;
+            }
+            return -1;
+        }
+
+        /// <summary>该卡面节点是不是被拖起那个源槽的卡面（异步到货时据此保持隐藏）。</summary>
+        private bool IsDragSourceArt(Image target)
+        {
+            if (target == null || _dragSlot < 0 || _dragSlot >= HandSlots) return false;
+            return ReferenceEquals(_handArts[_dragSlot], target);
         }
 
         /// <summary>
@@ -1536,6 +1932,12 @@ namespace CR.UI.Panels
 
         /// <summary>法术圈半径的**兜底**值（格）。正常路径用 `CardInfo.aoe_radius_milli`，见上。</summary>
         private const float PlacementRadiusTilesSpell = 3.0f;
+
+        /// <summary>
+        /// 幽灵卡在环顶之上再让出的高度（格）：落点的半透明单位模型约占环心上方 1 格，
+        /// 卡底边压在环顶会让模型被卡面挡住。
+        /// </summary>
+        private const float PreviewModelLiftTiles = 0.75f;
 
         /// <summary>「法术半径缺值、退到兜底常量」只告警一次。</summary>
         private bool _spellRadiusFallbackWarned;
@@ -1586,12 +1988,7 @@ namespace CR.UI.Panels
             // 雷电/毒药 3.5 格），写死一个常量会让玩家照着圈放却打空。
             // ⚠️ 只有"卡池还没到 / 该行缺半径"（`aoe_radius_milli <= 0`）才退到旧常量兜底，
             // 并留痕一次 —— 兜底值**不是**原版数值，只是不让圈消失。
-            var spellRadius = PlacementRadiusTilesSpell;
-            if (isSpell && card.aoe_radius_milli > 0)
-            {
-                spellRadius = card.aoe_radius_milli / 1000f;
-            }
-            else if (isSpell && !_spellRadiusFallbackWarned)
+            if (isSpell && card.aoe_radius_milli <= 0 && !_spellRadiusFallbackWarned)
             {
                 _spellRadiusFallbackWarned = true;
                 Game.Logger?.Warn(Tag,
@@ -1599,8 +1996,18 @@ namespace CR.UI.Panels
                     $"{(card != null ? card.aoe_radius_milli : -1)}（<=0）⇒ 落点圈半径退到兜底常量 " +
                     $"{PlacementRadiusTilesSpell} 格（**不是原版数值**）。检查服务端 CardInfo 是否下发了 aoe_radius_milli（只报一次）");
             }
-            // `_dragArt` = 正在拖的那张卡的卡面 ⇒ 落点处画的是**这张卡本身**（半透明虚影），
-            //   不是一个小图标。取不到卡面时传 null（宁可不画，⛔ 不用别的图形顶替）。
+            var spellRadius = PlacementRingRadiusTiles();
+            // 落点处显示**将要落下的那个单位 / 建筑的模型**（该单位 idle 首帧、与场上同类单位同尺寸）；
+            // 法术卡不显示模型（只留范围环）。取不到模型时传 null（宁可不画，⛔ 不用别的图形顶替）。
+            // 群体卡逐只摆（几张几只，布局与服务端 `spawnGroup` 同一套，见 TryGetDeployPreview 的 offsets）。
+            Sprite modelSprite = null;
+            var modelScale = 1f;
+            Vector2[] modelOffsets = null;
+            var hasModel = !isSpell
+                           && CR.View.BattleViewRoot.TryGetDeployPreview(_dragCardId,
+                               out modelSprite, out modelScale, out _, out modelOffsets);
+            CR.View.PlacementIndicator.SetDragPreviewModel(hasModel ? modelSprite : null, modelScale, modelOffsets);
+            // `_dragArt` 只给**跟着手指的幽灵卡**用（落点上不再是卡面）。
             view.ShowPlacement(tile, isSpell ? spellRadius : PlacementRadiusTilesDrop, isSpell, _dragArt);
         }
 
@@ -1663,6 +2070,12 @@ namespace CR.UI.Panels
             _start = start;
             _myTeam = start.my_team;
 
+            // 上一局的快照 / 拖放态必须作废：`Battle` 站点内重开一局（「再来一局」）时本面板是
+            // **同一个实例**，不清就会把上一局的冠数 / 计时 / 手牌画到本局第一帧快照到达之前，
+            // 且拖起的是上一局那张卡（出牌请求会带一个不在本局手牌里的 id）。
+            _snapshot = null;
+            CancelDrag("新一局开始");
+
             var maxUnits = start.timeline != null ? start.timeline.max_elixir : 0;
             _maxElixirMilli = maxUnits > 0 ? maxUnits * ElixirMilliPerUnit : GameConst.MaxElixirMilli;
             _regulationMs = start.timeline != null ? start.timeline.regulation_ms : 0;
@@ -1721,23 +2134,29 @@ namespace CR.UI.Panels
             //（快照停了，不再依赖它）并把阶段写成"已结束"。
             // 两枚徽章各写一个数字（左=我方 / 右=对方，口径与 `RefreshAll` 同）。
             //   平局不塞进 36px 的徽章里（会溢出）⇒ 只在日志里说，屏幕上由 `ResultPanel` 的结算文案承担。
-            if (_crownsMineText != null) _crownsMineText.text = result.crowns_a.ToString();
-            if (_crownsEnemyText != null) _crownsEnemyText.text = result.crowns_b.ToString();
+            // `crowns_a` / `crowns_b` 是**按 A/B 队**下发的：左徽章恒为「我方」⇒ 必须按 `_myTeam` 选边，
+            // 口径与 `RefreshTop` 的快照读数逐字一致（否则红方玩家在结算那一刻看到左右互换的冠数）。
+            var mineCrowns = _myTeam == 0 ? result.crowns_a : result.crowns_b;
+            var enemyCrowns = _myTeam == 0 ? result.crowns_b : result.crowns_a;
+            if (_crownsMineText != null) _crownsMineText.text = mineCrowns.ToString();
+            if (_crownsEnemyText != null) _crownsEnemyText.text = enemyCrowns.ToString();
             if (result.draw)
             {
-                Game.Logger.Info(Tag, $"结算为平局：冠数 {result.crowns_a} : {result.crowns_b}（冠数徽章按原版只显示数字）");
-            }
-            if (_phaseText != null)
-            {
-                _phaseText.text = PhaseText(PhaseEnded);
-                _phaseText.color = CrUiStyle.TextDim;
+                Game.Logger?.Info(Tag,
+                    $"结算为平局：冠数 我方 {mineCrowns} : 对方 {enemyCrowns}" +
+                    $"（A/B 原值 {result.crowns_a}:{result.crowns_b}，my_team={_myTeam}；徽章按原版只显示数字）");
             }
         }
 
         private void OnFailed(string reason)
         {
-            var text = string.IsNullOrEmpty(reason) ? "对局操作失败（服务端未给出原因）" : reason;
-            Game.Logger?.Warn(Tag, text);
+            // 服务端 err 是战斗规则的英文原文（如 `core: point is outside the deploy zone: (9000,-444)`）
+            // ⇒ 先映射成玩家文案；映射不到时原文只进日志，Toast 显示兜底中文（⛔ 不给玩家看英文）。
+            var text = ServerText.ToPlayer(reason, Tag);
+            Game.Logger?.Warn(Tag, "对局操作失败：" + text + "（原文：" + reason + "）");
+            // 失败原因必须在屏幕上可见（⛔ 不许只打日志）：出牌被拒 / 投降被拒都只走这一条事件，
+            // 而 HUD 没有常驻状态行 ⇒ 用引擎 Top 层的 Toast 显示（遮住对局画面的只会是 Popup 层，Toast 在它之上）。
+            Game.UI?.Toast(text);
         }
 
         private void OnPoolLoaded(CardInfo[] cards)
@@ -1770,6 +2189,7 @@ namespace CR.UI.Panels
             RefreshElixir();
             RefreshHand();
             RefreshNext();
+            RefreshPlayerName();
         }
 
         /// <summary>
@@ -1828,13 +2248,6 @@ namespace CR.UI.Panels
 
             if (_timerText != null) _timerText.text = RemainingText(snap);
             TickCountdown(snap);
-
-            if (_phaseText != null)
-            {
-                var phase = snap != null ? snap.phase : 0;
-                _phaseText.text = PhaseText(phase);
-                _phaseText.color = phase == PhaseEnded ? CrUiStyle.TextDim : CrUiStyle.Accent;
-            }
         }
 
         /// <summary>
@@ -2035,24 +2448,6 @@ namespace CR.UI.Panels
             sound.PlaySFX(clipName);
         }
 
-        private string PhaseText(int phase)
-        {
-            switch (phase)
-            {
-                case 0: return "常规时间";
-                case PhaseOvertime: return "加时赛";
-                case PhaseEnded: return "对局已结束";
-                default:
-                    // 非预期分支：协议只定义 0/1/2（`Def/ProtoDef.cs:150`）。同一取值只报一次。
-                    if (_lastUnknownPhase != phase)
-                    {
-                        _lastUnknownPhase = phase;
-                        Game.Logger?.Warn(Tag, $"未知的对局阶段 phase={phase}（协议只定义 0=常规 1=加时 2=已结束）");
-                    }
-                    return "未知阶段";
-            }
-        }
-
         /// <summary>
         /// 刷新圣水条与徽章数字：取值 = **渲染时钟**对应的圣水（见 <see cref="SampleElixirMilli"/>），
         /// 每帧由 <see cref="OnUpdate"/> 调用一次 ⇒ 条在任何帧率下都是连续推进的，
@@ -2169,12 +2564,24 @@ namespace CR.UI.Panels
                 {
                     if (cost != null) cost.text = string.Empty;
                     HideArt(art);
-                    // 空位与真卡用同一个卡槽图元原色：原版该件**无颜色变换**
-                    // （`原版资源/sc/ui_v215.sc` 的 `HUD_player`(clip 1091) → `slots`(clip 1070) 的
-                    //  frame_200 放置项 `ctId = 65535`）⇒ ⛔ 不给空位单独染色。
                     card.color = Color.white;
+                    // 空位（含出牌后等下一次快照的间隙 / 开局第一帧）：**整格隐藏**，只留深蓝底板。
+                    // 卡体是原版浅灰白卡槽件（`ui_out/43`），留着就会在空槽上露出白块。
+                    if (i == _dragSlot) SetSourceSlotFaceVisible(i, false);
+                    else
+                    {
+                        SetSourceSlotFaceVisible(i, false);
+                        if (_emptySlotLogged.Add(i))
+                        {
+                            Game.Logger?.Info(Tag, $"手牌槽 {i + 1} 为空（id=0）⇒ 卡体/卡面/费用整格隐藏，只留底板（只报一次）");
+                        }
+                    }
                     continue;
                 }
+
+                // 槽位重新有卡：先把整格（卡体 + 卡面 + 费用）恢复，再刷卡面 ——
+                // 父节点不激活时子节点画不出来，费用泡也不会自己回来（空槽分支把它们一起关过）。
+                if (i != _dragSlot) SetSourceSlotFaceVisible(i, true);
 
                 var info = FindCard(id);
                 if (cost != null) cost.text = info != null ? info.elixir.ToString() : string.Empty;
@@ -2188,6 +2595,10 @@ namespace CR.UI.Panels
                 Greyify(card, _handRawSlot, i, grey, Color.white);
                 Greyify(art, _handRawArt, i, grey, Color.white);
                 Greyify(_handCostIcons[i], _handRawCost, i, grey, CrUiStyle.Accent);
+                if (_handHover[i] != null) _handHover[i].SetAvailable(!grey);
+
+                // 拖动中的源槽：快照刷新（10 Hz）也不能把它重新显示出来（否则同一张卡又出现两次）。
+                if (i == _dragSlot) SetSourceSlotFaceVisible(i, false);
             }
 
             // 判据行（数值类证据 = 运行时日志行 + 断言）：手牌**组成变化时**报一次
@@ -2428,7 +2839,16 @@ namespace CR.UI.Panels
                 target.type = Image.Type.Simple;
                 target.preserveAspect = false; // 裁剪后的 rect 已是素材自身比例，再按比例缩会再留边
                 target.color = Color.white;
-                target.gameObject.SetActive(true);
+                // 异步到货的卡面若正属于被拖起的源槽，保持隐藏（见 `_dragSlot`）。
+                target.gameObject.SetActive(!IsDragSourceArt(target));
+                // 到货后按**当前**圣水重新判灰：`RefreshHand` 换卡时会先 Greyify、卡面随后异步到图，
+                // 这里若把颜色重置成白色，该槽的灰化就丢了（表现为"圣水不足但这一张还是彩色，按下去没反应"）。
+                var greySlot = IndexOfHandArt(target);
+                if (greySlot >= 0 && greySlot < HandSlots)
+                {
+                    var nowCard = FindCard(_handIds[greySlot]);
+                    Greyify(target, _handRawArt, greySlot, IsUnaffordable(nowCard, CurrentElixirMilli()), Color.white);
+                }
                 // 判据行（数值类证据 = 运行时日志行 + 断言）：**每个 (key, 帧号) 只报一次**。
                 if (_artReadyLogged.Add(card.key + "#" + artFrame))
                 {
@@ -2454,6 +2874,9 @@ namespace CR.UI.Panels
 
         /// <summary>已经打过「卡面就绪」判据行的 `key#帧号`（10 Hz 链路上只报一次）。</summary>
         private readonly HashSet<string> _artReadyLogged = new HashSet<string>();
+
+        /// <summary>已经报过「空槽整格隐藏」的手牌槽下标（每个槽只报一次，不随 10 Hz 刷屏）。</summary>
+        private readonly HashSet<int> _emptySlotLogged = new HashSet<int>();
 
         /// <summary>已经 Warn 过卡面路径的（缺素材只报一次）。</summary>
         private static void WarnArtOnce(string message)

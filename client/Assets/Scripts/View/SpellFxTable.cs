@@ -3,7 +3,7 @@ using CR.Def;   // CardInfo（XML 文档里的 cref 用；本类的 switch 只�
 namespace CR.View
 {
     /// <summary>
-    /// 法术卡的**命中特效**查表（差异登记见 `策划/差异登记.tsv`）：法术卡 key → 原版帧目录 + 起始帧 + 帧数。
+    /// 法术卡的**命中特效**查表（差异登记见 `策划/对照表.md` §D.3）：法术卡 key → 原版帧目录 + 起始帧 + 帧数。
     ///
     /// <para>
     /// <b>为什么需要这张表</b>：法术卡走 `EvPlayCard` 事件，但事件载荷里只有 `card_id`
@@ -69,6 +69,25 @@ namespace CR.View
 
             /// <summary>飞行段时长（秒）；<c>&lt;= 0</c> ⇒ 由调用方按原版 timeline 推算。</summary>
             public float FlightSeconds;
+
+            /// <summary>
+            /// 飞行段弹体的**额外**尺寸系数（相对该段换算后的原版世界尺寸，见
+            /// <see cref="EffectsView.SegmentScale"/>）；<c>&lt;= 0</c> ⇒ 按 <c>1</c>（= 原版尺寸）。
+            /// <para>
+            /// 该段换算（画布 PPU → 原版世界尺寸）已由 <see cref="EffectsView.SegmentScale"/> 做完
+            /// （系数 = `upp`/10）⇒ 本系数只用于「同一段原版像素按卡缩到不同大小」；
+            /// 不需要额外缩放时 = <c>1</c>。
+            /// </para>
+            /// <para>只对 <see cref="FlightUse"/> 非空的法术有意义，其余法术没有飞行段。</para>
+            /// </summary>
+            public float FlightScale;
+
+            /// <summary>
+            /// 飞行段的**弧高**（格，见 <see cref="EffectsView.ProjectileFx.ArcHeight"/>）：
+            /// `0` = 直线；火球 = 3.5（本项目口径：火球是抛物线飞过去的熔岩巨球，其余法术无飞行段）。
+            /// 落地时刻与落点不受它影响。
+            /// </summary>
+            public float FlightArcHeight;
         }
 
         /// <summary>
@@ -86,14 +105,33 @@ namespace CR.View
                 case "fireball":
                     entry = new Entry
                     {
+                        // 落地 = f412-436（实心火球闪 f412-425 + 余烬火星 f426-436，25 帧 ÷ 60 fps = 0.417 s）。
                         Use = ResPaths.EffectSpell,
                         First = ResPaths.EffectFireballBlastFirst,
                         Count = ResPaths.EffectFireballBlastCount,
                         Seconds = ResPaths.EffectFireballBlastSeconds,
-                        FlightUse = ResPaths.EffectSpellFlight,
-                        FlightFirst = ResPaths.EffectFireballFlightFirst,
-                        FlightCount = ResPaths.EffectFireballFlightCount,
+                        // 飞行 = f396-425 整段 `fireball_projectile1`（91 步 ÷ 60 fps = 1.517 s，
+                        // 与 `spell.tsv` 的 `flight_ms=1517` 一致）；前半 f396-411 是带火舌的小弹体、
+                        // 后半 f412-425 长成熔岩巨球 ⇒ 火球法术与法师的 f397-411 小火焰**不是同一个形状**。
+                        FlightUse = ResPaths.EffectSpell,
+                        FlightFirst = 396,
+                        FlightCount = 30,
                         FlightSeconds = ResPaths.EffectFireballFlightSeconds,
+                        // 弹体尺寸系数 = **1.0**（原版尺寸）。
+                        // 推导（`upp` = 「1 图集 px = 多少 `.sc` 单位」，见 `EffectsView.SegmentScale`
+                        // 的注释与 `tools/probes/fx-scale-table.py`）：
+                        //   ① 原版该 export 的画布 = 474 px，而 1 格 = 1000 `upp` px
+                        //      （`upp` = 19.74 ⇒ 50.66 px/格；出处 = `tools/probes/fx-scale-table.py`
+                        //      打印的逐段表 `.ai-tmp/test/fx-scale-table.tsv` 的
+                        //      `Spell 396 30 fireball_projectile1 19.74 strict` 行）；
+                        //   ② 本工程特效素材导入 PPU = 100（`.meta` 的 `spritePixelsToUnits`）
+                        //      ⇒ 素材像素与原版像素 1:1；
+                        //   ③ ⇒ 原版该帧的可见宽度（格）= 内容像素 × `upp`/1000；
+                        //      本工程渲染 = 内容像素 × `SegmentScale`（= `upp`/10 = 1.9737）× 本系数
+                        //      ⇒ 两边相等 ⇒ 本系数 = 1.0（再乘就多算一遍 `upp`/10 这一层）。
+                        FlightScale = 1.0f,
+                        // 抛物线弧高 3.5 格（本项目口径）：弹道 = lerp + up·4h·t(1−t)，落点/落地时刻不变。
+                        FlightArcHeight = 3.5f,
                     };
                     return true;
 

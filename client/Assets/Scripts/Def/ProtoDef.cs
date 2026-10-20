@@ -12,7 +12,7 @@ namespace CR.Def
     //     · 扁平类（字段全是 int/string/bool）**不标也能解** —— 实测 `SetNicknameReply` 正常；
     //     · 但**元素类型是普通类的数组字段会被静默丢成 null** —— 实测 `GetCardPoolReply.cards` 恒为 null。
     //   ⇒ 现象极具误导性：登录/创角（扁平回包）全过，卡池/房间/对局快照（含对象数组）全空，
-    //     且**一条报错都没有**，服务端日志还显示"下发卡池 60 张"。
+    //     且**一条报错都没有**，服务端日志还显示"下发卡池 20 张"。
     //   实测判据：`typeof(T).IsSerializable` 必须为 true；`JsonUtility.FromJson<T>("{\"cards\":[{\"id\":1}]}")`
     //   解出来的 `cards` 不能是 null。⛔ 新增任何 DTO 都必须带 `[Serializable]`。
     //
@@ -158,7 +158,7 @@ namespace CR.Def
 
     [Serializable] public class BattleEventNotify { public BattleEvent[] events; }
 
-    /// <summary>结算。reason 取值：king_destroyed / time_up_crowns / time_up_hp / surrender / draw。</summary>
+    /// <summary>结算。reason 取值：king_destroyed / time_up_crowns / time_up_hp / sudden_death / surrender / draw。</summary>
     [Serializable]
     public class BattleEndNotify
     {
@@ -189,6 +189,9 @@ namespace CR.Def
         public int id;
         public int kind;                 // 0=部队 1=建筑 2=塔
         public int card_id;
+        // 该实体自身素材目录（服务端 `unit.tsv` 的 sprite_dir）：召唤物（女巫→骷髅）的 card_id 是父卡，
+        // 只按 card_id 会画成父卡；空（旧服务端）时回落 card_id。
+        public string sprite_dir;
         public int team;                 // 0=BLUE 1=RED
         public int x_milli;              // 1/1000 格
         public int y_milli;              // 1/1000 格
@@ -296,6 +299,13 @@ namespace CR.Def
         public int elixir;
         public int arena;
         public string icon;
+
+        /// <summary>
+        /// 这张卡战斗本体的**精灵目录名**（服务端 `CardInfo.SpriteDir`，json tag **`sprite_dir`**），
+        /// 例 `chr_knight_out` / `building_basic_cannon_out`。
+        /// 空串 = 服务端没下发（旧服务端）或该卡没有对应素材目录 ⇒ 调用方回落到本地兜底表。
+        /// </summary>
+        public string sprite_dir;
 
         /// <summary>
         /// 这张卡战斗本体的**攻击投射物 key**（服务端 `CardInfo.ProjectileKey`，json tag

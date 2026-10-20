@@ -64,7 +64,30 @@ namespace CR.View
         public const string PoolKey = "cr.effects.fx";
 
         /// <summary>
-        /// 逐段缩放系数：`用途目录` →（`起始原版帧号` → 系数）。
+        /// 一段特效的缩放系数（= `.sc` 反解出来的换算系数）。
+        /// <para>
+        /// <see cref="First"/> = 该段的起始原版帧号；<see cref="Count"/> = 帧数（= 覆盖范围
+        /// `[First, First+Count-1]`）；<see cref="Scale"/> = 换算系数；<see cref="Note"/> = 依据的原版
+        /// export 名（复查用）。
+        /// </para>
+        /// </summary>
+        private struct ScaleSegment
+        {
+            /// <summary>该段的起始原版帧号。</summary>
+            public int First;
+
+            /// <summary>该段帧数（= 覆盖范围 `[First, First+Count-1]`）。</summary>
+            public int Count;
+
+            /// <summary>该段的换算系数。</summary>
+            public float Scale;
+
+            /// <summary>该段依据的原版 export 名。</summary>
+            public string Note;
+        }
+
+        /// <summary>
+        /// 逐段缩放系数：`用途目录` → 该目录下各段。
         /// <para>
         /// <b>出处（原版数据反解，口径与 `View/UnitView.cs` 的 `UnitSpriteScale` 同一套）</b>：
         /// `原版资源/sc/effects_v215.sc` 的 shape 记录（tag `0x12`）同时给出形状多边形的外接框
@@ -84,87 +107,138 @@ namespace CR.View
         /// 为什么按「用途目录 + 起始帧」两级索引：`Spell` 一个目录里并了 9 张法术各自的段
         ///（`ResPaths.EffectFireballBlastFirst` / `EffectFreezeFirst` …），逐段 `upp` 不同（13.05～19.81）。
         /// </para>
+        /// <para>
+        /// **同一条 export 的各帧段共用一个系数**：一条 export 常被拆成几段播（火球落地爆 f412..f436
+        /// 与 f426..f436 是同一条 export），⛔ 起始帧不同不代表尺寸不同 ⇒ 系数按该 export 的**基准帧列**
+        /// 算一次（见 `tools/probes/fx-scale-table.py` 的 `SEGMENTS`），各段登记同一个值。
+        /// </para>
         /// <para>生成路径：`tools/probes/sc-placement.py`（解析 `.sc`）+ `tools/probes/fx-scale-table.py`（出表；
         /// 表项由该脚本打印，⛔ 不许手改，改素材后重跑）。</para>
         /// </summary>
-        private static readonly Dictionary<string, Dictionary<int, float>> SegmentScale =
-            new Dictionary<string, Dictionary<int, float>>
+        private static readonly Dictionary<string, ScaleSegment[]> SegmentScale =
+            new Dictionary<string, ScaleSegment[]>
         {
             // effect_Hit1（upp 取值 strict）
-            { "Hit", Single(295, 1.9668f) },
+            { "Hit", new[] { Seg(295, 4, 1.9668f, "effect_Hit1") } },
             // fireball_projectile1（upp 取值 strict）
-            { "Blast", Single(418, 1.0022f) },
+            { "Blast", new[] { Seg(418, 10, 1.0022f, "fireball_projectile1") } },
             // projectile_arrow_basic_enemy（upp 取值 strict）
-            { "Arrow", Single(437, 0.975f) },
+            { "Arrow", new[] { Seg(437, 15, 0.975f, "projectile_arrow_basic_enemy") } },
             // deploy_arrows_effect（upp 取值 strict）
-            { "Deploy", Single(119, 1.9455f) },
+            { "Deploy", new[] { Seg(119, 1, 1.9455f, "deploy_arrows_effect") } },
             // Death_blue（帧列 52 62 65）（upp 取值 strict）
-            { "Death/Blue", Single(52, 0.9823f) },
+            { "Death/Blue", new[] { Seg(52, 3, 0.9823f, "Death_blue（帧列 52 62 65）") } },
             // Death_purple（帧列 52 63）（upp 取值 strict）
-            { "Death/Purple", Single(52, 1.9283f) },
+            { "Death/Purple", new[] { Seg(52, 2, 1.9283f, "Death_purple（帧列 52 63）") } },
             // death_ground（帧列 67-69）（upp 取值 geo）
-            { "Death/Ground", Single(67, 0.9805f) },
+            { "Death/Ground", new[] { Seg(67, 3, 0.9805f, "death_ground（帧列 67-69）") } },
+            // death_particle（帧列 50 66）（upp 取值 strict）
+            { "Death/Particle", new[] { Seg(50, 2, 0.7819f, "death_particle（帧列 50 66）") } },
             // projectile_spear_360（upp 取值 strict）
-            { "Spear", Single(363, 0.9313f) },
+            { "Spear", new[] { Seg(363, 33, 0.9313f, "projectile_spear_360") } },
             // projectile_cannonball_small/_large（upp 取值 strict）
-            { "Cannonball", Single(480, 1.918f) },
+            { "Cannonball", new[] { Seg(480, 2, 1.918f, "projectile_cannonball_small/_large") } },
             // bowler_projectile（upp 取值 strict）
-            { "Bowler", Single(356, 0.9852f) },
+            { "Bowler", new[] { Seg(356, 1, 0.9852f, "bowler_projectile") } },
             // executioner_projectile（upp 取值 strict）
-            { "Axe", Single(469, 1.9644f) },
+            { "Axe", new[] { Seg(469, 1, 1.9644f, "executioner_projectile") } },
             // catapult_projectile1（upp 取值 strict）
-            { "Catapult", Single(471, 1.2893f) },
+            { "Catapult", new[] { Seg(471, 9, 1.2893f, "catapult_projectile1") } },
             // projectile_bomb（upp 取值 strict）
-            { "Bomb", Single(482, 0.9815f) },
+            { "Bomb", new[] { Seg(482, 1, 0.9815f, "projectile_bomb") } },
             // ice_wizard_projectile（upp 取值 geo）
-            { "IceWizard", Single(459, 1.9604f) },
+            { "IceWizard", new[] { Seg(459, 9, 1.9604f, "ice_wizard_projectile") } },
             // projectile_icespirit（upp 取值 strict）
-            { "IceSpirit", Single(453, 1.183f) },
+            { "IceSpirit", new[] { Seg(453, 6, 1.183f, "projectile_icespirit") } },
             // projectile_firespirit（upp 取值 strict）
-            { "FireSpirit", Single(512, 1.9046f) },
+            { "FireSpirit", new[] { Seg(512, 24, 1.9046f, "projectile_firespirit") } },
             // dragon_projectile（upp 取值 geo）
-            { "Dragon", Single(470, 0.6445f) },
+            { "Dragon", new[] { Seg(470, 1, 0.6445f, "dragon_projectile") } },
             // Spell：一个目录里并了多段（逐段 upp 不同）
-            { "Spell", new Dictionary<int, float>
+            { "Spell", new[]
                 {
-                    { 412, 1.8886f },   // fireball 落地爆炸段（帧列 412-436）（upp 取值 strict）
-                    { 498, 1.4257f },   // Arrow_enemy_ground_anim（upp 取值 strict）
-                    { 206, 1.9732f },   // rage_effect（upp 取值 strict）
-                    { 536, 1.3052f },   // projectile_rocket（upp 取值 strict）
-                    { 73, 1.9807f },   // freeze_effect（upp 取值 strict）
-                    { 172, 1.9532f },   // lightning / zap（同一段）（upp 取值 strict）
-                    { 263, 1.9745f },   // poison（upp 取值 strict）
-                    { 180, 1.3063f },   // log（upp 取值 geo）
+                    Seg(396, 30, 1.9737f, "fireball_projectile1（弹体本体 f396-411）"),   // fireball_projectile1（弹体本体 f396-411）（upp 取值 strict）
+                    Seg(412, 25, 1.8886f, "fireball 落地爆炸段（帧列 412-436）"),   // fireball 落地爆炸段（帧列 412-436）（upp 取值 strict）
+                    Seg(426, 11, 1.8886f, "fireball 落地爆炸段（同一 export，f426 起算）"),   // fireball 落地爆炸段（同一 export，f426 起算）（upp 取值 strict）
+                    Seg(498, 7, 1.4257f, "Arrow_enemy_ground_anim"),   // Arrow_enemy_ground_anim（upp 取值 strict）
+                    Seg(206, 6, 1.9732f, "rage_effect"),   // rage_effect（upp 取值 strict）
+                    Seg(536, 60, 1.3052f, "projectile_rocket"),   // projectile_rocket（upp 取值 strict）
+                    Seg(73, 7, 1.9807f, "freeze_effect"),   // freeze_effect（upp 取值 strict）
+                    Seg(172, 8, 1.9532f, "lightning / zap（同一段）"),   // lightning / zap（同一段）（upp 取值 strict）
+                    Seg(263, 31, 1.9745f, "poison"),   // poison（upp 取值 strict）
+                    Seg(180, 8, 1.3063f, "log"),   // log（upp 取值 geo）
+                } },
+            // SpellFlight：一个目录里并了多段（逐段 upp 不同）
+            { "SpellFlight", new[]
+                {
+                    Seg(396, 16, 1.9737f, "fireball_projectile1（弹体本体 f396-411）"),   // fireball_projectile1（弹体本体 f396-411）（upp 取值 strict）
+                    Seg(397, 15, 1.9737f, "fireball_projectile1（弹体本体 f396-411）"),   // fireball_projectile1（弹体本体 f396-411）（upp 取值 strict）
                 } },
             // spell_goblin_barrel（帧列 0 2-12）（upp 取值 strict）
-            { "SpellBarrel", Single(0, 1.2912f) },
-            // fireball_projectile1（帧列 396-411）（upp 取值 strict）
-            { "SpellFlight", Single(396, 1.9737f) },
+            { "SpellBarrel", new[] { Seg(0, 12, 1.2912f, "spell_goblin_barrel（帧列 0 2-12）") } },
             // bowler_hit_cloud / catapult_hit_cloud（帧列 22）（upp 取值 strict）
-            { "HitCloud", Single(22, 1.3013f) },
+            { "HitCloud", new[] { Seg(22, 1, 1.3013f, "bowler_hit_cloud / catapult_hit_cloud（帧列 22）") } },
             // ice_wiz_hit（帧列 123-124）（upp 取值 geo）
-            { "IceWizHit", Single(123, 1.4419f) },
+            { "IceWizHit", new[] { Seg(123, 2, 1.4419f, "ice_wiz_hit（帧列 123-124）") } },
         };
 
-        private static Dictionary<int, float> Single(int first, float scale)
+        private static ScaleSegment Seg(int first, int count, float scale, string note)
         {
-            return new Dictionary<int, float> { { first, scale } };
+            return new ScaleSegment { First = first, Count = count, Scale = scale, Note = note };
         }
 
         /// <summary>
-        /// 取该段（用途目录 + 起始原版帧号）的缩放系数。未登记 / 非正值 ⇒ `1.0`（= 只按画布 PPU=100 摆）。
-        /// <para>⛔ 新加特效段落时必须同步登记到 <see cref="SegmentScale"/>，否则该段按 1.0 播（= 尺寸无校正）。</para>
+        /// 取该段（用途目录 + 起始原版帧号）的缩放系数。
+        /// <para>
+        /// <b>查表口径</b>：① 先取「起始帧恰好相等」的那一段；② 取不到则取「起始帧落在某段范围内」的段
+        /// （其中起始帧最大者 = 同一条 export 的后续帧）⇒ **同一条 export 的各帧段共用一个系数**，
+        /// 起始帧差一两帧不会退化成 1.0。
+        /// </para>
+        /// <para>两处都取不到 ⇒ `1.0`（= 只按画布 PPU=100 摆）并 Warn 一次（漏登记会自己冒出来）。</para>
+        /// <para>⛔ 新加特效段落时必须同步登记到 <see cref="SegmentScale"/>。</para>
         /// </summary>
         public static float SegmentScaleFor(string use, int firstFrame)
         {
             if (use == null) return 1f;
-            Dictionary<int, float> byFirst;
-            if (!SegmentScale.TryGetValue(use, out byFirst) || byFirst == null) return 1f;
-            float s;
-            return byFirst.TryGetValue(firstFrame, out s) && s > 0f ? s : 1f;
+            ScaleSegment[] segs;
+            if (!SegmentScale.TryGetValue(use, out segs) || segs == null)
+            {
+                WarnScaleMissing(use, firstFrame, "用途目录未登记");
+                return 1f;
+            }
+
+            // ① 起始帧恰好相等
+            for (int i = 0; i < segs.Length; i++)
+            {
+                if (segs[i].First == firstFrame && segs[i].Scale > 0f) return segs[i].Scale;
+            }
+
+            // ② 落在某段范围内（取起始帧最大者 = 同一条 export 的后续帧）
+            int best = -1;
+            for (int i = 0; i < segs.Length; i++)
+            {
+                if (segs[i].Scale <= 0f) continue;
+                if (firstFrame < segs[i].First || firstFrame >= segs[i].First + segs[i].Count) continue;
+                if (best < 0 || segs[i].First > segs[best].First) best = i;
+            }
+            if (best >= 0) return segs[best].Scale;
+
+            WarnScaleMissing(use, firstFrame, "该起始帧未登记");
+            return 1f;
         }
 
-        /// <summary>一条投射物的原版图元段 = 用途目录 + 起始原版帧号 + 帧数（同 `PlayFlight` 的三个入参）。</summary>
+        /// <summary>缩放系数没查到 ⇒ 只报一次（进程级去重，漏登记会自己冒出来）。</summary>
+        private static void WarnScaleMissing(string use, int firstFrame, string why)
+        {
+            LogThrottle.WarnOnce(LogTag, "fx.scale.missing:" + use + ":" + firstFrame,
+                $"特效段没有登记缩放系数：用途目录=\"{use}\" 起始帧=f{firstFrame}（{why}）" +
+                " ⇒ 该段按 1.0 播（尺寸无校正）；登记到 EffectsView.SegmentScale（表项由 tools/probes/fx-scale-table.py 打印）");
+        }
+
+        /// <summary>
+        /// 一条投射物的原版图元段 = 用途目录 + 起始原版帧号 + 帧数（同 `PlayFlight` 的三个入参），
+        /// 外加**整段**的尺寸系数与颜色变换（见 <see cref="PlayFlight(Vector2, Vector2, ProjectileFx, float)"/>）。
+        /// </summary>
         public struct ProjectileFx
         {
             /// <summary>用途目录名（<see cref="ResPaths.EffectDir"/> 的入参）。</summary>
@@ -175,6 +249,61 @@ namespace CR.View
 
             /// <summary>帧数。</summary>
             public int Count;
+
+            /// <summary>
+            /// 相对该段原版世界尺寸的缩放（`1` = 原版尺寸）。`&lt;= 0` 按 `1` 处理
+            /// （`default(ProjectileFx)` 也是 0）。
+            /// </summary>
+            public float Scale;
+
+            /// <summary>是否启用 <see cref="MulR"/> 起的颜色变换；`false` = 该段按原版像素原色播。</summary>
+            public bool Tint;
+
+            /// <summary>颜色变换 `mul.r/g/b` 与 `alpha`（原始字节，255 = 1.0；口径见 <see cref="SpriteColorTransformMaterial"/>）。</summary>
+            public int MulR, MulG, MulB, Alpha;
+
+            /// <summary>颜色变换 `add.r/g/b`（原始字节，0 = 不加）。</summary>
+            public int AddR, AddG, AddB;
+
+            /// <summary>
+            /// 飞行弧高（格）。`0` = 直线；`&gt; 0` 时节点位置 =
+            /// <c>lerp(from,to,t) + up · 4h · t(1−t)</c>（<c>t = 0.5</c> 处最高 = <c>h</c>），
+            /// 落地时刻与落点与直线完全一致。本项目口径：火球 = 3.5（见
+            /// <see cref="SpellFxTable.Entry.FlightArcHeight"/>），其余投射物 0。
+            /// </summary>
+            public float ArcHeight;
+        }
+
+        /// <summary>
+        /// 造一条带**颜色变换**的投射物段（尺寸系数 + 原版像素染色，后者走 `CR/SpriteBlend` 的 `_ColorMul/_ColorAdd`）。
+        /// </summary>
+        private static ProjectileFx Tinted(ProjectileFx fx, float scale, int mulR, int mulG, int mulB, int addR, int addG, int addB)
+        {
+            fx.Scale = scale;
+            fx.Tint = true;
+            fx.MulR = mulR;
+            fx.MulG = mulG;
+            fx.MulB = mulB;
+            fx.Alpha = 255;
+            fx.AddR = addR;
+            fx.AddG = addG;
+            fx.AddB = addB;
+            return fx;
+        }
+
+        /// <summary>
+        /// 单帧「出膛光球」弹体（原版 `fireball_small` 的 f396 径向光，落在 `Spell` 目录）。
+        /// 女巫/火枪手/小亡灵在原版 .sc 里没有专属弹体 export ⇒ 用这颗光球按卡染色/缩放，
+        /// 形状与火球/法师的火焰拖尾弹体不同（圆点 vs 火舌）。
+        /// </summary>
+        private static ProjectileFx GlowOrb(float scale, int mulR, int mulG, int mulB, int addR, int addG, int addB)
+        {
+            return Tinted(new ProjectileFx
+            {
+                Use = ResPaths.EffectSpell,
+                First = 396,
+                Count = 1,
+            }, scale, mulR, mulG, mulB, addR, addG, addB);
         }
 
         /// <summary>箭矢（`ResPaths.EffectArrow`）。表里没有该投射物时的兜底段。</summary>
@@ -183,6 +312,15 @@ namespace CR.View
             Use = ResPaths.EffectArrow,
             First = ResPaths.EffectArrowFirst,
             Count = ResPaths.EffectArrowCount,
+        };
+
+        /// <summary>国王塔的**大炮弹**：`Cannonball` 目录的 f481（`projectile_cannonball_large`），放大 1.6 倍。</summary>
+        public static readonly ProjectileFx KingCannonballFx = new ProjectileFx
+        {
+            Use = ResPaths.EffectCannonball,
+            First = ResPaths.EffectCannonballFirst + 1,
+            Count = 1,
+            Scale = 1.6f,
         };
 
         /// <summary>
@@ -217,8 +355,8 @@ namespace CR.View
         /// 且像素内容逐帧辨认过（`.ai-tmp/test/proj-fix-fxsheet.png` / `proj-fix-fxsheet2.png`）。
         /// </para>
         /// <para>
-        /// 返回 <c>false</c> = 该投射物在原版图集里**没有对应段落**（例如火枪子弹 / 亡灵吐沫 / 吹箭 /
-        /// 塔的弹体），调用方须**留痕**并退回 <see cref="ArrowFx"/>；⛔ 不许按"看起来像"自选一段。
+        /// 返回 <c>false</c> = 该投射物在原版图集里**没有对应段落**（例如吹箭 / 气球炸弹），
+        /// 调用方须**留痕**并退回 <see cref="ArrowFx"/>；⛔ 不许按"看起来像"自选一段。
         /// </para>
         /// </summary>
         public static bool TryGetProjectileFx(string projectileKey, out ProjectileFx fx)
@@ -230,10 +368,47 @@ namespace CR.View
                     fx = ArrowFx;
                     return true;
 
-                // 公主的箭：其专属段 `projectile_princess`（帧列 `398-411 432-451`）里的箭矢段
+                // 公主 / 公主塔的箭：其专属段 `projectile_princess`（帧列 `398-411 432-451`）里的箭矢段
                 // 与 `projectile_arrow_basic_enemy` 是同一批像素帧 ⇒ 复用箭矢段，不另拷素材。
                 case "PrincessProjectile":
+                case "TowerPrincessProjectile":
                     fx = ArrowFx;
+                    return true;
+
+                // 国王塔：原版是**大炮弹**（`projectile_cannonball_large` f481），不是箭。
+                case "KingProjectile":
+                    fx = KingCannonballFx;
+                    return true;
+
+                // 法师的火球：原版 `fireball_projectile1` 的**前半段**（`fireball_projectile1` 的弹体本体
+                // f396-411 去掉第一帧 = f397-411，带火焰拖尾的小弹体）。
+                // 火球法术走同一 export 的**后半段**（f412-425 = 熔岩巨球，见 SpellFxTable）⇒ 两者形状不同。
+                case "chr_wizardProjectile":
+                    fx = new ProjectileFx
+                    {
+                        Use = ResPaths.EffectSpellFlight,
+                        First = ResPaths.EffectFireballFlightFirst + 1,
+                        Count = ResPaths.EffectFireballFlightCount - 1,
+                        Scale = 0.55f,
+                    };
+                    return true;
+
+                // 女巫 / 火枪手 / 小亡灵：原版图集里没有各自的专属弹体 export（`chr_witch*`/`chr_musketeer*`
+                // 的 .sc 只有 idle/run/attack 三档）⇒ 用原版 `fireball_small` 的**出膛光球**（Spell f396，
+                // 单帧径向光）做弹体，再按卡染色/缩放。它和火球/法师的火焰弹体是**两种形状**：
+                // 火焰弹体有火舌拖尾，光球是圆点。
+                case "WitchProjectile":
+                    fx = GlowOrb(0.42f, 250, 150, 245, 20, 0, 175);
+                    return true;
+
+                // 火枪手：同女巫那一组（用原版 `fireball_small` 的出膛光球 f396），只换染色与缩放。
+                case "MusketeerProjectile":
+                    fx = GlowOrb(0.30f, 255, 255, 235, 120, 115, 120);
+                    return true;
+
+                // 小亡灵：同女巫那一组（用原版 `fireball_small` 的出膛光球 f396），只换染色与缩放。
+                case "MinionSpit":
+                    fx = GlowOrb(0.26f, 250, 140, 240, 10, 0, 190);
                     return true;
 
                 // 长矛：原版 `projectile_spear` / `projectile_spear_360`（帧列 363-395）。
@@ -482,8 +657,17 @@ namespace CR.View
             /// <summary>飞行时长（秒）；`0` = 定点不动。</summary>
             public float Duration;
 
+            /// <summary>飞行弧高（格）；`0` = 直线（见 <see cref="ProjectileFx.ArcHeight"/>）。</summary>
+            public float ArcHeight;
+
             /// <summary>飞行进度 0..1。</summary>
             public float T;
+
+            /// <summary>
+            /// 整段使用的**颜色变换材质**（`null` = 按原版像素原色 + <see cref="SpriteBlendTable"/> 的混合）。
+            /// 逐帧换图时材质不换，见 <see cref="ApplyMaterial"/>。
+            /// </summary>
+            public Material Tint;
 
             /// <summary>
             /// 定格时长（秒）：`&gt; 0` 时本节点**只显示第 0 帧**并持续这么久（由 <see cref="PlayHold"/> 用）。
@@ -527,6 +711,74 @@ namespace CR.View
         }
 
         /// <summary>
+        /// f221 的**可见圆直径（像素）**：`Effects/RangeRing/frame_221.png` 画布 474×537，
+        /// 非透明像素包围盒 124×129（横向 124 = 圆直径，纵向多出的 5 px 是柔光）；126.5 = 含柔光的口径
+        /// （同 `View/PlacementIndicator` 的落点环）。
+        /// <para>
+        /// 缩放必须按这个像素直径换算：图元自带一大圈透明留白，按 `sprite.bounds.size`（= 整张画布）
+        /// 缩到目标直径，画出来的圆只有目标的 124/474 ≈ 26%。
+        /// </para>
+        /// </summary>
+        private const float RingVisibleDiameterPx = 126.5f;
+
+        /// <summary>
+        /// 溅射红圈的颜色变换材质：`out = src × 0 + add`、`out_a = src_a`——
+        /// 原版 f221 是**黑环**（非透明像素 RGB 全 0）⇒ 顶点色乘不出亮色，只有加项能把它提成红
+        /// （机制见 <see cref="SpriteColorTransformMaterial"/>）。
+        /// <para>
+        /// 数值出处：`add = ff3300` = `原版资源/sc/effects_v215.sc` 同帧 f221 的原版红环 clip 645
+        /// `09` 颜色变换原值（同 `View/PlacementIndicator` 的"不可放"环）；`alpha = 255` = 恒等
+        /// （保持图元自带 alpha，口径见 <see cref="SpriteColorTransformMaterial"/>）。
+        /// </para>
+        /// </summary>
+        private static Material RingHitMaterial()
+        {
+            return SpriteColorTransformMaterial.ForSprite(0, 0, 0, 255, 255, 51, 0);
+        }
+
+        /// <summary>
+        /// 溅射命中的**红色描边圆**：以 <paramref name="world"/> 为圆心显示半径
+        /// <paramref name="radiusTiles"/>（格）的原版范围环 f221（<see cref="ResPaths.EffectRangeRingFriendly"/>）
+        /// 染红（<see cref="RingHitMaterial"/>），持续 <paramref name="holdSeconds"/> 秒后随节点回收
+        /// （走 <see cref="Node.Hold"/> 的定格路径：⛔ 不逐帧推进）。
+        /// <para>
+        /// <b>缩放口径</b>：`radiusTiles` 是**可见圆**半径，而 f221 的可见圆只占画布
+        /// <see cref="RingVisibleDiameterPx"/> px ⇒ <c>缩放 = 目标直径 ÷ 可见圆的世界直径</c>
+        /// （同 `View/PlacementIndicator` 的落点环换算）。
+        /// </para>
+        /// <para>
+        /// 素材取不到 / 半径非正 ⇒ 本次不画并计 <see cref="SkippedTotal"/>（留痕一次），⛔ 不用自绘图形顶替。
+        /// </para>
+        /// </summary>
+        /// <param name="radiusTiles">可见圆半径（格）。</param>
+        /// <param name="holdSeconds">显示时长（秒）。</param>
+        public void PlayRingHold(Vector2 world, float radiusTiles, float holdSeconds)
+        {
+            if (radiusTiles <= 0f || holdSeconds <= 0f) return;
+
+            var frames = SpriteBank.LoadDir(ResPaths.EffectDir(ResPaths.EffectRangeRing), SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
+            var idx = -1;
+            for (var i = 0; i < frames.Length; i++)
+            {
+                if (SpriteBank.ParseFrameIndex(frames[i].name) == ResPaths.EffectRangeRingFriendly) { idx = i; break; }
+            }
+            if (idx < 0)
+            {
+                SkippedTotal++;
+                LogThrottle.WarnOnce(LogTag, "ring.frame",
+                    $"溅射红圈取不到 f{ResPaths.EffectRangeRingFriendly}（目录 {ResPaths.EffectRangeRing} 空 / 帧号对不上）⇒ 本次不画（只报一次）");
+                return;
+            }
+
+            var sprite = frames[idx];
+            var native = sprite.bounds.size.x;
+            if (native <= 0f) native = 1f;
+            var scale = 2f * radiusTiles * sprite.rect.width / (RingVisibleDiameterPx * native);
+            Spawn(world, world, ResPaths.EffectRangeRing, ResPaths.EffectRangeRingFriendly, 1,
+                WorldSize, 0f, holdSeconds, 0f, 1f, RingHitMaterial(), 0f, scale);
+        }
+
+        /// <summary>
         /// 在 <paramref name="world"/> 播一段，**整段时长 = <paramref name="seconds"/> 秒**（逐帧均匀播完）。
         /// <para>
         /// 用途：原版该 export 自己的时间轴长度与"帧数 ÷ <see cref="DefaultFps"/>"不一致时，按原版时长播。
@@ -560,10 +812,35 @@ namespace CR.View
             Spawn(from, to, use, firstFrame, frameCount, size, durationSeconds > 0f ? durationSeconds : FlightSeconds, 0f);
         }
 
+        /// <summary>
+        /// 从 <paramref name="from"/> 飞到 <paramref name="to"/>，图元段 / 尺寸系数 / 颜色变换全部取自
+        /// <paramref name="fx"/>（见 <see cref="ProjectileFx"/>）；<paramref name="durationSeconds"/> 同上面那条重载。
+        /// <para>
+        /// 尺寸 = 画布换算 × 该段 `.sc` 系数 × <see cref="ProjectileFx.Scale"/> ⇒ 同一段原版像素可按投射物
+        /// 缩到不同大小（女巫 / 火枪手 / 小亡灵共用火球飞行段）。颜色变换走
+        /// <see cref="SpriteColorTransformMaterial"/>（`out = src*mul/255 + add`），共享材质缓存。
+        /// </para>
+        /// </summary>
+        public void PlayFlight(Vector2 from, Vector2 to, ProjectileFx fx, float durationSeconds)
+        {
+            var tint = fx.Tint
+                ? SpriteColorTransformMaterial.ForSprite(fx.MulR, fx.MulG, fx.MulB, fx.Alpha, fx.AddR, fx.AddG, fx.AddB)
+                : null;
+            Spawn(from, to, fx.Use, fx.First, fx.Count, WorldSize,
+                durationSeconds > 0f ? durationSeconds : FlightSeconds, 0f, 0f,
+                fx.Scale > 0f ? fx.Scale : 1f, tint, fx.ArcHeight);
+        }
+
         /// <param name="duration">飞行时长（秒）；`0` = 定点播放。</param>
         /// <param name="hold">定格时长（秒）；`&gt; 0` 时只显示第 0 帧。</param>
         /// <param name="seconds">定点播放的**整段时长**（秒，见 <see cref="PlayTimed"/>）；`&lt;= 0` 时用 <see cref="DefaultFps"/>。</param>
-        private void Spawn(Vector2 from, Vector2 to, string use, int firstFrame, int frameCount, float size, float duration, float hold, float seconds = 0f)
+        /// <param name="scaleMul">该段世界尺寸的额外系数（`&gt; 0`；`1` = 原版尺寸）。</param>
+        /// <param name="tint">整段的颜色变换材质（`null` = 按原版像素原色，混合按 <see cref="SpriteBlendTable"/>）。</param>
+        /// <param name="arcHeight">飞行弧高（格，见 <see cref="ProjectileFx.ArcHeight"/>）；`0` = 直线。</param>
+        /// <param name="scaleOverride">**绝对** `localScale`（`&gt; 0` 时直接用它，跳过画布/`.sc` 换算；
+        /// 溅射红圈按"可见圆直径"自算缩放时用，见 <see cref="PlayRingHold"/>）。</param>
+        private void Spawn(Vector2 from, Vector2 to, string use, int firstFrame, int frameCount, float size, float duration, float hold,
+            float seconds = 0f, float scaleMul = 1f, Material tint = null, float arcHeight = 0f, float scaleOverride = 0f)
         {
             var frames = SpriteBank.LoadDir(ResPaths.EffectDir(use), SpriteBank.SpritePivotMode.UnifiedCanvasAnchor);
             if (frames.Length == 0) { SkippedTotal++; return; }
@@ -619,8 +896,10 @@ namespace CR.View
             node.From = from;
             node.To = to;
             node.Duration = duration;
+            node.ArcHeight = arcHeight;
             node.T = 0f;
             node.Hold = hold;
+            node.Tint = tint;
             // 飞行段：帧序列必须与飞行**同起同落** ⇒ 帧率 = 帧数 ÷ 飞行时长。
             // ⛔ 不这么算的后果（默认 14 fps）：20 帧要播 1.43 s，而子弹几十毫秒就打到了 —
             //    `T` 到 1 之后节点仍留在落点继续换帧，等于"弹体到了还在扇翅膀"，
@@ -632,11 +911,15 @@ namespace CR.View
                 : DefaultFps;
 
             // 画布缩放 × 该段的 `.sc` 世界尺寸换算（见 `SegmentScale`）：只按画布摆会逐段偏 6.45/10～19.81/10 倍。
-            var scale = (size > 0f ? size / WorldSize : 1f) * SegmentScaleFor(use, firstFrame);
+            // 第三项 = 该投射物自己的尺寸系数（同一段原版像素按卡缩到不同大小，见 `ProjectileFx.Scale`）。
+            // `scaleOverride > 0` = 调用方按别的口径自算好了绝对缩放（见 `PlayRingHold`），整段换算跳过。
+            var scale = scaleOverride > 0f ? scaleOverride
+                : (size > 0f ? size / WorldSize : 1f) * SegmentScaleFor(use, firstFrame)
+                        * (scaleMul > 0f ? scaleMul : 1f);
             node.Go.transform.position = new Vector3(from.x, from.y, 0f);
             node.Go.transform.localScale = new Vector3(scale, scale, 1f);
             node.Renderer.sprite = frames[start];
-            ApplyBlend(node, frames[start]);
+            ApplyMaterial(node, frames[start]);
             node.Go.SetActive(true);
             _live.Add(node);
             SpawnedTotal++;
@@ -717,16 +1000,34 @@ namespace CR.View
             }
             node.Frames = null;
             node.Use = null;
+            node.Tint = null;
             node.Hold = 0f;
         }
 
         /// <summary>
-        /// 按该帧的原版 <c>blend_mode</c> 选材质（出处 = <see cref="SpriteBlendTable"/>，生成物、⛔ 不许手改）。
-        /// 表里没有的帧 ⇒ 写回该节点自带的默认材质（即未登记就是 Normal）；⛔ 绝不写 <c>null</c>（洋红）。
+        /// 按该帧选材质：
+        /// ① 该段带颜色变换（<see cref="Node.Tint"/>）⇒ 用它（`CR/SpriteBlend` + `_ColorMul/_ColorAdd`，
+        ///    混合为 Normal；该段若另有非 Normal 的 `blend_mode` 则留痕，因为两种混合不能叠加）；
+        /// ② 否则按该帧的原版 <c>blend_mode</c> 取材质（出处 = <see cref="SpriteBlendTable"/>，生成物、⛔ 不许手改），
+        /// 表里没有的帧 ⇒ 写回该节点自带的默认材质（即未登记就是 Normal）。
+        /// ⛔ 绝不写 <c>null</c>（洋红）。
         /// </summary>
-        private static void ApplyBlend(Node node, Sprite sprite)
+        private static void ApplyMaterial(Node node, Sprite sprite)
         {
-            if (node == null || node.Renderer == null || sprite == null || node.Use == null) return;
+            if (node == null || node.Renderer == null || sprite == null) return;
+            if (node.Tint != null)
+            {
+                if (node.Use != null && SpriteBlendTable.BlendFor(
+                        ResPaths.EffectDir(node.Use), SpriteBank.ParseFrameIndex(sprite.name)) != SpriteBlendTable.Normal)
+                {
+                    LogThrottle.WarnOnce(LogTag, "tint.blend:" + node.Use,
+                        $"用途目录 {node.Use} 的帧同时登记了非 Normal 的 blend_mode 与颜色变换 ⇒ 颜色变换材质（Normal）优先，" +
+                        "该段的混合模式未生效（只报一次）");
+                }
+                SpriteBlendMaterial.Set(node.Renderer, node.Tint);
+                return;
+            }
+            if (node.Use == null) return;
             var mat = SpriteBlendMaterial.For(
                 ResPaths.EffectDir(node.Use), SpriteBank.ParseFrameIndex(sprite.name), node.Default);
             SpriteBlendMaterial.Set(node.Renderer, mat);
@@ -789,7 +1090,7 @@ namespace CR.View
                 {
                     node.Shown = node.FrameIndex;
                     node.Renderer.sprite = node.Frames[node.Start + node.FrameIndex];
-                    ApplyBlend(node, node.Renderer.sprite);
+                    ApplyMaterial(node, node.Renderer.sprite);
                 }
 
                 if (node.Duration > 0f)
@@ -797,6 +1098,10 @@ namespace CR.View
                     node.T += dt / node.Duration;
                     if (node.T > 1f) node.T = 1f;
                     var p = Vector2.Lerp(node.From, node.To, node.T);
+                    // 抛物线弧（`ArcHeight > 0`）：p = lerp(from,to,t) + up · 4h · t(1−t)。
+                    // t=0 / t=1 的偏移恒为 0 ⇒ 起点、落点、落地时刻与直线完全一致，只有中途抬高（t=0.5 处 = h）。
+                    if (node.ArcHeight > 0f)
+                        p += Vector2.up * (4f * node.ArcHeight * node.T * (1f - node.T));
                     node.Go.transform.position = new Vector3(p.x, p.y, 0f);
                     // 飞到了就收：`Count == 1` 的弹体靠帧数推不出结束（见上），
                     // 多帧弹体到这一刻帧也用完 ⇒ 两条路都在这里结束，节点不会留在落点。

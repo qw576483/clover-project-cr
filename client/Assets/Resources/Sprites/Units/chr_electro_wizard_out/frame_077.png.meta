@@ -140,10 +140,10 @@ TextureImporter:
       name: frame_077_0
       rect:
         serializedVersion: 2
-        x: 54
-        y: 83
-        width: 13
-        height: 10
+        x: 52
+        y: 33
+        width: 47
+        height: 63
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -162,10 +162,10 @@ TextureImporter:
       name: frame_077_1
       rect:
         serializedVersion: 2
-        x: 82
-        y: 89
-        width: 8
-        height: 8
+        x: 52
+        y: 33
+        width: 47
+        height: 63
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -184,10 +184,10 @@ TextureImporter:
       name: frame_077_2
       rect:
         serializedVersion: 2
-        x: 51
-        y: 70
-        width: 12
-        height: 11
+        x: 52
+        y: 33
+        width: 47
+        height: 63
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -207,9 +207,9 @@ TextureImporter:
       rect:
         serializedVersion: 2
         x: 52
-        y: 32
-        width: 48
-        height: 40
+        y: 33
+        width: 47
+        height: 63
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}

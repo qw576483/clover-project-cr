@@ -91,8 +91,15 @@ namespace CR.UI.Panels
         private Text _header;
         private Text _pageLabel;
         private Text _status;
+        private Image _statusPlate;
         private Image _createButton;
         private Image _refreshButton;
+
+        /// <summary>空列表时占据行区的整块空态（有房间时隐藏）。</summary>
+        private GameObject _emptyState;
+
+        /// <summary>状态行是不是"请求在途"的临时提示（列表一到就清掉）。</summary>
+        private bool _statusTransient;
 
         private bool _busy;   // 建房 / 加入在途（响应要么是 ListChanged+站点切换，要么是 Failed）
 
@@ -115,11 +122,12 @@ namespace CR.UI.Panels
             _busy = false;
             _page = 0;
             RefreshRows();
-            SetStatus("点「加入」进房；没有房间就自己开一间（创建后你是房主，可开 AI 补位）。", CrUiStyle.TextDim);
+            SetStatus("点「加入」进房，没有房间就自己开一间。", CrUiStyle.TextDim);
         }
 
         public override void OnClose()
         {
+            CrUiFx.PanelOut(transform);
             Unsubscribe();
         }
 
@@ -155,6 +163,7 @@ namespace CR.UI.Panels
             float bodyH = -yBack + BtnH + GapL;
 
             var box = CrUiStyle.SettingsPopup("RoomListBox", root, bodyH + CrUiStyle.PopupTitleH);
+            CrUiFx.PanelIn(box.rectTransform);
             var c = box.rectTransform.Find("RoomListBoxBody") as RectTransform;
             if (c == null)
             {
@@ -187,7 +196,14 @@ namespace CR.UI.Panels
 
             BuildRows(yRows);
 
-            CrUiStyle.Skin("StatusPlate", c, CrUiStyle.PopupFrameSlate, PlateCorner, Vector4.zero,
+            // 空列表：行区是一大块空白（5 行固定槽位里只点亮第 1 行会读成"界面坏了"）
+            // ⇒ 用一整块居中的空态盖住行区，有房间时隐藏。
+            _emptyState = UIFactory.CreateLabel("EmptyState", c,
+                "暂无房间\n点「创建房间」开一间，或点「刷新列表」再看看",
+                CrUiStyle.FontBody, new Vector2(InsetX, yRows - rowsH * 0.5f + 100f),
+                new Vector2(InnerW, 200f), TextAnchor.MiddleCenter, CrUiStyle.TextOnLightDim).gameObject;
+
+            _statusPlate = CrUiStyle.Skin("StatusPlate", c, CrUiStyle.PopupFrameSlate, PlateCorner, Vector4.zero,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(InsetX, statusPlateY),
                 new Vector2(InnerW, statusPlateH), CrUiStyle.BandSlate, false);
             _status = UIFactory.CreateLabel("Status", c, string.Empty, CrUiStyle.FontSmall,
@@ -243,7 +259,7 @@ namespace CR.UI.Panels
             var name = _nameInput != null ? _nameInput.text : string.Empty;
             _busy = true;
             Game.Logger?.Info(Tag, $"请求创建房间（房名='{name}'）");
-            SetStatus("正在创建房间…", CrUiStyle.Accent);
+            SetTransient("正在创建房间…", CrUiStyle.Accent);
             RefreshRows();
 
             // 空房名是合法输入（服务端会兜底成「<昵称>的房间」）⇒ 这里不拦，原样发出去。
@@ -267,7 +283,7 @@ namespace CR.UI.Panels
 
             _busy = true;
             Game.Logger?.Info(Tag, $"请求加入房间 {roomId}");
-            SetStatus($"正在加入房间 {roomId}…", CrUiStyle.Accent);
+            SetTransient($"正在加入房间 {roomId}…", CrUiStyle.Accent);
             RefreshRows();
             Game.Event?.Emit(Events.Room.JoinRequest, roomId);
         }
@@ -275,7 +291,7 @@ namespace CR.UI.Panels
         private void OnRefreshClicked()
         {
             Game.Logger?.Info(Tag, "请求刷新房间列表");
-            SetStatus("正在刷新…", CrUiStyle.Accent);
+            SetTransient("正在刷新…", CrUiStyle.Accent);
             Game.Event?.Emit(Events.Room.RefreshRequest);
         }
 
@@ -308,6 +324,7 @@ namespace CR.UI.Panels
             if (_page > pages - 1) _page = pages - 1;
             if (_page < 0) _page = 0;
 
+            if (_emptyState != null) _emptyState.SetActive(total == 0);
             if (_header != null) _header.text = $"共 {total} 间房间";
             if (_pageLabel != null) _pageLabel.text = $"第 {_page + 1}/{pages} 页";
 
@@ -320,14 +337,8 @@ namespace CR.UI.Panels
                 if (!hasRoom)
                 {
                     _pageRoomIds[i] = null;
-                    // 首页且一间房都没有时给一条可读的空态提示（而不是空框）。
-                    var emptyHint = total == 0 && i == 0;
-                    SetRowVisible(i, emptyHint);
-                    if (emptyHint && _rowLabels[i] != null)
-                    {
-                        _rowLabels[i].text = "（暂无房间：点「创建房间」开一间，或点「刷新列表」再看看）";
-                        _rowLabels[i].color = CrUiStyle.TextDim;
-                    }
+                    // 空行的节点整体隐藏：首页的空列表由 `EmptyState` 统一表达，不在一行里挤两行小字。
+                    SetRowVisible(i, false);
                     if (_rowJoinButtons[i] != null) _rowJoinButtons[i].gameObject.SetActive(false);
                     continue;
                 }
@@ -406,13 +417,15 @@ namespace CR.UI.Panels
             _rooms = rooms ?? Array.Empty<RoomInfo>();
             _busy = false;   // 列表变化 = 服务端处理过我的请求（创建/加入成功都会改列表）
             RefreshRows();
+            if (_statusTransient) SetStatus(string.Empty, CrUiStyle.TextDim);
         }
 
         private void OnFailed(string reason)
         {
             _busy = false;
             RefreshRows();
-            SetStatus(string.IsNullOrEmpty(reason) ? "操作失败（服务端未给出原因）" : reason, CrUiStyle.ErrorText);
+            // 失败原因里可能夹着服务端英文原文 ⇒ 统一映射成玩家文案。
+            SetStatus(ServerText.ToPlayer(reason, Tag), CrUiStyle.ErrorText);
         }
 
         private void OnJoined(string roomId)
@@ -423,9 +436,21 @@ namespace CR.UI.Panels
 
         private void SetStatus(string text, Color color)
         {
+            _statusTransient = false;
+            var has = !string.IsNullOrEmpty(text);
+            // 状态条与状态字同生同灭：没有消息时不留一个空灰框。
+            if (_statusPlate != null) _statusPlate.gameObject.SetActive(has);
             if (_status == null) return;
-            _status.text = TextFit.Clamp(_status, text);
+            _status.gameObject.SetActive(has);
+            _status.text = has ? TextFit.Clamp(_status, text) : string.Empty;
             _status.color = color;
+        }
+
+        /// <summary>写一条"请求在途"的临时提示：下一条房间列表到达时自动清掉。</summary>
+        private void SetTransient(string text, Color color)
+        {
+            SetStatus(text, color);
+            _statusTransient = true;
         }
     }
 }

@@ -140,6 +140,7 @@ namespace CR.UI.Panels
 
         public override void OnClose()
         {
+            CrUiFx.PanelOut(transform);
             Unsubscribe();
         }
 
@@ -159,6 +160,7 @@ namespace CR.UI.Panels
             //   （基线 `24_设置` 弹窗 x=33..464 @屏宽 499 ⇒ 居中；y=166..905 @1080 ⇒ 居中）。
             //   ⛔ 不再用 `ContentPanel`（米色羊皮纸 806）+ `TitleBar`（棕金木色 069）。
             var box = CrUiStyle.SettingsPopup("LoginBox", root, PanelH);
+            CrUiFx.PanelIn(box.rectTransform);
             var c = box.rectTransform.Find("LoginBoxBody") as RectTransform;
             if (c == null)
             {
@@ -168,10 +170,11 @@ namespace CR.UI.Panels
             }
 
             // 标题：白字 + 黑描边，压在弹窗自带的**顶部板岩带**上（基线「Settings」的写法）。
-            CrUiStyle.Outlined("Title", box.rectTransform, "登 录", CrUiStyle.FontPopupTitle, Color.white, Color.black,
+            CrUiStyle.StyleTitle(CrUiStyle.Outlined("Title", box.rectTransform, "登 录",
+                CrUiStyle.FontPopupTitle, Color.white, Color.black,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(CrUiStyle.PopupBorder, 0f),
                 new Vector2(CrUiStyle.PopupW - 2f * CrUiStyle.PopupBorder, CrUiStyle.PopupTitleH),
-                TextAnchor.MiddleCenter);
+                TextAnchor.MiddleCenter));
 
             // 字段标签 + 输入框：亮面上的字是**深墨蓝**（基线亮面标签最暗像素 (42,44,46)）；
             //   输入框底 = 原版板岩圆角框（014 四角镜像九宫格，⛔ 不是纯色矩形）。
@@ -206,7 +209,7 @@ namespace CR.UI.Panels
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(Pad, StatusY),
                 new Vector2(InnerW, StatusH), CrUiStyle.BandSlate, false);
             _status = UIFactory.CreateLabel("Status", c, string.Empty, CrUiStyle.FontSmall,
-                new Vector2(Pad + GapM, StatusY + GapM), new Vector2(InnerW - 2f * GapM, StatusH - 2f * GapM),
+                new Vector2(Pad + GapM, StatusY - GapM), new Vector2(InnerW - 2f * GapM, StatusH - 2f * GapM),
                 TextAnchor.MiddleCenter, CrUiStyle.TextDim);
             SetStatus(null, CrUiStyle.TextDim);
 
@@ -217,7 +220,7 @@ namespace CR.UI.Panels
                 new Vector2(ButtonX, SecondaryButtonY), new Vector2(BtnW, BtnH), OnRegisterClicked, Color.white);
 
             // 提示行：亮面上用深墨蓝（不是浅灰 —— 浅灰压亮面读不出）。
-            UIFactory.CreateLabel("Hint", c, "请先启动服务端（网关 8002 / 账号服 8051）", CrUiStyle.FontSmall,
+            UIFactory.CreateLabel("Hint", c, "登录遇到问题？请检查网络连接后重试", CrUiStyle.FontSmall,
                 new Vector2(Pad, HintY), new Vector2(InnerW, 40f),
                 TextAnchor.MiddleCenter, CrUiStyle.TextOnLight);
 
@@ -313,7 +316,8 @@ namespace CR.UI.Panels
             var has = !string.IsNullOrEmpty(text);
             if (_status != null)
             {
-                _status.text = has ? text : string.Empty;
+                // 失败原因是服务端原文（长度不受本面板控制）⇒ 单行状态条必须过 TextFit。
+                _status.text = has ? TextFit.Clamp(_status, text) : string.Empty;
                 _status.color = color;
                 _status.gameObject.SetActive(has);
             }

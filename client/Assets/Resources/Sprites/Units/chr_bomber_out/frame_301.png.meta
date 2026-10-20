@@ -134,10 +134,10 @@ TextureImporter:
       name: frame_301_0
       rect:
         serializedVersion: 2
-        x: 59
-        y: 10
-        width: 59
-        height: 97
+        x: 60
+        y: 11
+        width: 70
+        height: 95
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -156,10 +156,10 @@ TextureImporter:
       name: frame_301_1
       rect:
         serializedVersion: 2
-        x: 104
-        y: 36
-        width: 27
-        height: 29
+        x: 60
+        y: 11
+        width: 70
+        height: 95
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}

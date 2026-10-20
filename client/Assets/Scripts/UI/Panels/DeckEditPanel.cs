@@ -365,7 +365,7 @@ namespace CR.UI.Panels
         //   钮 1（放大镜 `ResPaths.IconSearch` = `ui_out` 279，原版同一件图元）= **浏览卡牌**（卡池滚回顶部）
         //   钮 2 = **保存**，钮 3 = **取消**
         // ⚠️ 原版钮 2/钮 3 的图标（卡组视图 / 菜单）本工程**没有对应图元**、对应功能也没实现 ⇒
-        //    用文字占位，差异登记在 `策划/差异登记.tsv`（⛔ 不拿别的帧冒充图标）。
+        //    用文字占位，差异登记在 `策划/对照表.md` §D.3（⛔ 不拿别的帧冒充图标）。
         //
         // 量法：钮板 = `#4B92C8`（R≈75）/ 底行带 = `#02488E`（R≈2）
         // ⇒ 用 **R>40** 在 **y=1360@1242**（钮板内、图标之上）逐列分段，得到三段各 **119@1242** 宽：
@@ -414,7 +414,7 @@ namespace CR.UI.Panels
         /// 卡阵上方的 `已选 N/8` 标签是**原版没有**的东西：它对开发有用，但会破坏"1:1 复刻原版 UI"这条铁律
         /// （用户 2026-09-24「**你的UI都不是原版UI啊**」）。
         /// ⇒ 默认 **false = 不建**（= 原版版式）；需要时改这一处即可回来，⛔ 不是把代码删掉。
-        /// 这条登记在 `策划/差异登记.tsv`。
+        /// 这条登记在 `策划/对照表.md` §D.3。
         /// </para>
         /// </summary>
         /// <remarks>
@@ -455,7 +455,7 @@ namespace CR.UI.Panels
         /// ⚠️ 原版那条带是**压在卡面之上**的半透明带；本项目没有这条带的图元
         /// （`ui_out` 里查不到，⛔ 不拿别的帧冒充、⛔ 不自绘），所以只画**带描边的文字**压在卡面上
         /// （<see cref="CrUiStyle.Outlined"/>：白字 + 黑描边，正是原版 UI 的绝对多数文字的读法）。
-        /// 这一条差异登记在 `策划/对照表.md`。
+        /// 这一条差异登记在 `策划/对照表.md` §D.3。
         /// </para>
         /// </summary>
         private const float NameBandH = 64f;
@@ -467,7 +467,7 @@ namespace CR.UI.Panels
         private const float HoverBlend = 0.15f;
 
         // ── 拖动 / 滚动（⛔ 下面这几个数是**本项目自定**，原版客户端的手势与滚动手感参数
-        //    不在原版资源里；逐条登记在 `策划/差异登记.tsv`） ──
+        //    不在原版资源里；逐条登记在 `策划/对照表.md` §D.3） ──
 
         /// <summary>
         /// 落位吸附的**半径系数**（K）：松手点落在某个卡格中心 **± 半格×(1+K)** 之内即算命中该格。
@@ -647,6 +647,7 @@ namespace CR.UI.Panels
 
         public override void OnClose()
         {
+            CrUiFx.PanelOut(transform);
             Unsubscribe();
             _dragPathCheckFrame = -1;                   // 面板关了就别再跑自检（节点已被销毁）
         }
@@ -721,6 +722,7 @@ namespace CR.UI.Panels
             var root = (RectTransform)transform;
             UIFactory.Stretch(root);
             _content = root;                                    // 整屏：所有元素的父节点 = 面板根
+            CrUiFx.PanelIn(root);
 
             // ── ① 整屏底（两块，⛔ 都必须 raycast=false）──
             // 全屏底 = 卡池底深蓝 (2,35,90)；顶部到页签带底 = 安全区 (7,38,92)。
@@ -737,7 +739,7 @@ namespace CR.UI.Panels
             // ── ② 页签带（E2/E4/E5/E6 + 实测的页签上缘）──
             // 页面只有卡池这一屏 ⇒ 一颗页签，几何 / 外观全按实测（位置 TabCollectionX、宽 TabWCollection、
             // 选中态 = 亮底 + TabEdgeH 高亮顶线）。
-            BuildTab("TabCollection", "Collection", TabCollectionX, TabTopY, TabH, TabWCollection,
+            BuildTab("TabCollection", "卡 牌", TabCollectionX, TabTopY, TabH, TabWCollection,
                 TabOnColor, TabOnEdgeColor, TabEdgeH, TabOnTint, OnCollectionTabClicked);
 
             // ── ③ 编号行（E4..E7；band 体 + 上下两条亮边）──
@@ -801,16 +803,7 @@ namespace CR.UI.Panels
         /// <summary>按钮四态（常态 = 白 = 原版图元原色；⛔ 不用底色当滤镜）。口径同 <c>CrUiStyle</c> 内那几处。</summary>
         private static void DressButtonColors(Button btn)
         {
-            if (btn == null) return;
-            var colors = btn.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
-            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
-            colors.selectedColor = Color.white;
-            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 1f);
-            colors.colorMultiplier = 1f;
-            colors.fadeDuration = CrUiStyle.ButtonFade;
-            btn.colors = colors;
+            CrUiFx.ApplyButtonColors(btn);
         }
 
         /// <summary>
@@ -831,7 +824,7 @@ namespace CR.UI.Panels
         /// <para>
         /// <b>仍未复刻</b>：页签底**没有竖向渐变**（原版顶部 → 底部有渐变）。源内已实测**排除**
         /// `ui_out` 265（剖面有"膝"），其余图集已扫过、无剖面一致的渐变件 ⇒ 保留单色。
-        /// 登记在 `策划/差异登记.tsv`。
+        /// 登记在 `策划/对照表.md` §D.3。
         /// </para>
         /// <para>
         /// <b>顶部那条线</b>（实测）：亮线 <see cref="TabEdgeH"/> 高 <see cref="TabOnEdgeColor"/>。
@@ -847,10 +840,12 @@ namespace CR.UI.Panels
             // 顶部那条线：**盖在**圆角件之上（圆角件自身的高光在左上角，整条顶边要靠这一条补）。
             UIFactory.CreateBoxRect(name + "Edge", block.rectTransform, Vector2.zero,
                 new Vector2(w, edgeH), edge, false);
+            CrUiFx.SelectedTabEdge(block.rectTransform, w, h, edge);
 
             var btn = block.gameObject.AddComponent<Button>();
             btn.targetGraphic = block;
             DressButtonColors(btn);
+            CrUiFx.ButtonFx(block);
             if (onClick != null) btn.onClick.AddListener(() => { CrUiStyle.PlayClick(name); onClick(); });
 
             CrUiStyle.Outlined(name + "Label", block.rectTransform, label, CrUiStyle.FontBody,
@@ -890,6 +885,7 @@ namespace CR.UI.Panels
                 var btn = block.gameObject.AddComponent<Button>();
                 btn.targetGraphic = block;
                 DressButtonColors(btn);
+                CrUiFx.ButtonFx(block);
                 btn.onClick.AddListener(() => { CrUiStyle.PlayClick($"DeckNum{idx}"); OnDeckNumberClicked(idx); });
                 _deckNumButtons[i] = btn;
 
@@ -1012,7 +1008,7 @@ namespace CR.UI.Panels
         /// </para>
         /// <para>
         /// ⚠️ <b>本项目自定值</b>：<see cref="ScrollElasticity"/> / <see cref="ScrollDeceleration"/>
-        /// 与原版客户端的真实手感参数**无出处**（原版资源里没有滚动条配置），已登记 `策划/差异登记.tsv`。
+        /// 与原版客户端的真实手感参数**无出处**（原版资源里没有滚动条配置），已登记 `策划/对照表.md` §D.3。
         /// </para>
         /// </summary>
         private void BuildGrid()
@@ -1265,7 +1261,7 @@ namespace CR.UI.Panels
         private static readonly Vector4 BorderCard = new Vector4(20f, 20f, 20f, 20f);
 
         /// <summary>
-        /// 品质边框相对卡格的放大系数 = **1.06**（**本项目自定值**，登记在 `策划/差异登记.tsv`）。
+        /// 品质边框相对卡格的放大系数 = **1.06**（**本项目自定值**，登记在 `策划/对照表.md` §D.3）。
         /// <para>
         /// 为什么不是 1.0：原版卡框图元 `ui_out` 532 的 143×185 画布里**含外发光**（bbox 按 alpha&gt;8 量），
         /// 环本体贴在画布内圈 ⇒ 按 1.0 铺会把环压到卡面**里面**、边缘露出卡面。
@@ -1737,7 +1733,7 @@ namespace CR.UI.Panels
         /// <b>为什么不用 <c>RectangleContainsScreenPoint</c> 逐格判</b>：原版手感是"拖到那一带就吸附"，
         /// 严格按格判会要求像素级对准，松手稍偏就"什么都没发生"。K = 0.35 ⇒ 格与格中间那条缝仍然判给
         /// 更近的一格，而格**外**的一圈也算"落在这格上"。
-        /// ⚠️ 吸附半径是本项目自定值（原版资源里没有手势参数），登记在 `策划/差异登记.tsv`。
+        /// ⚠️ 吸附半径是本项目自定值（原版资源里没有手势参数），登记在 `策划/对照表.md` §D.3。
         /// </para>
         /// </summary>
         private int HitTestSlot(Vector2 screen)
@@ -1996,7 +1992,7 @@ namespace CR.UI.Panels
             RefreshSlots();   // 卡池到达前选中的槽位显示的是占位文案，这里补上真名
             // ⚠️ 修正（V4 取证实测 2026-09-21）：这里漏了卡池行 —— `OnOpen` 里 `RefreshPoolLabel` 跑在
             // 卡池到达**之前**（那时 `_pool` 还是 null）⇒ 卡池到货后那行一直停在「共 0 张」，
-            // 而屏幕上明明画着 60 张卡（V4 截图实测到的可见错数）。补一行即可与真实卡池一致。
+            // 而屏幕上明明画着整池卡（V4 截图实测到的可见错数）。补一行即可与真实卡池一致。
             RefreshPoolLabel();
 
             // 卡池重新到达 ⇒ 回到列表顶部（否则换过卡池后玩家停在半空，看起来像"卡池空了"）。
@@ -2502,7 +2498,7 @@ namespace CR.UI.Panels
         private static void WarnOnce(string message)
         {
             if (!WarnedMissing.Add(message)) return;
-            Game.Logger?.Warn(Tag, message + "（本条只报一次；已登记进 策划/差异登记.tsv §3「允许的差异」）");
+            Game.Logger?.Warn(Tag, message + "（本条只报一次；已登记进 策划/对照表.md §D.3）");
         }
 
         /// <summary>

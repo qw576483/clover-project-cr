@@ -153,11 +153,13 @@ func newTestTable() *fakeTable {
 	t.cards[cardKnightDear] = troop(cardKnightDear, "Knight", 4)
 	t.cards[cardFireball] = &CardDef{
 		ID: cardFireball, Key: "fireball", NameCN: "火球", Kind: CardTypeSpell, Elixir: 4,
-		Spell: &SpellDef{ID: 1, Key: "fireball", Elixir: 4, RadiusMilli: 2500, InstantDamage: 688, Anywhere: true, OnWater: true},
+		// crown_damage 207 = 689 x 30%（官方 crown_tower_damage_percent = -70），
+		// 出处 策划/数值文档/spell_cs.txt 的 fireball 行。
+		Spell: &SpellDef{ID: 1, Key: "fireball", Elixir: 4, RadiusMilli: 2500, InstantDamage: 688, CrownDamage: 207, Anywhere: true, OnWater: true},
 	}
 	t.cards[cardArrows] = &CardDef{
 		ID: cardArrows, Key: "arrows", NameCN: "万箭齐发", Kind: CardTypeSpell, Elixir: 3,
-		Spell: &SpellDef{ID: 2, Key: "arrows", Elixir: 3, RadiusMilli: 3500, InstantDamage: 122, Anywhere: true, OnWater: true},
+		Spell: &SpellDef{ID: 2, Key: "arrows", Elixir: 3, RadiusMilli: 3500, InstantDamage: 122, CrownDamage: 37, Anywhere: true, OnWater: true},
 	}
 	return t
 }

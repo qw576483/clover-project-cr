@@ -200,11 +200,9 @@ func (e *entity) setMoveAnim(a int32) {
 // 的 `Facing`），所以「正上 / 正下」方位（x 与自身相等）在左右轴上**没有信息**
 // —— 原版（及 cr-sim，见 原版资源/cr-sim/cr_sim/engine/actions.py:763 的注释：
 // facing 只用来按队伍镜像生成偏移，不存在"精确朝向角"）对这种情况没有给出角度。
-// 旧实现在这一分支里**什么都不做** ⇒ 保留上一次的朝向；后果是"上一次朝自己半场
-// 却对着正上方目标"的单位会**保持背身**（我方验收断言 C3：近战单位对"同 x 正上方
-// 目标"时朝向必须指向目标，不得保持背身）。
-// 口径（本项目补正）：x 相等时回退到"面向敌方半场"——与出生朝向同一基准
-// `facingFor`（combat.go:395-401，蓝=+1 / 红=-1），保证朝向永远不是"背对目标半场"。
+// x 相等时朝向没有信息量 ⇒ 回退到"面向敌方半场"：与出生朝向同一基准
+// `facingFor`（蓝=+1 / 红=-1），保证朝向永远不是"背对目标半场"（近战单位对
+// "同 x 正上方目标"时朝向必须指向目标，不得保持背身）。
 func (e *entity) faceToward(x int32) {
 	if x < e.xMilli {
 		e.facing = -1
@@ -249,7 +247,12 @@ func (e *entity) routeGoalMoved(x, y int32) bool {
 // advanceAlongRoute walks `stepFine` (milli-tiles x TicksPerSecond) along the
 // route, carrying leftovers into the next segment so a unit rounding a corner
 // does not lose a fraction of a tick's movement (cr-sim engine/pathing.py:65).
-func (e *entity) advanceAlongRoute(stepFine int32) {
+//
+// Every landing point is checked against the terrain: a step that would put a
+// ground unit into the water or into a crown tower's blocked square is
+// refused, and the unit slides along the obstacle or stops at the last
+// waypoint it reached (cr-sim engine/battle.py:2095-2117 `_place`).
+func (e *entity) advanceAlongRoute(a *Arena, stepFine int32) {
 	if stepFine <= 0 || e.nav.idx >= len(e.nav.waypoints) {
 		return
 	}
@@ -263,7 +266,9 @@ func (e *entity) advanceAlongRoute(stepFine int32) {
 		}
 		if e.nav.segLen <= 0 {
 			// Degenerate segment (already on the waypoint).
-			e.xMilli, e.yMilli = wp.x, wp.y
+			if !e.placeWalkable(a, wp.x, wp.y) {
+				return
+			}
 			e.nav.idx++
 			e.nav.travelledFine = 0
 			e.nav.fromX, e.nav.fromY = e.xMilli, e.yMilli
@@ -271,20 +276,46 @@ func (e *entity) advanceAlongRoute(stepFine int32) {
 		}
 		left := e.nav.segLen - e.nav.travelledFine
 		if remaining < left {
-			e.nav.travelledFine += remaining
+			nx, ny := PointAlong(e.nav.fromX, e.nav.fromY, wp.x, wp.y, e.nav.travelledFine+remaining, e.nav.segLen)
+			if e.placeWalkable(a, nx, ny) {
+				e.nav.travelledFine += remaining
+			}
+			// 落点不可站立 ⇒ 这一步不动，单位停在上一个航点。
 			remaining = 0
-			nx, ny := PointAlong(e.nav.fromX, e.nav.fromY, wp.x, wp.y, e.nav.travelledFine, e.nav.segLen)
-			e.xMilli, e.yMilli = nx, ny
-		} else {
-			remaining -= left
-			e.xMilli, e.yMilli = wp.x, wp.y
-			e.nav.idx++
-			e.nav.segLen = 0
-			e.nav.travelledFine = 0
-			e.nav.fromX, e.nav.fromY = e.xMilli, e.yMilli
+			continue
 		}
+		if !e.placeWalkable(a, wp.x, wp.y) {
+			// 航点本身站不上去（例如国王塔的阻塞格）：单位停在上一
+			// 个航点，路线保持打开。
+			return
+		}
+		remaining -= left
+		e.nav.idx++
+		e.nav.segLen = 0
+		e.nav.travelledFine = 0
+		e.nav.fromX, e.nav.fromY = e.xMilli, e.yMilli
 	}
 }
 
-// (Route planning -- routeWaypoints / crossesRiver / marchGoal -- lives in
+// placeWalkable moves the entity to (x, y) when it may stand there and falls
+// back to a single axis otherwise, so a blocked step slides along the
+// obstacle instead of sticking to it (cr-sim engine/battle.py:2095-2117).
+func (e *entity) placeWalkable(a *Arena, x, y int32) bool {
+	cross := e.canCrossWater()
+	if a.IsWalkable(x, y, cross) {
+		e.setPos(x, y)
+		return true
+	}
+	if a.IsWalkable(x, e.yMilli, cross) {
+		e.setPos(x, e.yMilli)
+		return true
+	}
+	if a.IsWalkable(e.xMilli, y, cross) {
+		e.setPos(e.xMilli, y)
+		return true
+	}
+	return false
+}
+
+// (Route planning -- routeWaypoints / crossesRiver / marchObjective -- lives in
 // pathing.go, next to the lane and bridge rules it encodes.)

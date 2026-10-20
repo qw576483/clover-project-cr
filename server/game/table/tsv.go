@@ -109,7 +109,10 @@ func (c *cols) str(rec []string, col string) string {
 	return strings.TrimSpace(rec[i])
 }
 
-// int 取整型列：空单元格 → 0（与打表工具 parseInt 同口径）；非整数 → 记错误、返回 0。
+// int 取整型列：空单元格 → 0（与打表工具 parseInt 同口径）；非整数 / 负数 → 记错误、返回 0。
+//
+// 负数是数据错误而不是"无值"：整型列全部是数值、距离、时长或 0/1 标志，
+// 让负数流进 core 会变成真实规则（例如 elixir 为负会让出牌反而加圣水）。
 func (c *cols) int(rec []string, col string) int {
 	s := c.str(rec, col)
 	if s == "" {
@@ -119,6 +122,12 @@ func (c *cols) int(rec []string, col string) int {
 	if err != nil {
 		if c.err == nil {
 			c.err = fmt.Errorf("%s: 第 %d 行列 %s 的值 %q 不是整数", c.table, c.line, col, s)
+		}
+		return 0
+	}
+	if v < 0 {
+		if c.err == nil {
+			c.err = fmt.Errorf("%s: 第 %d 行列 %s 的值 %d 为负数（整型列不允许负数）", c.table, c.line, col, v)
 		}
 		return 0
 	}

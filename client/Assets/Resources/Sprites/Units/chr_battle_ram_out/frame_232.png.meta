@@ -137,10 +137,10 @@ TextureImporter:
       name: frame_232_0
       rect:
         serializedVersion: 2
-        x: 77
-        y: 154
-        width: 10
-        height: 10
+        x: 78
+        y: 127
+        width: 63
+        height: 68
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -159,10 +159,10 @@ TextureImporter:
       name: frame_232_1
       rect:
         serializedVersion: 2
-        x: 81
+        x: 78
         y: 127
-        width: 61
-        height: 69
+        width: 63
+        height: 68
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -181,10 +181,10 @@ TextureImporter:
       name: frame_232_2
       rect:
         serializedVersion: 2
-        x: 113
-        y: 126
-        width: 8
-        height: 14
+        x: 78
+        y: 127
+        width: 63
+        height: 68
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}

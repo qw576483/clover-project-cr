@@ -68,7 +68,7 @@ namespace CR.View
         {
             /// <summary>帧号（`frame_NNN` 的 NNN）。</summary>
             public readonly int Frame;
-            /// <summary>炮口朝向角（度）：0 = 世界 +x（屏幕右）、90 = 世界 +y（屏幕上），与 `Mathf.Atan2` 同口径。</summary>
+            /// <summary>**炮口朝向**角（度）：0 = 世界 +x（屏幕右）、90 = 世界 +y（屏幕上），与 `Mathf.Atan2` 同口径。</summary>
             public readonly float AngleDeg;
             public TurretDir(int frame, float angleDeg)
             {
@@ -79,8 +79,17 @@ namespace CR.View
         /// <summary>
         /// 炮塔的 **18 个方向帧**（`building_tower_v215.sc` clip 247 的 `cnt2` shapeID = 30..47）。
         /// <para>
-        /// 量法（与 `ArenaView.BlueKingTurretFrame` 注释里 rec30/rec47 的既有量法同口径）：alpha 质心 → 最远 alpha 像素的方向；
-        /// 角度口径 `atan2(-(row-cy), px-cx)`（PNG 行号自上而下 ⇒ 取负换到 y 向上）。
+        /// <b>炮口 / 炮尾的判据（决定角度要不要翻 180°）</b>：`alpha 质心 → 最远 alpha 像素` 取到的是**炮管的远端**，
+        /// 而 PNG 上判炮口要看**近端形态** —— `f30/f31` 近端是光滑实心圆头 = **炮尾**（⇒ 炮口朝远/上）、
+        /// `f46/f47` 近端是金环 + 暗色圆口 = **炮口**（⇒ 炮口朝下/近）。
+        /// 两条既有常数与之一致：`ArenaView.BlueKingTurretFrame` = 30（蓝方在屏幕下方、敌人在上 ⇒ 炮口朝上）、
+        /// `RedKingTurretFrame` = 47（红方在上、敌人在下 ⇒ 炮口朝下）。
+        /// 故本表角度 = `atan2(-(row-cy), px-cx) + 180°`（归一到 ±180）。
+        /// 参考图裁图证据：`.ai-tmp/test/cr-fx-d/turret-zoom.png`（逐帧近端）、`ref-blue-king.png`（我方）、
+        /// `ref-red-king-18.png`（敌方）。
+        /// <para>
+        /// **覆盖范围**：18 帧是一条以 0°（右）为中心的 **180° 弧**（`f30 = +85.3°` 到 `f47 = -95.2°`）。
+        /// 右半（弧外）在原版没有帧 ⇒ 调用方用 `SpriteRenderer.flipX` 镜像同一族帧补出另外 180°。
         /// </para>
         /// </summary>
         public static readonly TurretDir[] TurretDirs = new[]
@@ -255,6 +264,34 @@ namespace CR.View
             new Key(502, 1, 0.9893f, 0f),
         });
 
+        /// <summary>BLUE 公主塔乘员攻击档（下标 = 视角号 − 1；`princess_tower_attack1_N`）。</summary>
+        private static readonly Anim[] OccupantAttackBlue = new[]
+        {
+            new Anim(24, new[] { new Key(504, 2, 1f, 0f), new Key(569, 2, 1f, 0f), new Key(570, 2, 1f, 0f), new Key(571, 2, 1f, 0f), new Key(572, 2, 1f, 0f), new Key(573, 2, 1f, 0f) }),
+            new Anim(24, new[] { new Key(503, 2, 1f, 0f), new Key(561, 2, 1f, 0f), new Key(562, 2, 1f, 0f), new Key(563, 2, 1f, 0f), new Key(564, 2, 1f, 0f), new Key(565, 2, 1f, 0f), new Key(566, 2, 1f, 0f), new Key(567, 2, 1f, 0f), new Key(568, 2, 1f, 0f) }),
+            new Anim(24, new[] { new Key(502, 2, 1f, 0f), new Key(553, 2, 1f, 0f), new Key(554, 2, 1f, 0f), new Key(555, 2, 1f, 0f), new Key(556, 2, 1f, 0f), new Key(557, 2, 1f, 0f), new Key(558, 2, 1f, 0f), new Key(559, 2, 1f, 0f), new Key(560, 2, 1f, 0f) }),
+            new Anim(24, new[] { new Key(501, 2, 1f, 0f), new Key(545, 2, 1f, 0f), new Key(546, 2, 1f, 0f), new Key(547, 2, 1f, 0f), new Key(548, 2, 1f, 0f), new Key(549, 2, 1f, 0f), new Key(550, 2, 1f, 0f), new Key(551, 2, 1f, 0f), new Key(552, 2, 1f, 0f) }),
+            new Anim(24, new[] { new Key(500, 2, 1f, 0f), new Key(537, 2, 1f, 0f), new Key(538, 2, 1f, 0f), new Key(539, 2, 1f, 0f), new Key(540, 2, 1f, 0f), new Key(541, 2, 1f, 0f), new Key(542, 2, 1f, 0f), new Key(543, 2, 1f, 0f), new Key(544, 2, 1f, 0f) }),
+            new Anim(24, new[] { new Key(499, 2, 1f, 0f), new Key(529, 2, 1f, 0f), new Key(530, 2, 1f, 0f), new Key(531, 2, 1f, 0f), new Key(532, 2, 1f, 0f), new Key(533, 2, 1f, 0f), new Key(534, 2, 1f, 0f), new Key(535, 2, 1f, 0f), new Key(536, 2, 1f, 0f) }),
+            new Anim(24, new[] { new Key(498, 2, 1f, 0f), new Key(521, 2, 1f, 0f), new Key(522, 2, 1f, 0f), new Key(523, 2, 1f, 0f), new Key(524, 2, 1f, 0f), new Key(525, 2, 1f, 0f), new Key(526, 2, 1f, 0f), new Key(527, 2, 1f, 0f), new Key(528, 2, 1f, 0f) }),
+            new Anim(24, new[] { new Key(497, 2, 1f, 0f), new Key(513, 2, 1f, 0f), new Key(514, 2, 1f, 0f), new Key(515, 2, 1f, 0f), new Key(516, 2, 1f, 0f), new Key(517, 2, 1f, 0f), new Key(518, 2, 1f, 0f), new Key(519, 2, 1f, 0f), new Key(520, 2, 1f, 0f) }),
+            new Anim(24, new[] { new Key(496, 2, 1f, 0f), new Key(505, 2, 1f, 0f), new Key(506, 2, 1f, 0f), new Key(507, 2, 1f, 0f), new Key(508, 2, 1f, 0f), new Key(509, 2, 1f, 0f), new Key(510, 2, 1f, 0f), new Key(511, 2, 1f, 0f), new Key(512, 2, 1f, 0f) }),
+        };
+
+        /// <summary>RED 公主塔乘员攻击档（下标 = 视角号 − 1；`princess_tower_red_attack1_N`）。</summary>
+        private static readonly Anim[] OccupantAttackRed = new[]
+        {
+            new Anim(24, new[] { new Key(8, 3, 1f, 0f), new Key(105, 3, 1f, 0f), new Key(106, 3, 1f, 0f), new Key(107, 3, 1f, 0f), new Key(108, 3, 1f, 0f), new Key(109, 3, 1f, 0f), new Key(110, 3, 1f, 0f), new Key(112, 3, 1f, 0f), new Key(114, 3, 1f, 0f), new Key(115, 3, 1f, 0f), new Key(116, 3, 1f, 0f) }),
+            new Anim(24, new[] { new Key(7, 3, 1f, 0f), new Key(93, 3, 1f, 0f), new Key(94, 3, 1f, 0f), new Key(95, 3, 1f, 0f), new Key(96, 3, 1f, 0f), new Key(97, 3, 1f, 0f), new Key(98, 3, 1f, 0f), new Key(100, 3, 1f, 0f), new Key(102, 3, 1f, 0f), new Key(103, 3, 1f, 0f), new Key(104, 3, 1f, 0f) }),
+            new Anim(24, new[] { new Key(6, 3, 1f, 0f), new Key(81, 3, 1f, 0f), new Key(82, 3, 1f, 0f), new Key(83, 3, 1f, 0f), new Key(84, 3, 1f, 0f), new Key(85, 3, 1f, 0f), new Key(86, 3, 1f, 0f), new Key(88, 3, 1f, 0f), new Key(90, 3, 1f, 0f), new Key(91, 3, 1f, 0f), new Key(92, 3, 1f, 0f) }),
+            new Anim(24, new[] { new Key(5, 3, 1f, 0f), new Key(69, 3, 1f, 0f), new Key(70, 3, 1f, 0f), new Key(71, 3, 1f, 0f), new Key(72, 3, 1f, 0f), new Key(73, 3, 1f, 0f), new Key(74, 3, 1f, 0f), new Key(76, 3, 1f, 0f), new Key(78, 3, 1f, 0f), new Key(79, 3, 1f, 0f), new Key(80, 3, 1f, 0f) }),
+            new Anim(24, new[] { new Key(4, 3, 1f, 0f), new Key(57, 3, 1f, 0f), new Key(58, 3, 1f, 0f), new Key(59, 3, 1f, 0f), new Key(60, 3, 1f, 0f), new Key(61, 3, 1f, 0f), new Key(62, 3, 1f, 0f), new Key(64, 3, 1f, 0f), new Key(66, 3, 1f, 0f), new Key(67, 3, 1f, 0f), new Key(68, 3, 1f, 0f) }),
+            new Anim(24, new[] { new Key(3, 3, 1f, 0f), new Key(45, 3, 1f, 0f), new Key(46, 3, 1f, 0f), new Key(47, 3, 1f, 0f), new Key(48, 3, 1f, 0f), new Key(49, 3, 1f, 0f), new Key(50, 3, 1f, 0f), new Key(52, 3, 1f, 0f), new Key(54, 3, 1f, 0f), new Key(55, 3, 1f, 0f), new Key(56, 3, 1f, 0f) }),
+            new Anim(24, new[] { new Key(2, 3, 1f, 0f), new Key(33, 3, 1f, 0f), new Key(34, 3, 1f, 0f), new Key(35, 3, 1f, 0f), new Key(36, 3, 1f, 0f), new Key(37, 3, 1f, 0f), new Key(38, 3, 1f, 0f), new Key(40, 3, 1f, 0f), new Key(42, 3, 1f, 0f), new Key(43, 3, 1f, 0f), new Key(44, 3, 1f, 0f) }),
+            new Anim(24, new[] { new Key(1, 3, 1f, 0f), new Key(21, 3, 1f, 0f), new Key(22, 3, 1f, 0f), new Key(23, 3, 1f, 0f), new Key(24, 3, 1f, 0f), new Key(25, 3, 1f, 0f), new Key(26, 3, 1f, 0f), new Key(28, 3, 1f, 0f), new Key(30, 3, 1f, 0f), new Key(31, 3, 1f, 0f), new Key(32, 3, 1f, 0f) }),
+            new Anim(24, new[] { new Key(0, 3, 1f, 0f), new Key(9, 3, 1f, 0f), new Key(10, 3, 1f, 0f), new Key(11, 3, 1f, 0f), new Key(12, 3, 1f, 0f), new Key(13, 3, 1f, 0f), new Key(14, 3, 1f, 0f), new Key(16, 3, 1f, 0f), new Key(18, 3, 1f, 0f), new Key(19, 3, 1f, 0f), new Key(20, 3, 1f, 0f) }),
+        };
+
         /// <summary>国王坐像的 idle 动画（`team` = 0 BLUE / 1 RED）。</summary>
         public static Anim KingIdle(int team)
         {
@@ -265,6 +302,22 @@ namespace CR.View
         public static Anim OccupantIdle(int team)
         {
             return team == TeamRed ? OccupantRed : OccupantBlue;
+        }
+
+        /// <summary>
+        /// 公主塔乘员的**攻击档**（开火时播一遍，见 `ArenaView.TowerView.PlayAttack`）。
+        /// <para>`view` = 视角号（1..9）；越界或该视角无帧 ⇒ 返回 `FrameCount == 0` 的动画（调用方保持 idle）。</para>
+        /// <para>
+        /// 帧来源见生成器 `tower-anim-gen.py` 的 `ATTACK_BLUE` / `ATTACK_RED`：
+        /// `策划/单位动画分组表.md` 的 `princess_tower_attack1_N` / `princess_tower_red_attack1_N`，
+        /// 已剔除导出里夹带的另一队配色帧。
+        /// </para>
+        /// </summary>
+        public static Anim OccupantAttack(int team, int view)
+        {
+            var all = team == TeamRed ? OccupantAttackRed : OccupantAttackBlue;
+            var i = view - 1;
+            return i >= 0 && i < all.Length ? all[i] : default(Anim);
         }
     }
 }

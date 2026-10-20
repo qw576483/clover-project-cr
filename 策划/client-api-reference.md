@@ -57,7 +57,7 @@ Game.Net.SetupSession(account, null, Cfg.Account.line);   // ⚠️ 见下 (c)
 **(b) `CloverData.InitDataTable(CloverTable.Dir)` 这条链不成立，本项目不接。**
 `CloverTable.Dir` 在 `CloverTable.LoadAll(...)` 成功之前**恒为 null**（`Runtime/Data/CloverTable.cs:91`）；
 且 `IDataTable` 要求行类实现 `IDataRow`，而打表产物**不实现**（`CloverTable.cs:5-11` 自己写明了）。
-⇒ 客户端**不落地 tsv**，60 张卡的展示数据一律走服务端 `MsgDef.GetCardPool`。
+⇒ 客户端**不落地 tsv**，20 张卡的展示数据一律走服务端 `MsgDef.GetCardPool`。
 
 **(c) `SetupSession` 的第二个参数（恢复凭证）在**登录时**必须传 `null`。**
 登录回包里的 `session_key` 是**通道加密密钥**，不是恢复凭证；把它当恢复凭证交上去会让重连恢复会话

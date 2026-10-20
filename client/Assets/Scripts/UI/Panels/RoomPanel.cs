@@ -106,10 +106,25 @@ namespace CR.UI.Panels
         private RoomStateNotify _state;
         private bool _extraSeatWarned;   // 成员数超过座位数只告警一次
 
+        /// <summary>
+        /// 开打请求在途（从点击到服务端房间态 / 失败原因回来）。没有它时房主连点「开始对战」会发出
+        /// 多条 `MsgRoomStart`：服务端对第二条回「对局已开始 / 已不在房间」，面板会在**开打成功**的
+        /// 时候把一条红色失败原因显示出来。
+        /// </summary>
+        private bool _startRequested;
+
+        /// <summary>
+        /// 状态行当前是不是"请求在途"的临时提示（等待房间态 / 已请求准备 / 已请求开打 …）。
+        /// 服务端房间态一到就清掉 —— 否则它会一直停在"等待服务端房间状态…"，
+        /// 与已经显示出来的成员 / 准备态自相矛盾。
+        /// </summary>
+        private bool _statusTransient;
+
         private RectTransform _content;   // 内容框（所有元素的父节点，Build 里赋值）
         private Text _roomInfo;
         private Text _hostHint;
         private Text _status;
+        private Image _statusPlate;
         private readonly Image[] _seatBoxes = new Image[SeatCount];
         private readonly Text[] _seatNames = new Text[SeatCount];
         private readonly Text[] _seatStates = new Text[SeatCount];
@@ -128,7 +143,11 @@ namespace CR.UI.Panels
         public override void OnOpen(object param)
         {
             var args = param as PanelArgs;
-            _roomId = args != null ? args.RoomId : null;
+            // 房间号变了（换房后站点未变、`UIManager` 对已开面板重调 `OnOpen` 的那条路径）
+            // ⇒ 上一间房的成员 / 准备态一律作废，否则会把旧房的人画进新房。
+            var nextRoomId = args != null ? args.RoomId : null;
+            if (!string.Equals(_roomId, nextRoomId)) _state = null;
+            _roomId = nextRoomId;
             _selfPlayerId = args != null ? args.SelfPlayerId : null;
 
             if (args == null)
@@ -146,12 +165,14 @@ namespace CR.UI.Panels
 
             Subscribe();
             _extraSeatWarned = false;
+            _startRequested = false;
             RefreshDisplay();
-            SetStatus("等待服务端房间状态…", CrUiStyle.TextDim);
+            SetTransient("正在同步房间状态…", CrUiStyle.TextDim);
         }
 
         public override void OnClose()
         {
+            CrUiFx.PanelOut(transform);
             Unsubscribe();
         }
 
@@ -190,6 +211,7 @@ namespace CR.UI.Panels
             float bodyH = -(statusPlateY - statusPlateH) + GapL;
 
             var box = CrUiStyle.SettingsPopup("RoomBox", root, bodyH + CrUiStyle.PopupTitleH);
+            CrUiFx.PanelIn(box.rectTransform);
             var c = box.rectTransform.Find("RoomBoxBody") as RectTransform;
             if (c == null)
             {
@@ -205,15 +227,15 @@ namespace CR.UI.Panels
             _roomInfo = UIFactory.CreateLabel("RoomInfo", c, "正在获取房间信息…", CrUiStyle.FontSmall,
                 new Vector2(InsetX, yInfo), new Vector2(InnerW, InfoH), TextAnchor.MiddleLeft, CrUiStyle.TextOnLight);
 
-            UIFactory.CreateLabel("MembersLabel", c, $"成员（{SeatCount} 个座位 · 座位号即队伍号：0=蓝 1=红）",
+            UIFactory.CreateLabel("MembersLabel", c, $"成员（{SeatCount} 个座位）",
                 CrUiStyle.FontSmall, new Vector2(InsetX, yMemLabel), new Vector2(InnerW, MemLabelH),
                 TextAnchor.MiddleLeft, CrUiStyle.TextOnLight);
 
             BuildSeats(ySeat0);
 
             UIFactory.CreateLabel("Rules", c,
-                "房主才能开打与切 AI 补位；非房主需要先「准备」。人数不足时房主可开「AI 补位」，" +
-                "服务端在开打那一刻自动补一个 AI 座位。",
+                "房主才能开打与切换 AI 补位；非房主需要先准备。人数不足时开启 AI 补位，" +
+                "开打时会自动补一个 AI 座位。",
                 CrUiStyle.FontSmall, new Vector2(InsetX, yRules), new Vector2(InnerW, RulesH),
                 TextAnchor.UpperLeft, CrUiStyle.TextOnLightDim);
 
@@ -244,7 +266,7 @@ namespace CR.UI.Panels
             _hostHint = UIFactory.CreateLabel("HostHint", c, string.Empty, CrUiStyle.FontSmall,
                 new Vector2(InsetX + 16f, yHost), new Vector2(InnerW - 32f, HostH), TextAnchor.UpperLeft, CrUiStyle.TextDim);
 
-            CrUiStyle.Skin("StatusPlate", c, CrUiStyle.PopupFrameSlate, PlateCorner, Vector4.zero,
+            _statusPlate = CrUiStyle.Skin("StatusPlate", c, CrUiStyle.PopupFrameSlate, PlateCorner, Vector4.zero,
                 new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(InsetX, statusPlateY),
                 new Vector2(InnerW, statusPlateH), CrUiStyle.BandSlate, false);
             _status = UIFactory.CreateLabel("Status", c, string.Empty, CrUiStyle.FontSmall,
@@ -288,7 +310,7 @@ namespace CR.UI.Panels
 
             var next = !me.ready;
             Game.Logger?.Info(Tag, $"请求把准备态改为 {next}");
-            SetStatus(next ? "已请求准备…" : "已请求取消准备…", CrUiStyle.Accent);
+            SetTransient(next ? "已请求准备…" : "已请求取消准备…", CrUiStyle.Accent);
             Game.Event?.Emit(Events.Room.ReadyRequest, next);
         }
 
@@ -307,7 +329,7 @@ namespace CR.UI.Panels
 
             var next = !(_state != null && _state.ai_fill);
             Game.Logger?.Info(Tag, $"请求把 AI 补位改为 {next}");
-            SetStatus(next ? "已请求开启 AI 补位…" : "已请求关闭 AI 补位…", CrUiStyle.Accent);
+            SetTransient(next ? "已请求开启 AI 补位…" : "已请求关闭 AI 补位…", CrUiStyle.Accent);
             Game.Event?.Emit(Events.Room.SetAiRequest, next);
         }
 
@@ -318,16 +340,23 @@ namespace CR.UI.Panels
                 SetStatus(HostOnlyReason("开始对战"), CrUiStyle.ErrorText);
                 return;
             }
+            if (_startRequested)
+            {
+                SetStatus("开打请求已发出，等待服务端下发对局配置…", CrUiStyle.Accent);
+                return;
+            }
 
+            _startRequested = true;
+            RefreshDisplay();
             Game.Logger?.Info(Tag, "请求开打（房主）");
-            SetStatus("已请求开打，等服务端下发对局配置…", CrUiStyle.Accent);
+            SetTransient("已请求开打，等服务端下发对局配置…", CrUiStyle.Accent);
             Game.Event?.Emit(Events.Room.StartRequest);
         }
 
         private void OnLeaveClicked()
         {
             Game.Logger?.Info(Tag, "请求离开房间");
-            SetStatus("正在离开房间…", CrUiStyle.Accent);
+            SetTransient("正在离开房间…", CrUiStyle.Accent);
             Game.Event?.Emit(Events.Room.LeaveRequest);
         }
 
@@ -385,11 +414,21 @@ namespace CR.UI.Panels
             }
 
             RefreshDisplay();
+
+            // 房间态已到：把"请求在途 / 正在同步"这类临时提示收掉（它们的存在前提已经不成立）。
+            if (_statusTransient) SetStatus(string.Empty, CrUiStyle.TextDim);
         }
 
         private void OnFailed(string reason)
         {
-            SetStatus(string.IsNullOrEmpty(reason) ? "房间操作失败（服务端未给出原因）" : reason, CrUiStyle.ErrorText);
+            // 失败 = 这次开打请求已有结论（拒绝 / 超时）⇒ 放开闸，允许房主改条件后重试。
+            if (_startRequested)
+            {
+                _startRequested = false;
+                RefreshDisplay();
+            }
+            // 失败原因里可能夹着服务端英文原文 ⇒ 统一映射成玩家文案。
+            SetStatus(ServerText.ToPlayer(reason, Tag), CrUiStyle.ErrorText);
         }
 
         // ───────────────────────── 显示刷新 ─────────────────────────
@@ -447,7 +486,7 @@ namespace CR.UI.Panels
             // 置灰只走 Button.interactable（原版按钮图元的 disabled tint），⛔ 不改 Image.color
             // —— 那会把九宫格原版图元染成纯色。
             var canHost = host && !running;
-            CrUiStyle.SetButtonEnabled(_startButton, canHost);
+            CrUiStyle.SetButtonEnabled(_startButton, canHost && !_startRequested);
             CrUiStyle.SetButtonEnabled(_aiButton, canHost);
             // AI 补位按钮的**底图随状态换帧**（开 = 绿 610 / 关 = 红 477，与原版 24_设置的 ON/OFF 同一对帧）
             // —— ⛔ 不能只改文案（底图会恒为深蓝灰，与原版语言不符）。
@@ -467,7 +506,7 @@ namespace CR.UI.Panels
             {
                 if (string.IsNullOrEmpty(_selfPlayerId))
                 {
-                    _hostHint.text = "提示：拿不到你的角色 ID，房主按钮未按房主判定置灰；非房主操作会被服务端拒绝并显示原因。";
+                    _hostHint.text = "提示：暂时无法确认你的房主身份；非房主操作会被拒绝并显示原因。";
                     _hostHint.color = CrUiStyle.ErrorText;
                 }
                 else if (running)
@@ -545,9 +584,21 @@ namespace CR.UI.Panels
 
         private void SetStatus(string text, Color color)
         {
+            _statusTransient = false;
+            var has = !string.IsNullOrEmpty(text);
+            // 状态条与状态字同生同灭：没有消息时不留一个空灰框。
+            if (_statusPlate != null) _statusPlate.gameObject.SetActive(has);
             if (_status == null) return;
-            _status.text = TextFit.Clamp(_status, text);
+            _status.gameObject.SetActive(has);
+            _status.text = has ? TextFit.Clamp(_status, text) : string.Empty;
             _status.color = color;
+        }
+
+        /// <summary>写一条"请求在途"的临时提示：下一条房间态到达时自动清掉。</summary>
+        private void SetTransient(string text, Color color)
+        {
+            SetStatus(text, color);
+            _statusTransient = true;
         }
     }
 }

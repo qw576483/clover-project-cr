@@ -16,6 +16,12 @@
 取值规则（同 `UnitView`）：只取「多边形与图集矩形 1:1 贴图」的 shape（`0.9 ≤ upp_x/upp_y ≤ 1.1`），
 取中位；旋转过的形状（外接框随角度变）会把中位带偏 ⇒ 必须筛掉。
 
+**同一条 export 的各帧段共用一个系数**
+--------------------------------------------------------------------------
+一条 export 在客户端常被拆成几段播（例：火球落地爆 f412..f436 与 f426..f436 是同一条 export），
+⛔ 起始帧不同不代表尺寸不同 —— 系数按**该 export 的基准帧列**算一次，各段共用。
+`SEGMENTS` 的第 4 项 = 基准帧列（`None` = 用本段自己的帧列）。
+
 复跑
 ----
   C:\\Python312\\python.exe tools/probes/fx-scale-table.py
@@ -43,37 +49,45 @@ spec = importlib.util.spec_from_file_location('scp', os.path.join(HERE, 'sc-plac
 scp = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scp)
 
-# (用途目录, 起始帧, 帧数, 依据 export)。用途目录/起始帧/帧数 = `Core/ResPaths.cs` 的特效区段（逐字对齐）。
-SEGS = [
-    ('Hit', 295, 4, 'effect_Hit1'),
-    ('Blast', 418, 10, 'fireball_projectile1'),
-    ('Arrow', 437, 15, 'projectile_arrow_basic_enemy'),
-    ('Deploy', 119, 1, 'deploy_arrows_effect'),
-    ('Death/Blue', 52, 3, 'Death_blue（帧列 52 62 65）'),
-    ('Death/Purple', 52, 2, 'Death_purple（帧列 52 63）'),
-    ('Death/Ground', 67, 3, 'death_ground（帧列 67-69）'),
-    ('Spear', 363, 33, 'projectile_spear_360'),
-    ('Cannonball', 480, 2, 'projectile_cannonball_small/_large'),
-    ('Bowler', 356, 1, 'bowler_projectile'),
-    ('Axe', 469, 1, 'executioner_projectile'),
-    ('Catapult', 471, 9, 'catapult_projectile1'),
-    ('Bomb', 482, 1, 'projectile_bomb'),
-    ('IceWizard', 459, 9, 'ice_wizard_projectile'),
-    ('IceSpirit', 453, 6, 'projectile_icespirit'),
-    ('FireSpirit', 512, 24, 'projectile_firespirit'),
-    ('Dragon', 470, 1, 'dragon_projectile'),
-    ('Spell', 412, 25, 'fireball 落地爆炸段（帧列 412-436）'),
-    ('Spell', 498, 7, 'Arrow_enemy_ground_anim'),
-    ('Spell', 206, 6, 'rage_effect'),
-    ('Spell', 536, 60, 'projectile_rocket'),
-    ('Spell', 73, 7, 'freeze_effect'),
-    ('Spell', 172, 8, 'lightning / zap（同一段）'),
-    ('Spell', 263, 31, 'poison'),
-    ('Spell', 180, 8, 'log'),
-    ('SpellBarrel', 0, 12, 'spell_goblin_barrel（帧列 0 2-12）'),
-    ('SpellFlight', 396, 16, 'fireball_projectile1（帧列 396-411）'),
-    ('HitCloud', 22, 1, 'bowler_hit_cloud / catapult_hit_cloud（帧列 22）'),
-    ('IceWizHit', 123, 2, 'ice_wiz_hit（帧列 123-124）'),
+# (用途目录, 起始帧, 帧数, 基准帧列, 依据 export)。用途目录/起始帧/帧数 = 客户端实际播的那一段。
+# 基准帧列 = 该段所属 export 的权威帧列（同 export 的各段共用同一个系数）。
+SEGMENTS = [
+    ('Hit', 295, 4, None, 'effect_Hit1'),
+    ('Blast', 418, 10, None, 'fireball_projectile1'),
+    ('Arrow', 437, 15, None, 'projectile_arrow_basic_enemy'),
+    ('Deploy', 119, 1, None, 'deploy_arrows_effect'),
+    ('Death/Blue', 52, 3, None, 'Death_blue（帧列 52 62 65）'),
+    ('Death/Purple', 52, 2, None, 'Death_purple（帧列 52 63）'),
+    ('Death/Ground', 67, 3, None, 'death_ground（帧列 67-69）'),
+    ('Death/Particle', 50, 2, [50, 66], 'death_particle（帧列 50 66）'),
+    ('Spear', 363, 33, None, 'projectile_spear_360'),
+    ('Cannonball', 480, 2, None, 'projectile_cannonball_small/_large'),
+    ('Bowler', 356, 1, None, 'bowler_projectile'),
+    ('Axe', 469, 1, None, 'executioner_projectile'),
+    ('Catapult', 471, 9, None, 'catapult_projectile1'),
+    ('Bomb', 482, 1, None, 'projectile_bomb'),
+    ('IceWizard', 459, 9, None, 'ice_wizard_projectile'),
+    ('IceSpirit', 453, 6, None, 'projectile_icespirit'),
+    ('FireSpirit', 512, 24, None, 'projectile_firespirit'),
+    ('Dragon', 470, 1, None, 'dragon_projectile'),
+    # 火球弹体（`fireball_projectile1` 的弹体本体 = f396 出膛闪光 + f397-411 火舌拖尾）：
+    # 法术飞行段（f396-425）与法师弹体（f397-411）、`SpellFlight` 目录那份是**同一条 export** ⇒ 同系数。
+    ('Spell', 396, 30, list(range(396, 412)), 'fireball_projectile1（弹体本体 f396-411）'),
+    ('SpellFlight', 396, 16, list(range(396, 412)), 'fireball_projectile1（弹体本体 f396-411）'),
+    ('SpellFlight', 397, 15, list(range(396, 412)), 'fireball_projectile1（弹体本体 f396-411）'),
+    # 火球落地爆（`fireball` export 的 f412-436）：f412-425 实心火球闪 + f426-436 余烬火星。
+    ('Spell', 412, 25, None, 'fireball 落地爆炸段（帧列 412-436）'),
+    ('Spell', 426, 11, list(range(412, 437)), 'fireball 落地爆炸段（同一 export，f426 起算）'),
+    ('Spell', 498, 7, None, 'Arrow_enemy_ground_anim'),
+    ('Spell', 206, 6, None, 'rage_effect'),
+    ('Spell', 536, 60, None, 'projectile_rocket'),
+    ('Spell', 73, 7, None, 'freeze_effect'),
+    ('Spell', 172, 8, None, 'lightning / zap（同一段）'),
+    ('Spell', 263, 31, None, 'poison'),
+    ('Spell', 180, 8, None, 'log'),
+    ('SpellBarrel', 0, 12, None, 'spell_goblin_barrel（帧列 0 2-12）'),
+    ('HitCloud', 22, 1, None, 'bowler_hit_cloud / catapult_hit_cloud（帧列 22）'),
+    ('IceWizHit', 123, 2, None, 'ice_wiz_hit（帧列 123-124）'),
 ]
 
 # 帧列与 [first, first+count-1] 不一致的那几段：显式给帧号（出处 = ResPaths 的注释）
@@ -85,6 +99,13 @@ EXPLICIT_FRAMES = {
 
 def frames_of(use, first, count):
     return EXPLICIT_FRAMES.get((use, first)) or list(range(first, first + count))
+
+
+def basis_of(use, first, count, basis):
+    """该段算系数用的帧列：显式基准优先，否则用本段自己的帧列。"""
+    if basis:
+        return list(basis)
+    return frames_of(use, first, count)
 
 
 def shapes_in(res, frames):
@@ -107,9 +128,9 @@ def median(v):
     return v[len(v) // 2]
 
 
-def upp_for(res, use, first, count):
+def upp_for(res, frames):
     """返回 (upp, n_used, kind)。kind ∈ {strict, relaxed, geo, none}。"""
-    us = shapes_in(res, frames_of(use, first, count))
+    us = shapes_in(res, frames)
     strict = [ux for (ux, uy) in us if 0.9 <= ux / uy <= 1.1]
     if len(strict) >= 2 or (len(strict) == 1 and len(us) == 1):
         return median(strict), len(strict), 'strict'
@@ -128,11 +149,11 @@ def fmt(v):
 def main():
     res = scp.parse_sc(SC)
     rows = []
-    print('%-12s %-6s %-6s %-16s %-6s %-4s %-8s %-9s %s'
+    print('%-14s %-6s %-6s %-30s %-6s %-4s %-8s %-9s %s'
           % ('use', 'first', 'count', '依据 export', 'upp', 'n', 'kind', 'scale', '段内最大世界宽度(格)'))
-    for use, first, count, note in SEGS:
-        upp, n, kind = upp_for(res, use, first, count)
-        frames = frames_of(use, first, count)
+    for use, first, count, basis, note in SEGMENTS:
+        frames = basis_of(use, first, count, basis)
+        upp, n, kind = upp_for(res, frames)
         by = {s['idx']: s for s in res['shapes']}
         maxw = 0
         for i in frames:
@@ -140,23 +161,24 @@ def main():
             if s and s['ext']:
                 maxw = max(maxw, s['ext'][2] - s['ext'][0] + 1)
         if upp is None:
-            print('%-12s %-6d %-6d %-16s %-6s %-4s %-8s %-9s %s'
+            print('%-14s %-6d %-6d %-30s %-6s %-4s %-8s %-9s %s'
                   % (use, first, count, note, '-', 0, kind, '(保持 1.0)', '无可用 shape'))
-            rows.append((use, first, count, note, None, 0, kind, 1.0, maxw))
+            rows.append((use, first, count, note, None, 0, kind, 1.0, maxw, frames))
             continue
         scale = upp / 10.0
-        print('%-12s %-6d %-6d %-16s %-6.2f %-4d %-8s %-9s %.2f'
+        print('%-14s %-6d %-6d %-30s %-6.2f %-4d %-8s %-9s %.2f'
               % (use, first, count, note, upp, n, kind, fmt(scale), maxw / 1000.0))
-        rows.append((use, first, count, note, upp, n, kind, scale, maxw))
+        rows.append((use, first, count, note, upp, n, kind, scale, maxw, frames))
 
     # ---- TSV ----
     lines = ['use\tfirst\tcount\t依据_export\tupp(1图集px=.sc单位)\tn_used\t取值\t'
-             'scale_vs_100\t段内最大世界宽度(格)']
-    for (use, first, count, note, upp, n, kind, scale, maxw) in rows:
-        lines.append('%s\t%d\t%d\t%s\t%s\t%d\t%s\t%s\t%s'
+             'scale_vs_100\t段内最大世界宽度(格)\t基准帧列']
+    for (use, first, count, note, upp, n, kind, scale, maxw, frames) in rows:
+        basis_txt = ','.join(str(f) for f in frames)
+        lines.append('%s\t%d\t%d\t%s\t%s\t%d\t%s\t%s\t%s\t%s'
                      % (use, first, count, note,
                         ('%.2f' % upp) if upp else '-', n, kind, fmt(scale),
-                        ('%.2f' % (maxw / 1000.0)) if upp else '-'))
+                        ('%.2f' % (maxw / 1000.0)) if upp else '-', basis_txt))
     os.makedirs(os.path.dirname(OUT_TSV), exist_ok=True)
     with open(OUT_TSV, 'w', encoding='utf-8', newline='\n') as f:
         f.write('\n'.join(lines) + '\n')
@@ -164,31 +186,35 @@ def main():
 
     # ---- C# 表项（逐字由同一份计算生成）----
     grouped = []
-    for (use, first, count, note, upp, n, kind, scale, maxw) in rows:
-        if not grouped or grouped[-1][0] != use:
+    index = {}
+    for (use, first, count, note, upp, n, kind, scale, maxw, frames) in rows:
+        if use not in index:
+            index[use] = len(grouped)
             grouped.append([use, []])
-        grouped[-1][1].append((first, scale, note if upp else '无可用 shape', kind))
+        grouped[index[use]][1].append((first, count, scale, note if upp else '无可用 shape', kind))
     print('\n---- EffectsView 表项 ----')
-    print('        private static readonly Dictionary<string, Dictionary<int, float>> SegmentScale =')
-    print('            new Dictionary<string, Dictionary<int, float>>')
+    print('        private static readonly Dictionary<string, ScaleSegment[]> SegmentScale =')
+    print('            new Dictionary<string, ScaleSegment[]>')
     print('        {')
     for use, items in grouped:
         if len(items) == 1:
-            f0, s0, note, kind = items[0]
+            f0, c0, s0, note, kind = items[0]
             print('            // %s（upp 取值 %s）' % (note, kind))
-            print('            { "%s", Single(%d, %sf) },' % (use, f0, fmt(s0)))
+            print('            { "%s", new[] { Seg(%d, %d, %sf, "%s") } },'
+                  % (use, f0, c0, fmt(s0), note))
             continue
         print('            // %s：一个目录里并了多段（逐段 upp 不同）' % use)
-        print('            { "%s", new Dictionary<int, float>' % use)
+        print('            { "%s", new[]' % use)
         print('                {')
-        for f0, s0, note, kind in items:
-            print('                    { %d, %sf },   // %s（upp 取值 %s）' % (f0, fmt(s0), note, kind))
+        for f0, c0, s0, note, kind in items:
+            print('                    Seg(%d, %d, %sf, "%s"),   // %s（upp 取值 %s）'
+                  % (f0, c0, fmt(s0), note, note, kind))
         print('                } },')
     print('        };')
     print()
-    print('        private static Dictionary<int, float> Single(int first, float scale)')
+    print('        private static ScaleSegment Seg(int first, int count, float scale, string note)')
     print('        {')
-    print('            return new Dictionary<int, float> { { first, scale } };')
+    print('            return new ScaleSegment { First = first, Count = count, Scale = scale, Note = note };')
     print('        }')
     return 0
 

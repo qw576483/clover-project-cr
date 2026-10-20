@@ -101,6 +101,7 @@ namespace CR.Module.Room
         private Action _onStartRequest;
         private Action<bool> _onSetAiRequest;
         private Action<string> _onStationChanged;
+        private Action _onLogoutRequest;
 
         private MsgHandler _onRoomListPush;
         private MsgHandler _onRoomStatePush;
@@ -174,6 +175,7 @@ namespace CR.Module.Room
             _onStartRequest = OnStartRequest;
             _onSetAiRequest = OnSetAiRequest;
             _onStationChanged = OnStationChanged;
+            _onLogoutRequest = OnLogoutRequest;
 
             _onRoomListPush = OnRoomListPush;
             _onRoomStatePush = OnRoomStatePush;
@@ -189,6 +191,7 @@ namespace CR.Module.Room
             bus.On<bool>(Events.Room.SetAiRequest, _onSetAiRequest);
             // 站点变化：本类据此开关房间面板（`Room` 站点）/ 收尾本地房间态（`Battle`）。
             bus.On<string>(Events.Flow.StationChanged, _onStationChanged);
+            bus.On(Events.Flow.LogoutRequest, _onLogoutRequest);
 
             EnsurePushHandlers();
 
@@ -314,7 +317,7 @@ namespace CR.Module.Room
         {
             if (_busy)
             {
-                Game.Logger?.Warn(Tag, "已有一次房间操作在途，忽略重复的建房请求（按钮连点？）");
+                Fail("上一次房间操作还没结束，请稍候再建房");
                 return null;
             }
 
@@ -372,7 +375,7 @@ namespace CR.Module.Room
             }
             if (_busy)
             {
-                Game.Logger?.Warn(Tag, "已有一次房间操作在途，忽略重复的加入请求");
+                Fail("上一次房间操作还没结束，请稍候再加入房间");
                 return null;
             }
 
@@ -429,7 +432,7 @@ namespace CR.Module.Room
             }
             if (_busy)
             {
-                Game.Logger?.Warn(Tag, "已有一次房间操作在途，忽略重复的离开请求");
+                Fail("上一次房间操作还没结束，请稍候再退房");
                 return null;
             }
 
@@ -668,6 +671,21 @@ namespace CR.Module.Room
                 Game.Logger?.Warn(Tag, $"回到主菜单时仍持有房间 {_roomId}，兜底退房");
                 LeaveQuietly();
             }
+        }
+
+        /// <summary>
+        /// 退出登录：丢掉上一个账号的房间编号与房间态。服务端座位由 `AppFlow` 断开连接后回收。
+        /// 主菜单上正常不会有房间；这里是"被踢 / 异常路径"的兜底。
+        /// </summary>
+        private void OnLogoutRequest()
+        {
+            if (_roomId == null)
+            {
+                _rooms = Array.Empty<RoomInfo>();
+                return;
+            }
+            ClearLocalRoom("退出登录");
+            _rooms = Array.Empty<RoomInfo>();
         }
 
         /// <summary>打开房间面板并把缓存态补发给它（推送可能早于面板打开）。</summary>

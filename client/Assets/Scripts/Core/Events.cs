@@ -43,6 +43,16 @@ namespace CR
             public const string OpenSettingsRequest = "Flow.OpenSettingsRequest";
 
             /// <summary>
+            /// 请求退出登录。参数：无。
+            /// <para>
+            /// 发布方：`SettingsPanel`。处理方：`AppFlow`（清会话 + 回登录站点）、`Module/Deck` 与
+            /// `Module/Room`（丢掉上一个账号的缓存）。仅在主菜单可用 —— 对局 / 房间内的退出登录会
+            /// 留下未结束的对局，面板直接拒绝并提示先结束对局。
+            /// </para>
+            /// </summary>
+            public const string LogoutRequest = "Flow.LogoutRequest";
+
+            /// <summary>
             /// 请求退出游戏。参数：无。
             /// <para>
             /// <b>当前无发布方</b>：原版没有游戏内退出件（移动端，系统层退出），界面上的红色 X 是

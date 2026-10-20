@@ -188,6 +188,15 @@ SPRITES = {
         ("ui_out", 270, "MenuTopSlotBar"),
         ("ui_out", 208, "MenuTopSlotFill"),
         ("ui_out", 209, "MenuTopSlotCap"),
+        # -- Section-title ribbon (left tail / body / right tail).  Reference chain =
+        #    `ui.sc` export `profile_stats` (clip 4619): shapes 1446/1447/1448 ->
+        #    frames 372/373/374, placed at three consecutive x slots of every
+        #    "Stats Royale" / "Tournament Stats" band.  The frames are pure-black
+        #    alpha stencils (RGB 0,0,0) -- the atlas paints them through a colour
+        #    transform; the runtime colour comes from CrUiStyle.Ribbon.
+        ("ui_out", 372, "RibbonEndLeft"),
+        ("ui_out", 373, "RibbonBody"),
+        ("ui_out", 374, "RibbonEndRight"),
         #    `profile_strip` -> `profile_button`: `<shape 1652>` = frame 560 (edge piece,
         #    placed twice with sx +0.7998 / -0.8008 = mirrored pair) and `<shape 1653>` =
         #    frame 561 (the horizontal strip, stretched sx 8.5586).

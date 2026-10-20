@@ -137,10 +137,10 @@ TextureImporter:
       name: frame_180_0
       rect:
         serializedVersion: 2
-        x: 74
-        y: 91
-        width: 18
-        height: 20
+        x: 42
+        y: 86
+        width: 49
+        height: 36
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -159,10 +159,10 @@ TextureImporter:
       name: frame_180_1
       rect:
         serializedVersion: 2
-        x: 82
-        y: 110
-        width: 10
-        height: 13
+        x: 42
+        y: 86
+        width: 49
+        height: 36
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -181,10 +181,10 @@ TextureImporter:
       name: frame_180_2
       rect:
         serializedVersion: 2
-        x: 41
-        y: 85
-        width: 12
-        height: 13
+        x: 42
+        y: 86
+        width: 49
+        height: 36
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}

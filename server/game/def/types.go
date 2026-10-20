@@ -18,7 +18,11 @@ type EntitySnapshot struct {
 	ID       int32 `json:"id"`
 	Kind     int32 `json:"kind"` // 0=部队 1=建筑 2=塔
 	CardID   int32 `json:"card_id"`
-	Team     int32 `json:"team"`    // 0=BLUE 1=RED
+	// SpriteDir = 该实体**自身**的素材目录（`unit.tsv` 的 sprite_dir）。
+	// 为什么必须逐实体下发：召唤物（女巫→骷髅、墓碑→骷髅、飞桶→哥布林）的 card_id 是**父卡**，
+	// 客户端按 card_id 查卡池只能查到父卡的目录 ⇒ 骷髅会被画成女巫。缺省（旧服务端）时客户端回落 card_id。
+	SpriteDir string `json:"sprite_dir,omitempty"`
+	Team      int32  `json:"team"`    // 0=BLUE 1=RED
 	XMilli   int32 `json:"x_milli"` // 1/1000 格
 	YMilli   int32 `json:"y_milli"` // 1/1000 格
 	HP       int32 `json:"hp"`
@@ -127,6 +131,11 @@ type CardInfo struct {
 	Elixir int32  `json:"elixir"`
 	Arena  int32  `json:"arena"`
 	Icon   string `json:"icon"`
+
+	// SpriteDir 是这张卡战斗本体的**精灵目录名**（`card.tsv` 的 `sprite_dir` 列，
+	// 例 `chr_knight_out` / `building_basic_cannon_out`）。客户端按它加载单位 / 建筑的帧序列；
+	// 空串 = 该卡没有对应素材目录。
+	SpriteDir string `json:"sprite_dir"`
 
 	// ProjectileKey 是这张卡战斗本体的**攻击投射物实体 key**（战斗单位_cs 的
 	// `projectile_key` 列；出处 = 官方 cards_stats_*.json 的 `projectile` 字段）。

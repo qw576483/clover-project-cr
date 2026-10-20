@@ -21,7 +21,7 @@
 
 ```
 frame_NNN.png   ==   <dir>_sprite_NNN.png   ==   .sc 里第 NNN 条 `12` 记录（shape 记录序号，0 起）
-        12 记录数 == ShapeCount == _out 目录 PNG 数（本片实测 12/12 个 UI .sc 全部相等）
+        12 记录数 == ShapeCount == _out 目录 PNG 数（实测 12/12 个 UI .sc 全部相等）
 `0c` 记录（动画）= ClipID + FPS + 帧数 + **shapeID 列表**（存的 sid，不是序号）
 `Export` 表 = 显式 (名字, ClipID) 数组  ==>  名字 -> clipID -> shapeID 列表 -> 序号 -> frame_NNN
 ```
@@ -53,7 +53,7 @@ frame_NNN.png   ==   <dir>_sprite_NNN.png   ==   .sc 里第 NNN 条 `12` 记录�
 - **放置矩阵存在**：tag `08`（6×int32 矩阵）在 `ui` 里有 **36843 条**，`ui_battle_end` 2069 条 —— 这就是原版 UI 的坐标/缩放数据。
 - **但没有解出**：`0c` payload 里的 `cnt1` 条 `(u16,u16,u16)` 三元组与 `08` 记录的对应关系
   在本项目没有参考实现可依（`sc_decode.py` 也不读它：`Stream.read(5)` 后 `continue`）。
-  ⇒ 按「指不出出处就不许写」的规矩，本片**不给出 x/y/scale**，登记为**未解出**。
+  ⇒ 按「指不出出处就不许写」的规矩，**不给出 x/y/scale**，登记为**未解出**。
   若要解：需一个读 `08`+`0c` 三元组的参考实现（`mirsella/clash-royale` 的 SC2 渲染器是**现代格式**，不能直接套这一代）。
 
 ## 2. 每个 UI `.sc` 一节
@@ -61,68 +61,67 @@ frame_NNN.png   ==   <dir>_sprite_NNN.png   ==   .sc 里第 NNN 条 `12` 记录�
 
 - `ShapeCount` = **914** ｜ `12` 记录 = 914 ｜ export 名 = **1016** ｜ `0c` 动画 = **2086** ｜ 图集 = [(2812, 3038), (384, 384)]
 - tag 直方图：`{"00": 1, "01": 2, "08": 36843, "09": 3906, "0c": 2086, "12": 914, "17": 1, "19": 1494, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：5401 条
+- 未识别 tag（无用于本表、按 size 跳过）：5401 条
 ### 2.2 `ui_battle_end`（副本 `原版资源/sc/ui_battle_end_v215.sc`）
 
 - `ShapeCount` = **240** ｜ `12` 记录 = 240 ｜ export 名 = **20** ｜ `0c` 动画 = **96** ｜ 图集 = [(758, 1400), (256, 428)]
 - tag 直方图：`{"00": 1, "01": 1, "08": 2069, "09": 615, "0c": 96, "12": 240, "17": 1, "18": 1, "19": 40, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：656 条
+- 未识别 tag（无用于本表、按 size 跳过）：656 条
 ### 2.3 `ui_chest`（副本 `原版资源/sc/ui_chest_v215.sc`）
 
 - `ShapeCount` = **268** ｜ `12` 记录 = 268 ｜ export 名 = **70** ｜ `0c` 动画 = **271** ｜ 图集 = [(1980, 2556)]
 - tag 直方图：`{"00": 1, "01": 1, "08": 9790, "09": 2438, "0c": 271, "12": 268, "17": 1, "19": 48, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：2487 条
+- 未识别 tag（无用于本表、按 size 跳过）：2487 条
 ### 2.4 `ui_chest_3d`（副本 `原版资源/sc/ui_chest_3d_v215.sc`）
 
 - `ShapeCount` = **12** ｜ `12` 记录 = 12 ｜ export 名 = **31** ｜ `0c` 动画 = **48** ｜ 图集 = [(254, 432)]
 - tag 直方图：`{"00": 1, "01": 1, "08": 2035, "09": 2460, "0c": 48, "12": 12, "17": 1, "19": 2, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：2463 条
+- 未识别 tag（无用于本表、按 size 跳过）：2463 条
 ### 2.5 `ui_spells`（副本 `原版资源/sc/ui_spells_v215.sc`）
 
 - `ShapeCount` = **92** ｜ `12` 记录 = 92 ｜ export 名 = **95** ｜ `0c` 动画 = **95** ｜ 图集 = [(1596, 2790), (250, 504)]
 - tag 直方图：`{"00": 1, "01": 2, "08": 45, "09": 3, "0c": 95, "12": 92, "17": 1, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：4 条
+- 未识别 tag（无用于本表、按 size 跳过）：4 条
 ### 2.6 `ui_arena`（副本 `原版资源/sc/ui_arena_v215.sc`）
 
 - `ShapeCount` = **154** ｜ `12` 记录 = 154 ｜ export 名 = **46** ｜ `0c` 动画 = **170** ｜ 图集 = [(1792, 2976)]
 - tag 直方图：`{"00": 1, "01": 1, "08": 34795, "09": 1838, "0c": 170, "12": 154, "17": 1, "19": 1, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：1840 条
+- 未识别 tag（无用于本表、按 size 跳过）：1840 条
 ### 2.7 `loading`（副本 `原版资源/sc/loading_v215.sc`）
 
 - `ShapeCount` = **34** ｜ `12` 记录 = 34 ｜ export 名 = **13** ｜ `0c` 动画 = **24** ｜ 图集 = [(500, 764), (1152, 1880), (232, 244)]
 - tag 直方图：`{"00": 1, "01": 3, "07": 7, "08": 458, "09": 114, "0c": 24, "12": 34, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：121 条
+- 未识别 tag（无用于本表、按 size 跳过）：121 条
 ### 2.8 `debug`（副本 `原版资源/sc/debug_v215.sc`）
 
 - `ShapeCount` = **13** ｜ `12` 记录 = 13 ｜ export 名 = **9** ｜ `0c` 动画 = **19** ｜ 图集 = [(308, 511)]
 - tag 直方图：`{"00": 1, "01": 1, "07": 6, "08": 22, "09": 2, "0c": 19, "0f": 2, "12": 13, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：10 条
+- 未识别 tag（无用于本表、按 size 跳过）：10 条
 ### 2.9 `tutorial`（副本 `原版资源/sc/tutorial_v215.sc`）
 
 - `ShapeCount` = **21** ｜ `12` 记录 = 21 ｜ export 名 = **13** ｜ `0c` 动画 = **27** ｜ 图集 = [(502, 630), (158, 212)]
 - tag 直方图：`{"00": 1, "01": 2, "07": 1, "08": 402, "09": 191, "0c": 27, "0f": 1, "12": 21, "17": 1, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：194 条
+- 未识别 tag（无用于本表、按 size 跳过）：194 条
 ### 2.10 `arena_training`（副本 `原版资源/sc/arena_training_v215.sc`）
 
 - `ShapeCount` = **23** ｜ `12` 记录 = 23 ｜ export 名 = **23** ｜ `0c` 动画 = **23** ｜ 图集 = [(970, 1018), (850, 1178)]
 - tag 直方图：`{"00": 1, "01": 2, "08": 91, "09": 2, "0c": 23, "12": 23, "17": 1, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：3 条
+- 未识别 tag（无用于本表、按 size 跳过）：3 条
 ### 2.11 `spell_goblin_barrel`（副本 `原版资源/sc/spell_goblin_barrel_v215.sc`）
 
 - `ShapeCount` = **13** ｜ `12` 记录 = 13 ｜ export 名 = **3** ｜ `0c` 动画 = **4** ｜ 图集 = [(318, 504)]
 - tag 直方图：`{"00": 1, "01": 1, "08": 302, "0c": 4, "12": 13, "17": 1, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：1 条
+- 未识别 tag（无用于本表、按 size 跳过）：1 条
 ### 2.12 `effects`（副本 `原版资源/sc/effects_v215.sc`）
 
 - `ShapeCount` = **612** ｜ `12` 记录 = 612 ｜ export 名 = **413** ｜ `0c` 动画 = **541** ｜ 图集 = [(1280, 2026)]
 - tag 直方图：`{"00": 1, "01": 1, "07": 2, "08": 26830, "09": 5873, "0c": 541, "12": 612, "17": 1, "1a": 1}`
-- 未识别 tag（对本片无用、按 size 跳过）：5876 条
+- 未识别 tag（无用于本表、按 size 跳过）：5876 条
 
 ## 3. 全量总表（源 `.sc` ｜ export 名 ｜ clip id ｜ shapeID → frame_NNN ｜ 尺寸 ｜ 推断用途）
 
 > 「尺寸」= 该 export 引用的各个 `*_sprite_NNN.png` 的**非透明包围盒**（可空 ⇒ 该帧全透明或该序号没有 PNG）。
 > 「frame_NNN」= **12 记录序号**，即客户端 `frame_NNN.png` 的那个 NNN。
-> 全量数据（含每个 clip 的 fps/帧数/原始 sid 列表）另存 `.ai-tmp/test/w1_final.json`。
 
 ### 3.1 `ui`（1016 条 export）
 
@@ -1944,8 +1943,8 @@ frame_NNN.png   ==   <dir>_sprite_NNN.png   ==   .sc 里第 NNN 条 `12` 记录�
 |---|---|---|---|
 | 1 | `clash royale res/sc ui.sc ui_battle_end.sc`（EN） | GitHub 仓库树页（HTML embeddedData） | ✔ 定位到唯一有 `.sc` 的路径：`apk/1.0.0/…/Clash Royale.app/res/sc`（145 文件）；但**缺 `ui_battle_end.sc`** |
 | 2 | `clash royale 2.2.1 apk assets/sc ui ui_battle_end`（EN） | GitHub 仓库树页 | ✔ `apk/2.2.1/…/assets/sc/` 有**无扩展名的 `.sc` 明文**（QuickBMS 产物）；但版本对不上（ShapeCount/图集尺寸） |
-| 3 | `supercell sc file format animation block 0c 08 parser`（EN） | GitHub raw（参考实现）+ 本地工具 | ✔ `tools/probes/sc-anim-index.py` + `.ai-tmp/test/scdfull/sc_decode.py` 可直接解 `12`/`0c`；`0b` 无实现 ⇒ 坐标登记未解出 |
-| 4 | `clash royale 2.1.5 apk assets sc ui`（EN） | GitHub raw 单文件 | ✔ **命中**：2.1.5 的 `.sc` 与 `cr-assets-png/*_out` 指纹 100% 吻合 ⇒ 本片权威来源 |
+| 3 | `supercell sc file format animation block 0c 08 parser`（EN） | GitHub raw（参考实现）+ 本地工具 | ✔ `tools/probes/sc-anim-index.py` 可直接解 `12`/`0c`；`0b` 无实现 ⇒ 坐标登记未解出 |
+| 4 | `clash royale 2.1.5 apk assets sc ui`（EN） | GitHub raw 单文件 | ✔ **命中**：2.1.5 的 `.sc` 与 `cr-assets-png/*_out` 指纹 100% 吻合 ⇒ 权威来源 |
 | 5 | `皇室战争 sc 解包 UI 图集 命名 索引`（CN） | 中文站 / 搜索引擎 | ⚠️ 本机无 web 搜索工具（宿主只给了本地检索 + curl），中文轮无法执行 ⇒ **如实登记为「未执行」** |
 | 6 | `皇室战争 官方 FanKit UI 组件包`（CN/EN） | GitHub 仓库树页（`fan_kit/`、`cr-fankit-official`） | ✔ 存在 `fan_kit/ui/`： + `icons_stats_*.png`（13 个**语义命名**图标）；`ui/ui/chest-*.png`（9 种宝箱）、`ui/leagues/league-*.png`（9 个段位）—— 但**不含游戏内的 9-slice 面板/按钮** |
 | 7 | `clash royale sprite atlas plist json index ui`（EN） | GitHub 仓库树页（`ui/ui_trim*`、`ui/chests/`、`ui/arenas/`） | ⚠️ `ui/ui_trim_215/` = 2.1.5 `ui_out` 的**裁剪版**（仍只有 `ui_sprite_NNN` 编号，**没有语义名**）⇒ 无更优来源 |
@@ -1966,7 +1965,7 @@ frame_NNN.png   ==   <dir>_sprite_NNN.png   ==   .sc 里第 NNN 条 `12` 记录�
 | 格式 | 结果 |
 |---|---|
 | `.sc`（iOS ipa 内，`SC`+LZMA 壳） | ✔ 能解（v1.0.0）；**但版本对不上**，只作格式参照 |
-| `.sc`（Android，QuickBMS 解密后的裸文件，**无扩展名**） | ✔✔ **本片权威来源**（2.1.5 / 2.2.1） |
+| `.sc`（Android，QuickBMS 解密后的裸文件，**无扩展名**） | ✔✔ **权威来源**（2.1.5 / 2.2.1） |
 | `_tex.sc` / `*_tex.png` 图集 | ✔ 用作**版本指纹**（声明尺寸 vs PNG 尺寸） |
 | PNG dump（`*_out/*_sprite_NNN.png`） | ✔ 帧像素；**无任何语义**（这就是"猜"的根源） |
 | `.hash` | ✘ 只有哈希串 |
@@ -1980,4 +1979,4 @@ frame_NNN.png   ==   <dir>_sprite_NNN.png   ==   .sc 里第 NNN 条 `12` 记录�
 - **有，但只覆盖少数题材**：`fan_kit/ui/`（13 个统计图标 + crowns）、`ui/ui/chest-*.png`（9 宝箱）、
   `ui/leagues/league-*.png`（9 段位）、`ui/chests/icons|ui`。这些**语义命名**的图可以直接用起来，
   但它们**替代不了**面板 / 按钮 / 条 / 卡槽这些 9-slice 组件 —— 后者的权威身份只能从 `.sc` 得到。
-- 因此本片结论：**已穷尽，无更优来源（针对 9-slice UI 组件）**。
+- 因此结论：**已穷尽，无更优来源（针对 9-slice UI 组件）**。

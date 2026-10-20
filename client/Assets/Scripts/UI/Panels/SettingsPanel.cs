@@ -77,8 +77,17 @@ namespace CR.UI.Panels
         /// </summary>
         private const int Rows = 2;
 
-        /// <summary>弹窗高 = 标题带 + 上下留白 + 2 行（基线**高度不一致**，原因见 AM2-允许差异 D1）。</summary>
-        private const float BoxH = CrUiStyle.PopupTitleH + 2f * Pad + Rows * RowPitch;   // 58+60+272 = 390
+        /// <summary>退出登录 / 退出游戏两颗动作按钮的高（= 设置行控件高 65）。</summary>
+        private const float ActionBtnH = CrUiStyle.PopupControlH;
+
+        /// <summary>两颗动作按钮之间的缝。</summary>
+        private const float ActionGap = 16f;
+
+        /// <summary>第一颗动作按钮的顶边（音量行之后、再留 24）。</summary>
+        private const float ActionsY = -(CrUiStyle.PopupTitleH + Pad + Rows * RowPitch);   // -360
+
+        /// <summary>弹窗高 = 标题带 + 上下留白 + 2 个音量行 + 2 颗动作按钮（基线**高度不一致**，原因见 AM2-允许差异 D1）。</summary>
+        private const float BoxH = -(ActionsY - 2f * ActionBtnH - ActionGap) + Pad;   // 58+60+272+146 = 536
 
         /// <summary>设置面板是 Popup 层（架构契约 §4）。</summary>
         public override UILayer Layer => UILayer.Popup;
@@ -152,6 +161,8 @@ namespace CR.UI.Panels
         /// </summary>
         public override void OnClose()
         {
+            CrUiFx.PanelOut(transform);
+
             // ① 先摘订阅（原有职责，⛔ 不许因为加了 ② 而不做）。
             Unsubscribe();
 
@@ -159,6 +170,29 @@ namespace CR.UI.Panels
             var fsm = Game.Fsm;
             var station = fsm != null ? fsm.Current : null;
             if (station != Stations.Pause) return; // 从主菜单等别的站点进来的设置：关掉就是关掉，⛔ 不切站点
+
+            // 延后一帧再判：本面板也可能是被**另一个 Popup**（对局结算 `ResultPanel`）的互斥关掉的，
+            // 而那一刻结算面板还没挂进 `UIManager` 的已开表 —— 当场重开暂停菜单会把结算页顶掉
+            // （之后两者都在 Popup 层、遮罩互相压住，玩家看不到胜负）。跨帧后已开表是确定的。
+            var timer = Game.Timer;
+            if (timer == null)
+            {
+                ReopenPauseMenuIfStillNeeded();
+                return;
+            }
+            timer.After(0f, ReopenPauseMenuIfStillNeeded);
+        }
+
+        /// <summary>放回暂停菜单前的最终判据：站点仍是 `Pause`、且结算页不在屏上。</summary>
+        private void ReopenPauseMenuIfStillNeeded()
+        {
+            var fsm = Game.Fsm;
+            if (fsm == null || fsm.Current != Stations.Pause) return;
+            if (Game.UI != null && Game.UI.IsOpen<ResultPanel>())
+            {
+                Game.Logger?.Info(Tag, "设置面板关闭时结算页已在屏上 ⇒ 不重开暂停菜单（避免顶掉结算页）");
+                return;
+            }
 
             Game.Logger?.Info(Tag, "从暂停菜单进来的设置已关闭 ⇒ 请求重开暂停菜单（避免「站点 Pause 但无菜单」的中间态）");
             Game.Event?.Emit(Events.Flow.StationEnterRequest, Stations.Pause);
@@ -176,9 +210,10 @@ namespace CR.UI.Panels
             var c = box.rectTransform;
 
             // 标题：白字压在板岩灰蓝标题带上（基线 y=163..192 处 "Settings" 画的是**白字 + 黑描边**）。
-            UIFactory.CreateLabel("Title", c, "设 置", CrUiStyle.FontPopupTitle,
-                new Vector2(0f, 0f), new Vector2(CrUiStyle.PopupW, CrUiStyle.PopupTitleH),
-                TextAnchor.MiddleCenter, Color.white);
+            CrUiStyle.StyleTitle(CrUiStyle.Outlined("Title", c, "设 置", CrUiStyle.FontPopupTitle,
+                Color.white, CrUiStyle.OutlineDark,
+                new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero,
+                new Vector2(CrUiStyle.PopupW, CrUiStyle.PopupTitleH), TextAnchor.MiddleCenter));
 
             // 关闭 = 原版**右上角红色圆形 X**（基线：红块 x=431..460 / y=157..182 @499，压在弹窗右上角上）。
             // ⛔ 不用「金色宽条 + 关 闭」：原版没有那颗按钮。
@@ -188,14 +223,8 @@ namespace CR.UI.Panels
                 new Vector2(861f, -25f), new Vector2(65f, 65f), CrUiStyle.ButtonPressed, true);
             var closeBtn = close.gameObject.AddComponent<Button>();
             closeBtn.targetGraphic = close;
-            var closeColors = closeBtn.colors;
-            closeColors.normalColor = Color.white;
-            closeColors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
-            closeColors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
-            closeColors.selectedColor = Color.white;
-            closeColors.colorMultiplier = 1f;
-            closeColors.fadeDuration = CrUiStyle.ButtonFade;
-            closeBtn.colors = closeColors;
+            CrUiFx.ApplyButtonColors(closeBtn);
+            CrUiFx.ButtonFx(close);
             closeBtn.onClick.AddListener(() => { Game.UI.Close<SettingsPanel>(); });
 
             // 关闭按钮上的白色 X = 原版图元（`ui_out` 164，`ResPaths.IconQuitCross`，已落地）。
@@ -220,6 +249,53 @@ namespace CR.UI.Panels
             _sfxSlider = AddVolumeRow(c, "Sfx", "音效", RowY(1),
                 v => Game.Event?.Emit(Events.Settings.SfxVolumeRequest, v), out _sfxValue);
 
+            // ── 账号动作：退出登录 / 退出游戏 ──
+            // 原版设置界面没有这两件（移动端由系统层退出），这里是本项目在桌面端必需的入口：
+            // 没有它玩家只能在主菜单里点设置、却永远回不到登录页 / 退不出游戏。
+            var actionW = CrUiStyle.PopupW - 2f * CrUiStyle.PopupBorder - 2f * Pad;
+            var actionX = CrUiStyle.PopupBorder + Pad;
+            CrUiStyle.SlateButton("LogoutButton", c, "退出登录",
+                new Vector2(actionX, ActionsY), new Vector2(actionW, ActionBtnH), OnLogoutClicked, Color.white);
+            CrUiStyle.SlateButton("QuitButton", c, "退出游戏",
+                new Vector2(actionX, ActionsY - ActionBtnH - ActionGap),
+                new Vector2(actionW, ActionBtnH), OnQuitClicked, Color.white);
+
+            CrUiFx.PanelIn(c);
+        }
+
+        // ───────────────────────── 账号动作 ─────────────────────────
+
+        /// <summary>
+        /// 退出登录：只在主菜单可用（对局 / 房间内退出会留下未结束的对局与占座）。
+        /// 确认后关掉本面板并交给 `AppFlow`：清会话 → 断开重连 → 回登录站点。
+        /// </summary>
+        private void OnLogoutClicked()
+        {
+            var station = Game.Fsm?.Current;
+            if (station != Stations.MainMenu)
+            {
+                Game.Logger?.Warn(Tag, $"当前站点 '{station}' 不允许退出登录，已拒绝");
+                Game.UI?.Toast("请先结束对局并回到主菜单，再退出登录");
+                return;
+            }
+
+            Game.UI?.Confirm("退出登录", "退出后会回到登录界面，确定吗？", () =>
+            {
+                Game.Logger?.Info(Tag, "已确认退出登录");
+                Game.UI?.Close<SettingsPanel>();
+                Game.Event?.Emit(Events.Flow.LogoutRequest);
+            }, null, "退出登录", "取消");
+        }
+
+        /// <summary>退出游戏：桌面端的唯一退出入口（`AppFlow` 订阅 `Flow.QuitRequest` 执行退出）。</summary>
+        private void OnQuitClicked()
+        {
+            Game.UI?.Confirm("退出游戏", "确定要退出游戏吗？", () =>
+            {
+                Game.Logger?.Info(Tag, "已确认退出游戏");
+                Game.UI?.Close<SettingsPanel>();
+                Game.Event?.Emit(Events.Flow.QuitRequest);
+            }, null, "退 出", "取 消");
         }
 
         /// <summary>第 <paramref name="i"/> 行的标签行顶 y（负值向下；0 行从标题带下 + 留白开始）。</summary>
@@ -247,9 +323,10 @@ namespace CR.UI.Panels
                 new Vector2(SliderW, SliderH), 0f, 1f, 1f, onChanged, style);
             DressSlider(slider);
 
-            valueText = UIFactory.CreateLabel(name + "Value", parent, "100%", CrUiStyle.FontBody,
+            valueText = CrUiStyle.ValueText(name + "Value", parent, "100%", CrUiStyle.FontBody,
+                new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(Pad + SliderW + ValueGap, yCtrl), new Vector2(ValueW, CtrlH),
-                TextAnchor.MiddleRight, CrUiStyle.TextOnLight);
+                TextAnchor.MiddleRight);
             return slider;
         }
 
@@ -341,7 +418,9 @@ namespace CR.UI.Panels
             CrUiStyle.Dress(slider.GetComponent<Image>(), CrUiStyle.PopupFrameSlate, 10, Vector4.zero);
 
             var fill = slider.fillRect != null ? slider.fillRect.GetComponent<Image>() : null;
-            CrUiStyle.Dress(fill, CrUiStyle.ButtonGreen, 0, new Vector4(14f, 14f, 14f, 14f));
+            // 填充条用**原版蓝按钮件**（`ui_out` 166）而不是状态绿（610）：绿件是"开/关"状态按钮的语义色，
+            // 放进滑条会读成系统控件；蓝件与面板的蓝色描边同族。
+            CrUiStyle.Dress(fill, CrUiStyle.ButtonBlue, 0, new Vector4(14f, 14f, 14f, 14f));
 
             var handle = slider.handleRect != null ? slider.handleRect.GetComponent<Image>() : null;
             CrUiStyle.Dress(handle, CrUiStyle.PopupSkinLight, 10, Vector4.zero);

@@ -11,7 +11,7 @@ package def
 
 // C2S（客户端 → 服务端）消息号。
 //
-// 分段（见 tools/ai-skill/conventions.md）：玩家 1000101+ / 卡池卡组 1000201+ /
+// 分段：玩家 1000101+ / 卡池卡组 1000201+ /
 // 房间 1000301+ / 对局 1000401+ / 人机 1000501+。
 const (
 	// ---- 玩家 1000101+ ----
@@ -19,7 +19,7 @@ const (
 	MsgGetProfile  = 1000102 // C2S 拉个人档案
 
 	// ---- 卡池与卡组 1000201+ ----
-	MsgGetCardPool = 1000201 // C2S 拉 60 张卡池
+	MsgGetCardPool = 1000201 // C2S 拉 20 张卡池
 	MsgGetDeck     = 1000202 // C2S 拉我的卡组
 	MsgSaveDeck    = 1000203 // C2S 保存卡组（8 张）
 
@@ -93,7 +93,7 @@ type GetProfileReply struct {
 // GetCardPoolReq 拉卡池请求。
 type GetCardPoolReq struct{}
 
-// GetCardPoolReply 卡池回包（60 张）。
+// GetCardPoolReply 卡池回包（20 张）。
 type GetCardPoolReply struct {
 	Cards []CardInfo `json:"cards"`
 }

@@ -1013,10 +1013,11 @@ namespace CR.View
             // 传入 `this`：本控制器先于它订阅 `Battle.Started` 且整场常驻 ⇒ 音效侧的敌我判定读 `MyTeam`。
             _audio = BattleAudioView.Create(_content.transform, this);
 
-            _cam = Camera.main;
+            _cam = Game.Camera?.Main;
             if (_cam == null)
             {
                 // 场景里本来就有一台正交相机；真丢了就补一台，否则画面根本不渲染。
+                // 引擎的相机模块只驱动已存在的相机（`ICameraManager` 无"建场景相机"入口）⇒ 兜底留在项目侧。
                 var camGo = new GameObject("Battle Camera");
                 camGo.tag = "MainCamera";
                 _cam = camGo.AddComponent<Camera>();

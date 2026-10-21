@@ -2111,7 +2111,8 @@ namespace CR.UI
         public static Vector2 ScreenSizeOf(RectTransform rt)
         {
             if (rt == null) return Vector2.zero;
-            var cam = Camera.main;
+            // 世界点 → 屏幕点要的正是相机投影 ⇒ 走引擎给 UI 侧取世界相机的入口（主相机缺失时退到任一启用相机）。
+            var cam = UIFactory.UICamera();
             var w = rt.rect.width;
             var h = rt.rect.height;
             if (cam == null || w < 1f || h < 1f) return Vector2.zero;

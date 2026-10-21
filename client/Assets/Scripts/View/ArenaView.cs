@@ -1316,12 +1316,17 @@ namespace CR.View
         /// <b>为什么用投影矩阵而不是缩放内容根</b>：投影矩阵参与 `ScreenToWorldPoint` ⇒ 点击落点/落位指示仍然自洽；
         /// 若改缩放 `BattleContent`，则屏幕→世界不再反映这个非等比压缩，点哪丢哪会错位。
         /// <para>
-        /// <b>⛔ 不走 `Game.Camera`：理由是"**不需要**"</b> —— 本工程是 **2D 正交固定相机**：
+        /// <b>相机来源 = <c>Game.Camera.Main</c>，取景数学仍在项目侧</b> —— 本工程是 **2D 正交固定相机**：
         /// 竞技场 18×32 格、相机不跟随任何目标、无震屏、无边界约束，且投影是**非等比**的（上面的 `Matrix4x4.Ortho`）。
         /// 引擎 `ICameraManager`（`Runtime/Core/PresentationContracts.cs`）的能力面（Follow / Shake / SetBounds /
-        /// FOV / 视线）在这里一个都用不上；"非等比正交投影 + 相机平移"这条引擎没有（引擎缺口 E-7）
-        /// ⇒ 即便接上引擎相机，这两步仍只能自己写。因此直接摆 `Camera`
+        /// FOV / 视线）在这里一个都用不上，也没有"非等比正交投影 + 按底边锚定机位"的入口
+        /// ⇒ 相机只从引擎门面**取**，投影与机位由本方法按原版读数算
         /// （场景里已有一台正交相机，见 `Editor/SceneBuilder.cs` 的 `AddCamera`）。
+        /// </para>
+        /// <para>
+        /// <b>引擎件复用边界</b>：<c>CameraMath</c> 只提供 FOV 换算 / 跟随 / 屏幕↔世界纯函数，
+        /// <c>CameraBoundsKit</c> 是等距格空间的可见格夹制 —— 两者都不产出"非等比正交投影 + 按底边锚定机位"，
+        /// 故这里没有可转调的函数，取景数学留在本方法；正交尺寸的取值范围是项目取值（原版像素比 60:45）。
         /// </para>
         /// </remarks>
         public static void SetupCamera(Camera cam)
@@ -1381,7 +1386,7 @@ namespace CR.View
 
             if (_framedCam == null)
             {
-                _framedCam = Camera.main;
+                _framedCam = Game.Camera?.Main;
                 if (_framedCam == null) return;
             }
             var pw = _framedCam.pixelWidth;
@@ -3451,7 +3456,7 @@ namespace CR.View
                 _turret.localPosition = _recoilBase + offLocal;
                 if (_kingAnim != null) _kingAnim.ExtraOffset = offLocal;
                 var offWorld = parent != null ? parent.TransformVector(offLocal) : offLocal;
-                var cam = Camera.main;
+                var cam = Game.Camera?.Main;
                 var screen = cam != null
                     ? cam.WorldToScreenPoint(_turret.position + offWorld) - cam.WorldToScreenPoint(_turret.position)
                     : Vector3.zero;

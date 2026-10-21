@@ -46,6 +46,22 @@ namespace CR.UI
 
         private static bool _driverInstalled;
 
+        /// <summary>日志标签。</summary>
+        public const string LogTag = "CrUiFx";
+
+        /// <summary>
+        /// Toast 容器（引擎 Top 层下的 <c>Toasts</c> 节点）：由建层处经 <see cref="BindToastRoot"/> 注入一次，
+        /// <see cref="ToastMotionDriver"/> 按它的子节点跟踪新 Toast。未注入 ⇒ 位移不播（只报一次）。
+        /// </summary>
+        public static Transform ToastRoot { get; private set; }
+
+        /// <summary>绑定 Toast 容器（建层处调用；<c>null</c> 忽略，重复调用以最后一次为准）。</summary>
+        public static void BindToastRoot(Transform root)
+        {
+            if (root == null) return;
+            ToastRoot = root;
+        }
+
         /// <summary>装一次 Toast 动效驱动（幂等）。由面板建件处调用。</summary>
         public static void Install()
         {
@@ -169,9 +185,7 @@ namespace CR.UI
 
         internal static float EaseOut(float t)
         {
-            t = Mathf.Clamp01(t);
-            var inv = 1f - t;
-            return 1f - inv * inv * inv;
+            return UiTween.Ease01(Ease.OutCubic, t);
         }
     }
 
@@ -494,9 +508,14 @@ namespace CR.UI
         {
             if (_root == null)
             {
-                var go = GameObject.Find("Toasts");
-                if (go == null) return;
-                _root = go.transform;
+                // 容器只来自建层处的注入（引擎 UIManager 不把 Toast 容器暴露给业务，⛔ 不按名字查场景）。
+                _root = CrUiFx.ToastRoot;
+                if (_root == null)
+                {
+                    LogThrottle.WarnOnce(CrUiFx.LogTag, "toast.root.missing",
+                        "未注入 Toast 容器（CrUiFx.BindToastRoot 未被调用）⇒ Toast 上滑位移不播");
+                    return;
+                }
             }
 
             for (var i = 0; i < _root.childCount; i++)

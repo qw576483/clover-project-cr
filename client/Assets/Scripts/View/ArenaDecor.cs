@@ -247,7 +247,7 @@ namespace CR.View
             if (_vignette == null) return;
             if (_cam == null)
             {
-                _cam = Camera.main;
+                _cam = Game.Camera?.Main;
                 if (_cam == null) return;
             }
 
